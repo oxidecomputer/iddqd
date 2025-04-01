@@ -2,15 +2,13 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::{
-    borrow::Borrow,
-    collections::{hash_map, BTreeSet, HashMap},
-    fmt,
-    hash::Hash,
-};
+use std::{borrow::Borrow, collections::BTreeSet, fmt, hash::Hash};
 
 use derive_where::derive_where;
+use hashbrown::hash_table::{Entry, VacantEntry};
 use serde::{Deserialize, Serialize, Serializer};
+
+use crate::hash_table::MapHashTable;
 
 /// An append-only 1:1:1 (trijective) map for three keys and a value.
 ///
@@ -22,17 +20,248 @@ pub struct TriHashMap<T: TriHashMapEntry> {
     entries: Vec<T>,
     // Invariant: the values (usize) in these maps are valid indexes into
     // `entries`, and are a 1:1 mapping.
-    k1_to_entry: HashMap<T::K1, usize>,
-    k2_to_entry: HashMap<T::K2, usize>,
-    k3_to_entry: HashMap<T::K3, usize>,
+    k1_to_entry: MapHashTable,
+    k2_to_entry: MapHashTable,
+    k3_to_entry: MapHashTable,
+}
+
+pub trait TriHashMapEntry: Clone + fmt::Debug {
+    type K1<'a>: Eq + Hash + Clone + fmt::Debug
+    where
+        Self: 'a;
+    type K2<'a>: Eq + Hash + Clone + fmt::Debug
+    where
+        Self: 'a;
+    type K3<'a>: Eq + Hash + Clone + fmt::Debug
+    where
+        Self: 'a;
+
+    fn key1(&self) -> Self::K1<'_>;
+    fn key2(&self) -> Self::K2<'_>;
+    fn key3(&self) -> Self::K3<'_>;
+}
+
+impl<T: TriHashMapEntry> TriHashMap<T> {
+    pub fn new() -> Self {
+        Self {
+            entries: Vec::new(),
+            k1_to_entry: MapHashTable::new(),
+            k2_to_entry: MapHashTable::new(),
+            k3_to_entry: MapHashTable::new(),
+        }
+    }
+
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            entries: Vec::with_capacity(capacity),
+            k1_to_entry: MapHashTable::with_capacity(capacity),
+            k2_to_entry: MapHashTable::with_capacity(capacity),
+            k3_to_entry: MapHashTable::with_capacity(capacity),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.entries.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &T> {
+        self.entries.iter()
+    }
+
+    /// Checks general invariants of the map.
+    ///
+    /// The code below always upholds these invariants, but it's useful to have
+    /// an explicit check for tests.
+    #[cfg(test)]
+    fn validate(&self) -> anyhow::Result<()> {
+        use anyhow::Context;
+
+        // Check that all the maps are of the right size.
+        self.k1_to_entry
+            .validate(self.entries.len())
+            .context("k1_to_entry failed validation")?;
+        self.k2_to_entry
+            .validate(self.entries.len())
+            .context("k2_to_entry failed validation")?;
+        self.k3_to_entry
+            .validate(self.entries.len())
+            .context("k3_to_entry failed validation")?;
+
+        // Check that the indexes are all correct.
+        for (ix, entry) in self.entries.iter().enumerate() {
+            let key1 = entry.key1();
+            let key2 = entry.key2();
+            let key3 = entry.key3();
+
+            let ix1 = self
+                .find1_index(&key1)
+                .with_context(|| format!("entry at index {ix} ({entry:?}) has no key1 index"))?;
+            let ix2 = self
+                .find2_index(&key2)
+                .with_context(|| format!("entry at index {ix} ({entry:?}) has no key2 index"))?;
+            let ix3 = self
+                .find3_index(&key3)
+                .with_context(|| format!("entry at index {ix} ({entry:?}) has no key3 index"))?;
+
+            if ix1 != ix || ix2 != ix || ix3 != ix {
+                return Err(anyhow::anyhow!(
+                    "entry at index {} has mismatched indexes: key1: {}, key2: {}, key3: {}",
+                    ix,
+                    ix1,
+                    ix2,
+                    ix3
+                ));
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Inserts a value into the set, returning an error if any duplicates were
+    /// added.
+    pub fn insert_no_dups(&mut self, value: T) -> Result<(), DuplicateEntry<T>> {
+        let mut dups = BTreeSet::new();
+
+        // Check for duplicates *before* inserting the new entry, because we
+        // don't want to partially insert the new entry and then have to roll
+        // back.
+        let (e1, e2, e3) = {
+            let k1 = value.key1();
+            let k2 = value.key2();
+            let k3 = value.key3();
+
+            let e1 = detect_dup_or_insert(
+                self.k1_to_entry
+                    .entry(k1, |index| self.entries[index].key1()),
+                &mut dups,
+            );
+            eprint!("for k2: ");
+            let e2 = detect_dup_or_insert(
+                self.k2_to_entry
+                    .entry(k2, |index| self.entries[index].key2()),
+                &mut dups,
+            );
+            let e3 = detect_dup_or_insert(
+                self.k3_to_entry
+                    .entry(k3, |index| self.entries[index].key3()),
+                &mut dups,
+            );
+            (e1, e2, e3)
+        };
+
+        if !dups.is_empty() {
+            return Err(DuplicateEntry {
+                new: value,
+                dups: dups.iter().map(|ix| self.entries[*ix].clone()).collect(),
+            });
+        }
+
+        let next_index = self.entries.len();
+        // e1, e2 and e3 are all Some because if they were None, dups would be
+        // non-empty, and we'd have bailed out earlier.
+        e1.unwrap().insert(next_index);
+        e2.unwrap().insert(next_index);
+        e3.unwrap().insert(next_index);
+        self.entries.push(value);
+
+        Ok(())
+    }
+
+    pub fn get1<'a, Q>(&'a self, key1: &Q) -> Option<&'a T>
+    where
+        T::K1<'a>: Borrow<Q>,
+        T: 'a,
+        Q: Eq + Hash + ?Sized,
+    {
+        self.find1(key1)
+    }
+
+    pub fn get2<'a, Q>(&'a self, key2: &Q) -> Option<&'a T>
+    where
+        T::K2<'a>: Borrow<Q>,
+        T: 'a,
+        Q: Eq + Hash + ?Sized,
+    {
+        self.find2(key2)
+    }
+
+    pub fn get3<'a, Q>(&'a self, key3: &Q) -> Option<&'a T>
+    where
+        T::K3<'a>: Borrow<Q>,
+        T: 'a,
+        Q: Eq + Hash + ?Sized,
+    {
+        self.find3(key3)
+    }
+
+    fn find1<'a, Q>(&'a self, k: &Q) -> Option<&'a T>
+    where
+        T::K1<'a>: Borrow<Q>,
+        T: 'a,
+        Q: Eq + Hash + ?Sized,
+    {
+        self.find1_index(k).map(|ix| &self.entries[ix])
+    }
+
+    fn find1_index<'a, Q>(&'a self, k: &Q) -> Option<usize>
+    where
+        T::K1<'a>: Borrow<Q>,
+        T: 'a,
+        Q: Eq + Hash + ?Sized,
+    {
+        self.k1_to_entry
+            .find_index(&self.entries, k, |entry| entry.key1().borrow() == k)
+    }
+
+    fn find2<'a, Q>(&'a self, k: &Q) -> Option<&'a T>
+    where
+        T::K2<'a>: Borrow<Q>,
+        T: 'a,
+        Q: Eq + Hash + ?Sized,
+    {
+        self.find2_index(k).map(|ix| &self.entries[ix])
+    }
+
+    fn find2_index<'a, Q>(&'a self, k: &Q) -> Option<usize>
+    where
+        T::K2<'a>: Borrow<Q>,
+        T: 'a,
+        Q: Eq + Hash + ?Sized,
+    {
+        self.k2_to_entry
+            .find_index(&self.entries, k, |entry| entry.key2().borrow() == k)
+    }
+
+    fn find3<'a, Q>(&'a self, k: &Q) -> Option<&'a T>
+    where
+        T::K3<'a>: Borrow<Q>,
+        T: 'a,
+        Q: Eq + Hash + ?Sized,
+    {
+        self.find3_index(k).map(|ix| &self.entries[ix])
+    }
+
+    fn find3_index<'a, Q>(&'a self, k: &Q) -> Option<usize>
+    where
+        T::K3<'a>: Borrow<Q>,
+        T: 'a,
+        Q: Eq + Hash + ?Sized,
+    {
+        self.k3_to_entry
+            .find_index(&self.entries, k, |entry| entry.key3().borrow() == k)
+    }
 }
 
 impl<T: TriHashMapEntry + PartialEq> PartialEq for TriHashMap<T> {
     fn eq(&self, other: &Self) -> bool {
-        // Implementing PartialEq for TriMap is tricky because TriMap is not
-        // semantically like an IndexMap: two maps are equivalent even if their
-        // entries are in a different order. In other words, any permutation of
-        // entries is equivalent.
+        // Implementing PartialEq for TriHashMap is tricky because TriHashMap is
+        // not semantically like an IndexMap: two maps are equivalent even if
+        // their entries are in a different order. In other words, any
+        // permutation of entries is equivalent.
         //
         // We also can't sort the entries because they're not necessarily Ord.
         //
@@ -45,19 +274,19 @@ impl<T: TriHashMapEntry + PartialEq> PartialEq for TriHashMap<T> {
 
         // Walk over all the entries in the first map and check that they point
         // to the same entry in the second map.
-        for (ix, entry) in self.entries.iter().enumerate() {
+        for entry in &self.entries {
             let k1 = entry.key1();
             let k2 = entry.key2();
             let k3 = entry.key3();
 
             // Check that the indexes are the same in the other map.
-            let Some(other_ix1) = other.k1_to_entry.get(&k1).copied() else {
+            let Some(other_ix1) = other.find1_index(&k1) else {
                 return false;
             };
-            let Some(other_ix2) = other.k2_to_entry.get(&k2).copied() else {
+            let Some(other_ix2) = other.find2_index(&k2) else {
                 return false;
             };
-            let Some(other_ix3) = other.k3_to_entry.get(&k3).copied() else {
+            let Some(other_ix3) = other.find3_index(&k3) else {
                 return false;
             };
 
@@ -70,15 +299,10 @@ impl<T: TriHashMapEntry + PartialEq> PartialEq for TriHashMap<T> {
             // Check that the other map's entry is the same as this map's
             // entry. (This is what we use the `PartialEq` bound on T for.)
             //
-            // Because we've checked that other_ix1, other_ix2 and other_ix3
-            // are Some(ix), we know that ix is valid and points to the
-            // expected entry.
+            // Because we've checked that other_ix1, other_ix2 and other_ix3 are
+            // Some, we know that it is valid and points to the expected entry.
             let other_entry = &other.entries[other_ix1];
             if entry != other_entry {
-                eprintln!(
-                    "mismatch: ix: {}, entry: {:?}, other_entry: {:?}",
-                    ix, entry, other_entry
-                );
                 return false;
             }
         }
@@ -129,157 +353,13 @@ where
     }
 }
 
-pub trait TriHashMapEntry: Clone + fmt::Debug {
-    type K1: Eq + Hash + Clone + fmt::Debug;
-    type K2: Eq + Hash + Clone + fmt::Debug;
-    type K3: Eq + Hash + Clone + fmt::Debug;
-
-    fn key1(&self) -> Self::K1;
-    fn key2(&self) -> Self::K2;
-    fn key3(&self) -> Self::K3;
-}
-
-impl<T: TriHashMapEntry> TriHashMap<T> {
-    pub fn new() -> Self {
-        Self {
-            entries: Vec::new(),
-            k1_to_entry: HashMap::new(),
-            k2_to_entry: HashMap::new(),
-            k3_to_entry: HashMap::new(),
-        }
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.entries.is_empty()
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = &T> {
-        self.entries.iter()
-    }
-
-    /// Checks general invariants of the map.
-    ///
-    /// The code below always upholds these invariants, but it's useful to have
-    /// an explicit check for tests.
-    #[cfg(test)]
-    fn validate(&self) -> anyhow::Result<()> {
-        use anyhow::{ensure, Context};
-
-        // Check that all the maps are of the right size.
-        ensure!(
-            self.entries.len() == self.k1_to_entry.len(),
-            "key1 index has {} entries, but there are {} entries",
-            self.k1_to_entry.len(),
-            self.entries.len()
-        );
-        ensure!(
-            self.entries.len() == self.k2_to_entry.len(),
-            "key2 index has {} entries, but there are {} entries",
-            self.k2_to_entry.len(),
-            self.entries.len()
-        );
-        ensure!(
-            self.entries.len() == self.k3_to_entry.len(),
-            "key3 index has {} entries, but there are {} entries",
-            self.k3_to_entry.len(),
-            self.entries.len()
-        );
-
-        // Check that the indexes are all correct.
-        for (ix, entry) in self.entries.iter().enumerate() {
-            let key1 = entry.key1();
-            let key2 = entry.key2();
-            let key3 = entry.key3();
-
-            let ix1 = self
-                .k1_to_entry
-                .get(&key1)
-                .context(format!("entry at index {ix} ({entry:?}) has no key1 index"))?;
-            let ix2 = self
-                .k2_to_entry
-                .get(&key2)
-                .context(format!("entry at index {ix} ({entry:?}) has no key2 index"))?;
-            let ix3 = self
-                .k3_to_entry
-                .get(&key3)
-                .context(format!("entry at index {ix} ({entry:?}) has no key3 index"))?;
-
-            if *ix1 != ix || *ix2 != ix || *ix3 != ix {
-                return Err(anyhow::anyhow!(
-                    "entry at index {} has mismatched indexes: key1: {}, key2: {}, key3: {}",
-                    ix,
-                    ix1,
-                    ix2,
-                    ix3
-                ));
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Inserts a value into the set, returning an error if any duplicates were
-    /// added.
-    pub(crate) fn insert_no_dups(&mut self, value: T) -> Result<(), DuplicateEntry<T>> {
-        let mut dups = BTreeSet::new();
-
-        // Check for duplicates *before* inserting the new entry, because we
-        // don't want to partially insert the new entry and then have to roll
-        // back.
-        let e1 = detect_dup_or_insert(self.k1_to_entry.entry(value.key1()), &mut dups);
-        let e2 = detect_dup_or_insert(self.k2_to_entry.entry(value.key2()), &mut dups);
-        let e3 = detect_dup_or_insert(self.k3_to_entry.entry(value.key3()), &mut dups);
-
-        if !dups.is_empty() {
-            return Err(DuplicateEntry {
-                new: value,
-                dups: dups.iter().map(|ix| self.entries[*ix].clone()).collect(),
-            });
-        }
-
-        let next_index = self.entries.len();
-        self.entries.push(value);
-        // e1, e2 and e3 are all Some because if they were None, dups would be
-        // non-empty, and we'd have bailed out earlier.
-        e1.unwrap().insert(next_index);
-        e2.unwrap().insert(next_index);
-        e3.unwrap().insert(next_index);
-
-        Ok(())
-    }
-
-    pub fn get1<Q>(&self, key1: &Q) -> Option<&T>
-    where
-        T::K1: Borrow<Q>,
-        Q: Eq + Hash + ?Sized,
-    {
-        self.k1_to_entry.get(key1).map(|ix| &self.entries[*ix])
-    }
-
-    pub fn get2<Q>(&self, key2: &Q) -> Option<&T>
-    where
-        T::K2: Borrow<Q>,
-        Q: Eq + Hash + ?Sized,
-    {
-        self.k2_to_entry.get(key2).map(|ix| &self.entries[*ix])
-    }
-
-    pub fn get3<Q>(&self, key3: &Q) -> Option<&T>
-    where
-        T::K3: Borrow<Q>,
-        Q: Eq + Hash + ?Sized,
-    {
-        self.k3_to_entry.get(key3).map(|ix| &self.entries[*ix])
-    }
-}
-
-fn detect_dup_or_insert<'a, K>(
-    entry: hash_map::Entry<'a, K, usize>,
+fn detect_dup_or_insert<'a>(
+    entry: Entry<'a, usize>,
     dups: &mut BTreeSet<usize>,
-) -> Option<hash_map::VacantEntry<'a, K, usize>> {
+) -> Option<VacantEntry<'a, usize>> {
     match entry {
-        hash_map::Entry::Vacant(slot) => Some(slot),
-        hash_map::Entry::Occupied(slot) => {
+        Entry::Vacant(slot) => Some(slot),
+        Entry::Occupied(slot) => {
             dups.insert(*slot.get());
             None
         }
@@ -325,24 +405,24 @@ mod tests {
         //
         // We use u8 since there can only be 256 values, increasing the
         // likelihood of collisions in the proptest below.
-        type K1 = u8;
+        type K1<'a> = u8;
         // char is chosen because the Arbitrary impl for it is biased towards
         // ASCII, increasing the likelihood of collisions.
-        type K2 = char;
-        // String is a generally open-ended type that probably won't have many
+        type K2<'a> = char;
+        // &str is a generally open-ended type that probably won't have many
         // collisions.
-        type K3 = String;
+        type K3<'a> = &'a str;
 
-        fn key1(&self) -> Self::K1 {
+        fn key1(&self) -> Self::K1<'_> {
             self.key1
         }
 
-        fn key2(&self) -> Self::K2 {
+        fn key2(&self) -> Self::K2<'_> {
             self.key2
         }
 
-        fn key3(&self) -> Self::K3 {
-            self.key3.clone()
+        fn key3(&self) -> Self::K3<'_> {
+            self.key3.as_str()
         }
     }
 
@@ -468,19 +548,7 @@ mod tests {
         let deserialized: TriHashMap<TestEntry> = serde_json::from_str(&serialized).unwrap();
 
         assert_eq!(map.entries, deserialized.entries, "entries match");
-        // All of the indexes should be the same too.
-        assert_eq!(
-            map.k1_to_entry, deserialized.k1_to_entry,
-            "k1 indexes match"
-        );
-        assert_eq!(
-            map.k2_to_entry, deserialized.k2_to_entry,
-            "k2 indexes match"
-        );
-        assert_eq!(
-            map.k3_to_entry, deserialized.k3_to_entry,
-            "k3 indexes match"
-        );
+        deserialized.validate().expect("deserialized map is valid");
 
         // Try deserializing the full list of values directly, and see that the
         // error reported is the same as first_error.
@@ -544,7 +612,7 @@ mod tests {
                     assert_eq!(map_res, naive_res);
                 }
                 Operation::Get3(key3) => {
-                    let map_res = map.get3(&key3);
+                    let map_res = map.get3(key3.as_str());
                     let naive_res = naive_map.entries.iter().find(|e| e.key3 == key3);
 
                     assert_eq!(map_res, naive_res);
