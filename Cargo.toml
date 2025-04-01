@@ -1,0 +1,16 @@
+[package]
+name = "id-map"
+version = "0.1.0"
+edition = "2021"
+license = "MPL-2.0"
+
+[dependencies]
+daft = { version = "0.1.2", features = ["derive"] }
+derive-where = "1.2.7"
+schemars = "0.8.22"
+serde = "1.0.219"
+
+[dev-dependencies]
+proptest = "1.6.0"
+serde_json = "1.0.140"
+test-strategy = "0.4.1"
