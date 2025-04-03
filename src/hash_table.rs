@@ -4,12 +4,8 @@
 
 //! A wrapper around a hash table with some random state.
 
-use std::hash::BuildHasher;
-use std::hash::Hash;
-use std::hash::RandomState;
-
-use hashbrown::hash_table::Entry;
-use hashbrown::HashTable;
+use hashbrown::{hash_table::Entry, HashTable};
+use std::hash::{BuildHasher, Hash, RandomState};
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct MapHashTable {
@@ -71,12 +67,14 @@ impl MapHashTable {
         F: FnMut(&'a T) -> bool,
     {
         let hash = self.state.hash_one(&key);
-        self.entries
-            .find(hash, |index| eq(&entries[*index]))
-            .copied()
+        self.entries.find(hash, |index| eq(&entries[*index])).copied()
     }
 
-    pub(crate) fn entry<K: Hash + Eq, F>(&mut self, key: K, lookup: F) -> Entry<'_, usize>
+    pub(crate) fn entry<'a, K: Hash + Eq, F>(
+        &'a mut self,
+        key: K,
+        lookup: F,
+    ) -> Entry<'a, usize>
     where
         F: Fn(usize) -> K,
     {

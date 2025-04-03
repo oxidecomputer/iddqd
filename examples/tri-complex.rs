@@ -4,9 +4,8 @@
 
 //! An example demonstrating `TriHashMap` use with complex borrowed keys.
 
-use std::path::{Path, PathBuf};
-
 use id_map::{TriHashMap, TriHashMapEntry};
+use std::path::{Path, PathBuf};
 
 /// These are the entries we'll store in the `TriHashMap`.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -39,17 +38,11 @@ impl TriHashMapEntry for MyStruct {
     type K3<'a> = &'a str;
 
     fn key1(&self) -> Self::K1<'_> {
-        MyKey1 {
-            b: self.b,
-            c: &self.c,
-        }
+        MyKey1 { b: self.b, c: &self.c }
     }
 
     fn key2(&self) -> Self::K2<'_> {
-        MyKey2 {
-            c: &self.c,
-            d: &self.d,
-        }
+        MyKey2 { c: &self.c, d: &self.d }
     }
 
     fn key3(&self) -> Self::K3<'_> {

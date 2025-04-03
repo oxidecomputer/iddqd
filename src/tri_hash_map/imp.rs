@@ -2,13 +2,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::{borrow::Borrow, collections::BTreeSet, fmt, hash::Hash};
-
+use crate::hash_table::MapHashTable;
 use derive_where::derive_where;
 use hashbrown::hash_table::{Entry, VacantEntry};
 use serde::{Deserialize, Serialize, Serializer};
-
-use crate::hash_table::MapHashTable;
+use std::{borrow::Borrow, collections::BTreeSet, fmt, hash::Hash};
 
 /// An append-only 1:1:1 (trijective) map for three keys and a value.
 ///
@@ -97,15 +95,15 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
             let key2 = entry.key2();
             let key3 = entry.key3();
 
-            let ix1 = self
-                .find1_index(&key1)
-                .with_context(|| format!("entry at index {ix} ({entry:?}) has no key1 index"))?;
-            let ix2 = self
-                .find2_index(&key2)
-                .with_context(|| format!("entry at index {ix} ({entry:?}) has no key2 index"))?;
-            let ix3 = self
-                .find3_index(&key3)
-                .with_context(|| format!("entry at index {ix} ({entry:?}) has no key3 index"))?;
+            let ix1 = self.find1_index(&key1).with_context(|| {
+                format!("entry at index {ix} ({entry:?}) has no key1 index")
+            })?;
+            let ix2 = self.find2_index(&key2).with_context(|| {
+                format!("entry at index {ix} ({entry:?}) has no key2 index")
+            })?;
+            let ix3 = self.find3_index(&key3).with_context(|| {
+                format!("entry at index {ix} ({entry:?}) has no key3 index")
+            })?;
 
             if ix1 != ix || ix2 != ix || ix3 != ix {
                 return Err(anyhow::anyhow!(
@@ -123,7 +121,10 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
 
     /// Inserts a value into the set, returning an error if any duplicates were
     /// added.
-    pub fn insert_no_dups(&mut self, value: T) -> Result<(), DuplicateEntry<T>> {
+    pub fn insert_no_dups(
+        &mut self,
+        value: T,
+    ) -> Result<(), DuplicateEntry<T>> {
         let mut dups = BTreeSet::new();
 
         // Check for duplicates *before* inserting the new entry, because we
@@ -135,19 +136,16 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
             let k3 = value.key3();
 
             let e1 = detect_dup_or_insert(
-                self.k1_to_entry
-                    .entry(k1, |index| self.entries[index].key1()),
+                self.k1_to_entry.entry(k1, |index| self.entries[index].key1()),
                 &mut dups,
             );
             eprint!("for k2: ");
             let e2 = detect_dup_or_insert(
-                self.k2_to_entry
-                    .entry(k2, |index| self.entries[index].key2()),
+                self.k2_to_entry.entry(k2, |index| self.entries[index].key2()),
                 &mut dups,
             );
             let e3 = detect_dup_or_insert(
-                self.k3_to_entry
-                    .entry(k3, |index| self.entries[index].key3()),
+                self.k3_to_entry.entry(k3, |index| self.entries[index].key3()),
                 &mut dups,
             );
             (e1, e2, e3)
@@ -324,7 +322,10 @@ impl<T: TriHashMapEntry> Serialize for TriHashMap<T>
 where
     T: Serialize,
 {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+    fn serialize<S: Serializer>(
+        &self,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
         // Serialize just the entries -- don't serialize the indexes. We'll
         // rebuild the indexes on deserialization.
         self.entries.serialize(serializer)
@@ -337,7 +338,9 @@ impl<'de, T: TriHashMapEntry> Deserialize<'de> for TriHashMap<T>
 where
     T: Deserialize<'de>,
 {
-    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+    fn deserialize<D: serde::Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Self, D::Error> {
         // First, deserialize the entries.
         let entries = Vec::<T>::deserialize(deserializer)?;
 
@@ -345,8 +348,7 @@ where
         // This will catch issues with duplicates.
         let mut map = TriHashMap::new();
         for entry in entries {
-            map.insert_no_dups(entry)
-                .map_err(serde::de::Error::custom)?;
+            map.insert_no_dups(entry).map_err(serde::de::Error::custom)?;
         }
 
         Ok(map)
@@ -391,7 +393,9 @@ mod tests {
     use proptest::prelude::*;
     use test_strategy::{proptest, Arbitrary};
 
-    #[derive(Clone, Debug, Eq, PartialEq, Arbitrary, Serialize, Deserialize)]
+    #[derive(
+        Clone, Debug, Eq, PartialEq, Arbitrary, Serialize, Deserialize,
+    )]
     struct TestEntry {
         key1: u8,
         key2: char,
@@ -494,9 +498,7 @@ mod tests {
 
     impl NaiveTriMap {
         fn new() -> Self {
-            Self {
-                entries: Vec::new(),
-            }
+            Self { entries: Vec::new() }
         }
 
         fn insert_entry_no_dups(
@@ -506,7 +508,11 @@ mod tests {
             let dups = self
                 .entries
                 .iter()
-                .filter(|e| e.key1 == entry.key1 || e.key2 == entry.key2 || e.key3 == entry.key3)
+                .filter(|e| {
+                    e.key1 == entry.key1
+                        || e.key2 == entry.key2
+                        || e.key3 == entry.key3
+                })
                 .cloned()
                 .collect::<Vec<_>>();
 
@@ -545,7 +551,8 @@ mod tests {
         }
 
         let serialized = serde_json::to_string(&map).unwrap();
-        let deserialized: TriHashMap<TestEntry> = serde_json::from_str(&serialized).unwrap();
+        let deserialized: TriHashMap<TestEntry> =
+            serde_json::from_str(&serialized).unwrap();
 
         assert_eq!(map.entries, deserialized.entries, "entries match");
         deserialized.validate().expect("deserialized map is valid");
@@ -556,7 +563,8 @@ mod tests {
         // Here we rely on the fact that a TriMap is serialized as just a
         // vector.
         let serialized = serde_json::to_string(&values).unwrap();
-        let res: Result<TriHashMap<TestEntry>, _> = serde_json::from_str(&serialized);
+        let res: Result<TriHashMap<TestEntry>, _> =
+            serde_json::from_str(&serialized);
         match (first_error, res) {
             (None, Ok(_)) => {} // No error, should be fine
             (Some(first_error), Ok(_)) => {
@@ -578,7 +586,8 @@ mod tests {
 
     #[proptest(cases = 16)]
     fn proptest_ops(
-        #[strategy(prop::collection::vec(any::<Operation>(), 0..1024))] ops: Vec<Operation>,
+        #[strategy(prop::collection::vec(any::<Operation>(), 0..1024))]
+        ops: Vec<Operation>,
     ) {
         let mut map = TriHashMap::<TestEntry>::new();
         let mut naive_map = NaiveTriMap::new();
@@ -588,7 +597,8 @@ mod tests {
             match op {
                 Operation::Insert(entry) => {
                     let map_res = map.insert_no_dups(entry.clone());
-                    let naive_res = naive_map.insert_entry_no_dups(entry.clone());
+                    let naive_res =
+                        naive_map.insert_entry_no_dups(entry.clone());
 
                     assert_eq!(map_res.is_ok(), naive_res.is_ok());
                     if let Err(map_err) = map_res {
@@ -601,19 +611,22 @@ mod tests {
                 }
                 Operation::Get1(key1) => {
                     let map_res = map.get1(&key1);
-                    let naive_res = naive_map.entries.iter().find(|e| e.key1 == key1);
+                    let naive_res =
+                        naive_map.entries.iter().find(|e| e.key1 == key1);
 
                     assert_eq!(map_res, naive_res);
                 }
                 Operation::Get2(key2) => {
                     let map_res = map.get2(&key2);
-                    let naive_res = naive_map.entries.iter().find(|e| e.key2 == key2);
+                    let naive_res =
+                        naive_map.entries.iter().find(|e| e.key2 == key2);
 
                     assert_eq!(map_res, naive_res);
                 }
                 Operation::Get3(key3) => {
                     let map_res = map.get3(key3.as_str());
-                    let naive_res = naive_map.entries.iter().find(|e| e.key3 == key3);
+                    let naive_res =
+                        naive_map.entries.iter().find(|e| e.key3 == key3);
 
                     assert_eq!(map_res, naive_res);
                 }
@@ -646,33 +659,35 @@ mod tests {
     fn test_entry_permutation_strategy(
         size: impl Into<SizeRange>,
     ) -> impl Strategy<Value = (Vec<TestEntry>, Vec<TestEntry>)> {
-        prop::collection::vec(any::<TestEntry>(), size.into()).prop_perturb(|v, mut rng| {
-            // It is possible (likely even) that the input vector has
-            // duplicates. How can we remove them? The easiest way is to
-            // use the TriMap logic that already exists to check for
-            // duplicates. Insert all the entries one by one, then get the
-            // list.
-            let mut map = TriHashMap::<TestEntry>::new();
-            for entry in v {
-                // The error case here is expected -- we're actively
-                // de-duping entries right now.
-                _ = map.insert_no_dups(entry);
-            }
-            let v = map.entries;
+        prop::collection::vec(any::<TestEntry>(), size.into()).prop_perturb(
+            |v, mut rng| {
+                // It is possible (likely even) that the input vector has
+                // duplicates. How can we remove them? The easiest way is to
+                // use the TriMap logic that already exists to check for
+                // duplicates. Insert all the entries one by one, then get the
+                // list.
+                let mut map = TriHashMap::<TestEntry>::new();
+                for entry in v {
+                    // The error case here is expected -- we're actively
+                    // de-duping entries right now.
+                    _ = map.insert_no_dups(entry);
+                }
+                let v = map.entries;
 
-            // Now shuffle the entries. This is a simple Fisher-Yates
-            // shuffle (Durstenfeld variant, low to high).
-            let mut v2 = v.clone();
-            if v.len() < 2 {
-                return (v, v2);
-            }
-            for i in 0..v2.len() - 2 {
-                let j = rng.gen_range(i..v2.len());
-                v2.swap(i, j);
-            }
+                // Now shuffle the entries. This is a simple Fisher-Yates
+                // shuffle (Durstenfeld variant, low to high).
+                let mut v2 = v.clone();
+                if v.len() < 2 {
+                    return (v, v2);
+                }
+                for i in 0..v2.len() - 2 {
+                    let j = rng.gen_range(i..v2.len());
+                    v2.swap(i, j);
+                }
 
-            (v, v2)
-        })
+                (v, v2)
+            },
+        )
     }
 
     // Test various conditions for non-equality.
