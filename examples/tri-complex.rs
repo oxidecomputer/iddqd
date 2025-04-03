@@ -16,7 +16,8 @@ struct MyStruct {
     d: Vec<usize>,
 }
 
-/// The map will be indexed uniquely by (usize, &Path).
+/// The map will be indexed uniquely by (usize, &Path). Note that this is a
+/// borrowed key that can be constructed efficiently.
 #[derive(Clone, Debug, Hash, Eq, PartialEq)]
 struct MyKey1<'a> {
     b: usize,
@@ -34,8 +35,10 @@ impl TriHashMapEntry for MyStruct {
     type K1<'a> = MyKey1<'a>;
     type K2<'a> = MyKey2<'a>;
     // And finally, the map will be indexed uniquely by the `a` field, i.e.
-    // `&str`.
-    type K3<'a> = &'a str;
+    // String. (This could also be a borrowed key like `&'a str`, but we're
+    // using String for this example to demonstrate the use of the `Borrow`
+    // trait below.)
+    type K3<'a> = String;
 
     fn key1(&self) -> Self::K1<'_> {
         MyKey1 { b: self.b, c: &self.c }
@@ -46,7 +49,7 @@ impl TriHashMapEntry for MyStruct {
     }
 
     fn key3(&self) -> Self::K3<'_> {
-        &self.a
+        self.a.clone()
     }
 }
 
@@ -75,6 +78,10 @@ fn main() {
     .unwrap_err();
 
     // Lookups can happen based on any of the keys. For example, we can look up
-    // by the first key.
+    // an entry by the first key.
     assert_eq!(map.get1(&MyKey1 { b: 20, c: Path::new("/") }), Some(&entry));
+
+    // We can also look up an entry by anything that implements `Borrow`. For
+    // example, &str for the third key.
+    assert_eq!(map.get3("example"), Some(&entry));
 }

@@ -140,7 +140,6 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
                 self.k1_to_entry.entry(k1, |index| self.entries[index].key1()),
                 &mut dups,
             );
-            eprint!("for k2: ");
             let e2 = detect_dup_or_insert(
                 self.k2_to_entry.entry(k2, |index| self.entries[index].key2()),
                 &mut dups,
