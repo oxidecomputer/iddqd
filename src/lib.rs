@@ -5,4 +5,4 @@
 mod hash_table;
 pub mod tri_hash_map;
 
-pub use tri_hash_map::imp::{TriHashMap, TriHashMapEntry};
+pub use tri_hash_map::{imp::TriHashMap, trait_defs::TriHashMapEntry};

@@ -12,15 +12,11 @@ use std::{
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct MapHashTable {
-    state: RandomState,
-    entries: HashTable<usize>,
+    pub(super) state: RandomState,
+    pub(super) entries: HashTable<usize>,
 }
 
 impl MapHashTable {
-    pub(crate) fn new() -> Self {
-        Self::default()
-    }
-
     pub(crate) fn with_capacity(capacity: usize) -> Self {
         Self {
             state: RandomState::new(),
@@ -59,6 +55,10 @@ impl MapHashTable {
         Ok(())
     }
 
+    pub(crate) fn compute_hash<K: Hash + Eq>(&self, key: K) -> MapHash {
+        MapHash { state: self.state.clone(), hash: self.state.hash_one(key) }
+    }
+
     // Ensure that K has a consistent hash.
     pub(crate) fn find_index<K: Hash + Eq, Q: ?Sized + Hash + Eq, F>(
         &self,
@@ -69,7 +69,7 @@ impl MapHashTable {
         F: Fn(usize) -> K,
         K: Borrow<Q>,
     {
-        let hash = self.state.hash_one(&key);
+        let hash = self.state.hash_one(key);
         self.entries.find(hash, |index| lookup(*index).borrow() == key).copied()
     }
 
@@ -90,5 +90,18 @@ impl MapHashTable {
                 hash
             },
         )
+    }
+}
+
+/// Packages up a state and a hash for later validation.
+#[derive(Debug)]
+pub(crate) struct MapHash {
+    state: RandomState,
+    hash: u64,
+}
+
+impl MapHash {
+    pub(crate) fn is_same_hash<K: Hash + Eq>(&self, key: K) -> bool {
+        self.hash == self.state.hash_one(key)
     }
 }

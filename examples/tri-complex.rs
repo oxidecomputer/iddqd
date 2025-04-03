@@ -4,7 +4,7 @@
 
 //! An example demonstrating `TriHashMap` use with complex borrowed keys.
 
-use id_map::{TriHashMap, TriHashMapEntry};
+use id_map::{tri_upcasts, TriHashMap, TriHashMapEntry};
 use std::path::{Path, PathBuf};
 
 /// These are the entries we'll store in the `TriHashMap`.
@@ -51,6 +51,8 @@ impl TriHashMapEntry for MyStruct {
     fn key3(&self) -> Self::K3<'_> {
         self.a.clone()
     }
+
+    tri_upcasts!();
 }
 
 fn main() {

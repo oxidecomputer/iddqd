@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::TriHashMapEntry;
+use crate::{tri_upcasts, TriHashMapEntry};
 use test_strategy::Arbitrary;
 
 #[derive(Clone, Debug, Eq, PartialEq, Arbitrary)]
@@ -39,4 +39,6 @@ impl TriHashMapEntry for TestEntry {
     fn key3(&self) -> Self::K3<'_> {
         self.key3.as_str()
     }
+
+    tri_upcasts!();
 }

@@ -2,10 +2,19 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::hash_table::MapHashTable;
+use crate::{
+    hash_table::{MapHash, MapHashTable},
+    TriHashMapEntry,
+};
 use derive_where::derive_where;
 use hashbrown::hash_table::{Entry, VacantEntry};
-use std::{borrow::Borrow, collections::BTreeSet, fmt, hash::Hash};
+use std::{
+    borrow::Borrow,
+    collections::BTreeSet,
+    fmt,
+    hash::Hash,
+    ops::{Deref, DerefMut},
+};
 
 /// An append-only 1:1:1 (trijective) map for three keys and a value.
 ///
@@ -16,45 +25,20 @@ use std::{borrow::Borrow, collections::BTreeSet, fmt, hash::Hash};
 #[derive(Debug)]
 pub struct TriHashMap<T: TriHashMapEntry> {
     pub(super) entries: Vec<T>,
-    // Invariant: the values (usize) in these maps are valid indexes into
+    // Invariant: the values (usize) in these tables are valid indexes into
     // `entries`, and are a 1:1 mapping.
-    k1_to_entry: MapHashTable,
-    k2_to_entry: MapHashTable,
-    k3_to_entry: MapHashTable,
-}
-
-pub trait TriHashMapEntry: Clone {
-    type K1<'a>: Eq + Hash
-    where
-        Self: 'a;
-    type K2<'a>: Eq + Hash
-    where
-        Self: 'a;
-    type K3<'a>: Eq + Hash
-    where
-        Self: 'a;
-
-    fn key1(&self) -> Self::K1<'_>;
-    fn key2(&self) -> Self::K2<'_>;
-    fn key3(&self) -> Self::K3<'_>;
+    tables: TriHashMapTables,
 }
 
 impl<T: TriHashMapEntry> TriHashMap<T> {
     pub fn new() -> Self {
-        Self {
-            entries: Vec::new(),
-            k1_to_entry: MapHashTable::new(),
-            k2_to_entry: MapHashTable::new(),
-            k3_to_entry: MapHashTable::new(),
-        }
+        Self { entries: Vec::new(), tables: TriHashMapTables::new() }
     }
 
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             entries: Vec::with_capacity(capacity),
-            k1_to_entry: MapHashTable::with_capacity(capacity),
-            k2_to_entry: MapHashTable::with_capacity(capacity),
-            k3_to_entry: MapHashTable::with_capacity(capacity),
+            tables: TriHashMapTables::with_capacity(capacity),
         }
     }
 
@@ -78,16 +62,7 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
     pub(super) fn validate(&self) -> anyhow::Result<()> {
         use anyhow::Context;
 
-        // Check that all the maps are of the right size.
-        self.k1_to_entry
-            .validate(self.entries.len())
-            .context("k1_to_entry failed validation")?;
-        self.k2_to_entry
-            .validate(self.entries.len())
-            .context("k2_to_entry failed validation")?;
-        self.k3_to_entry
-            .validate(self.entries.len())
-            .context("k3_to_entry failed validation")?;
+        self.tables.validate(self.entries.len())?;
 
         // Check that the indexes are all correct.
         for (ix, entry) in self.entries.iter().enumerate() {
@@ -136,15 +111,21 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
             let k3 = value.key3();
 
             let e1 = detect_dup_or_insert(
-                self.k1_to_entry.entry(k1, |index| self.entries[index].key1()),
+                self.tables
+                    .k1_to_entry
+                    .entry(k1, |index| self.entries[index].key1()),
                 &mut dups,
             );
             let e2 = detect_dup_or_insert(
-                self.k2_to_entry.entry(k2, |index| self.entries[index].key2()),
+                self.tables
+                    .k2_to_entry
+                    .entry(k2, |index| self.entries[index].key2()),
                 &mut dups,
             );
             let e3 = detect_dup_or_insert(
-                self.k3_to_entry.entry(k3, |index| self.entries[index].key3()),
+                self.tables
+                    .k3_to_entry
+                    .entry(k3, |index| self.entries[index].key3()),
                 &mut dups,
             );
             (e1, e2, e3)
@@ -177,6 +158,20 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
         self.find1(key1)
     }
 
+    /// Gets a mutable reference to the value associated with the given `key1`.
+    ///
+    /// Due to borrow checker limitations, this always accepts `K1` rather than
+    /// a borrowed form of it.
+    pub fn get1_mut<'a>(
+        &'a mut self,
+        key1: T::K1<'_>,
+    ) -> Option<RefMut<'a, T>> {
+        let index = self.find1_index(&T::upcast_key1(key1))?;
+        let hashes = self.make_hashes(&self.entries[index]);
+        let entry = &mut self.entries[index];
+        Some(RefMut::new(hashes, entry))
+    }
+
     pub fn get2<'a, Q>(&'a self, key2: &Q) -> Option<&'a T>
     where
         T::K2<'a>: Borrow<Q>,
@@ -186,6 +181,20 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
         self.find2(key2)
     }
 
+    /// Gets a mutable reference to the value associated with the given `key2`.
+    ///
+    /// Due to borrow checker limitations, this always accepts `K2` rather than
+    /// a borrowed form of it.
+    pub fn get2_mut<'a>(
+        &'a mut self,
+        key2: T::K2<'_>,
+    ) -> Option<RefMut<'a, T>> {
+        let index = self.find2_index(&T::upcast_key2(key2))?;
+        let hashes = self.make_hashes(&self.entries[index]);
+        let entry = &mut self.entries[index];
+        Some(RefMut::new(hashes, entry))
+    }
+
     pub fn get3<'a, Q>(&'a self, key3: &Q) -> Option<&'a T>
     where
         T::K3<'a>: Borrow<Q>,
@@ -193,6 +202,20 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
         Q: Eq + Hash + ?Sized,
     {
         self.find3(key3)
+    }
+
+    /// Gets a mutable reference to the value associated with the given `key3.
+    ///
+    /// Due to borrow checker limitations, this always accepts `K3` rather than
+    /// a borrowed form of it.
+    pub fn get3_mut<'a>(
+        &'a mut self,
+        key3: T::K3<'_>,
+    ) -> Option<RefMut<'a, T>> {
+        let index = self.find3_index(&T::upcast_key3(key3))?;
+        let hashes = self.make_hashes(&self.entries[index]);
+        let entry = &mut self.entries[index];
+        Some(RefMut::new(hashes, entry))
     }
 
     fn find1<'a, Q>(&'a self, k: &Q) -> Option<&'a T>
@@ -210,7 +233,9 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
         T: 'a,
         Q: Eq + Hash + ?Sized,
     {
-        self.k1_to_entry.find_index(k, |index| self.entries[index].key1())
+        self.tables
+            .k1_to_entry
+            .find_index(k, |index| self.entries[index].key1())
     }
 
     fn find2<'a, Q>(&'a self, k: &Q) -> Option<&'a T>
@@ -228,7 +253,9 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
         T: 'a,
         Q: Eq + Hash + ?Sized,
     {
-        self.k2_to_entry.find_index(k, |index| self.entries[index].key2())
+        self.tables
+            .k2_to_entry
+            .find_index(k, |index| self.entries[index].key2())
     }
 
     fn find3<'a, Q>(&'a self, k: &Q) -> Option<&'a T>
@@ -246,7 +273,21 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
         T: 'a,
         Q: Eq + Hash + ?Sized,
     {
-        self.k3_to_entry.find_index(k, |index| self.entries[index].key3())
+        self.tables
+            .k3_to_entry
+            .find_index(k, |index| self.entries[index].key3())
+    }
+
+    fn make_hashes(&self, item: &T) -> [MapHash; 3] {
+        let k1 = item.key1();
+        let k2 = item.key2();
+        let k3 = item.key3();
+
+        let h1 = self.tables.k1_to_entry.compute_hash(k1);
+        let h2 = self.tables.k2_to_entry.compute_hash(k2);
+        let h3 = self.tables.k3_to_entry.compute_hash(k3);
+
+        [h1, h2, h3]
     }
 }
 
@@ -338,6 +379,135 @@ impl<T: TriHashMapEntry + fmt::Debug> fmt::Display for DuplicateEntry<T> {
 }
 
 impl<T: TriHashMapEntry + fmt::Debug> std::error::Error for DuplicateEntry<T> {}
+
+/// A mutable reference to a [`TriHashMap`] entry.
+///
+/// This is a wrapper around a `&mut T` that panics when dropped if the borrowed
+/// value's keys have changed since the wrapper was created.
+///
+/// # Change detection
+///
+/// It is illegal to change the keys of a borrowed `&mut T`. `RefMut` attempts
+/// to enforce this invariant.
+///
+/// `RefMut` stores the `Hash` output of keys at creation time, and recomputes
+/// these hashes when it is dropped or when [`Self::into_ref`] is called. If a
+/// key changes, there's a small but non-negligible chance that its hash value
+/// stays the same[^collision-chance]. In that case, internal invariants are not
+/// violated and. (But don't do this!)
+///
+/// It is also possible to deliberately write pathological `Hash`
+/// implementations that collide more often. (Don't do this either.)
+///
+/// Also, `RefMut`'s hash detection will not function if [`mem::forget`] is
+/// called on it. If a key is changed and `mem::forget` is then called on the
+/// `RefMut`, the `TriHashMap` will stop functioning correctly. This will not
+/// introduce memory safety issues, however.
+///
+/// [`mem::forget`]: std::mem::forget
+///
+/// [^collision-chance]: The output of `Hash` is a u64, so the chance of an
+/// individual hash colliding by chance is 1/2⁶⁴. Due to the [birthday problem],
+/// the probability of a collision by chance reaches 10⁻⁶ within around 6 × 10⁶
+/// elements.
+///
+/// [birthday problem]: https://en.wikipedia.org/wiki/Birthday_problem#Probability_table
+pub struct RefMut<'a, T: TriHashMapEntry> {
+    inner: Option<RefMutInner<'a, T>>,
+}
+
+impl<'a, T: TriHashMapEntry> RefMut<'a, T> {
+    fn new(hashes: [MapHash; 3], borrowed: &'a mut T) -> Self {
+        Self { inner: Some(RefMutInner { hashes, borrowed }) }
+    }
+
+    pub fn into_ref(mut self) -> &'a T {
+        let inner = self.inner.take().unwrap();
+        inner.into_ref()
+    }
+}
+
+impl<T: TriHashMapEntry> Drop for RefMut<'_, T> {
+    fn drop(&mut self) {
+        if let Some(inner) = self.inner.take() {
+            inner.into_ref();
+        }
+    }
+}
+
+impl<T: TriHashMapEntry> Deref for RefMut<'_, T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        self.inner.as_ref().unwrap().borrowed
+    }
+}
+
+impl<T: TriHashMapEntry> DerefMut for RefMut<'_, T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.inner.as_mut().unwrap().borrowed
+    }
+}
+
+struct RefMutInner<'a, T: TriHashMapEntry> {
+    hashes: [MapHash; 3],
+    borrowed: &'a mut T,
+}
+
+impl<'a, T: TriHashMapEntry> RefMutInner<'a, T> {
+    fn into_ref(self) -> &'a T {
+        if !self.hashes[0].is_same_hash(self.borrowed.key1()) {
+            panic!("key1 changed during RefMut borrow");
+        }
+        if !self.hashes[1].is_same_hash(self.borrowed.key2()) {
+            panic!("key2 changed during RefMut borrow");
+        }
+        if !self.hashes[2].is_same_hash(self.borrowed.key3()) {
+            panic!("key3 changed during RefMut borrow");
+        }
+
+        self.borrowed
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+struct TriHashMapTables {
+    k1_to_entry: MapHashTable,
+    k2_to_entry: MapHashTable,
+    k3_to_entry: MapHashTable,
+}
+
+impl TriHashMapTables {
+    fn new() -> Self {
+        Self::default()
+    }
+
+    fn with_capacity(capacity: usize) -> Self {
+        Self {
+            k1_to_entry: MapHashTable::with_capacity(capacity),
+            k2_to_entry: MapHashTable::with_capacity(capacity),
+            k3_to_entry: MapHashTable::with_capacity(capacity),
+        }
+    }
+
+    #[cfg(test)]
+    fn validate(&self, expected_len: usize) -> anyhow::Result<()> {
+        // Check that all the maps are of the right size.
+
+        use anyhow::Context;
+        self.k1_to_entry
+            .validate(expected_len)
+            .context("k1_to_entry failed validation")?;
+        self.k2_to_entry
+            .validate(expected_len)
+            .context("k2_to_entry failed validation")?;
+        self.k3_to_entry
+            .validate(expected_len)
+            .context("k3_to_entry failed validation")?;
+
+        Ok(())
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -709,5 +879,47 @@ mod tests {
         assert_eq!(b, b, "b == b");
         assert_ne!(a, b, "a != b");
         assert_ne!(b, a, "b != a");
+    }
+
+    #[test]
+    #[should_panic(expected = "key1 changed during RefMut borrow")]
+    fn get_mut_panics_if_key1_changes() {
+        let mut map = TriHashMap::<TestEntry>::new();
+        map.insert_no_dups(TestEntry {
+            key1: 128,
+            key2: 'b',
+            key3: "y".to_owned(),
+            value: "x".to_owned(),
+        })
+        .unwrap();
+        map.get1_mut(128).unwrap().key1 = 2;
+    }
+
+    #[test]
+    #[should_panic(expected = "key2 changed during RefMut borrow")]
+    fn get_mut_panics_if_key2_changes() {
+        let mut map = TriHashMap::<TestEntry>::new();
+        map.insert_no_dups(TestEntry {
+            key1: 128,
+            key2: 'b',
+            key3: "y".to_owned(),
+            value: "x".to_owned(),
+        })
+        .unwrap();
+        map.get1_mut(128).unwrap().key2 = 'c';
+    }
+
+    #[test]
+    #[should_panic(expected = "key3 changed during RefMut borrow")]
+    fn get_mut_panics_if_key3_changes() {
+        let mut map = TriHashMap::<TestEntry>::new();
+        map.insert_no_dups(TestEntry {
+            key1: 128,
+            key2: 'b',
+            key3: "y".to_owned(),
+            value: "x".to_owned(),
+        })
+        .unwrap();
+        map.get1_mut(128).unwrap().key3 = "z".to_owned();
     }
 }
