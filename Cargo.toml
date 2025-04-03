@@ -8,8 +8,7 @@ license = "MPL-2.0"
 daft = { version = "0.1.2", features = ["derive"] }
 derive-where = "1.2.7"
 hashbrown = "0.15.2"
-schemars = "0.8.22"
-serde = { version = "1.0.219", optional = true }
+serde = { version = "1.0.219", features = ["derive"], optional = true }
 
 [dev-dependencies]
 anyhow = "1.0.97"
