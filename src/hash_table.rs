@@ -5,7 +5,10 @@
 //! A wrapper around a hash table with some random state.
 
 use hashbrown::{hash_table::Entry, HashTable};
-use std::hash::{BuildHasher, Hash, RandomState};
+use std::{
+    borrow::Borrow,
+    hash::{BuildHasher, Hash, RandomState},
+};
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct MapHashTable {
@@ -57,17 +60,17 @@ impl MapHashTable {
     }
 
     // Ensure that K has a consistent hash.
-    pub(crate) fn find_index<'a, T, K: Hash + Eq, F>(
+    pub(crate) fn find_index<K: Hash + Eq, Q: ?Sized + Hash + Eq, F>(
         &self,
-        entries: &'a [T],
-        key: K,
-        mut eq: F,
+        key: &Q,
+        lookup: F,
     ) -> Option<usize>
     where
-        F: FnMut(&'a T) -> bool,
+        F: Fn(usize) -> K,
+        K: Borrow<Q>,
     {
         let hash = self.state.hash_one(&key);
-        self.entries.find(hash, |index| eq(&entries[*index])).copied()
+        self.entries.find(hash, |index| lookup(*index).borrow() == key).copied()
     }
 
     pub(crate) fn entry<'a, K: Hash + Eq, F>(

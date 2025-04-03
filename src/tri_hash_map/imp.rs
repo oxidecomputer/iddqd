@@ -211,8 +211,7 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
         T: 'a,
         Q: Eq + Hash + ?Sized,
     {
-        self.k1_to_entry
-            .find_index(&self.entries, k, |entry| entry.key1().borrow() == k)
+        self.k1_to_entry.find_index(k, |index| self.entries[index].key1())
     }
 
     fn find2<'a, Q>(&'a self, k: &Q) -> Option<&'a T>
@@ -230,8 +229,7 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
         T: 'a,
         Q: Eq + Hash + ?Sized,
     {
-        self.k2_to_entry
-            .find_index(&self.entries, k, |entry| entry.key2().borrow() == k)
+        self.k2_to_entry.find_index(k, |index| self.entries[index].key2())
     }
 
     fn find3<'a, Q>(&'a self, k: &Q) -> Option<&'a T>
@@ -249,8 +247,7 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
         T: 'a,
         Q: Eq + Hash + ?Sized,
     {
-        self.k3_to_entry
-            .find_index(&self.entries, k, |entry| entry.key3().borrow() == k)
+        self.k3_to_entry.find_index(k, |index| self.entries[index].key3())
     }
 }
 
