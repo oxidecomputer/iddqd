@@ -13,7 +13,8 @@ use std::{borrow::Borrow, collections::BTreeSet, fmt, hash::Hash};
 /// The storage mechanism is a vector of entries, with indexes into that vector
 /// stored in three hashmaps. This allows for efficient lookups by any of the
 /// three keys, while preventing duplicates.
-#[derive_where(Clone, Debug, Default)]
+#[derive_where(Clone, Default)]
+#[derive(Debug)]
 pub struct TriHashMap<T: TriHashMapEntry> {
     entries: Vec<T>,
     // Invariant: the values (usize) in these maps are valid indexes into
@@ -23,14 +24,14 @@ pub struct TriHashMap<T: TriHashMapEntry> {
     k3_to_entry: MapHashTable,
 }
 
-pub trait TriHashMapEntry: Clone + fmt::Debug {
-    type K1<'a>: Eq + Hash + Clone + fmt::Debug
+pub trait TriHashMapEntry: Clone {
+    type K1<'a>: Eq + Hash
     where
         Self: 'a;
-    type K2<'a>: Eq + Hash + Clone + fmt::Debug
+    type K2<'a>: Eq + Hash
     where
         Self: 'a;
-    type K3<'a>: Eq + Hash + Clone + fmt::Debug
+    type K3<'a>: Eq + Hash
     where
         Self: 'a;
 
@@ -96,13 +97,13 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
             let key3 = entry.key3();
 
             let ix1 = self.find1_index(&key1).with_context(|| {
-                format!("entry at index {ix} ({entry:?}) has no key1 index")
+                format!("entry at index {ix} has no key1 index")
             })?;
             let ix2 = self.find2_index(&key2).with_context(|| {
-                format!("entry at index {ix} ({entry:?}) has no key2 index")
+                format!("entry at index {ix} has no key2 index")
             })?;
             let ix3 = self.find3_index(&key3).with_context(|| {
-                format!("entry at index {ix} ({entry:?}) has no key3 index")
+                format!("entry at index {ix} has no key3 index")
             })?;
 
             if ix1 != ix || ix2 != ix || ix3 != ix {
@@ -309,15 +310,10 @@ impl<T: TriHashMapEntry + PartialEq> PartialEq for TriHashMap<T> {
     }
 }
 
-// The Eq bound on T ensures that the TriMap forms an equivalence class.
+// The Eq bound on T ensures that the TriHashMap forms an equivalence class.
 impl<T: TriHashMapEntry + Eq> Eq for TriHashMap<T> {}
 
-// Note: Eq and PartialEq are not implemented for TriMap. Implementing them
-// would need to be done with care, because TriMap is not semantically like an
-// IndexMap: two maps are equivalent even if their entries are in a different
-// order.
-
-/// The `Serialize` impl for `TriMap` serializes just the list of entries.
+/// The `Serialize` impl for `TriHashMap` serializes just the list of entries.
 impl<T: TriHashMapEntry> Serialize for TriHashMap<T>
 where
     T: Serialize,
@@ -332,9 +328,11 @@ where
     }
 }
 
-/// The `Deserialize` impl for `TriMap` deserializes the list of entries and
+/// The `Deserialize` impl for `TriHashMap` deserializes the list of entries and
 /// then rebuilds the indexes, producing an error if there are any duplicates.
-impl<'de, T: TriHashMapEntry> Deserialize<'de> for TriHashMap<T>
+///
+/// The `fmt::Debug` bound on `T` ensures better error reporting.
+impl<'de, T: TriHashMapEntry + fmt::Debug> Deserialize<'de> for TriHashMap<T>
 where
     T: Deserialize<'de>,
 {
@@ -374,7 +372,7 @@ pub struct DuplicateEntry<T: TriHashMapEntry> {
     dups: Vec<T>,
 }
 
-impl<S: TriHashMapEntry> fmt::Display for DuplicateEntry<S> {
+impl<T: TriHashMapEntry + fmt::Debug> fmt::Display for DuplicateEntry<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -384,7 +382,7 @@ impl<S: TriHashMapEntry> fmt::Display for DuplicateEntry<S> {
     }
 }
 
-impl<T: TriHashMapEntry> std::error::Error for DuplicateEntry<T> {}
+impl<T: TriHashMapEntry + fmt::Debug> std::error::Error for DuplicateEntry<T> {}
 
 #[cfg(test)]
 mod tests {
