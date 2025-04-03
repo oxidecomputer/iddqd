@@ -3,5 +3,9 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 pub(crate) mod imp;
+#[cfg(feature = "serde")]
+mod serde_impls;
+#[cfg(test)]
+mod test_utils;
 
 pub use imp::DuplicateEntry;

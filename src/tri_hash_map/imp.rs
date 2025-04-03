@@ -5,7 +5,6 @@
 use crate::hash_table::MapHashTable;
 use derive_where::derive_where;
 use hashbrown::hash_table::{Entry, VacantEntry};
-use serde::{Deserialize, Serialize, Serializer};
 use std::{borrow::Borrow, collections::BTreeSet, fmt, hash::Hash};
 
 /// An append-only 1:1:1 (trijective) map for three keys and a value.
@@ -16,7 +15,7 @@ use std::{borrow::Borrow, collections::BTreeSet, fmt, hash::Hash};
 #[derive_where(Clone, Default)]
 #[derive(Debug)]
 pub struct TriHashMap<T: TriHashMapEntry> {
-    entries: Vec<T>,
+    pub(super) entries: Vec<T>,
     // Invariant: the values (usize) in these maps are valid indexes into
     // `entries`, and are a 1:1 mapping.
     k1_to_entry: MapHashTable,
@@ -76,7 +75,7 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
     /// The code below always upholds these invariants, but it's useful to have
     /// an explicit check for tests.
     #[cfg(test)]
-    fn validate(&self) -> anyhow::Result<()> {
+    pub(super) fn validate(&self) -> anyhow::Result<()> {
         use anyhow::Context;
 
         // Check that all the maps are of the right size.
@@ -309,46 +308,6 @@ impl<T: TriHashMapEntry + PartialEq> PartialEq for TriHashMap<T> {
 // The Eq bound on T ensures that the TriHashMap forms an equivalence class.
 impl<T: TriHashMapEntry + Eq> Eq for TriHashMap<T> {}
 
-/// The `Serialize` impl for `TriHashMap` serializes just the list of entries.
-impl<T: TriHashMapEntry> Serialize for TriHashMap<T>
-where
-    T: Serialize,
-{
-    fn serialize<S: Serializer>(
-        &self,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error> {
-        // Serialize just the entries -- don't serialize the indexes. We'll
-        // rebuild the indexes on deserialization.
-        self.entries.serialize(serializer)
-    }
-}
-
-/// The `Deserialize` impl for `TriHashMap` deserializes the list of entries and
-/// then rebuilds the indexes, producing an error if there are any duplicates.
-///
-/// The `fmt::Debug` bound on `T` ensures better error reporting.
-impl<'de, T: TriHashMapEntry + fmt::Debug> Deserialize<'de> for TriHashMap<T>
-where
-    T: Deserialize<'de>,
-{
-    fn deserialize<D: serde::Deserializer<'de>>(
-        deserializer: D,
-    ) -> Result<Self, D::Error> {
-        // First, deserialize the entries.
-        let entries = Vec::<T>::deserialize(deserializer)?;
-
-        // Now build a map from scratch, inserting the entries sequentially.
-        // This will catch issues with duplicates.
-        let mut map = TriHashMap::new();
-        for entry in entries {
-            map.insert_no_dups(entry).map_err(serde::de::Error::custom)?;
-        }
-
-        Ok(map)
-    }
-}
-
 fn detect_dup_or_insert<'a>(
     entry: Entry<'a, usize>,
     dups: &mut BTreeSet<usize>,
@@ -383,46 +342,10 @@ impl<T: TriHashMapEntry + fmt::Debug> std::error::Error for DuplicateEntry<T> {}
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tri_hash_map::test_utils::TestEntry;
     use prop::sample::SizeRange;
     use proptest::prelude::*;
     use test_strategy::{proptest, Arbitrary};
-
-    #[derive(
-        Clone, Debug, Eq, PartialEq, Arbitrary, Serialize, Deserialize,
-    )]
-    struct TestEntry {
-        key1: u8,
-        key2: char,
-        key3: String,
-        value: String,
-    }
-
-    impl TriHashMapEntry for TestEntry {
-        // These types are chosen to represent various kinds of keys in the
-        // proptest below.
-        //
-        // We use u8 since there can only be 256 values, increasing the
-        // likelihood of collisions in the proptest below.
-        type K1<'a> = u8;
-        // char is chosen because the Arbitrary impl for it is biased towards
-        // ASCII, increasing the likelihood of collisions.
-        type K2<'a> = char;
-        // &str is a generally open-ended type that probably won't have many
-        // collisions.
-        type K3<'a> = &'a str;
-
-        fn key1(&self) -> Self::K1<'_> {
-            self.key1
-        }
-
-        fn key2(&self) -> Self::K2<'_> {
-            self.key2
-        }
-
-        fn key3(&self) -> Self::K3<'_> {
-            self.key3.as_str()
-        }
-    }
 
     #[test]
     fn test_insert_entry_no_dups() {
@@ -527,55 +450,6 @@ mod tests {
         Get1(u8),
         Get2(char),
         Get3(String),
-    }
-
-    #[proptest]
-    fn proptest_serialize_roundtrip(values: Vec<TestEntry>) {
-        let mut map = TriHashMap::<TestEntry>::new();
-        let mut first_error = None;
-        for value in values.clone() {
-            // Ignore errors from duplicates which are quite possible to occur
-            // here, since we're just testing serialization. But store the
-            // first error to ensure that deserialization returns errors.
-            if let Err(error) = map.insert_no_dups(value) {
-                if first_error.is_none() {
-                    first_error = Some(error);
-                }
-            }
-        }
-
-        let serialized = serde_json::to_string(&map).unwrap();
-        let deserialized: TriHashMap<TestEntry> =
-            serde_json::from_str(&serialized).unwrap();
-
-        assert_eq!(map.entries, deserialized.entries, "entries match");
-        deserialized.validate().expect("deserialized map is valid");
-
-        // Try deserializing the full list of values directly, and see that the
-        // error reported is the same as first_error.
-        //
-        // Here we rely on the fact that a TriMap is serialized as just a
-        // vector.
-        let serialized = serde_json::to_string(&values).unwrap();
-        let res: Result<TriHashMap<TestEntry>, _> =
-            serde_json::from_str(&serialized);
-        match (first_error, res) {
-            (None, Ok(_)) => {} // No error, should be fine
-            (Some(first_error), Ok(_)) => {
-                panic!("expected error ({first_error}), but deserialization succeeded")
-            }
-            (None, Err(error)) => {
-                panic!("unexpected error: {error}, deserialization should have succeeded")
-            }
-            (Some(first_error), Err(error)) => {
-                // first_error is the error from the map, and error is the
-                // deserialization error (which should always be a custom
-                // error, stored as a string).
-                let expected = first_error.to_string();
-                let actual = error.to_string();
-                assert_eq!(actual, expected, "error matches");
-            }
-        }
     }
 
     #[proptest(cases = 16)]
