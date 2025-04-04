@@ -34,7 +34,7 @@ pub trait TriHashMapEntry {
 
 macro_rules! impl_for_ref {
     ($type:ty) => {
-        impl<'b, T: 'b + TriHashMapEntry + ?Sized> TriHashMapEntry for $type {
+        impl<'b, T: 'b + ?Sized + TriHashMapEntry> TriHashMapEntry for $type {
             type K1<'a>
                 = T::K1<'a>
             where
