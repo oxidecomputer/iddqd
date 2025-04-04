@@ -211,7 +211,7 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
         self.find3(key3)
     }
 
-    /// Gets a mutable reference to the value associated with the given `key3.
+    /// Gets a mutable reference to the value associated with the given `key3`.
     ///
     /// Due to borrow checker limitations, this always accepts `K3` rather than
     /// a borrowed form of it.
