@@ -62,7 +62,7 @@ mod tests {
             // first error to ensure that deserialization returns errors.
             if let Err(error) = map.insert_no_dups(value) {
                 if first_error.is_none() {
-                    first_error = Some(error);
+                    first_error = Some(error.into_owned());
                 }
             }
         }

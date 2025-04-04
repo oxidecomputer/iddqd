@@ -21,8 +21,8 @@ use std::{
 /// The storage mechanism is a vector of entries, with indexes into that vector
 /// stored in three hashmaps. This allows for efficient lookups by any of the
 /// three keys, while preventing duplicates.
-#[derive_where(Clone, Default)]
-#[derive(Debug)]
+#[derive_where(Default)]
+#[derive(Clone, Debug)]
 pub struct TriHashMap<T: TriHashMapEntry> {
     pub(super) entries: Vec<T>,
     // Invariant: the values (usize) in these tables are valid indexes into
@@ -99,8 +99,8 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
     pub fn insert_no_dups(
         &mut self,
         value: T,
-    ) -> Result<(), DuplicateEntry<T>> {
-        let mut dups = BTreeSet::new();
+    ) -> Result<(), DuplicateEntry<T, &T>> {
+        let mut duplicates = BTreeSet::new();
 
         // Check for duplicates *before* inserting the new entry, because we
         // don't want to partially insert the new entry and then have to roll
@@ -114,33 +114,36 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
                 self.tables
                     .k1_to_entry
                     .entry(k1, |index| self.entries[index].key1()),
-                &mut dups,
+                &mut duplicates,
             );
             let e2 = detect_dup_or_insert(
                 self.tables
                     .k2_to_entry
                     .entry(k2, |index| self.entries[index].key2()),
-                &mut dups,
+                &mut duplicates,
             );
             let e3 = detect_dup_or_insert(
                 self.tables
                     .k3_to_entry
                     .entry(k3, |index| self.entries[index].key3()),
-                &mut dups,
+                &mut duplicates,
             );
             (e1, e2, e3)
         };
 
-        if !dups.is_empty() {
+        if !duplicates.is_empty() {
             return Err(DuplicateEntry {
                 new: value,
-                dups: dups.iter().map(|ix| self.entries[*ix].clone()).collect(),
+                duplicates: duplicates
+                    .iter()
+                    .map(|ix| &self.entries[*ix])
+                    .collect(),
             });
         }
 
         let next_index = self.entries.len();
-        // e1, e2 and e3 are all Some because if they were None, dups would be
-        // non-empty, and we'd have bailed out earlier.
+        // e1, e2 and e3 are all Some because if they were None, duplicates
+        // would be non-empty, and we'd have bailed out earlier.
         e1.unwrap().insert(next_index);
         e2.unwrap().insert(next_index);
         e3.unwrap().insert(next_index);
@@ -351,34 +354,72 @@ impl<T: TriHashMapEntry + Eq> Eq for TriHashMap<T> {}
 
 fn detect_dup_or_insert<'a>(
     entry: Entry<'a, usize>,
-    dups: &mut BTreeSet<usize>,
+    duplicates: &mut BTreeSet<usize>,
 ) -> Option<VacantEntry<'a, usize>> {
     match entry {
         Entry::Vacant(slot) => Some(slot),
         Entry::Occupied(slot) => {
-            dups.insert(*slot.get());
+            duplicates.insert(*slot.get());
             None
         }
     }
 }
 
 #[derive(Debug)]
-pub struct DuplicateEntry<T: TriHashMapEntry> {
+pub struct DuplicateEntry<T: TriHashMapEntry, D: TriHashMapEntry = T> {
     new: T,
-    dups: Vec<T>,
+    duplicates: Vec<D>,
 }
 
-impl<T: TriHashMapEntry + fmt::Debug> fmt::Display for DuplicateEntry<T> {
+impl<T: TriHashMapEntry, D: TriHashMapEntry> DuplicateEntry<T, D> {
+    /// Returns the new entry that was attempted to be inserted.
+    #[inline]
+    pub fn new_entry(&self) -> &T {
+        &self.new
+    }
+
+    /// Returns the list of entries that conflict with the new entry.
+    #[inline]
+    pub fn duplicates(&self) -> &[D] {
+        &self.duplicates
+    }
+
+    /// Converts self into its constituent parts.
+    pub fn into_parts(self) -> (T, Vec<D>) {
+        (self.new, self.duplicates)
+    }
+}
+
+impl<T: TriHashMapEntry + Clone> DuplicateEntry<T, &T> {
+    /// Converts self to an owned `DuplicateEntry` by cloning the list of
+    /// duplicates.
+    ///
+    /// If `T` is `'static`, the owned form is suitable for conversion to
+    /// `Box<dyn std::error::Error>`, `anyhow::Error`, and so on.
+    pub fn into_owned(self) -> DuplicateEntry<T> {
+        DuplicateEntry {
+            new: self.new,
+            duplicates: self.duplicates.into_iter().cloned().collect(),
+        }
+    }
+}
+
+impl<T: TriHashMapEntry + fmt::Debug, D: TriHashMapEntry + fmt::Debug>
+    fmt::Display for DuplicateEntry<T, D>
+{
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "duplicate entry: {:?} conflicts with existing: {:?}",
-            self.new, self.dups
+            "new entry: {:?} conflicts with existing: {:?}",
+            self.new, self.duplicates
         )
     }
 }
 
-impl<T: TriHashMapEntry + fmt::Debug> std::error::Error for DuplicateEntry<T> {}
+impl<T: TriHashMapEntry + fmt::Debug, D: TriHashMapEntry + fmt::Debug>
+    std::error::Error for DuplicateEntry<T, D>
+{
+}
 
 /// A mutable reference to a [`TriHashMap`] entry.
 ///
@@ -534,7 +575,7 @@ mod tests {
         // Add an exact duplicate, which should error out.
         let error = map.insert_no_dups(v1.clone()).unwrap_err();
         assert_eq!(&error.new, &v1);
-        assert_eq!(error.dups, vec![v1.clone()]);
+        assert_eq!(error.duplicates, vec![&v1]);
 
         // Add a duplicate against just key1, which should error out.
         let v2 = TestEntry {
@@ -545,7 +586,7 @@ mod tests {
         };
         let error = map.insert_no_dups(v2.clone()).unwrap_err();
         assert_eq!(&error.new, &v2);
-        assert_eq!(error.dups, vec![v1.clone()]);
+        assert_eq!(error.duplicates, vec![&v1]);
 
         // Add a duplicate against just key2, which should error out.
         let v3 = TestEntry {
@@ -589,27 +630,41 @@ mod tests {
             Self { entries: Vec::new() }
         }
 
-        fn insert_entry_no_dups(
-            &mut self,
+        fn insert_entry_no_dups<'a>(
+            &'a mut self,
             entry: TestEntry,
-        ) -> Result<(), DuplicateEntry<TestEntry>> {
-            let dups = self
+        ) -> Result<(), DuplicateEntry<TestEntry, &'a TestEntry>> {
+            // Cannot store the duplicates directly here because of borrow
+            // checker issues. Instead, we store indexes and then map them to
+            // entries.
+            let indexes = self
                 .entries
                 .iter()
-                .filter(|e| {
-                    e.key1 == entry.key1
+                .enumerate()
+                .filter_map(|(i, e)| {
+                    if e.key1 == entry.key1
                         || e.key2 == entry.key2
                         || e.key3 == entry.key3
+                    {
+                        Some(i)
+                    } else {
+                        None
+                    }
                 })
-                .cloned()
                 .collect::<Vec<_>>();
 
-            if !dups.is_empty() {
-                return Err(DuplicateEntry { new: entry, dups });
+            if indexes.is_empty() {
+                self.entries.push(entry);
+                Ok(())
+            } else {
+                Err(DuplicateEntry {
+                    new: entry,
+                    duplicates: indexes
+                        .iter()
+                        .map(|&i| &self.entries[i])
+                        .collect(),
+                })
             }
-
-            self.entries.push(entry);
-            Ok(())
         }
     }
 
@@ -643,7 +698,7 @@ mod tests {
                     if let Err(map_err) = map_res {
                         let naive_err = naive_res.unwrap_err();
                         assert_eq!(map_err.new, naive_err.new);
-                        assert_eq!(map_err.dups, naive_err.dups);
+                        assert_eq!(map_err.duplicates, naive_err.duplicates);
                     }
 
                     map.validate().expect("map should be valid");
