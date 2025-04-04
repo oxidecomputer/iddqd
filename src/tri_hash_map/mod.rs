@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 pub(crate) mod imp;
+mod iter;
 mod macros;
 mod ref_mut;
 #[cfg(feature = "serde")]
@@ -11,4 +12,6 @@ mod serde_impls;
 mod test_utils;
 pub(crate) mod trait_defs;
 
-pub use {imp::DuplicateEntry, ref_mut::RefMut};
+pub use imp::DuplicateEntry;
+pub use iter::Iter;
+pub use ref_mut::RefMut;

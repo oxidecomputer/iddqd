@@ -2,6 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use super::{Iter, RefMut};
 use crate::{
     hash_table::{MapHash, MapHashTable},
     TriHashMapEntry,
@@ -9,8 +10,6 @@ use crate::{
 use derive_where::derive_where;
 use hashbrown::hash_table::{Entry, VacantEntry};
 use std::{borrow::Borrow, collections::BTreeSet, fmt, hash::Hash};
-
-use super::RefMut;
 
 /// An append-only 1:1:1 (trijective) map for three keys and a value.
 ///
@@ -27,6 +26,7 @@ pub struct TriHashMap<T: TriHashMapEntry> {
 }
 
 impl<T: TriHashMapEntry> TriHashMap<T> {
+    #[inline]
     pub fn new() -> Self {
         Self { entries: Vec::new(), tables: TriHashMapTables::new() }
     }
@@ -38,16 +38,19 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
         }
     }
 
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
 
+    #[inline]
     pub fn len(&self) -> usize {
         self.entries.len()
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &T> {
-        self.entries.iter()
+    #[inline]
+    pub fn iter(&self) -> Iter<'_, T> {
+        Iter::new(&self.entries)
     }
 
     /// Checks general invariants of the map.
