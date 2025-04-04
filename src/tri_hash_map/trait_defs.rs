@@ -4,7 +4,7 @@
 
 //! Trait definitions for `TriHashMap`.
 
-use std::hash::Hash;
+use std::{hash::Hash, rc::Rc, sync::Arc};
 
 pub trait TriHashMapEntry {
     type K1<'a>: Eq + Hash
@@ -32,56 +32,118 @@ pub trait TriHashMapEntry {
     ) -> Self::K3<'short>;
 }
 
-impl<'b, T: 'b + TriHashMapEntry> TriHashMapEntry for &'b T {
-    type K1<'a>
-        = T::K1<'a>
-    where
-        Self: 'a;
-    type K2<'a>
-        = T::K2<'a>
-    where
-        Self: 'a;
-    type K3<'a>
-        = T::K3<'a>
-    where
-        Self: 'a;
+macro_rules! impl_for_ref {
+    ($type:ty) => {
+        impl<'b, T: 'b + TriHashMapEntry + ?Sized> TriHashMapEntry for $type {
+            type K1<'a>
+                = T::K1<'a>
+            where
+                Self: 'a;
+            type K2<'a>
+                = T::K2<'a>
+            where
+                Self: 'a;
+            type K3<'a>
+                = T::K3<'a>
+            where
+                Self: 'a;
 
-    fn key1(&self) -> Self::K1<'_> {
-        (**self).key1()
-    }
+            fn key1(&self) -> Self::K1<'_> {
+                (**self).key1()
+            }
 
-    fn key2(&self) -> Self::K2<'_> {
-        (**self).key2()
-    }
+            fn key2(&self) -> Self::K2<'_> {
+                (**self).key2()
+            }
 
-    fn key3(&self) -> Self::K3<'_> {
-        (**self).key3()
-    }
+            fn key3(&self) -> Self::K3<'_> {
+                (**self).key3()
+            }
 
-    fn upcast_key1<'short, 'long: 'short>(
-        long: Self::K1<'long>,
-    ) -> Self::K1<'short>
-    where
-        Self: 'long,
-    {
-        T::upcast_key1(long)
-    }
+            fn upcast_key1<'short, 'long: 'short>(
+                long: Self::K1<'long>,
+            ) -> Self::K1<'short>
+            where
+                Self: 'long,
+            {
+                T::upcast_key1(long)
+            }
 
-    fn upcast_key2<'short, 'long: 'short>(
-        long: Self::K2<'long>,
-    ) -> Self::K2<'short>
-    where
-        Self: 'long,
-    {
-        T::upcast_key2(long)
-    }
+            fn upcast_key2<'short, 'long: 'short>(
+                long: Self::K2<'long>,
+            ) -> Self::K2<'short>
+            where
+                Self: 'long,
+            {
+                T::upcast_key2(long)
+            }
 
-    fn upcast_key3<'short, 'long: 'short>(
-        long: Self::K3<'long>,
-    ) -> Self::K3<'short>
-    where
-        Self: 'long,
-    {
-        T::upcast_key3(long)
-    }
+            fn upcast_key3<'short, 'long: 'short>(
+                long: Self::K3<'long>,
+            ) -> Self::K3<'short>
+            where
+                Self: 'long,
+            {
+                T::upcast_key3(long)
+            }
+        }
+    };
 }
+
+impl_for_ref!(&'b T);
+impl_for_ref!(&'b mut T);
+
+macro_rules! impl_for_box {
+    ($type:ty) => {
+        impl<T: ?Sized + TriHashMapEntry> TriHashMapEntry for $type {
+            type K1<'a>
+                = T::K1<'a>
+            where
+                Self: 'a;
+
+            type K2<'a>
+                = T::K2<'a>
+            where
+                Self: 'a;
+
+            type K3<'a>
+                = T::K3<'a>
+            where
+                Self: 'a;
+
+            fn key1(&self) -> Self::K1<'_> {
+                (**self).key1()
+            }
+
+            fn key2(&self) -> Self::K2<'_> {
+                (**self).key2()
+            }
+
+            fn key3(&self) -> Self::K3<'_> {
+                (**self).key3()
+            }
+
+            fn upcast_key1<'short, 'long: 'short>(
+                long: Self::K1<'long>,
+            ) -> Self::K1<'short> {
+                T::upcast_key1(long)
+            }
+
+            fn upcast_key2<'short, 'long: 'short>(
+                long: Self::K2<'long>,
+            ) -> Self::K2<'short> {
+                T::upcast_key2(long)
+            }
+
+            fn upcast_key3<'short, 'long: 'short>(
+                long: Self::K3<'long>,
+            ) -> Self::K3<'short> {
+                T::upcast_key3(long)
+            }
+        }
+    };
+}
+
+impl_for_box!(Box<T>);
+impl_for_box!(Rc<T>);
+impl_for_box!(Arc<T>);
