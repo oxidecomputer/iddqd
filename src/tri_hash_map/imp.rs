@@ -394,7 +394,8 @@ impl<T: TriHashMapEntry + fmt::Debug> std::error::Error for DuplicateEntry<T> {}
 /// these hashes when it is dropped or when [`Self::into_ref`] is called. If a
 /// key changes, there's a small but non-negligible chance that its hash value
 /// stays the same[^collision-chance]. In that case, internal invariants are not
-/// violated and. (But don't do this!)
+/// violated and the [`TriHashMap`] will continue to work correctly. (But don't
+/// do this!)
 ///
 /// It is also possible to deliberately write pathological `Hash`
 /// implementations that collide more often. (Don't do this either.)
