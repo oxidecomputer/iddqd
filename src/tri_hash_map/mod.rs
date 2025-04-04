@@ -13,5 +13,5 @@ mod test_utils;
 pub(crate) mod trait_defs;
 
 pub use imp::DuplicateEntry;
-pub use iter::Iter;
+pub use iter::{Iter, IterMut};
 pub use ref_mut::RefMut;

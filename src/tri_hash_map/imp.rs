@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::{Iter, RefMut};
+use super::{Iter, IterMut, RefMut};
 use crate::{
     hash_table::{MapHash, MapHashTable},
     TriHashMapEntry,
@@ -51,6 +51,11 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
     #[inline]
     pub fn iter(&self) -> Iter<'_, T> {
         Iter::new(&self.entries)
+    }
+
+    #[inline]
+    pub fn iter_mut(&mut self) -> IterMut<'_, T> {
+        IterMut::new(&self.tables, &mut self.entries)
     }
 
     /// Checks general invariants of the map.
@@ -281,15 +286,7 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
     }
 
     fn make_hashes(&self, item: &T) -> [MapHash; 3] {
-        let k1 = item.key1();
-        let k2 = item.key2();
-        let k3 = item.key3();
-
-        let h1 = self.tables.k1_to_entry.compute_hash(k1);
-        let h2 = self.tables.k2_to_entry.compute_hash(k2);
-        let h3 = self.tables.k3_to_entry.compute_hash(k3);
-
-        [h1, h2, h3]
+        self.tables.make_hashes(item)
     }
 }
 
@@ -421,7 +418,7 @@ impl<T: TriHashMapEntry + fmt::Debug, D: TriHashMapEntry + fmt::Debug>
 }
 
 #[derive(Clone, Debug, Default)]
-struct TriHashMapTables {
+pub(super) struct TriHashMapTables {
     k1_to_entry: MapHashTable,
     k2_to_entry: MapHashTable,
     k3_to_entry: MapHashTable,
@@ -456,6 +453,21 @@ impl TriHashMapTables {
             .context("k3_to_entry failed validation")?;
 
         Ok(())
+    }
+
+    pub(super) fn make_hashes<T: TriHashMapEntry>(
+        &self,
+        item: &T,
+    ) -> [MapHash; 3] {
+        let k1 = item.key1();
+        let k2 = item.key2();
+        let k3 = item.key3();
+
+        let h1 = self.k1_to_entry.compute_hash(k1);
+        let h2 = self.k2_to_entry.compute_hash(k2);
+        let h3 = self.k3_to_entry.compute_hash(k3);
+
+        [h1, h2, h3]
     }
 }
 
