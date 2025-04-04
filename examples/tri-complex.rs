@@ -4,7 +4,7 @@
 
 //! An example demonstrating `TriHashMap` use with complex borrowed keys.
 
-use id_map::{tri_upcasts, TriHashMap, TriHashMapEntry};
+use iddqd::{tri_upcasts, TriHashMap, TriHashMapEntry};
 use std::path::{Path, PathBuf};
 
 /// These are the entries we'll store in the `TriHashMap`.
