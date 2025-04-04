@@ -44,11 +44,10 @@ impl MapHashTable {
 
         let mut values: Vec<_> = self.entries.iter().copied().collect();
         values.sort_unstable();
-        for i in 0..self.len() {
+        for (i, value) in values.iter().enumerate() {
             ensure!(
-                values[i] == i,
-                "value at index {i} should be {i}, was {}",
-                values[i]
+                *value == i,
+                "value at index {i} should be {i}, was {value}",
             );
         }
 
@@ -60,24 +59,25 @@ impl MapHashTable {
     }
 
     // Ensure that K has a consistent hash.
-    pub(crate) fn find_index<K: Hash + Eq, Q: ?Sized + Hash + Eq, F>(
+    pub(crate) fn find_index<K, Q, F>(
         &self,
         key: &Q,
         lookup: F,
     ) -> Option<usize>
     where
         F: Fn(usize) -> K,
-        K: Borrow<Q>,
+        K: Hash + Eq + Borrow<Q>,
+        Q: ?Sized + Hash + Eq,
     {
         let hash = self.state.hash_one(key);
         self.entries.find(hash, |index| lookup(*index).borrow() == key).copied()
     }
 
-    pub(crate) fn entry<'a, K: Hash + Eq, F>(
-        &'a mut self,
+    pub(crate) fn entry<K: Hash + Eq, F>(
+        &mut self,
         key: K,
         lookup: F,
-    ) -> Entry<'a, usize>
+    ) -> Entry<'_, usize>
     where
         F: Fn(usize) -> K,
     {
@@ -85,10 +85,7 @@ impl MapHashTable {
         self.entries.entry(
             hash,
             |index| lookup(*index) == key,
-            |v| {
-                let hash = self.state.hash_one(lookup(*v));
-                hash
-            },
+            |v| self.state.hash_one(lookup(*v)),
         )
     }
 }

@@ -630,10 +630,10 @@ mod tests {
             Self { entries: Vec::new() }
         }
 
-        fn insert_entry_no_dups<'a>(
-            &'a mut self,
+        fn insert_entry_no_dups(
+            &mut self,
             entry: TestEntry,
-        ) -> Result<(), DuplicateEntry<TestEntry, &'a TestEntry>> {
+        ) -> Result<(), DuplicateEntry<TestEntry, &TestEntry>> {
             // Cannot store the duplicates directly here because of borrow
             // checker issues. Instead, we store indexes and then map them to
             // entries.
