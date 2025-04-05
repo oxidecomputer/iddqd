@@ -67,11 +67,11 @@ fn main() {
     };
 
     // Add an entry to the map.
-    map.insert_no_dups(entry.clone()).unwrap();
+    map.insert_unique(entry.clone()).unwrap();
 
     // This entry will conflict with the previous one due to the `a` field
     // matching.
-    map.insert_no_dups(MyStruct {
+    map.insert_unique(MyStruct {
         a: "example".to_owned(),
         b: 30,
         c: PathBuf::from("/xyz"),

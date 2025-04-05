@@ -39,7 +39,7 @@ where
         // This will catch issues with duplicates.
         let mut map = TriHashMap::new();
         for entry in entries {
-            map.insert_no_dups(entry).map_err(serde::de::Error::custom)?;
+            map.insert_unique(entry).map_err(serde::de::Error::custom)?;
         }
 
         Ok(map)
@@ -60,7 +60,7 @@ mod tests {
             // Ignore errors from duplicates which are quite possible to occur
             // here, since we're just testing serialization. But store the
             // first error to ensure that deserialization returns errors.
-            if let Err(error) = map.insert_no_dups(value) {
+            if let Err(error) = map.insert_unique(value) {
                 if first_error.is_none() {
                     first_error = Some(error.into_owned());
                 }

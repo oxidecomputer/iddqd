@@ -105,7 +105,7 @@ mod tests {
     #[should_panic(expected = "key2 changed during RefMut borrow")]
     fn get_mut_panics_if_key2_changes() {
         let mut map = TriHashMap::<TestEntry>::new();
-        map.insert_no_dups(TestEntry {
+        map.insert_unique(TestEntry {
             key1: 128,
             key2: 'b',
             key3: "y".to_owned(),
@@ -119,7 +119,7 @@ mod tests {
     #[should_panic(expected = "key3 changed during RefMut borrow")]
     fn get_mut_panics_if_key3_changes() {
         let mut map = TriHashMap::<TestEntry>::new();
-        map.insert_no_dups(TestEntry {
+        map.insert_unique(TestEntry {
             key1: 128,
             key2: 'b',
             key3: "y".to_owned(),

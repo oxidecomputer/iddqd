@@ -100,7 +100,7 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
 
     /// Inserts a value into the set, returning an error if any duplicates were
     /// added.
-    pub fn insert_no_dups(
+    pub fn insert_unique(
         &mut self,
         value: T,
     ) -> Result<(), DuplicateEntry<T, &T>> {
@@ -490,10 +490,10 @@ mod tests {
             key3: "x".to_string(),
             value: "v".to_string(),
         };
-        map.insert_no_dups(v1.clone()).unwrap();
+        map.insert_unique(v1.clone()).unwrap();
 
         // Add an exact duplicate, which should error out.
-        let error = map.insert_no_dups(v1.clone()).unwrap_err();
+        let error = map.insert_unique(v1.clone()).unwrap_err();
         assert_eq!(&error.new, &v1);
         assert_eq!(error.duplicates, vec![&v1]);
 
@@ -504,7 +504,7 @@ mod tests {
             key3: "y".to_string(),
             value: "v".to_string(),
         };
-        let error = map.insert_no_dups(v2.clone()).unwrap_err();
+        let error = map.insert_unique(v2.clone()).unwrap_err();
         assert_eq!(&error.new, &v2);
         assert_eq!(error.duplicates, vec![&v1]);
 
@@ -515,7 +515,7 @@ mod tests {
             key3: "y".to_string(),
             value: "v".to_string(),
         };
-        let error = map.insert_no_dups(v3.clone()).unwrap_err();
+        let error = map.insert_unique(v3.clone()).unwrap_err();
         assert_eq!(&error.new, &v3);
 
         // Add a duplicate against just key3, which should error out.
@@ -525,7 +525,7 @@ mod tests {
             key3: "x".to_string(),
             value: "v".to_string(),
         };
-        let error = map.insert_no_dups(v4.clone()).unwrap_err();
+        let error = map.insert_unique(v4.clone()).unwrap_err();
         assert_eq!(&error.new, &v4);
 
         // Add an entry that doesn't have any conflicts.
@@ -535,7 +535,7 @@ mod tests {
             key3: "y".to_string(),
             value: "v".to_string(),
         };
-        map.insert_no_dups(v5.clone()).unwrap();
+        map.insert_unique(v5.clone()).unwrap();
     }
 
     /// Represents a naive version of `TriMap` that doesn't have any indexes
@@ -610,7 +610,7 @@ mod tests {
         for op in ops {
             match op {
                 Operation::Insert(entry) => {
-                    let map_res = map.insert_no_dups(entry.clone());
+                    let map_res = map.insert_unique(entry.clone());
                     let naive_res =
                         naive_map.insert_entry_no_dups(entry.clone());
 
@@ -660,10 +660,10 @@ mod tests {
         let mut map2 = TriHashMap::<TestEntry>::new();
 
         for entry in entries1 {
-            map1.insert_no_dups(entry.clone()).unwrap();
+            map1.insert_unique(entry.clone()).unwrap();
         }
         for entry in entries2 {
-            map2.insert_no_dups(entry.clone()).unwrap();
+            map2.insert_unique(entry.clone()).unwrap();
         }
 
         assert_eq_props(map1, map2);
@@ -684,7 +684,7 @@ mod tests {
                 for entry in v {
                     // The error case here is expected -- we're actively
                     // de-duping entries right now.
-                    _ = map.insert_no_dups(entry);
+                    _ = map.insert_unique(entry);
                 }
                 let v = map.entries;
 
@@ -724,13 +724,13 @@ mod tests {
             key3: "x".to_string(),
             value: "v".to_string(),
         };
-        map1.insert_no_dups(entry.clone()).unwrap();
+        map1.insert_unique(entry.clone()).unwrap();
 
         // The maps are not equal.
         assert_ne_props(&map1, &map2);
 
         // Insert the same entry into the other map.
-        map2.insert_no_dups(entry.clone()).unwrap();
+        map2.insert_unique(entry.clone()).unwrap();
 
         // The maps are now equal.
         assert_eq_props(&map1, &map2);
@@ -739,7 +739,7 @@ mod tests {
             // Insert an entry with the same key2 and key3 but a different
             // key1.
             let mut map1 = map1.clone();
-            map1.insert_no_dups(TestEntry {
+            map1.insert_unique(TestEntry {
                 key1: 1,
                 key2: 'b',
                 key3: "y".to_string(),
@@ -749,7 +749,7 @@ mod tests {
             assert_ne_props(&map1, &map2);
 
             let mut map2 = map2.clone();
-            map2.insert_no_dups(TestEntry {
+            map2.insert_unique(TestEntry {
                 key1: 2,
                 key2: 'b',
                 key3: "y".to_string(),
@@ -763,7 +763,7 @@ mod tests {
             // Insert an entry with the same key1 and key3 but a different
             // key2.
             let mut map1 = map1.clone();
-            map1.insert_no_dups(TestEntry {
+            map1.insert_unique(TestEntry {
                 key1: 1,
                 key2: 'b',
                 key3: "y".to_string(),
@@ -773,7 +773,7 @@ mod tests {
             assert_ne_props(&map1, &map2);
 
             let mut map2 = map2.clone();
-            map2.insert_no_dups(TestEntry {
+            map2.insert_unique(TestEntry {
                 key1: 1,
                 key2: 'c',
                 key3: "y".to_string(),
@@ -787,7 +787,7 @@ mod tests {
             // Insert an entry with the same key1 and key2 but a different
             // key3.
             let mut map1 = map1.clone();
-            map1.insert_no_dups(TestEntry {
+            map1.insert_unique(TestEntry {
                 key1: 1,
                 key2: 'b',
                 key3: "y".to_string(),
@@ -797,7 +797,7 @@ mod tests {
             assert_ne_props(&map1, &map2);
 
             let mut map2 = map2.clone();
-            map2.insert_no_dups(TestEntry {
+            map2.insert_unique(TestEntry {
                 key1: 1,
                 key2: 'b',
                 key3: "z".to_string(),
@@ -811,7 +811,7 @@ mod tests {
             // Insert an entry where all the keys are the same, but the value is
             // different.
             let mut map1 = map1.clone();
-            map1.insert_no_dups(TestEntry {
+            map1.insert_unique(TestEntry {
                 key1: 1,
                 key2: 'b',
                 key3: "y".to_string(),
@@ -821,7 +821,7 @@ mod tests {
             assert_ne_props(&map1, &map2);
 
             let mut map2 = map2.clone();
-            map2.insert_no_dups(TestEntry {
+            map2.insert_unique(TestEntry {
                 key1: 1,
                 key2: 'b',
                 key3: "y".to_string(),
@@ -861,7 +861,7 @@ mod tests {
     #[should_panic(expected = "key1 changed during RefMut borrow")]
     fn get_mut_panics_if_key1_changes() {
         let mut map = TriHashMap::<TestEntry>::new();
-        map.insert_no_dups(TestEntry {
+        map.insert_unique(TestEntry {
             key1: 128,
             key2: 'b',
             key3: "y".to_owned(),
