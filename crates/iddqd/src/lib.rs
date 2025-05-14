@@ -56,6 +56,7 @@
 #![warn(missing_docs)]
 
 pub mod errors;
+mod macros;
 mod support;
 #[cfg(test)]
 mod test_utils;

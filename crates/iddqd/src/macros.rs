@@ -2,12 +2,12 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Macros for `TriHashMapEntry`.
+//! Macros for this crate.
 
-/// Implement upcasts for a `TriHashMapEntry` implementation.
+/// Implement upcasts for an implementation with three keys.
 ///
-/// `TriHashMapEntry` requires that the key types' lifetimes are covariant. This
-/// macro assists with implementing this requirement.
+/// The maps in this crate require that the key types' lifetimes are covariant.
+/// This macro assists with implementing this requirement.
 ///
 /// The macro is optional, and these implementations can be written by hand as
 /// well.

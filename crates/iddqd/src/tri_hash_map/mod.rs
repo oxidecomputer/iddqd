@@ -8,7 +8,6 @@
 
 pub(crate) mod imp;
 mod iter;
-mod macros;
 mod ref_mut;
 #[cfg(feature = "serde")]
 mod serde_impls;
