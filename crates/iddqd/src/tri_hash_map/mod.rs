@@ -13,10 +13,9 @@ mod ref_mut;
 #[cfg(feature = "serde")]
 mod serde_impls;
 mod tables;
-#[cfg(test)]
-mod test_utils;
 pub(crate) mod trait_defs;
 
-pub use imp::DuplicateEntry;
+pub use imp::TriHashMap;
 pub use iter::{Iter, IterMut};
 pub use ref_mut::RefMut;
+pub use trait_defs::TriHashMapEntry;

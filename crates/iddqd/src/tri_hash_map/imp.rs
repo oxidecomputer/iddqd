@@ -4,12 +4,13 @@
 
 use super::{tables::TriHashMapTables, Iter, IterMut, RefMut};
 use crate::{
+    errors::DuplicateEntry,
     support::{entry_set::EntrySet, hash_table::MapHash},
     TriHashMapEntry,
 };
 use derive_where::derive_where;
 use hashbrown::hash_table::{Entry, VacantEntry};
-use std::{borrow::Borrow, collections::BTreeSet, fmt, hash::Hash};
+use std::{borrow::Borrow, collections::BTreeSet, hash::Hash};
 
 /// An append-only 1:1:1 (trijective) map for three keys and a value.
 ///
@@ -71,7 +72,7 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
     #[cfg(test)]
     pub(super) fn validate(&self) -> anyhow::Result<()>
     where
-        T: fmt::Debug,
+        T: std::fmt::Debug,
     {
         use anyhow::Context;
 
@@ -145,13 +146,10 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
         };
 
         if !duplicates.is_empty() {
-            return Err(DuplicateEntry {
-                new: value,
-                duplicates: duplicates
-                    .iter()
-                    .map(|ix| &self.entries[*ix])
-                    .collect(),
-            });
+            return Err(DuplicateEntry::new(
+                value,
+                duplicates.iter().map(|ix| &self.entries[*ix]).collect(),
+            ));
         }
 
         let next_index = self.entries.len();
@@ -373,68 +371,10 @@ fn detect_dup_or_insert<'a>(
     }
 }
 
-/// An error type returned when an entry is inserted that conflicts with
-/// existing entries.
-#[derive(Debug)]
-pub struct DuplicateEntry<T: TriHashMapEntry, D: TriHashMapEntry = T> {
-    new: T,
-    duplicates: Vec<D>,
-}
-
-impl<T: TriHashMapEntry, D: TriHashMapEntry> DuplicateEntry<T, D> {
-    /// Returns the new entry that was attempted to be inserted.
-    #[inline]
-    pub fn new_entry(&self) -> &T {
-        &self.new
-    }
-
-    /// Returns the list of entries that conflict with the new entry.
-    #[inline]
-    pub fn duplicates(&self) -> &[D] {
-        &self.duplicates
-    }
-
-    /// Converts self into its constituent parts.
-    pub fn into_parts(self) -> (T, Vec<D>) {
-        (self.new, self.duplicates)
-    }
-}
-
-impl<T: TriHashMapEntry + Clone> DuplicateEntry<T, &T> {
-    /// Converts self to an owned `DuplicateEntry` by cloning the list of
-    /// duplicates.
-    ///
-    /// If `T` is `'static`, the owned form is suitable for conversion to
-    /// `Box<dyn std::error::Error>`, `anyhow::Error`, and so on.
-    pub fn into_owned(self) -> DuplicateEntry<T> {
-        DuplicateEntry {
-            new: self.new,
-            duplicates: self.duplicates.into_iter().cloned().collect(),
-        }
-    }
-}
-
-impl<T: TriHashMapEntry + fmt::Debug, D: TriHashMapEntry + fmt::Debug>
-    fmt::Display for DuplicateEntry<T, D>
-{
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "new entry: {:?} conflicts with existing: {:?}",
-            self.new, self.duplicates
-        )
-    }
-}
-
-impl<T: TriHashMapEntry + fmt::Debug, D: TriHashMapEntry + fmt::Debug>
-    std::error::Error for DuplicateEntry<T, D>
-{
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tri_hash_map::test_utils::TestEntry;
+    use crate::test_utils::{assert_eq_props, assert_ne_props, TestEntry};
     use prop::sample::SizeRange;
     use proptest::prelude::*;
     use test_strategy::{proptest, Arbitrary};
@@ -454,8 +394,8 @@ mod tests {
 
         // Add an exact duplicate, which should error out.
         let error = map.insert_unique(v1.clone()).unwrap_err();
-        assert_eq!(&error.new, &v1);
-        assert_eq!(error.duplicates, vec![&v1]);
+        assert_eq!(error.new_entry(), &v1);
+        assert_eq!(error.duplicates(), vec![&v1]);
 
         // Add a duplicate against just key1, which should error out.
         let v2 = TestEntry {
@@ -465,8 +405,8 @@ mod tests {
             value: "v".to_string(),
         };
         let error = map.insert_unique(v2.clone()).unwrap_err();
-        assert_eq!(&error.new, &v2);
-        assert_eq!(error.duplicates, vec![&v1]);
+        assert_eq!(error.new_entry(), &v2);
+        assert_eq!(error.duplicates(), vec![&v1]);
 
         // Add a duplicate against just key2, which should error out.
         let v3 = TestEntry {
@@ -476,7 +416,7 @@ mod tests {
             value: "v".to_string(),
         };
         let error = map.insert_unique(v3.clone()).unwrap_err();
-        assert_eq!(&error.new, &v3);
+        assert_eq!(error.new_entry(), &v3);
 
         // Add a duplicate against just key3, which should error out.
         let v4 = TestEntry {
@@ -486,7 +426,7 @@ mod tests {
             value: "v".to_string(),
         };
         let error = map.insert_unique(v4.clone()).unwrap_err();
-        assert_eq!(&error.new, &v4);
+        assert_eq!(error.new_entry(), &v4);
 
         // Add an entry that doesn't have any conflicts.
         let v5 = TestEntry {
@@ -537,13 +477,10 @@ mod tests {
                 self.entries.push(entry);
                 Ok(())
             } else {
-                Err(DuplicateEntry {
-                    new: entry,
-                    duplicates: indexes
-                        .iter()
-                        .map(|&i| &self.entries[i])
-                        .collect(),
-                })
+                Err(DuplicateEntry::new(
+                    entry,
+                    indexes.iter().map(|&i| &self.entries[i]).collect(),
+                ))
             }
         }
     }
@@ -577,8 +514,11 @@ mod tests {
                     assert_eq!(map_res.is_ok(), naive_res.is_ok());
                     if let Err(map_err) = map_res {
                         let naive_err = naive_res.unwrap_err();
-                        assert_eq!(map_err.new, naive_err.new);
-                        assert_eq!(map_err.duplicates, naive_err.duplicates);
+                        assert_eq!(map_err.new_entry(), naive_err.new_entry());
+                        assert_eq!(
+                            map_err.duplicates(),
+                            naive_err.duplicates()
+                        );
                     }
 
                     map.validate().expect("map should be valid");
@@ -790,30 +730,5 @@ mod tests {
             .unwrap();
             assert_ne_props(&map1, &map2);
         }
-    }
-
-    /// Assert equality properties.
-    ///
-    /// The PartialEq algorithm is not obviously symmetric or reflexive, so we
-    /// must ensure in our tests that it is.
-    #[allow(clippy::eq_op)]
-    fn assert_eq_props<T: Eq + fmt::Debug>(a: T, b: T) {
-        assert_eq!(a, a, "a == a");
-        assert_eq!(b, b, "b == b");
-        assert_eq!(a, b, "a == b");
-        assert_eq!(b, a, "b == a");
-    }
-
-    /// Assert inequality properties.
-    ///
-    /// The PartialEq algorithm is not obviously symmetric or reflexive, so we
-    /// must ensure in our tests that it is.
-    #[allow(clippy::eq_op)]
-    fn assert_ne_props<T: Eq + fmt::Debug>(a: T, b: T) {
-        // Also check reflexivity while we're here.
-        assert_eq!(a, a, "a == a");
-        assert_eq!(b, b, "b == b");
-        assert_ne!(a, b, "a != b");
-        assert_ne!(b, a, "b != a");
     }
 }

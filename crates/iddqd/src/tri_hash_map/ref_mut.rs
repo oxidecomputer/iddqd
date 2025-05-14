@@ -103,7 +103,7 @@ impl<'a, T: TriHashMapEntry> RefMutInner<'a, T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{tri_hash_map::test_utils::TestEntry, TriHashMap};
+    use crate::{test_utils::TestEntry, TriHashMap};
 
     #[test]
     #[should_panic(expected = "key1 changed during RefMut borrow")]

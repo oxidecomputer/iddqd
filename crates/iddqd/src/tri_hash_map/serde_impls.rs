@@ -50,7 +50,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tri_hash_map::test_utils::TestEntry;
+    use crate::test_utils::TestEntry;
     use test_strategy::proptest;
 
     #[proptest]

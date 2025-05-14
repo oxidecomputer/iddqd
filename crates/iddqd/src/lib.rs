@@ -55,7 +55,10 @@
 
 #![warn(missing_docs)]
 
+pub mod errors;
 mod support;
+#[cfg(test)]
+mod test_utils;
 pub mod tri_hash_map;
 
 pub use tri_hash_map::{imp::TriHashMap, trait_defs::TriHashMapEntry};
