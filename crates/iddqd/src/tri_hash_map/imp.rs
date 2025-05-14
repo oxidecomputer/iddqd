@@ -26,11 +26,13 @@ pub struct TriHashMap<T: TriHashMapEntry> {
 }
 
 impl<T: TriHashMapEntry> TriHashMap<T> {
+    /// Creates a new, empty `TriHashMap`.
     #[inline]
     pub fn new() -> Self {
         Self { entries: EntrySet::default(), tables: TriHashMapTables::new() }
     }
 
+    /// Creates a new `TriHashMap` with the given capacity.
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             entries: EntrySet::with_capacity(capacity),
@@ -38,21 +40,25 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
         }
     }
 
+    /// Returns true if the map is empty.
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
 
+    /// Returns the number of entries in the map.
     #[inline]
     pub fn len(&self) -> usize {
         self.entries.len()
     }
 
+    /// Iterates over the entries in the map.
     #[inline]
     pub fn iter(&self) -> Iter<'_, T> {
         Iter::new(&self.entries)
     }
 
+    /// Iterates over the entries in the map, allowing for mutation.
     #[inline]
     pub fn iter_mut(&mut self) -> IterMut<'_, T> {
         IterMut::new(&self.tables, &mut self.entries)
@@ -159,6 +165,7 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
         Ok(())
     }
 
+    /// Gets a reference to the value associated with the given `key1`.
     pub fn get1<'a, Q>(&'a self, key1: &Q) -> Option<&'a T>
     where
         T::K1<'a>: Borrow<Q>,
@@ -182,6 +189,7 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
         Some(RefMut::new(hashes, entry))
     }
 
+    /// Gets a reference to the value associated with the given `key2`.
     pub fn get2<'a, Q>(&'a self, key2: &Q) -> Option<&'a T>
     where
         T::K2<'a>: Borrow<Q>,
@@ -205,6 +213,7 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
         Some(RefMut::new(hashes, entry))
     }
 
+    /// Gets a reference to the value associated with the given `key3`.
     pub fn get3<'a, Q>(&'a self, key3: &Q) -> Option<&'a T>
     where
         T::K3<'a>: Borrow<Q>,
@@ -364,6 +373,8 @@ fn detect_dup_or_insert<'a>(
     }
 }
 
+/// An error type returned when an entry is inserted that conflicts with
+/// existing entries.
 #[derive(Debug)]
 pub struct DuplicateEntry<T: TriHashMapEntry, D: TriHashMapEntry = T> {
     new: T,

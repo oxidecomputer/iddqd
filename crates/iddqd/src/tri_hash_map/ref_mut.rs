@@ -30,6 +30,9 @@ use std::ops::{Deref, DerefMut};
 /// `RefMut`, the `TriHashMap` will stop functioning correctly. This will not
 /// introduce memory safety issues, however.
 ///
+/// The issues here are similar to using interior mutability (e.g. `RefCell` or
+/// `Mutex`) to mutate keys in a regular `HashMap`.
+///
 /// [`mem::forget`]: std::mem::forget
 ///
 /// [^collision-chance]: The output of `Hash` is a [`u64`], so the probability
@@ -48,6 +51,7 @@ impl<'a, T: TriHashMapEntry> RefMut<'a, T> {
         Self { inner: Some(RefMutInner { hashes, borrowed }) }
     }
 
+    /// Converts this `RefMut` into a `&'a T`.
     pub fn into_ref(mut self) -> &'a T {
         let inner = self.inner.take().unwrap();
         inner.into_ref()

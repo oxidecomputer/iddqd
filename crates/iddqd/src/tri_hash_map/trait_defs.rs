@@ -6,27 +6,64 @@
 
 use std::{hash::Hash, rc::Rc, sync::Arc};
 
+/// An entry in a [`TriHashMap`].
+///
+/// This trait is used to define the keys.
+///
+/// # Examples
+///
+/// TODO: Add an example here.
+///
+/// [`TriHashMap`]: crate::tri_hash_map::TriHashMap
 pub trait TriHashMapEntry {
+    /// The first key type.
     type K1<'a>: Eq + Hash
     where
         Self: 'a;
+
+    /// The second key type.
     type K2<'a>: Eq + Hash
     where
         Self: 'a;
+
+    /// The third key type.
     type K3<'a>: Eq + Hash
     where
         Self: 'a;
 
+    /// Retrieves the first key.
     fn key1(&self) -> Self::K1<'_>;
+
+    /// Retrieves the second key.
     fn key2(&self) -> Self::K2<'_>;
+
+    /// Retrieves the third key.
     fn key3(&self) -> Self::K3<'_>;
 
+    /// Upcasts the first key to a shorter lifetime, in effect asserting that
+    /// the lifetime `'a` on [`TriHashMapEntry::K1`] is covariant.
+    ///
+    /// Typically implemented via the [`tri_upcasts`] macro.
+    ///
+    /// [`tri_upcasts`]: crate::tri_upcasts
     fn upcast_key1<'short, 'long: 'short>(
         long: Self::K1<'long>,
     ) -> Self::K1<'short>;
+
+    /// Upcasts the second key to a shorter lifetime, in effect asserting that
+    /// the lifetime `'a` on [`TriHashMapEntry::K2`] is covariant.
+    ///
+    /// Typically implemented via the [`tri_upcasts`] macro.
+    ///
+    /// [`tri_upcasts`]: crate::tri_upcasts
     fn upcast_key2<'short, 'long: 'short>(
         long: Self::K2<'long>,
     ) -> Self::K2<'short>;
+
+    /// Upcasts the third key to a shorter lifetime, in effect asserting that
+    /// the lifetime `'a` on [`TriHashMapEntry::K3`] is covariant.
+    ///
+    /// Typically implemented via the [`tri_upcasts`] macro.
     fn upcast_key3<'short, 'long: 'short>(
         long: Self::K3<'long>,
     ) -> Self::K3<'short>;
