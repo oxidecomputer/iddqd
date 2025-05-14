@@ -83,11 +83,27 @@ impl<T> EntrySet<T> {
     }
 
     #[inline]
+    pub(crate) fn next_index(&self) -> usize {
+        self.next_index
+    }
+
+    #[inline]
     pub(crate) fn insert(&mut self, value: T) -> usize {
         let index = self.next_index;
         self.entries.insert(index, value);
         self.next_index += 1;
         index
+    }
+
+    #[inline]
+    pub(crate) fn remove(&mut self, index: usize) -> Option<T> {
+        let entry = self.entries.remove(&index);
+        if entry.is_some() && index == self.next_index - 1 {
+            // If we removed the last entry, decrement next_index. Not strictly
+            // necessary but a nice optimization.
+            self.next_index -= 1;
+        }
+        entry
     }
 
     /// Converts self into a `Vec<T>` sorted by index.

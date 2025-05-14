@@ -4,6 +4,24 @@
 
 //! Macros for this crate.
 
+/// Implement upcasts for an implementation with a single key.
+///
+/// The maps in this crate require that the key types' lifetimes are covariant.
+/// This macro assists with implementing this requirement.
+///
+/// The macro is optional, and these implementations can be written by hand as
+/// well.
+#[macro_export]
+macro_rules! id_upcast {
+    () => {
+        fn upcast_key<'short, 'long: 'short>(
+            long: Self::Key<'long>,
+        ) -> Self::Key<'short> {
+            long
+        }
+    };
+}
+
 /// Implement upcasts for an implementation with three keys.
 ///
 /// The maps in this crate require that the key types' lifetimes are covariant.

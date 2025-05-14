@@ -3,8 +3,10 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
-    errors::DuplicateEntry, tri_hash_map, tri_upcasts, TriHashMap,
-    TriHashMapEntry,
+    errors::DuplicateEntry,
+    id_btree_map::{self},
+    id_upcast, tri_hash_map, tri_upcasts, IdBTreeMap, IdBTreeMapEntry,
+    IdBTreeMapEntryMut, TriHashMap, TriHashMapEntry,
 };
 use std::fmt;
 use test_strategy::Arbitrary;
@@ -24,6 +26,29 @@ impl PartialEq<&TestEntry> for TestEntry {
             && self.key2 == other.key2
             && self.key3 == other.key3
             && self.value == other.value
+    }
+}
+
+impl IdBTreeMapEntry for TestEntry {
+    // A bit weird to return a reference to a u8, but this makes sure
+    // reference-based keys work properly.
+    type Key<'a>
+        = &'a u8
+    where
+        Self: 'a;
+
+    fn key(&self) -> Self::Key<'_> {
+        &self.key1
+    }
+
+    id_upcast!();
+}
+
+impl IdBTreeMapEntryMut for TestEntry {
+    type OwnedKey = u8;
+
+    fn owned_key(&self) -> Self::OwnedKey {
+        self.key1
     }
 }
 
@@ -57,6 +82,7 @@ impl TriHashMapEntry for TestEntry {
 }
 
 pub(crate) enum MapKind {
+    BTree,
     Hash,
 }
 
@@ -84,6 +110,44 @@ pub(crate) trait TestEntryMap: Clone {
     fn iter(&self) -> Self::Iter<'_>;
     fn iter_mut(&mut self) -> Self::IterMut<'_>;
     fn into_iter(self) -> Self::IntoIter;
+}
+
+impl TestEntryMap for IdBTreeMap<TestEntry> {
+    type RefMut<'a> = id_btree_map::RefMut<'a, TestEntry>;
+    type Iter<'a> = id_btree_map::Iter<'a, TestEntry>;
+    type IterMut<'a> = id_btree_map::IterMut<'a, TestEntry>;
+    type IntoIter = id_btree_map::IntoIter<TestEntry>;
+
+    fn map_kind() -> MapKind {
+        MapKind::BTree
+    }
+
+    fn new() -> Self {
+        IdBTreeMap::new()
+    }
+
+    fn validate(&self) -> anyhow::Result<()> {
+        self.validate()
+    }
+
+    fn insert_unique(
+        &mut self,
+        value: TestEntry,
+    ) -> Result<(), DuplicateEntry<TestEntry, &TestEntry>> {
+        self.insert_unique(value)
+    }
+
+    fn iter(&self) -> Self::Iter<'_> {
+        self.iter()
+    }
+
+    fn iter_mut(&mut self) -> Self::IterMut<'_> {
+        self.iter_mut()
+    }
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.into_iter()
+    }
 }
 
 impl TestEntryMap for TriHashMap<TestEntry> {
@@ -126,6 +190,12 @@ impl TestEntryMap for TriHashMap<TestEntry> {
 
 pub(crate) trait IntoRef<'a> {
     fn into_ref(self) -> &'a TestEntry;
+}
+
+impl<'a> IntoRef<'a> for id_btree_map::RefMut<'a, TestEntry> {
+    fn into_ref(self) -> &'a TestEntry {
+        self.into_ref()
+    }
 }
 
 impl<'a> IntoRef<'a> for tri_hash_map::RefMut<'a, TestEntry> {

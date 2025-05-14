@@ -2,43 +2,33 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::{tables::TriHashMapTables, IntoIter, Iter, IterMut, RefMut};
-use crate::{
-    errors::DuplicateEntry,
-    support::{entry_set::EntrySet, hash_table::MapHash},
-    TriHashMapEntry,
+use super::{
+    tables::IdBTreeMapTables, IdBTreeMapEntry, IdBTreeMapEntryMut, IntoIter,
+    Iter, IterMut, RefMut,
 };
+use crate::{errors::DuplicateEntry, support::entry_set::EntrySet};
 use derive_where::derive_where;
-use hashbrown::hash_table::{Entry, VacantEntry};
-use std::{borrow::Borrow, collections::BTreeSet, hash::Hash};
+use std::{borrow::Borrow, collections::BTreeSet};
 
-/// A 1:1:1 (trijective) map for three keys and a value.
+/// An ordered map where the keys are part of the values, based on a B-Tree.
 ///
 /// The storage mechanism is a fast hash table of integer indexes to entries,
-/// with these indexes stored in three hashmaps. This allows for efficient
+/// with these indexes stored in three b-tree maps. This allows for efficient
 /// lookups by any of the three keys, while preventing duplicates.
 #[derive_where(Default)]
 #[derive(Clone, Debug)]
-pub struct TriHashMap<T: TriHashMapEntry> {
+pub struct IdBTreeMap<T: IdBTreeMapEntry> {
     pub(super) entries: EntrySet<T>,
     // Invariant: the values (usize) in these tables are valid indexes into
     // `entries`, and are a 1:1 mapping.
-    tables: TriHashMapTables,
+    tables: IdBTreeMapTables,
 }
 
-impl<T: TriHashMapEntry> TriHashMap<T> {
-    /// Creates a new, empty `TriHashMap`.
+impl<T: IdBTreeMapEntry> IdBTreeMap<T> {
+    /// Creates a new, empty `IdBTreeMap`.
     #[inline]
     pub fn new() -> Self {
-        Self { entries: EntrySet::default(), tables: TriHashMapTables::new() }
-    }
-
-    /// Creates a new `TriHashMap` with the given capacity.
-    pub fn with_capacity(capacity: usize) -> Self {
-        Self {
-            entries: EntrySet::with_capacity(capacity),
-            tables: TriHashMapTables::with_capacity(capacity),
-        }
+        Self { entries: EntrySet::default(), tables: IdBTreeMapTables::new() }
     }
 
     /// Returns true if the map is empty.
@@ -56,19 +46,22 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
     /// Iterates over the entries in the map.
     #[inline]
     pub fn iter(&self) -> Iter<'_, T> {
-        Iter::new(&self.entries)
+        Iter::new(&self.entries, &self.tables)
     }
 
     /// Iterates over the entries in the map, allowing for mutation.
     #[inline]
-    pub fn iter_mut(&mut self) -> IterMut<'_, T> {
-        IterMut::new(&self.tables, &mut self.entries)
+    pub fn iter_mut(&mut self) -> IterMut<'_, T>
+    where
+        T: IdBTreeMapEntryMut,
+    {
+        IterMut::new(&mut self.entries, &self.tables)
     }
 
-    /// Consumes self, returning an iterator over map entries.
+    /// Consumes self, returning an iterator over the entries in the map.
     #[inline]
     pub fn into_iter(self) -> IntoIter<T> {
-        IntoIter::new(self.entries)
+        IntoIter::new(self.entries, self.tables)
     }
 
     /// Checks general invariants of the map.
@@ -86,27 +79,17 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
 
         // Check that the indexes are all correct.
         for (&ix, entry) in self.entries.iter() {
-            let key1 = entry.key1();
-            let key2 = entry.key2();
-            let key3 = entry.key3();
+            let key = entry.key();
 
-            let ix1 = self.find1_index(&key1).with_context(|| {
-                format!("entry at index {ix} has no key1 index")
-            })?;
-            let ix2 = self.find2_index(&key2).with_context(|| {
-                format!("entry at index {ix} has no key2 index")
-            })?;
-            let ix3 = self.find3_index(&key3).with_context(|| {
-                format!("entry at index {ix} has no key3 index")
+            let ix1 = self.find_index(&key).with_context(|| {
+                format!("entry at index {ix} has no key index")
             })?;
 
-            if ix1 != ix || ix2 != ix || ix3 != ix {
+            if ix1 != ix {
                 return Err(anyhow::anyhow!(
-                    "entry at index {} has mismatched indexes: ix1: {}, ix2: {}, ix3: {}",
+                    "entry at index {ix} has mismatched indexes: {} != {}",
                     ix,
                     ix1,
-                    ix2,
-                    ix3
                 ));
             }
         }
@@ -125,189 +108,80 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
         // Check for duplicates *before* inserting the new entry, because we
         // don't want to partially insert the new entry and then have to roll
         // back.
-        let (e1, e2, e3) = {
-            let k1 = value.key1();
-            let k2 = value.key2();
-            let k3 = value.key3();
+        let key = value.key();
 
-            let e1 = detect_dup_or_insert(
-                self.tables
-                    .k1_to_entry
-                    .entry(k1, |index| self.entries[index].key1()),
-                &mut duplicates,
-            );
-            let e2 = detect_dup_or_insert(
-                self.tables
-                    .k2_to_entry
-                    .entry(k2, |index| self.entries[index].key2()),
-                &mut duplicates,
-            );
-            let e3 = detect_dup_or_insert(
-                self.tables
-                    .k3_to_entry
-                    .entry(k3, |index| self.entries[index].key3()),
-                &mut duplicates,
-            );
-            (e1, e2, e3)
-        };
+        if let Some(index) = self
+            .tables
+            .key_to_entry
+            .find_index(&key, |index| self.entries[index].key())
+        {
+            duplicates.insert(index);
+        }
 
         if !duplicates.is_empty() {
+            drop(key);
             return Err(DuplicateEntry::new(
                 value,
                 duplicates.iter().map(|ix| &self.entries[*ix]).collect(),
             ));
         }
 
-        let next_index = self.entries.insert(value);
-        // e1, e2 and e3 are all Some because if they were None, duplicates
-        // would be non-empty, and we'd have bailed out earlier.
-        e1.unwrap().insert(next_index);
-        e2.unwrap().insert(next_index);
-        e3.unwrap().insert(next_index);
+        let next_index = self.entries.next_index();
+        self.tables
+            .key_to_entry
+            .insert(next_index, &key, |index| self.entries[index].key());
+        drop(key);
+        self.entries.insert(value);
 
         Ok(())
     }
 
-    /// Gets a reference to the value associated with the given `key1`.
-    pub fn get1<'a, Q>(&'a self, key1: &Q) -> Option<&'a T>
+    /// Gets a reference to the value associated with the given `key`.
+    pub fn get<'a, Q>(&'a self, key: &Q) -> Option<&'a T>
     where
-        T::K1<'a>: Borrow<Q>,
+        T::Key<'a>: Borrow<Q>,
         T: 'a,
-        Q: Eq + Hash + ?Sized,
+        Q: Ord + ?Sized,
     {
-        self.find1(key1)
+        self.find(key)
     }
 
-    /// Gets a mutable reference to the value associated with the given `key1`.
+    /// Gets a mutable reference to the value associated with the given `key`.
     ///
-    /// Due to borrow checker limitations, this always accepts `K1` rather than
-    /// a borrowed form of it.
-    pub fn get1_mut<'a>(
-        &'a mut self,
-        key1: T::K1<'_>,
-    ) -> Option<RefMut<'a, T>> {
-        let index = self.find1_index(&T::upcast_key1(key1))?;
-        let hashes = self.make_hashes(&self.entries[index]);
-        let entry = &mut self.entries[index];
-        Some(RefMut::new(hashes, entry))
-    }
-
-    /// Gets a reference to the value associated with the given `key2`.
-    pub fn get2<'a, Q>(&'a self, key2: &Q) -> Option<&'a T>
+    /// Due to borrow checker limitations, this requires that `Key` have an owned form.
+    pub fn get_mut<'a>(&'a mut self, key: T::Key<'_>) -> Option<RefMut<'a, T>>
     where
-        T::K2<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Eq + Hash + ?Sized,
+        T: IdBTreeMapEntryMut,
     {
-        self.find2(key2)
-    }
-
-    /// Gets a mutable reference to the value associated with the given `key2`.
-    ///
-    /// Due to borrow checker limitations, this always accepts `K2` rather than
-    /// a borrowed form of it.
-    pub fn get2_mut<'a>(
-        &'a mut self,
-        key2: T::K2<'_>,
-    ) -> Option<RefMut<'a, T>> {
-        let index = self.find2_index(&T::upcast_key2(key2))?;
-        let hashes = self.make_hashes(&self.entries[index]);
+        let index = self.find_index(&T::upcast_key(key))?;
         let entry = &mut self.entries[index];
-        Some(RefMut::new(hashes, entry))
+        Some(RefMut::new(entry))
     }
 
-    /// Gets a reference to the value associated with the given `key3`.
-    pub fn get3<'a, Q>(&'a self, key3: &Q) -> Option<&'a T>
+    fn find<'a, Q>(&'a self, k: &Q) -> Option<&'a T>
     where
-        T::K3<'a>: Borrow<Q>,
+        T::Key<'a>: Borrow<Q>,
         T: 'a,
-        Q: Eq + Hash + ?Sized,
+        Q: Ord + ?Sized,
     {
-        self.find3(key3)
+        self.find_index(k).map(|ix| &self.entries[ix])
     }
 
-    /// Gets a mutable reference to the value associated with the given `key3`.
-    ///
-    /// Due to borrow checker limitations, this always accepts `K3` rather than
-    /// a borrowed form of it.
-    pub fn get3_mut<'a>(
-        &'a mut self,
-        key3: T::K3<'_>,
-    ) -> Option<RefMut<'a, T>> {
-        let index = self.find3_index(&T::upcast_key3(key3))?;
-        let hashes = self.make_hashes(&self.entries[index]);
-        let entry = &mut self.entries[index];
-        Some(RefMut::new(hashes, entry))
-    }
-
-    fn find1<'a, Q>(&'a self, k: &Q) -> Option<&'a T>
+    fn find_index<'a, Q>(&'a self, k: &Q) -> Option<usize>
     where
-        T::K1<'a>: Borrow<Q>,
+        T::Key<'a>: Borrow<Q>,
         T: 'a,
-        Q: Eq + Hash + ?Sized,
-    {
-        self.find1_index(k).map(|ix| &self.entries[ix])
-    }
-
-    fn find1_index<'a, Q>(&'a self, k: &Q) -> Option<usize>
-    where
-        T::K1<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Eq + Hash + ?Sized,
+        Q: Ord + ?Sized,
     {
         self.tables
-            .k1_to_entry
-            .find_index(k, |index| self.entries[index].key1())
-    }
-
-    fn find2<'a, Q>(&'a self, k: &Q) -> Option<&'a T>
-    where
-        T::K2<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Eq + Hash + ?Sized,
-    {
-        self.find2_index(k).map(|ix| &self.entries[ix])
-    }
-
-    fn find2_index<'a, Q>(&'a self, k: &Q) -> Option<usize>
-    where
-        T::K2<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Eq + Hash + ?Sized,
-    {
-        self.tables
-            .k2_to_entry
-            .find_index(k, |index| self.entries[index].key2())
-    }
-
-    fn find3<'a, Q>(&'a self, k: &Q) -> Option<&'a T>
-    where
-        T::K3<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Eq + Hash + ?Sized,
-    {
-        self.find3_index(k).map(|ix| &self.entries[ix])
-    }
-
-    fn find3_index<'a, Q>(&'a self, k: &Q) -> Option<usize>
-    where
-        T::K3<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Eq + Hash + ?Sized,
-    {
-        self.tables
-            .k3_to_entry
-            .find_index(k, |index| self.entries[index].key3())
-    }
-
-    fn make_hashes(&self, item: &T) -> [MapHash; 3] {
-        self.tables.make_hashes(item)
+            .key_to_entry
+            .find_index(k, |index| self.entries[index].key())
     }
 }
 
-impl<T: TriHashMapEntry + PartialEq> PartialEq for TriHashMap<T> {
+impl<T: IdBTreeMapEntry + PartialEq> PartialEq for IdBTreeMap<T> {
     fn eq(&self, other: &Self) -> bool {
-        // Implementing PartialEq for TriHashMap is tricky because TriHashMap is
+        // Implementing PartialEq for IdBTreeMap is tricky because IdBTreeMap is
         // not semantically like an IndexMap: two maps are equivalent even if
         // their entries are in a different order. In other words, any
         // permutation of entries is equivalent.
@@ -324,32 +198,18 @@ impl<T: TriHashMapEntry + PartialEq> PartialEq for TriHashMap<T> {
         // Walk over all the entries in the first map and check that they point
         // to the same entry in the second map.
         for entry in self.entries.values() {
-            let k1 = entry.key1();
-            let k2 = entry.key2();
-            let k3 = entry.key3();
+            let k1 = entry.key();
 
-            // Check that the indexes are the same in the other map.
-            let Some(other_ix1) = other.find1_index(&k1) else {
+            // Check that the index is the same in the other map.
+            let Some(other_ix1) = other.find_index(&k1) else {
                 return false;
             };
-            let Some(other_ix2) = other.find2_index(&k2) else {
-                return false;
-            };
-            let Some(other_ix3) = other.find3_index(&k3) else {
-                return false;
-            };
-
-            if other_ix1 != other_ix2 || other_ix1 != other_ix3 {
-                // All the keys were present but they didn't point to the same
-                // entry.
-                return false;
-            }
 
             // Check that the other map's entry is the same as this map's
             // entry. (This is what we use the `PartialEq` bound on T for.)
             //
-            // Because we've checked that other_ix1, other_ix2 and other_ix3 are
-            // Some, we know that it is valid and points to the expected entry.
+            // Because we've checked that other_ix1 is Some, we know that it is
+            // valid and points to the expected entry.
             let other_entry = &other.entries[other_ix1];
             if entry != other_entry {
                 return false;
@@ -360,23 +220,10 @@ impl<T: TriHashMapEntry + PartialEq> PartialEq for TriHashMap<T> {
     }
 }
 
-// The Eq bound on T ensures that the TriHashMap forms an equivalence class.
-impl<T: TriHashMapEntry + Eq> Eq for TriHashMap<T> {}
+// The Eq bound on T ensures that the IdBTreeMap forms an equivalence class.
+impl<T: IdBTreeMapEntry + Eq> Eq for IdBTreeMap<T> {}
 
-fn detect_dup_or_insert<'a>(
-    entry: Entry<'a, usize>,
-    duplicates: &mut BTreeSet<usize>,
-) -> Option<VacantEntry<'a, usize>> {
-    match entry {
-        Entry::Vacant(slot) => Some(slot),
-        Entry::Occupied(slot) => {
-            duplicates.insert(*slot.get());
-            None
-        }
-    }
-}
-
-impl<'a, T: TriHashMapEntry> IntoIterator for &'a TriHashMap<T> {
+impl<'a, T: IdBTreeMapEntry> IntoIterator for &'a IdBTreeMap<T> {
     type Item = &'a T;
     type IntoIter = Iter<'a, T>;
 
@@ -386,7 +233,7 @@ impl<'a, T: TriHashMapEntry> IntoIterator for &'a TriHashMap<T> {
     }
 }
 
-impl<'a, T: TriHashMapEntry> IntoIterator for &'a mut TriHashMap<T> {
+impl<'a, T: IdBTreeMapEntryMut> IntoIterator for &'a mut IdBTreeMap<T> {
     type Item = RefMut<'a, T>;
     type IntoIter = IterMut<'a, T>;
 
@@ -396,7 +243,7 @@ impl<'a, T: TriHashMapEntry> IntoIterator for &'a mut TriHashMap<T> {
     }
 }
 
-impl<T: TriHashMapEntry> IntoIterator for TriHashMap<T> {
+impl<T: IdBTreeMapEntryMut> IntoIterator for IdBTreeMap<T> {
     type Item = T;
     type IntoIter = IntoIter<T>;
 
@@ -418,11 +265,11 @@ mod tests {
 
     #[test]
     fn test_insert_entry_no_dups() {
-        let mut map = TriHashMap::<TestEntry>::new();
+        let mut map = IdBTreeMap::<TestEntry>::new();
 
         // Add an element.
         let v1 = TestEntry {
-            key1: 0,
+            key1: 20,
             key2: 'a',
             key3: "x".to_string(),
             value: "v".to_string(),
@@ -436,7 +283,7 @@ mod tests {
 
         // Add a duplicate against just key1, which should error out.
         let v2 = TestEntry {
-            key1: 0,
+            key1: 20,
             key2: 'b',
             key3: "y".to_string(),
             value: "v".to_string(),
@@ -445,19 +292,19 @@ mod tests {
         assert_eq!(error.new_entry(), &v2);
         assert_eq!(error.duplicates(), vec![&v1]);
 
-        // Add a duplicate against just key2, which should error out.
+        // Add a duplicate against key2. IdBTreeMap only uses key1 here, so this
+        // should be allowed.
         let v3 = TestEntry {
-            key1: 1,
+            key1: 5,
             key2: 'a',
             key3: "y".to_string(),
             value: "v".to_string(),
         };
-        let error = map.insert_unique(v3.clone()).unwrap_err();
-        assert_eq!(error.new_entry(), &v3);
+        map.insert_unique(v3.clone()).unwrap();
 
-        // Add a duplicate against just key3, which should error out.
+        // Add a duplicate against key1, which should error out.
         let v4 = TestEntry {
-            key1: 1,
+            key1: 5,
             key2: 'b',
             key3: "x".to_string(),
             value: "v".to_string(),
@@ -465,24 +312,24 @@ mod tests {
         let error = map.insert_unique(v4.clone()).unwrap_err();
         assert_eq!(error.new_entry(), &v4);
 
-        // Add an entry that doesn't have any conflicts.
-        let v5 = TestEntry {
-            key1: 1,
-            key2: 'b',
-            key3: "y".to_string(),
-            value: "v".to_string(),
-        };
-        map.insert_unique(v5.clone()).unwrap();
+        // Iterate over the entries mutably. This ensures that miri detects
+        // unsafety if it exists.
+        let entries: Vec<RefMut<_>> = map.iter_mut().collect();
+        let e1 = &*entries[0];
+        assert_eq!(*e1, v3);
+
+        let e2 = &*entries[1];
+        assert_eq!(*e2, v1);
     }
 
-    /// Represents a naive version of `TriMap` that doesn't have any indexes
+    /// Represents a naive version of `IdBTreeMap` that doesn't have any indexes
     /// and does linear scans.
     #[derive(Debug)]
-    struct NaiveTriMap {
+    struct NaiveMap {
         entries: Vec<TestEntry>,
     }
 
-    impl NaiveTriMap {
+    impl NaiveMap {
         fn new() -> Self {
             Self { entries: Vec::new() }
         }
@@ -494,21 +341,18 @@ mod tests {
             // Cannot store the duplicates directly here because of borrow
             // checker issues. Instead, we store indexes and then map them to
             // entries.
-            let indexes = self
-                .entries
-                .iter()
-                .enumerate()
-                .filter_map(|(i, e)| {
-                    if e.key1 == entry.key1
-                        || e.key2 == entry.key2
-                        || e.key3 == entry.key3
-                    {
-                        Some(i)
-                    } else {
-                        None
-                    }
-                })
-                .collect::<Vec<_>>();
+            let indexes =
+                self.entries
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(i, e)| {
+                        if e.key1 == entry.key1 {
+                            Some(i)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<_>>();
 
             if indexes.is_empty() {
                 self.entries.push(entry);
@@ -527,18 +371,26 @@ mod tests {
         // Make inserts a bit more common to try and fill up the map.
         #[weight(3)]
         Insert(TestEntry),
-        Get1(u8),
-        Get2(char),
-        Get3(String),
+        Get(u8),
     }
+
+    // Miri is quite slow, so run fewer operations.
+    #[cfg(miri)]
+    const OP_LEN: usize = 64;
+    #[cfg(miri)]
+    const PERMUTATION_LEN: usize = 16;
+    #[cfg(not(miri))]
+    const OP_LEN: usize = 1024;
+    #[cfg(not(miri))]
+    const PERMUTATION_LEN: usize = 256;
 
     #[proptest(cases = 16)]
     fn proptest_ops(
-        #[strategy(prop::collection::vec(any::<Operation>(), 0..1024))]
+        #[strategy(prop::collection::vec(any::<Operation>(), 0..OP_LEN))]
         ops: Vec<Operation>,
     ) {
-        let mut map = TriHashMap::<TestEntry>::new();
-        let mut naive_map = NaiveTriMap::new();
+        let mut map = IdBTreeMap::<TestEntry>::new();
+        let mut naive_map = NaiveMap::new();
 
         // Now perform the operations on both maps.
         for op in ops {
@@ -560,24 +412,10 @@ mod tests {
 
                     map.validate().expect("map should be valid");
                 }
-                Operation::Get1(key1) => {
-                    let map_res = map.get1(&key1);
+                Operation::Get(key1) => {
+                    let map_res = map.get(&key1);
                     let naive_res =
                         naive_map.entries.iter().find(|e| e.key1 == key1);
-
-                    assert_eq!(map_res, naive_res);
-                }
-                Operation::Get2(key2) => {
-                    let map_res = map.get2(&key2);
-                    let naive_res =
-                        naive_map.entries.iter().find(|e| e.key2 == key2);
-
-                    assert_eq!(map_res, naive_res);
-                }
-                Operation::Get3(key3) => {
-                    let map_res = map.get3(key3.as_str());
-                    let naive_res =
-                        naive_map.entries.iter().find(|e| e.key3 == key3);
 
                     assert_eq!(map_res, naive_res);
                 }
@@ -586,7 +424,7 @@ mod tests {
             // Check that the iterators work correctly.
             let mut naive_entries =
                 naive_map.entries.iter().collect::<Vec<_>>();
-            naive_entries.sort_by_key(|e| e.key1());
+            naive_entries.sort_by_key(|e| *e.key());
 
             assert_iter_eq(map.clone(), naive_entries);
         }
@@ -594,14 +432,12 @@ mod tests {
 
     #[proptest(cases = 64)]
     fn proptest_permutation_eq(
-        #[strategy(test_entry_permutation_strategy(0..256))] entries: (
-            Vec<TestEntry>,
-            Vec<TestEntry>,
-        ),
+        #[strategy(test_entry_permutation_strategy(0..PERMUTATION_LEN))]
+        entries: (Vec<TestEntry>, Vec<TestEntry>),
     ) {
         let (entries1, entries2) = entries;
-        let mut map1 = TriHashMap::<TestEntry>::new();
-        let mut map2 = TriHashMap::<TestEntry>::new();
+        let mut map1 = IdBTreeMap::<TestEntry>::new();
+        let mut map2 = IdBTreeMap::<TestEntry>::new();
 
         for entry in entries1 {
             map1.insert_unique(entry.clone()).unwrap();
@@ -621,10 +457,9 @@ mod tests {
             |v, mut rng| {
                 // It is possible (likely even) that the input vector has
                 // duplicates. How can we remove them? The easiest way is to use
-                // the TriHashMap logic that already exists to check for
-                // duplicates. Insert all the entries one by one, then get the
-                // list.
-                let mut map = TriHashMap::<TestEntry>::new();
+                // the logic that already exists to check for duplicates. Insert
+                // all the entries one by one, then get the list.
+                let mut map = IdBTreeMap::<TestEntry>::new();
                 for entry in v {
                     // The error case here is expected -- we're actively
                     // de-duping entries right now.
@@ -649,14 +484,10 @@ mod tests {
     }
 
     // Test various conditions for non-equality.
-    //
-    // It's somewhat hard to capture mutations in a proptest (partly because
-    // `TriMap` doesn't support mutating existing entries at the moment), so
-    // this is a small example-based test.
     #[test]
     fn test_permutation_eq_examples() {
-        let mut map1 = TriHashMap::<TestEntry>::new();
-        let mut map2 = TriHashMap::<TestEntry>::new();
+        let mut map1 = IdBTreeMap::<TestEntry>::new();
+        let mut map2 = IdBTreeMap::<TestEntry>::new();
 
         // Two empty maps are equal.
         assert_eq!(map1, map2);
