@@ -4,7 +4,10 @@
 
 use super::{Iter, IterMut, RefMut};
 use crate::{
-    hash_table::{MapHash, MapHashTable},
+    support::{
+        entry_set::EntrySet,
+        hash_table::{MapHash, MapHashTable},
+    },
     TriHashMapEntry,
 };
 use derive_where::derive_where;
@@ -19,7 +22,7 @@ use std::{borrow::Borrow, collections::BTreeSet, fmt, hash::Hash};
 #[derive_where(Default)]
 #[derive(Clone, Debug)]
 pub struct TriHashMap<T: TriHashMapEntry> {
-    pub(super) entries: Vec<T>,
+    pub(super) entries: EntrySet<T>,
     // Invariant: the values (usize) in these tables are valid indexes into
     // `entries`, and are a 1:1 mapping.
     tables: TriHashMapTables,
@@ -28,12 +31,12 @@ pub struct TriHashMap<T: TriHashMapEntry> {
 impl<T: TriHashMapEntry> TriHashMap<T> {
     #[inline]
     pub fn new() -> Self {
-        Self { entries: Vec::new(), tables: TriHashMapTables::new() }
+        Self { entries: EntrySet::default(), tables: TriHashMapTables::new() }
     }
 
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
-            entries: Vec::with_capacity(capacity),
+            entries: EntrySet::with_capacity(capacity),
             tables: TriHashMapTables::with_capacity(capacity),
         }
     }
@@ -63,13 +66,16 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
     /// The code below always upholds these invariants, but it's useful to have
     /// an explicit check for tests.
     #[cfg(test)]
-    pub(super) fn validate(&self) -> anyhow::Result<()> {
+    pub(super) fn validate(&self) -> anyhow::Result<()>
+    where
+        T: fmt::Debug,
+    {
         use anyhow::Context;
 
         self.tables.validate(self.entries.len())?;
 
         // Check that the indexes are all correct.
-        for (ix, entry) in self.entries.iter().enumerate() {
+        for (&ix, entry) in self.entries.iter() {
             let key1 = entry.key1();
             let key2 = entry.key2();
             let key3 = entry.key3();
@@ -86,7 +92,7 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
 
             if ix1 != ix || ix2 != ix || ix3 != ix {
                 return Err(anyhow::anyhow!(
-                    "entry at index {} has mismatched indexes: key1: {}, key2: {}, key3: {}",
+                    "entry at index {} has mismatched indexes: ix1: {}, ix2: {}, ix3: {}",
                     ix,
                     ix1,
                     ix2,
@@ -151,7 +157,7 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
         e1.unwrap().insert(next_index);
         e2.unwrap().insert(next_index);
         e3.unwrap().insert(next_index);
-        self.entries.push(value);
+        self.entries.insert(value);
 
         Ok(())
     }
@@ -308,7 +314,7 @@ impl<T: TriHashMapEntry + PartialEq> PartialEq for TriHashMap<T> {
 
         // Walk over all the entries in the first map and check that they point
         // to the same entry in the second map.
-        for entry in &self.entries {
+        for entry in self.entries.values() {
             let k1 = entry.key1();
             let k2 = entry.key2();
             let k3 = entry.key3();
@@ -676,8 +682,8 @@ mod tests {
         prop::collection::vec(any::<TestEntry>(), size.into()).prop_perturb(
             |v, mut rng| {
                 // It is possible (likely even) that the input vector has
-                // duplicates. How can we remove them? The easiest way is to
-                // use the TriMap logic that already exists to check for
+                // duplicates. How can we remove them? The easiest way is to use
+                // the TriHashMap logic that already exists to check for
                 // duplicates. Insert all the entries one by one, then get the
                 // list.
                 let mut map = TriHashMap::<TestEntry>::new();
@@ -686,20 +692,20 @@ mod tests {
                     // de-duping entries right now.
                     _ = map.insert_unique(entry);
                 }
-                let v = map.entries;
+                let set = map.entries.into_vec();
 
                 // Now shuffle the entries. This is a simple Fisher-Yates
                 // shuffle (Durstenfeld variant, low to high).
-                let mut v2 = v.clone();
-                if v.len() < 2 {
-                    return (v, v2);
+                let mut set2 = set.clone();
+                if set.len() < 2 {
+                    return (set, set2);
                 }
-                for i in 0..v2.len() - 2 {
-                    let j = rng.gen_range(i..v2.len());
-                    v2.swap(i, j);
+                for i in 0..set2.len() - 2 {
+                    let j = rng.gen_range(i..set2.len());
+                    set2.swap(i, j);
                 }
 
-                (v, v2)
+                (set, set2)
             },
         )
     }

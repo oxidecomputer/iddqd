@@ -3,8 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use super::{imp::TriHashMapTables, RefMut};
-use crate::TriHashMapEntry;
-use std::iter::FusedIterator;
+use crate::{support::entry_set::EntrySet, TriHashMapEntry};
+use std::{collections::hash_map, iter::FusedIterator};
 
 /// An iterator over the elements of a [`TriHashMap`] by shared reference.
 ///
@@ -14,12 +14,12 @@ use std::iter::FusedIterator;
 /// [`TriHashMap::iter`]: crate::TriHashMap::iter
 #[derive(Clone, Debug, Default)]
 pub struct Iter<'a, T: TriHashMapEntry> {
-    inner: std::slice::Iter<'a, T>,
+    inner: hash_map::Values<'a, usize, T>,
 }
 
 impl<'a, T: TriHashMapEntry> Iter<'a, T> {
-    pub(crate) fn new(entries: &'a [T]) -> Self {
-        Self { inner: entries.iter() }
+    pub(crate) fn new(entries: &'a EntrySet<T>) -> Self {
+        Self { inner: entries.values() }
     }
 }
 
@@ -32,13 +32,6 @@ impl<'a, T: TriHashMapEntry> Iterator for Iter<'a, T> {
     }
 }
 
-impl<T: TriHashMapEntry> DoubleEndedIterator for Iter<'_, T> {
-    #[inline]
-    fn next_back(&mut self) -> Option<Self::Item> {
-        self.inner.next_back()
-    }
-}
-
 impl<T: TriHashMapEntry> ExactSizeIterator for Iter<'_, T> {
     #[inline]
     fn len(&self) -> usize {
@@ -46,6 +39,7 @@ impl<T: TriHashMapEntry> ExactSizeIterator for Iter<'_, T> {
     }
 }
 
+// hash_map::Iter is a FusedIterator, so Iter is as well.
 impl<T: TriHashMapEntry> FusedIterator for Iter<'_, T> {}
 
 /// An iterator over the elements of a [`TriHashMap`] by mutable reference.
@@ -59,15 +53,15 @@ impl<T: TriHashMapEntry> FusedIterator for Iter<'_, T> {}
 #[derive(Debug)]
 pub struct IterMut<'a, T: TriHashMapEntry> {
     tables: &'a TriHashMapTables,
-    inner: std::slice::IterMut<'a, T>,
+    inner: hash_map::ValuesMut<'a, usize, T>,
 }
 
 impl<'a, T: TriHashMapEntry> IterMut<'a, T> {
     pub(super) fn new(
         tables: &'a TriHashMapTables,
-        entries: &'a mut [T],
+        entries: &'a mut EntrySet<T>,
     ) -> Self {
-        Self { tables, inner: entries.iter_mut() }
+        Self { tables, inner: entries.values_mut() }
     }
 }
 
@@ -82,15 +76,6 @@ impl<'a, T: TriHashMapEntry> Iterator for IterMut<'a, T> {
     }
 }
 
-impl<'a, T: TriHashMapEntry> DoubleEndedIterator for IterMut<'a, T> {
-    #[inline]
-    fn next_back(&mut self) -> Option<Self::Item> {
-        let next_back = self.inner.next_back()?;
-        let hashes = self.tables.make_hashes(next_back);
-        Some(RefMut::new(hashes, next_back))
-    }
-}
-
 impl<'a, T: TriHashMapEntry> ExactSizeIterator for IterMut<'a, T> {
     #[inline]
     fn len(&self) -> usize {
@@ -98,4 +83,5 @@ impl<'a, T: TriHashMapEntry> ExactSizeIterator for IterMut<'a, T> {
     }
 }
 
+// hash_map::IterMut is a FusedIterator, so IterMut is as well.
 impl<'a, T: TriHashMapEntry> FusedIterator for IterMut<'a, T> {}

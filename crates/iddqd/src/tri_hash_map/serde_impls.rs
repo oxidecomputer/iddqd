@@ -6,7 +6,8 @@ use crate::{TriHashMap, TriHashMapEntry};
 use serde::{Deserialize, Serialize, Serializer};
 use std::fmt;
 
-/// The `Serialize` impl for `TriHashMap` serializes just the list of entries.
+/// A `TriHashMap` serializes to the list of entries. Entries are serialized in
+/// arbitrary order.
 impl<T: TriHashMapEntry> Serialize for TriHashMap<T>
 where
     T: Serialize,
@@ -70,14 +71,20 @@ mod tests {
         let serialized = serde_json::to_string(&map).unwrap();
         let deserialized: TriHashMap<TestEntry> =
             serde_json::from_str(&serialized).unwrap();
-
-        assert_eq!(map.entries, deserialized.entries, "entries match");
         deserialized.validate().expect("deserialized map is valid");
+
+        let mut map_entries = map.entries.into_vec();
+        let mut deserialized_entries = deserialized.entries.into_vec();
+
+        // Sort the entries, since we don't care about the order.
+        map_entries.sort();
+        deserialized_entries.sort();
+        assert_eq!(map_entries, deserialized_entries, "entries match");
 
         // Try deserializing the full list of values directly, and see that the
         // error reported is the same as first_error.
         //
-        // Here we rely on the fact that a TriMap is serialized as just a
+        // Here we rely on the fact that a TriHashMap is serialized as just a
         // vector.
         let serialized = serde_json::to_string(&values).unwrap();
         let res: Result<TriHashMap<TestEntry>, _> =

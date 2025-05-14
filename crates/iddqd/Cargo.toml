@@ -8,6 +8,7 @@ license.workspace = true
 daft.workspace = true
 derive-where.workspace = true
 hashbrown.workspace = true
+rustc-hash.workspace = true
 serde = { workspace = true, optional = true }
 
 [dev-dependencies]

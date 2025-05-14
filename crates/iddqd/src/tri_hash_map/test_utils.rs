@@ -5,7 +5,7 @@
 use crate::{tri_upcasts, TriHashMapEntry};
 use test_strategy::Arbitrary;
 
-#[derive(Clone, Debug, Eq, PartialEq, Arbitrary)]
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Arbitrary)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub(super) struct TestEntry {
     pub(super) key1: u8,
