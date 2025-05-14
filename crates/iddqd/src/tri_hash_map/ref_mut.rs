@@ -102,6 +102,20 @@ mod tests {
     use crate::{tri_hash_map::test_utils::TestEntry, TriHashMap};
 
     #[test]
+    #[should_panic(expected = "key1 changed during RefMut borrow")]
+    fn get_mut_panics_if_key1_changes() {
+        let mut map = TriHashMap::<TestEntry>::new();
+        map.insert_unique(TestEntry {
+            key1: 128,
+            key2: 'b',
+            key3: "y".to_owned(),
+            value: "x".to_owned(),
+        })
+        .unwrap();
+        map.get1_mut(128).unwrap().key1 = 2;
+    }
+
+    #[test]
     #[should_panic(expected = "key2 changed during RefMut borrow")]
     fn get_mut_panics_if_key2_changes() {
         let mut map = TriHashMap::<TestEntry>::new();
