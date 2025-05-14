@@ -8,6 +8,7 @@ mod macros;
 mod ref_mut;
 #[cfg(feature = "serde")]
 mod serde_impls;
+mod tables;
 #[cfg(test)]
 mod test_utils;
 pub(crate) mod trait_defs;

@@ -2,12 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::{Iter, IterMut, RefMut};
+use super::{tables::TriHashMapTables, Iter, IterMut, RefMut};
 use crate::{
-    support::{
-        entry_set::EntrySet,
-        hash_table::{MapHash, MapHashTable},
-    },
+    support::{entry_set::EntrySet, hash_table::MapHash},
     TriHashMapEntry,
 };
 use derive_where::derive_where;
@@ -423,60 +420,6 @@ impl<T: TriHashMapEntry + fmt::Debug, D: TriHashMapEntry + fmt::Debug>
 {
 }
 
-#[derive(Clone, Debug, Default)]
-pub(super) struct TriHashMapTables {
-    k1_to_entry: MapHashTable,
-    k2_to_entry: MapHashTable,
-    k3_to_entry: MapHashTable,
-}
-
-impl TriHashMapTables {
-    fn new() -> Self {
-        Self::default()
-    }
-
-    fn with_capacity(capacity: usize) -> Self {
-        Self {
-            k1_to_entry: MapHashTable::with_capacity(capacity),
-            k2_to_entry: MapHashTable::with_capacity(capacity),
-            k3_to_entry: MapHashTable::with_capacity(capacity),
-        }
-    }
-
-    #[cfg(test)]
-    fn validate(&self, expected_len: usize) -> anyhow::Result<()> {
-        // Check that all the maps are of the right size.
-
-        use anyhow::Context;
-        self.k1_to_entry
-            .validate(expected_len)
-            .context("k1_to_entry failed validation")?;
-        self.k2_to_entry
-            .validate(expected_len)
-            .context("k2_to_entry failed validation")?;
-        self.k3_to_entry
-            .validate(expected_len)
-            .context("k3_to_entry failed validation")?;
-
-        Ok(())
-    }
-
-    pub(super) fn make_hashes<T: TriHashMapEntry>(
-        &self,
-        item: &T,
-    ) -> [MapHash; 3] {
-        let k1 = item.key1();
-        let k2 = item.key2();
-        let k3 = item.key3();
-
-        let h1 = self.k1_to_entry.compute_hash(k1);
-        let h2 = self.k2_to_entry.compute_hash(k2);
-        let h3 = self.k3_to_entry.compute_hash(k3);
-
-        [h1, h2, h3]
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -862,5 +805,4 @@ mod tests {
         assert_ne!(a, b, "a != b");
         assert_ne!(b, a, "b != a");
     }
-
 }
