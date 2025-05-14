@@ -12,11 +12,11 @@ use derive_where::derive_where;
 use hashbrown::hash_table::{Entry, VacantEntry};
 use std::{borrow::Borrow, collections::BTreeSet, hash::Hash};
 
-/// An append-only 1:1:1 (trijective) map for three keys and a value.
+/// A 1:1:1 (trijective) map for three keys and a value.
 ///
-/// The storage mechanism is a vector of entries, with indexes into that vector
-/// stored in three hashmaps. This allows for efficient lookups by any of the
-/// three keys, while preventing duplicates.
+/// The storage mechanism is a fast hash table of integer indexes to entries,
+/// with these indexes stored in three hashmaps. This allows for efficient
+/// lookups by any of the three keys, while preventing duplicates.
 #[derive_where(Default)]
 #[derive(Clone, Debug)]
 pub struct TriHashMap<T: TriHashMapEntry> {
