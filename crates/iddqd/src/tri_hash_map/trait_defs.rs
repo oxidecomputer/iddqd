@@ -14,7 +14,7 @@ use std::{hash::Hash, rc::Rc, sync::Arc};
 ///
 /// TODO: Add an example here.
 ///
-/// [`TriHashMap`]: crate::tri_hash_map::TriHashMap
+/// [`TriHashMap`]: crate::TriHashMap
 pub trait TriHashMapEntry {
     /// The first key type.
     type K1<'a>: Eq + Hash
@@ -64,6 +64,8 @@ pub trait TriHashMapEntry {
     /// the lifetime `'a` on [`TriHashMapEntry::K3`] is covariant.
     ///
     /// Typically implemented via the [`tri_upcasts`] macro.
+    ///
+    /// [`tri_upcasts`]: crate::tri_upcasts
     fn upcast_key3<'short, 'long: 'short>(
         long: Self::K3<'long>,
     ) -> Self::K3<'short>;

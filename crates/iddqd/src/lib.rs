@@ -28,7 +28,9 @@
 //!     value: u32,
 //! }
 //!
-//! let map: HashMap<String, MyStruct> = HashMap::new();
+//! let mut map: HashMap<String, MyStruct> = HashMap::new();
+//!
+//! map.insert("foo".to_string(), MyStruct { key: "foo".to_string(), value: 42 });
 //! ```
 //!
 //! But there's nothing here which enforces any kind of consistency between the
@@ -42,7 +44,7 @@
 //! # }
 //! let mut map: HashMap<String, MyStruct> = HashMap::new();
 //!
-//! // This is legal but incorrect.
+//! // This is allowed, but it violates internal consistency.
 //! map.insert("foo".to_string(), MyStruct { key: "bar".to_string(), value: 42 });
 //! ```
 //!
