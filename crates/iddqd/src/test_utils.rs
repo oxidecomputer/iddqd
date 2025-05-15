@@ -2,9 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::fmt;
-
 use crate::{tri_upcasts, TriHashMapEntry};
+use std::fmt;
 use test_strategy::Arbitrary;
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Arbitrary)]

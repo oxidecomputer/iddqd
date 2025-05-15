@@ -76,7 +76,7 @@ impl<'a, T: TriHashMapEntry> Iterator for IterMut<'a, T> {
     }
 }
 
-impl<'a, T: TriHashMapEntry> ExactSizeIterator for IterMut<'a, T> {
+impl<T: TriHashMapEntry> ExactSizeIterator for IterMut<'_, T> {
     #[inline]
     fn len(&self) -> usize {
         self.inner.len()
@@ -84,4 +84,4 @@ impl<'a, T: TriHashMapEntry> ExactSizeIterator for IterMut<'a, T> {
 }
 
 // hash_map::IterMut is a FusedIterator, so IterMut is as well.
-impl<'a, T: TriHashMapEntry> FusedIterator for IterMut<'a, T> {}
+impl<T: TriHashMapEntry> FusedIterator for IterMut<'_, T> {}
