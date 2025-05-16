@@ -417,7 +417,7 @@ mod tests {
     use test_strategy::{proptest, Arbitrary};
 
     #[test]
-    fn test_insert_entry_no_dups() {
+    fn test_insert_unique() {
         let mut map = TriHashMap::<TestEntry>::new();
 
         // Add an element.
@@ -487,7 +487,7 @@ mod tests {
             Self { entries: Vec::new() }
         }
 
-        fn insert_entry_no_dups(
+        fn insert_unique(
             &mut self,
             entry: TestEntry,
         ) -> Result<(), DuplicateEntry<TestEntry, &TestEntry>> {
@@ -545,8 +545,7 @@ mod tests {
             match op {
                 Operation::Insert(entry) => {
                     let map_res = map.insert_unique(entry.clone());
-                    let naive_res =
-                        naive_map.insert_entry_no_dups(entry.clone());
+                    let naive_res = naive_map.insert_unique(entry.clone());
 
                     assert_eq!(map_res.is_ok(), naive_res.is_ok());
                     if let Err(map_err) = map_res {
