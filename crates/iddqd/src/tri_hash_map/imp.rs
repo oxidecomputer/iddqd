@@ -381,6 +381,7 @@ impl<'a, T: TriHashMapEntry> IntoIterator for &'a TriHashMap<T> {
     type Item = &'a T;
     type IntoIter = Iter<'a, T>;
 
+    #[inline]
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
     }
@@ -390,8 +391,19 @@ impl<'a, T: TriHashMapEntry> IntoIterator for &'a mut TriHashMap<T> {
     type Item = RefMut<'a, T>;
     type IntoIter = IterMut<'a, T>;
 
+    #[inline]
     fn into_iter(self) -> Self::IntoIter {
         self.iter_mut()
+    }
+}
+
+impl<T: TriHashMapEntry> IntoIterator for TriHashMap<T> {
+    type Item = T;
+    type IntoIter = IntoIter<T>;
+
+    #[inline]
+    fn into_iter(self) -> Self::IntoIter {
+        self.into_iter()
     }
 }
 
