@@ -147,7 +147,7 @@ impl TestEntryMap for IdBTreeMap<TestEntry> {
     }
 
     fn into_iter(self) -> Self::IntoIter {
-        self.into_iter()
+        IntoIterator::into_iter(self)
     }
 }
 
@@ -185,7 +185,7 @@ impl TestEntryMap for TriHashMap<TestEntry> {
     }
 
     fn into_iter(self) -> Self::IntoIter {
-        self.into_iter()
+        IntoIterator::into_iter(self)
     }
 }
 

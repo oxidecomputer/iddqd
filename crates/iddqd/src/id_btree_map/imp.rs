@@ -58,12 +58,6 @@ impl<T: IdBTreeMapEntry> IdBTreeMap<T> {
         IterMut::new(&mut self.entries, &self.tables)
     }
 
-    /// Consumes self, returning an iterator over the entries in the map.
-    #[inline]
-    pub fn into_iter(self) -> IntoIter<T> {
-        IntoIter::new(self.entries, self.tables)
-    }
-
     /// Checks general invariants of the map.
     ///
     /// The code below always upholds these invariants, but it's useful to have
@@ -223,7 +217,7 @@ impl<T: IdBTreeMapEntryMut> IntoIterator for IdBTreeMap<T> {
 
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
-        self.into_iter()
+        IntoIter::new(self.entries, self.tables)
     }
 }
 

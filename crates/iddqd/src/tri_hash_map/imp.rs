@@ -65,12 +65,6 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
         IterMut::new(&self.tables, &mut self.entries)
     }
 
-    /// Consumes self, returning an iterator over map entries.
-    #[inline]
-    pub fn into_iter(self) -> IntoIter<T> {
-        IntoIter::new(self.entries)
-    }
-
     /// Checks general invariants of the map.
     ///
     /// The code below always upholds these invariants, but it's useful to have
@@ -402,7 +396,7 @@ impl<T: TriHashMapEntry> IntoIterator for TriHashMap<T> {
 
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
-        self.into_iter()
+        IntoIter::new(self.entries)
     }
 }
 
