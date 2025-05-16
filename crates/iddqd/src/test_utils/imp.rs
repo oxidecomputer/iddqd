@@ -103,7 +103,7 @@ pub(crate) trait TestEntryMap: Clone {
 
     fn map_kind() -> MapKind;
     fn new() -> Self;
-    fn validate(&self) -> anyhow::Result<()>;
+    fn validate(&self, compactness: ValidateCompact) -> anyhow::Result<()>;
     fn insert_unique(
         &mut self,
         value: TestEntry,
@@ -127,7 +127,8 @@ impl TestEntryMap for IdBTreeMap<TestEntry> {
         IdBTreeMap::new()
     }
 
-    fn validate(&self) -> anyhow::Result<()> {
+    fn validate(&self, _compactness: ValidateCompact) -> anyhow::Result<()> {
+        // Will use compactness in the future.
         self.validate()
     }
 
@@ -165,8 +166,8 @@ impl TestEntryMap for TriHashMap<TestEntry> {
         TriHashMap::new()
     }
 
-    fn validate(&self) -> anyhow::Result<()> {
-        self.validate()
+    fn validate(&self, compactness: ValidateCompact) -> anyhow::Result<()> {
+        self.validate(compactness)
     }
 
     fn insert_unique(
@@ -287,4 +288,14 @@ pub(crate) fn assert_ne_props<T: Eq + fmt::Debug>(a: T, b: T) {
     assert_eq!(b, b, "b == b");
     assert_ne!(a, b, "a != b");
     assert_ne!(b, a, "b != a");
+}
+
+/// For validation, indicate whether we expect integer tables to be compact
+/// (have all values in the range 0..table.len()).
+///
+/// Maps are expected to be compact if no remove operations were performed.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ValidateCompact {
+    Compact,
+    NonCompact,
 }

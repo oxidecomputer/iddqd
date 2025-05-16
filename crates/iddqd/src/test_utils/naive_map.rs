@@ -72,6 +72,21 @@ impl NaiveMap {
         self.entries.iter().find(|e| e.key3 == key3)
     }
 
+    pub(crate) fn remove1(&mut self, key1: u8) -> Option<TestEntry> {
+        let index = self.entries.iter().position(|e| e.key1 == key1)?;
+        Some(self.entries.remove(index))
+    }
+
+    pub(crate) fn remove2(&mut self, key2: char) -> Option<TestEntry> {
+        let index = self.entries.iter().position(|e| e.key2 == key2)?;
+        Some(self.entries.remove(index))
+    }
+
+    pub(crate) fn remove3(&mut self, key3: &str) -> Option<TestEntry> {
+        let index = self.entries.iter().position(|e| e.key3 == key3)?;
+        Some(self.entries.remove(index))
+    }
+
     pub(crate) fn iter(&self) -> impl Iterator<Item = &TestEntry> {
         self.entries.iter()
     }

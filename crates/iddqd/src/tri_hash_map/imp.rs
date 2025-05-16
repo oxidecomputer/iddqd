@@ -70,13 +70,16 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
     /// The code below always upholds these invariants, but it's useful to have
     /// an explicit check for tests.
     #[cfg(test)]
-    pub(crate) fn validate(&self) -> anyhow::Result<()>
+    pub(crate) fn validate(
+        &self,
+        compactness: crate::test_utils::ValidateCompact,
+    ) -> anyhow::Result<()>
     where
         T: std::fmt::Debug,
     {
         use anyhow::Context;
 
-        self.tables.validate(self.entries.len())?;
+        self.tables.validate(self.entries.len(), compactness)?;
 
         // Check that the indexes are all correct.
         for (&ix, entry) in self.entries.iter() {
@@ -186,6 +189,66 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
         Some(RefMut::new(hashes, entry))
     }
 
+    /// Removes an entry from the map by its `key1`.
+    ///
+    /// Due to borrow checker limitations, this always accepts `K1` rather than
+    /// a borrowed form of it.
+    pub fn remove1<'a>(&'a mut self, key1: T::K1<'_>) -> Option<T> {
+        let Some(remove_index) = self.find1_index(&T::upcast_key1(key1)) else {
+            // The entry was not found.
+            return None;
+        };
+
+        let value = self
+            .entries
+            .remove(remove_index)
+            .expect("entries missing key1 that was just retrieved");
+
+        // Remove the value from the tables.
+        let Ok(entry1) =
+            self.tables.k1_to_entry.find_entry(&value.key1(), |index| {
+                if index == remove_index {
+                    value.key1()
+                } else {
+                    self.entries[index].key1()
+                }
+            })
+        else {
+            // The entry was not found.
+            panic!("we just looked this entry up");
+        };
+        let Ok(entry2) =
+            self.tables.k2_to_entry.find_entry(&value.key2(), |index| {
+                if index == remove_index {
+                    value.key2()
+                } else {
+                    self.entries[index].key2()
+                }
+            })
+        else {
+            // The entry was not found.
+            panic!("inconsistent indexes: key1 present, key2 absent");
+        };
+        let Ok(entry3) =
+            self.tables.k3_to_entry.find_entry(&value.key3(), |index| {
+                if index == remove_index {
+                    value.key3()
+                } else {
+                    self.entries[index].key3()
+                }
+            })
+        else {
+            // The entry was not found.
+            panic!("inconsistent indexes: key1 present, key3 absent");
+        };
+
+        entry1.remove();
+        entry2.remove();
+        entry3.remove();
+
+        Some(value)
+    }
+
     /// Gets a reference to the value associated with the given `key2`.
     pub fn get2<'a, Q>(&'a self, key2: &Q) -> Option<&'a T>
     where
@@ -210,6 +273,66 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
         Some(RefMut::new(hashes, entry))
     }
 
+    /// Removes an entry from the map by its `key2`.
+    ///
+    /// Due to borrow checker limitations, this always accepts `K1` rather than
+    /// a borrowed form of it.
+    pub fn remove2<'a>(&'a mut self, key2: T::K2<'_>) -> Option<T> {
+        let Some(remove_index) = self.find2_index(&T::upcast_key2(key2)) else {
+            // The entry was not found.
+            return None;
+        };
+
+        let value = self
+            .entries
+            .remove(remove_index)
+            .expect("entries missing key2 that was just retrieved");
+
+        // Remove the value from the tables.
+        let Ok(entry1) =
+            self.tables.k1_to_entry.find_entry(&value.key1(), |index| {
+                if index == remove_index {
+                    value.key1()
+                } else {
+                    self.entries[index].key1()
+                }
+            })
+        else {
+            // The entry was not found.
+            panic!("inconsistent indexes: key2 present, key1 absent");
+        };
+        let Ok(entry2) =
+            self.tables.k2_to_entry.find_entry(&value.key2(), |index| {
+                if index == remove_index {
+                    value.key2()
+                } else {
+                    self.entries[index].key2()
+                }
+            })
+        else {
+            // The entry was not found.
+            panic!("we just looked this entry up");
+        };
+        let Ok(entry3) =
+            self.tables.k3_to_entry.find_entry(&value.key3(), |index| {
+                if index == remove_index {
+                    value.key3()
+                } else {
+                    self.entries[index].key3()
+                }
+            })
+        else {
+            // The entry was not found.
+            panic!("inconsistent indexes: key2 present, key3 absent");
+        };
+
+        entry1.remove();
+        entry2.remove();
+        entry3.remove();
+
+        Some(value)
+    }
+
     /// Gets a reference to the value associated with the given `key3`.
     pub fn get3<'a, Q>(&'a self, key3: &Q) -> Option<&'a T>
     where
@@ -232,6 +355,66 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
         let hashes = self.make_hashes(&self.entries[index]);
         let entry = &mut self.entries[index];
         Some(RefMut::new(hashes, entry))
+    }
+
+    /// Removes an entry from the map by its `key3`.
+    ///
+    /// Due to borrow checker limitations, this always accepts `K1` rather than
+    /// a borrowed form of it.
+    pub fn remove3<'a>(&'a mut self, key3: T::K3<'_>) -> Option<T> {
+        let Some(remove_index) = self.find3_index(&T::upcast_key3(key3)) else {
+            // The entry was not found.
+            return None;
+        };
+
+        let value = self
+            .entries
+            .remove(remove_index)
+            .expect("entries missing key3 that was just retrieved");
+
+        // Remove the value from the tables.
+        let Ok(entry1) =
+            self.tables.k1_to_entry.find_entry(&value.key1(), |index| {
+                if index == remove_index {
+                    value.key1()
+                } else {
+                    self.entries[index].key1()
+                }
+            })
+        else {
+            // The entry was not found.
+            panic!("inconsistent indexes: key3 present, key1 absent");
+        };
+        let Ok(entry2) =
+            self.tables.k2_to_entry.find_entry(&value.key2(), |index| {
+                if index == remove_index {
+                    value.key2()
+                } else {
+                    self.entries[index].key2()
+                }
+            })
+        else {
+            // The entry was not found.
+            panic!("inconsistent indexes: key3 present, key2 absent");
+        };
+        let Ok(entry3) =
+            self.tables.k3_to_entry.find_entry(&value.key3(), |index| {
+                if index == remove_index {
+                    value.key3()
+                } else {
+                    self.entries[index].key3()
+                }
+            })
+        else {
+            // The entry was not found.
+            panic!("we just looked this entry up");
+        };
+
+        entry1.remove();
+        entry2.remove();
+        entry3.remove();
+
+        Some(value)
     }
 
     fn find1<'a, Q>(&'a self, k: &Q) -> Option<&'a T>
@@ -405,7 +588,7 @@ mod tests {
     use super::*;
     use crate::test_utils::{
         assert_eq_props, assert_iter_eq, assert_ne_props,
-        test_entry_permutation_strategy, NaiveMap, TestEntry,
+        test_entry_permutation_strategy, NaiveMap, TestEntry, ValidateCompact,
     };
     use proptest::prelude::*;
     use test_strategy::{proptest, Arbitrary};
@@ -477,6 +660,23 @@ mod tests {
         Get1(u8),
         Get2(char),
         Get3(String),
+        Remove1(u8),
+        Remove2(char),
+        Remove3(String),
+    }
+
+    impl Operation {
+        fn remains_compact(&self) -> bool {
+            match self {
+                Operation::Insert(_) => true,
+                Operation::Get1(_) => true,
+                Operation::Get2(_) => true,
+                Operation::Get3(_) => true,
+                Operation::Remove1(_) => false,
+                Operation::Remove2(_) => false,
+                Operation::Remove3(_) => false,
+            }
+        }
     }
 
     #[proptest(cases = 16)]
@@ -487,8 +687,15 @@ mod tests {
         let mut map = TriHashMap::<TestEntry>::new();
         let mut naive_map = NaiveMap::new_key123();
 
+        let mut compactness = ValidateCompact::Compact;
+
         // Now perform the operations on both maps.
         for op in ops {
+            if compactness == ValidateCompact::Compact && !op.remains_compact()
+            {
+                compactness = ValidateCompact::NonCompact;
+            }
+
             match op {
                 Operation::Insert(entry) => {
                     let map_res = map.insert_unique(entry.clone());
@@ -508,7 +715,7 @@ mod tests {
                         );
                     }
 
-                    map.validate().expect("map should be valid");
+                    map.validate(compactness).expect("map should be valid");
                 }
                 Operation::Get1(key1) => {
                     let map_res = map.get1(&key1);
@@ -527,6 +734,27 @@ mod tests {
                     let naive_res = naive_map.get3(&key3);
 
                     assert_eq!(map_res, naive_res);
+                }
+                Operation::Remove1(key1) => {
+                    let map_res = map.remove1(key1);
+                    let naive_res = naive_map.remove1(key1);
+
+                    assert_eq!(map_res, naive_res);
+                    map.validate(compactness).expect("map should be valid");
+                }
+                Operation::Remove2(key2) => {
+                    let map_res = map.remove2(key2);
+                    let naive_res = naive_map.remove2(key2);
+
+                    assert_eq!(map_res, naive_res);
+                    map.validate(compactness).expect("map should be valid");
+                }
+                Operation::Remove3(key3) => {
+                    let map_res = map.remove3(key3.as_str());
+                    let naive_res = naive_map.remove3(&key3);
+
+                    assert_eq!(map_res, naive_res);
+                    map.validate(compactness).expect("map should be valid");
                 }
             }
 

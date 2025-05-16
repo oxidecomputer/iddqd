@@ -4,7 +4,10 @@
 
 //! A wrapper around a hash table with some random state.
 
-use hashbrown::{hash_table::Entry, HashTable};
+use hashbrown::{
+    hash_table::{AbsentEntry, Entry, OccupiedEntry},
+    HashTable,
+};
 use std::{
     borrow::Borrow,
     hash::{BuildHasher, Hash, RandomState},
@@ -30,8 +33,14 @@ impl MapHashTable {
     }
 
     #[cfg(test)]
-    pub(crate) fn validate(&self, expected_len: usize) -> anyhow::Result<()> {
+    pub(crate) fn validate(
+        &self,
+        expected_len: usize,
+        compactness: crate::test_utils::ValidateCompact,
+    ) -> anyhow::Result<()> {
+        use crate::test_utils::ValidateCompact;
         use anyhow::ensure;
+        use hashbrown::HashSet;
 
         ensure!(
             self.len() == expected_len,
@@ -39,16 +48,31 @@ impl MapHashTable {
             self.len()
         );
 
-        // All entries between 0 (inclusive) and self.len() (exclusive) are
-        // present, and there are no duplicates.
-
-        let mut values: Vec<_> = self.entries.iter().copied().collect();
-        values.sort_unstable();
-        for (i, value) in values.iter().enumerate() {
-            ensure!(
-                *value == i,
-                "value at index {i} should be {i}, was {value}",
-            );
+        match compactness {
+            ValidateCompact::Compact => {
+                // All entries between 0 (inclusive) and self.len() (exclusive)
+                // are expected to be present, and there are no duplicates.
+                let mut values: Vec<_> = self.entries.iter().copied().collect();
+                values.sort_unstable();
+                for (i, value) in values.iter().enumerate() {
+                    ensure!(
+                        *value == i,
+                        "value at index {i} should be {i}, was {value}",
+                    );
+                }
+            }
+            ValidateCompact::NonCompact => {
+                // There should be no duplicates.
+                let values: Vec<_> = self.entries.iter().copied().collect();
+                let value_set: HashSet<_> = values.iter().copied().collect();
+                ensure!(
+                    value_set.len() == values.len(),
+                    "expected no duplicates, but found {} duplicates \
+                     (values: {:?})",
+                    values.len() - value_set.len(),
+                    values,
+                );
+            }
         }
 
         Ok(())
@@ -87,6 +111,20 @@ impl MapHashTable {
             |index| lookup(*index) == key,
             |v| self.state.hash_one(lookup(*v)),
         )
+    }
+
+    pub(crate) fn find_entry<K, Q, F>(
+        &mut self,
+        key: &Q,
+        lookup: F,
+    ) -> Result<OccupiedEntry<'_, usize>, AbsentEntry<'_, usize>>
+    where
+        F: Fn(usize) -> K,
+        K: Hash + Eq + Borrow<Q>,
+        Q: ?Sized + Hash + Eq,
+    {
+        let hash = self.state.hash_one(key);
+        self.entries.find_entry(hash, |index| lookup(*index).borrow() == key)
     }
 }
 
