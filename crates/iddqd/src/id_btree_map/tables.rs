@@ -15,12 +15,16 @@ impl IdBTreeMapTables {
     }
 
     #[cfg(test)]
-    pub(super) fn validate(&self, expected_len: usize) -> anyhow::Result<()> {
+    pub(super) fn validate(
+        &self,
+        expected_len: usize,
+        compactness: crate::test_utils::ValidateCompact,
+    ) -> anyhow::Result<()> {
         // Check that all the maps are of the right size.
         use anyhow::Context;
 
         self.key_to_entry
-            .validate(expected_len)
+            .validate(expected_len, compactness)
             .context("key_to_entry failed validation")?;
 
         Ok(())

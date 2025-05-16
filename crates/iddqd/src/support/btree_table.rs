@@ -34,7 +34,12 @@ impl MapBTreeTable {
     }
 
     #[cfg(test)]
-    pub(crate) fn validate(&self, expected_len: usize) -> anyhow::Result<()> {
+    pub(crate) fn validate(
+        &self,
+        expected_len: usize,
+        compactness: crate::test_utils::ValidateCompact,
+    ) -> anyhow::Result<()> {
+        use crate::test_utils::ValidateCompact;
         use anyhow::{bail, ensure};
 
         ensure!(
@@ -43,26 +48,49 @@ impl MapBTreeTable {
             self.len()
         );
 
-        // All entries between 0 (inclusive) and self.len() (exclusive) are
-        // present, and there are no duplicates.
-
-        let mut indexes: Vec<_> = Vec::with_capacity(expected_len);
-        for index in &self.entries {
-            match index.0 {
-                Index::SENTINEL_VALUE => {
-                    bail!("index should not be used in path");
+        match compactness {
+            ValidateCompact::Compact => {
+                // All entries between 0 (inclusive) and self.len() (exclusive)
+                // are present, and there are no duplicates. Also, the sentinel
+                // value should not be stored.
+                let mut indexes: Vec<_> = Vec::with_capacity(expected_len);
+                for index in &self.entries {
+                    match index.0 {
+                        Index::SENTINEL_VALUE => {
+                            bail!("index should not be used in path");
+                        }
+                        v => {
+                            indexes.push(v);
+                        }
+                    }
                 }
-                v => {
-                    indexes.push(v);
+                indexes.sort_unstable();
+                for (i, index) in indexes.iter().enumerate() {
+                    ensure!(
+                        *index == i,
+                        "value at index {i} should be {i}, was {index}",
+                    );
                 }
             }
-        }
-        indexes.sort_unstable();
-        for (i, index) in indexes.iter().enumerate() {
-            ensure!(
-                *index == i,
-                "value at index {i} should be {i}, was {index}",
-            );
+            ValidateCompact::NonCompact => {
+                // There should be no duplicates, and the sentinel value
+                // should not be stored.
+                let values: Vec<_> = self.entries.iter().copied().collect();
+                let value_set: BTreeSet<usize> =
+                    values.iter().map(|ix| ix.0).collect();
+                ensure!(
+                    value_set.len() == values.len(),
+                    "expected no duplicates, but found {} duplicates \
+                     (values: {:?})",
+                    values.len() - value_set.len(),
+                    values,
+                );
+                ensure!(
+                    !value_set.contains(&Index::SENTINEL_VALUE),
+                    "expected sentinel value to be absent from the set, \
+                     but found it"
+                );
+            }
         }
 
         Ok(())
@@ -108,6 +136,20 @@ impl MapBTreeTable {
         let guard = CmpDropGuard::new(&f);
 
         self.entries.insert(Index::new(index));
+
+        // drop(guard) isn't necessary, but we make it explicit
+        drop(guard);
+    }
+
+    pub(crate) fn remove<K, F>(&mut self, index: usize, key: K, lookup: F)
+    where
+        F: Fn(usize) -> K,
+        K: Ord,
+    {
+        let f = insert_cmp(index, &key, lookup);
+        let guard = CmpDropGuard::new(&f);
+
+        self.entries.remove(&Index::new(index));
 
         // drop(guard) isn't necessary, but we make it explicit
         drop(guard);

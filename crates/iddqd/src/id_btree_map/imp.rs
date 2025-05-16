@@ -63,13 +63,16 @@ impl<T: IdBTreeMapEntry> IdBTreeMap<T> {
     /// The code below always upholds these invariants, but it's useful to have
     /// an explicit check for tests.
     #[cfg(test)]
-    pub(crate) fn validate(&self) -> anyhow::Result<()>
+    pub(crate) fn validate(
+        &self,
+        compactness: crate::test_utils::ValidateCompact,
+    ) -> anyhow::Result<()>
     where
         T: std::fmt::Debug,
     {
         use anyhow::Context;
 
-        self.tables.validate(self.entries.len())?;
+        self.tables.validate(self.entries.len(), compactness)?;
 
         // Check that the indexes are all correct.
         for (&ix, entry) in self.entries.iter() {
@@ -152,6 +155,33 @@ impl<T: IdBTreeMapEntry> IdBTreeMap<T> {
         Some(RefMut::new(entry))
     }
 
+    /// Removes an entry from the map by its `key1`.
+    ///
+    /// Due to borrow checker limitations, this always accepts `K1` rather than
+    /// a borrowed form of it.
+    pub fn remove<'a>(&'a mut self, key: T::Key<'_>) -> Option<T> {
+        let Some(remove_index) = self.find_index(&T::upcast_key(key)) else {
+            // The entry was not found.
+            return None;
+        };
+
+        let value = self
+            .entries
+            .remove(remove_index)
+            .expect("entries missing key1 that was just retrieved");
+
+        // Remove the value from the table.
+        self.tables.key_to_entry.remove(remove_index, value.key(), |index| {
+            if index == remove_index {
+                value.key()
+            } else {
+                self.entries[index].key()
+            }
+        });
+
+        Some(value)
+    }
+
     fn find<'a, Q>(&'a self, k: &Q) -> Option<&'a T>
     where
         T::Key<'a>: Borrow<Q>,
@@ -226,7 +256,7 @@ mod tests {
     use super::*;
     use crate::test_utils::{
         assert_eq_props, assert_iter_eq, assert_ne_props,
-        test_entry_permutation_strategy, NaiveMap, TestEntry,
+        test_entry_permutation_strategy, NaiveMap, TestEntry, ValidateCompact,
     };
     use proptest::prelude::*;
     use test_strategy::{proptest, Arbitrary};
@@ -296,6 +326,16 @@ mod tests {
         #[weight(3)]
         Insert(TestEntry),
         Get(u8),
+        Remove(u8),
+    }
+
+    impl Operation {
+        fn remains_compact(&self) -> bool {
+            match self {
+                Operation::Insert(_) | Operation::Get(_) => true,
+                Operation::Remove(_) => false,
+            }
+        }
     }
 
     // Miri is quite slow, so run fewer operations.
@@ -316,8 +356,15 @@ mod tests {
         let mut map = IdBTreeMap::<TestEntry>::new();
         let mut naive_map = NaiveMap::new_key1();
 
+        let mut compactness = ValidateCompact::Compact;
+
         // Now perform the operations on both maps.
         for op in ops {
+            if compactness == ValidateCompact::Compact && !op.remains_compact()
+            {
+                compactness = ValidateCompact::NonCompact;
+            }
+
             match op {
                 Operation::Insert(entry) => {
                     let map_res = map.insert_unique(entry.clone());
@@ -333,13 +380,20 @@ mod tests {
                         );
                     }
 
-                    map.validate().expect("map should be valid");
+                    map.validate(compactness).expect("map should be valid");
                 }
-                Operation::Get(key1) => {
-                    let map_res = map.get(&key1);
-                    let naive_res = naive_map.get1(key1);
+                Operation::Get(key) => {
+                    let map_res = map.get(&key);
+                    let naive_res = naive_map.get1(key);
 
                     assert_eq!(map_res, naive_res);
+                }
+                Operation::Remove(key) => {
+                    let map_res = map.remove(&key);
+                    let naive_res = naive_map.remove1(key);
+
+                    assert_eq!(map_res, naive_res);
+                    map.validate(compactness).expect("map should be valid");
                 }
             }
 

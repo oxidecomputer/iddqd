@@ -668,13 +668,14 @@ mod tests {
     impl Operation {
         fn remains_compact(&self) -> bool {
             match self {
-                Operation::Insert(_) => true,
-                Operation::Get1(_) => true,
-                Operation::Get2(_) => true,
-                Operation::Get3(_) => true,
-                Operation::Remove1(_) => false,
-                Operation::Remove2(_) => false,
-                Operation::Remove3(_) => false,
+                Operation::Insert(_)
+                | Operation::Get1(_)
+                | Operation::Get2(_)
+                | Operation::Get3(_) => true,
+                // Remove entries can make the map non-compact.
+                Operation::Remove1(_)
+                | Operation::Remove2(_)
+                | Operation::Remove3(_) => false,
             }
         }
     }

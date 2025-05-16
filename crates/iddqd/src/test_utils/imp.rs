@@ -127,9 +127,8 @@ impl TestEntryMap for IdBTreeMap<TestEntry> {
         IdBTreeMap::new()
     }
 
-    fn validate(&self, _compactness: ValidateCompact) -> anyhow::Result<()> {
-        // Will use compactness in the future.
-        self.validate()
+    fn validate(&self, compactness: ValidateCompact) -> anyhow::Result<()> {
+        self.validate(compactness)
     }
 
     fn insert_unique(
