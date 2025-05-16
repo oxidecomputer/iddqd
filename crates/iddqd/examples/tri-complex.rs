@@ -86,4 +86,9 @@ fn main() {
     // We can also look up an entry by anything that implements `Borrow`. For
     // example, &str for the third key.
     assert_eq!(map.get3("example"), Some(&entry));
+
+    // For hash-based maps, iteration yields the entries in an arbitrary order.
+    for entry in &map {
+        println!("entry: {entry:?}");
+    }
 }

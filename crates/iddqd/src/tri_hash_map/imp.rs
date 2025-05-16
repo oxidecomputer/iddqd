@@ -410,7 +410,9 @@ impl<T: TriHashMapEntry> IntoIterator for TriHashMap<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::{assert_eq_props, assert_ne_props, TestEntry};
+    use crate::test_utils::{
+        assert_eq_props, assert_iter_eq, assert_ne_props, TestEntry,
+    };
     use prop::sample::SizeRange;
     use proptest::prelude::*;
     use test_strategy::{proptest, Arbitrary};
@@ -581,6 +583,13 @@ mod tests {
                     assert_eq!(map_res, naive_res);
                 }
             }
+
+            // Check that the iterators work correctly.
+            let mut naive_entries =
+                naive_map.entries.iter().collect::<Vec<_>>();
+            naive_entries.sort_by_key(|e| e.key1());
+
+            assert_iter_eq(map.clone(), naive_entries);
         }
     }
 
