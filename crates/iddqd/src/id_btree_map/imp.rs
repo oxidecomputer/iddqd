@@ -181,42 +181,16 @@ impl<T: IdBTreeMapEntry> IdBTreeMap<T> {
 
 impl<T: IdBTreeMapEntry + PartialEq> PartialEq for IdBTreeMap<T> {
     fn eq(&self, other: &Self) -> bool {
-        // Implementing PartialEq for IdBTreeMap is tricky because IdBTreeMap is
-        // not semantically like an IndexMap: two maps are equivalent even if
-        // their entries are in a different order. In other words, any
-        // permutation of entries is equivalent.
-        //
-        // We also can't sort the entries because they're not necessarily Ord.
-        //
-        // So we write a custom equality check that checks that each key in one
-        // map points to the same entry as in the other map.
-
+        // Entries are stored in sorted order, so we can just walk over both
+        // iterators.
         if self.entries.len() != other.entries.len() {
             return false;
         }
 
-        // Walk over all the entries in the first map and check that they point
-        // to the same entry in the second map.
-        for entry in self.entries.values() {
-            let k1 = entry.key();
-
-            // Check that the index is the same in the other map.
-            let Some(other_ix1) = other.find_index(&k1) else {
-                return false;
-            };
-
-            // Check that the other map's entry is the same as this map's
-            // entry. (This is what we use the `PartialEq` bound on T for.)
-            //
-            // Because we've checked that other_ix1 is Some, we know that it is
-            // valid and points to the expected entry.
-            let other_entry = &other.entries[other_ix1];
-            if entry != other_entry {
-                return false;
-            }
-        }
-
-        true
+        self.iter().zip(other.iter()).all(|(entry1, entry2)| {
+            // Check that the entries are equal.
+            entry1 == entry2
+        })
     }
 }
 
