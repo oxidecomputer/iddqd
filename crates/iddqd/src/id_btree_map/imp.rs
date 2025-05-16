@@ -232,7 +232,7 @@ mod tests {
     use super::*;
     use crate::test_utils::{
         assert_eq_props, assert_iter_eq, assert_ne_props,
-        test_entry_permutation_strategy, TestEntry,
+        test_entry_permutation_strategy, NaiveMap, TestEntry,
     };
     use proptest::prelude::*;
     use test_strategy::{proptest, Arbitrary};
@@ -296,50 +296,6 @@ mod tests {
         assert_eq!(*e2, v1);
     }
 
-    /// Represents a naive version of `IdBTreeMap` that doesn't have any indexes
-    /// and does linear scans.
-    #[derive(Debug)]
-    struct NaiveMap {
-        entries: Vec<TestEntry>,
-    }
-
-    impl NaiveMap {
-        fn new() -> Self {
-            Self { entries: Vec::new() }
-        }
-
-        fn insert_unique(
-            &mut self,
-            entry: TestEntry,
-        ) -> Result<(), DuplicateEntry<TestEntry, &TestEntry>> {
-            // Cannot store the duplicates directly here because of borrow
-            // checker issues. Instead, we store indexes and then map them to
-            // entries.
-            let indexes =
-                self.entries
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(i, e)| {
-                        if e.key1 == entry.key1 {
-                            Some(i)
-                        } else {
-                            None
-                        }
-                    })
-                    .collect::<Vec<_>>();
-
-            if indexes.is_empty() {
-                self.entries.push(entry);
-                Ok(())
-            } else {
-                Err(DuplicateEntry::new(
-                    entry,
-                    indexes.iter().map(|&i| &self.entries[i]).collect(),
-                ))
-            }
-        }
-    }
-
     #[derive(Debug, Arbitrary)]
     enum Operation {
         // Make inserts a bit more common to try and fill up the map.
@@ -364,7 +320,7 @@ mod tests {
         ops: Vec<Operation>,
     ) {
         let mut map = IdBTreeMap::<TestEntry>::new();
-        let mut naive_map = NaiveMap::new();
+        let mut naive_map = NaiveMap::new_key1();
 
         // Now perform the operations on both maps.
         for op in ops {
@@ -387,16 +343,14 @@ mod tests {
                 }
                 Operation::Get(key1) => {
                     let map_res = map.get(&key1);
-                    let naive_res =
-                        naive_map.entries.iter().find(|e| e.key1 == key1);
+                    let naive_res = naive_map.get1(key1);
 
                     assert_eq!(map_res, naive_res);
                 }
             }
 
             // Check that the iterators work correctly.
-            let mut naive_entries =
-                naive_map.entries.iter().collect::<Vec<_>>();
+            let mut naive_entries = naive_map.iter().collect::<Vec<_>>();
             naive_entries.sort_by_key(|e| *e.key());
 
             assert_iter_eq(map.clone(), naive_entries);
