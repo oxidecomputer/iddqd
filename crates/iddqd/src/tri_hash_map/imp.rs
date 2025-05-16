@@ -165,6 +165,16 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
         Ok(())
     }
 
+    /// Returns true if the map contains the given `key1`.
+    pub fn contains_key1<'a, Q>(&'a self, key1: &Q) -> bool
+    where
+        T::K1<'a>: Borrow<Q>,
+        T: 'a,
+        Q: Eq + Hash + ?Sized,
+    {
+        self.find1_index(key1).is_some()
+    }
+
     /// Gets a reference to the value associated with the given `key1`.
     pub fn get1<'a, Q>(&'a self, key1: &Q) -> Option<&'a T>
     where
@@ -249,6 +259,16 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
         Some(value)
     }
 
+    /// Returns true if the map contains the given `key2`.
+    pub fn contains_key2<'a, Q>(&'a self, key2: &Q) -> bool
+    where
+        T::K2<'a>: Borrow<Q>,
+        T: 'a,
+        Q: Eq + Hash + ?Sized,
+    {
+        self.find2_index(key2).is_some()
+    }
+
     /// Gets a reference to the value associated with the given `key2`.
     pub fn get2<'a, Q>(&'a self, key2: &Q) -> Option<&'a T>
     where
@@ -331,6 +351,16 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
         entry3.remove();
 
         Some(value)
+    }
+
+    /// Returns true if the map contains the given `key3`.
+    pub fn contains_key3<'a, Q>(&'a self, key3: &Q) -> bool
+    where
+        T::K3<'a>: Borrow<Q>,
+        T: 'a,
+        Q: Eq + Hash + ?Sized,
+    {
+        self.find3_index(key3).is_some()
     }
 
     /// Gets a reference to the value associated with the given `key3`.

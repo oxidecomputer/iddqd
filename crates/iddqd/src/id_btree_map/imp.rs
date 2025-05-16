@@ -133,6 +133,16 @@ impl<T: IdBTreeMapEntry> IdBTreeMap<T> {
         Ok(())
     }
 
+    /// Returns true if the map contains the given `key`.
+    pub fn contains_key<'a, Q>(&'a self, key: &Q) -> bool
+    where
+        T::Key<'a>: Borrow<Q>,
+        T: 'a,
+        Q: Ord + ?Sized,
+    {
+        self.find_index(key).is_some()
+    }
+
     /// Gets a reference to the value associated with the given `key`.
     pub fn get<'a, Q>(&'a self, key: &Q) -> Option<&'a T>
     where
