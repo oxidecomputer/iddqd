@@ -231,9 +231,9 @@ impl<T: IdBTreeMapEntryMut> IntoIterator for IdBTreeMap<T> {
 mod tests {
     use super::*;
     use crate::test_utils::{
-        assert_eq_props, assert_iter_eq, assert_ne_props, TestEntry,
+        assert_eq_props, assert_iter_eq, assert_ne_props,
+        test_entry_permutation_strategy, TestEntry,
     };
-    use prop::sample::SizeRange;
     use proptest::prelude::*;
     use test_strategy::{proptest, Arbitrary};
 
@@ -406,7 +406,7 @@ mod tests {
 
     #[proptest(cases = 64)]
     fn proptest_permutation_eq(
-        #[strategy(test_entry_permutation_strategy(0..PERMUTATION_LEN))]
+        #[strategy(test_entry_permutation_strategy::<IdBTreeMap<TestEntry>>(0..PERMUTATION_LEN))]
         entries: (Vec<TestEntry>, Vec<TestEntry>),
     ) {
         let (entries1, entries2) = entries;
@@ -421,40 +421,6 @@ mod tests {
         }
 
         assert_eq_props(map1, map2);
-    }
-
-    // Returns a pair of permutations of a set of unique entries.
-    fn test_entry_permutation_strategy(
-        size: impl Into<SizeRange>,
-    ) -> impl Strategy<Value = (Vec<TestEntry>, Vec<TestEntry>)> {
-        prop::collection::vec(any::<TestEntry>(), size.into()).prop_perturb(
-            |v, mut rng| {
-                // It is possible (likely even) that the input vector has
-                // duplicates. How can we remove them? The easiest way is to use
-                // the logic that already exists to check for duplicates. Insert
-                // all the entries one by one, then get the list.
-                let mut map = IdBTreeMap::<TestEntry>::new();
-                for entry in v {
-                    // The error case here is expected -- we're actively
-                    // de-duping entries right now.
-                    _ = map.insert_unique(entry);
-                }
-                let set = map.entries.into_vec();
-
-                // Now shuffle the entries. This is a simple Fisher-Yates
-                // shuffle (Durstenfeld variant, low to high).
-                let mut set2 = set.clone();
-                if set.len() < 2 {
-                    return (set, set2);
-                }
-                for i in 0..set2.len() - 2 {
-                    let j = rng.gen_range(i..set2.len());
-                    set2.swap(i, j);
-                }
-
-                (set, set2)
-            },
-        )
     }
 
     // Test various conditions for non-equality.

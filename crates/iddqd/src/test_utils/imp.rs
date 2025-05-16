@@ -8,6 +8,7 @@ use crate::{
     id_upcast, tri_hash_map, tri_upcasts, IdBTreeMap, IdBTreeMapEntry,
     IdBTreeMapEntryMut, TriHashMap, TriHashMapEntry,
 };
+use proptest::{prelude::*, sample::SizeRange};
 use std::fmt;
 use test_strategy::Arbitrary;
 
@@ -226,6 +227,41 @@ pub(crate) fn assert_iter_eq<M: TestEntryMap>(
         into_iter_entries, entries,
         ".into_iter() entries match naive ones"
     );
+}
+
+// Returns a pair of permutations of a set of unique entries (unique to a given
+// map).
+pub(crate) fn test_entry_permutation_strategy<M: TestEntryMap>(
+    size: impl Into<SizeRange>,
+) -> impl Strategy<Value = (Vec<TestEntry>, Vec<TestEntry>)> {
+    prop::collection::vec(any::<TestEntry>(), size.into()).prop_perturb(
+        |v, mut rng| {
+            // It is possible (likely even) that the input vector has
+            // duplicates. How can we remove them? The easiest way is to use
+            // the logic that already exists to check for duplicates. Insert
+            // all the entries one by one, then get the list.
+            let mut map = M::new();
+            for entry in v {
+                // The error case here is expected -- we're actively
+                // de-duping entries right now.
+                _ = map.insert_unique(entry);
+            }
+            let set: Vec<_> = map.into_iter().collect();
+
+            // Now shuffle the entries. This is a simple Fisher-Yates
+            // shuffle (Durstenfeld variant, low to high).
+            let mut set2 = set.clone();
+            if set.len() < 2 {
+                return (set, set2);
+            }
+            for i in 0..set2.len() - 2 {
+                let j = rng.gen_range(i..set2.len());
+                set2.swap(i, j);
+            }
+
+            (set, set2)
+        },
+    )
 }
 
 /// Assert equality properties.

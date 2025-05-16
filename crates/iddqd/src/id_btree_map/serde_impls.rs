@@ -2,13 +2,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use std::fmt;
-
+use super::{IdBTreeMap, IdBTreeMapEntry};
 use serde::{
     ser::SerializeSeq, Deserialize, Deserializer, Serialize, Serializer,
 };
-
-use super::{IdBTreeMap, IdBTreeMapEntry};
+use std::fmt;
 
 /// An `IdBTreeMap` serializes to the list of entries. Entries are serialized in
 /// order of their keys.

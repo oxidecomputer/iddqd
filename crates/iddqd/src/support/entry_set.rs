@@ -105,20 +105,6 @@ impl<T> EntrySet<T> {
         }
         entry
     }
-
-    /// Converts self into a `Vec<T>` sorted by index.
-    #[cfg(test)]
-    pub(crate) fn into_vec(mut self) -> Vec<T> {
-        let mut vec = Vec::with_capacity(self.entries.len());
-        for i in 0..self.next_index {
-            // This is slightly inefficient in the face of lots of gaps in
-            // self.entries, but it is also test-only code.
-            if let Some(entry) = self.entries.remove(&i) {
-                vec.push(entry);
-            }
-        }
-        vec
-    }
 }
 
 #[cfg(feature = "serde")]
