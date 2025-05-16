@@ -8,11 +8,11 @@ use test_strategy::Arbitrary;
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Arbitrary)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub(super) struct TestEntry {
-    pub(super) key1: u8,
-    pub(super) key2: char,
-    pub(super) key3: String,
-    pub(super) value: String,
+pub(crate) struct TestEntry {
+    pub(crate) key1: u8,
+    pub(crate) key2: char,
+    pub(crate) key3: String,
+    pub(crate) value: String,
 }
 
 impl PartialEq<&TestEntry> for TestEntry {
