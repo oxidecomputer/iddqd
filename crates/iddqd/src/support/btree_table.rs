@@ -75,18 +75,18 @@ impl MapBTreeTable {
             ValidateCompact::NonCompact => {
                 // There should be no duplicates, and the sentinel value
                 // should not be stored.
-                let values: Vec<_> = self.entries.iter().copied().collect();
-                let value_set: BTreeSet<usize> =
-                    values.iter().map(|ix| ix.0).collect();
+                let indexes: Vec<_> = self.entries.iter().copied().collect();
+                let index_set: BTreeSet<usize> =
+                    indexes.iter().map(|ix| ix.0).collect();
                 ensure!(
-                    value_set.len() == values.len(),
+                    index_set.len() == indexes.len(),
                     "expected no duplicates, but found {} duplicates \
                      (values: {:?})",
-                    values.len() - value_set.len(),
-                    values,
+                    indexes.len() - index_set.len(),
+                    indexes,
                 );
                 ensure!(
-                    !value_set.contains(&Index::SENTINEL_VALUE),
+                    !index_set.contains(&Index::SENTINEL_VALUE),
                     "expected sentinel value to be absent from the set, \
                      but found it"
                 );
