@@ -2,7 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::{tri_hash_map, tri_upcasts, TriHashMap, TriHashMapEntry};
+use crate::{
+    errors::DuplicateEntry, tri_hash_map, tri_upcasts, TriHashMap,
+    TriHashMapEntry,
+};
 use std::fmt;
 use test_strategy::Arbitrary;
 
@@ -53,7 +56,12 @@ impl TriHashMapEntry for TestEntry {
     tri_upcasts!();
 }
 
+pub(crate) enum MapKind {
+    Hash,
+}
+
 /// Represents a map of `TestEntry` values. Used for generic tests and assertions.
+#[cfg_attr(not(feature = "serde"), expect(unused))]
 pub(crate) trait TestEntryMap: Clone {
     type RefMut<'a>: IntoRef<'a>
     where
@@ -66,6 +74,13 @@ pub(crate) trait TestEntryMap: Clone {
         Self: 'a;
     type IntoIter: Iterator<Item = TestEntry>;
 
+    fn map_kind() -> MapKind;
+    fn new() -> Self;
+    fn validate(&self) -> anyhow::Result<()>;
+    fn insert_unique(
+        &mut self,
+        value: TestEntry,
+    ) -> Result<(), DuplicateEntry<TestEntry, &TestEntry>>;
     fn iter(&self) -> Self::Iter<'_>;
     fn iter_mut(&mut self) -> Self::IterMut<'_>;
     fn into_iter(self) -> Self::IntoIter;
@@ -76,6 +91,25 @@ impl TestEntryMap for TriHashMap<TestEntry> {
     type Iter<'a> = tri_hash_map::Iter<'a, TestEntry>;
     type IterMut<'a> = tri_hash_map::IterMut<'a, TestEntry>;
     type IntoIter = tri_hash_map::IntoIter<TestEntry>;
+
+    fn map_kind() -> MapKind {
+        MapKind::Hash
+    }
+
+    fn new() -> Self {
+        TriHashMap::new()
+    }
+
+    fn validate(&self) -> anyhow::Result<()> {
+        self.validate()
+    }
+
+    fn insert_unique(
+        &mut self,
+        value: TestEntry,
+    ) -> Result<(), DuplicateEntry<TestEntry, &TestEntry>> {
+        self.insert_unique(value)
+    }
 
     fn iter(&self) -> Self::Iter<'_> {
         self.iter()

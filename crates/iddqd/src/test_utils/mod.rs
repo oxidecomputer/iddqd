@@ -3,5 +3,9 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 mod imp;
+#[cfg(feature = "serde")]
+mod serde_utils;
 
 pub(crate) use imp::*;
+#[cfg(feature = "serde")]
+pub(crate) use serde_utils::*;

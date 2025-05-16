@@ -76,7 +76,7 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
     /// The code below always upholds these invariants, but it's useful to have
     /// an explicit check for tests.
     #[cfg(test)]
-    pub(super) fn validate(&self) -> anyhow::Result<()>
+    pub(crate) fn validate(&self) -> anyhow::Result<()>
     where
         T: std::fmt::Debug,
     {

@@ -50,61 +50,11 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_utils::TestEntry;
+    use crate::test_utils::{assert_serialize_roundtrip, TestEntry};
     use test_strategy::proptest;
 
     #[proptest]
     fn proptest_serialize_roundtrip(values: Vec<TestEntry>) {
-        let mut map = TriHashMap::<TestEntry>::new();
-        let mut first_error = None;
-        for value in values.clone() {
-            // Ignore errors from duplicates which are quite possible to occur
-            // here, since we're just testing serialization. But store the
-            // first error to ensure that deserialization returns errors.
-            if let Err(error) = map.insert_unique(value) {
-                if first_error.is_none() {
-                    first_error = Some(error.into_owned());
-                }
-            }
-        }
-
-        let serialized = serde_json::to_string(&map).unwrap();
-        let deserialized: TriHashMap<TestEntry> =
-            serde_json::from_str(&serialized).unwrap();
-        deserialized.validate().expect("deserialized map is valid");
-
-        let mut map_entries = map.entries.into_vec();
-        let mut deserialized_entries = deserialized.entries.into_vec();
-
-        // Sort the entries, since we don't care about the order.
-        map_entries.sort();
-        deserialized_entries.sort();
-        assert_eq!(map_entries, deserialized_entries, "entries match");
-
-        // Try deserializing the full list of values directly, and see that the
-        // error reported is the same as first_error.
-        //
-        // Here we rely on the fact that a TriHashMap is serialized as just a
-        // vector.
-        let serialized = serde_json::to_string(&values).unwrap();
-        let res: Result<TriHashMap<TestEntry>, _> =
-            serde_json::from_str(&serialized);
-        match (first_error, res) {
-            (None, Ok(_)) => {} // No error, should be fine
-            (Some(first_error), Ok(_)) => {
-                panic!("expected error ({first_error}), but deserialization succeeded")
-            }
-            (None, Err(error)) => {
-                panic!("unexpected error: {error}, deserialization should have succeeded")
-            }
-            (Some(first_error), Err(error)) => {
-                // first_error is the error from the map, and error is the
-                // deserialization error (which should always be a custom
-                // error, stored as a string).
-                let expected = first_error.to_string();
-                let actual = error.to_string();
-                assert_eq!(actual, expected, "error matches");
-            }
-        }
+        assert_serialize_roundtrip::<TriHashMap<TestEntry>>(values);
     }
 }
