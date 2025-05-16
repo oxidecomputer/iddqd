@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::{tables::TriHashMapTables, Iter, IterMut, RefMut};
+use super::{tables::TriHashMapTables, IntoIter, Iter, IterMut, RefMut};
 use crate::{
     errors::DuplicateEntry,
     support::{entry_set::EntrySet, hash_table::MapHash},
@@ -63,6 +63,12 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
     #[inline]
     pub fn iter_mut(&mut self) -> IterMut<'_, T> {
         IterMut::new(&self.tables, &mut self.entries)
+    }
+
+    /// Consumes self, returning an iterator over map entries.
+    #[inline]
+    pub fn into_iter(self) -> IntoIter<T> {
+        IntoIter::new(self.entries)
     }
 
     /// Checks general invariants of the map.
@@ -368,6 +374,24 @@ fn detect_dup_or_insert<'a>(
             duplicates.insert(*slot.get());
             None
         }
+    }
+}
+
+impl<'a, T: TriHashMapEntry> IntoIterator for &'a TriHashMap<T> {
+    type Item = &'a T;
+    type IntoIter = Iter<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+impl<'a, T: TriHashMapEntry> IntoIterator for &'a mut TriHashMap<T> {
+    type Item = RefMut<'a, T>;
+    type IntoIter = IterMut<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter_mut()
     }
 }
 

@@ -85,3 +85,39 @@ impl<T: TriHashMapEntry> ExactSizeIterator for IterMut<'_, T> {
 
 // hash_map::IterMut is a FusedIterator, so IterMut is as well.
 impl<T: TriHashMapEntry> FusedIterator for IterMut<'_, T> {}
+
+/// An iterator over the elements of a [`TriHashMap`] by ownership.
+///
+/// Created by [`TriHashMap::into_iter`].
+///
+/// [`TriHashMap`]: crate::TriHashMap
+/// [`TriHashMap::iter`]: crate::TriHashMap::iter
+#[derive(Debug)]
+pub struct IntoIter<T: TriHashMapEntry> {
+    inner: hash_map::IntoValues<usize, T>,
+}
+
+impl<T: TriHashMapEntry> IntoIter<T> {
+    pub(crate) fn new(entries: EntrySet<T>) -> Self {
+        Self { inner: entries.into_values() }
+    }
+}
+
+impl<T: TriHashMapEntry> Iterator for IntoIter<T> {
+    type Item = T;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next()
+    }
+}
+
+impl<T: TriHashMapEntry> ExactSizeIterator for IntoIter<T> {
+    #[inline]
+    fn len(&self) -> usize {
+        self.inner.len()
+    }
+}
+
+// hash_map::IterMut is a FusedIterator, so IterMut is as well.
+impl<T: TriHashMapEntry> FusedIterator for IntoIter<T> {}

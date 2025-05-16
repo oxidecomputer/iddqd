@@ -66,6 +66,11 @@ impl<T> EntrySet<T> {
     }
 
     #[inline]
+    pub(crate) fn into_values(self) -> hash_map::IntoValues<usize, T> {
+        self.entries.into_values()
+    }
+
+    #[inline]
     #[expect(dead_code)]
     pub(crate) fn get(&self, index: usize) -> Option<&T> {
         self.entries.get(&index)
