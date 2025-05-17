@@ -111,6 +111,30 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
         Ok(())
     }
 
+    /// Inserts a value into the map, removing any conflicting entries and
+    /// returning a list of those entries.
+    pub fn insert_overwrite(&mut self, value: T) -> Vec<T> {
+        // Trying to write this function for maximal efficiency can get very
+        // tricky, requiring delicate handling of indexes. We follow a very
+        // simple approach instead:
+        //
+        // 1. Remove entries corresponding to keys that are already in the map.
+        // 2. Add the entry to the map.
+
+        let mut duplicates = Vec::new();
+        duplicates.extend(self.remove1(value.key1()));
+        duplicates.extend(self.remove2(value.key2()));
+        duplicates.extend(self.remove3(value.key3()));
+
+        if self.insert_unique(value).is_err() {
+            // We should never get here, because we just removed all the
+            // duplicates.
+            panic!("insert_unique failed after removing duplicates");
+        }
+
+        duplicates
+    }
+
     /// Inserts a value into the set, returning an error if any duplicates were
     /// added.
     pub fn insert_unique(
@@ -682,11 +706,42 @@ mod tests {
         map.insert_unique(v5.clone()).unwrap();
     }
 
+    // Example-based test for insert_overwrite.
+    //
+    // Can be used to write down examples seen from the property-based operation
+    // test, for easier debugging.
+    #[test]
+    fn test_insert_overwrite() {
+        let mut map = TriHashMap::<TestEntry>::new();
+
+        // Add an element.
+        let v1 = TestEntry {
+            key1: 20,
+            key2: 'a',
+            key3: "x".to_string(),
+            value: "v".to_string(),
+        };
+        assert_eq!(map.insert_overwrite(v1.clone()), Vec::<TestEntry>::new());
+
+        // Add an element with the same keys but a different value.
+        let v2 = TestEntry {
+            key1: 20,
+            key2: 'a',
+            key3: "x".to_string(),
+            value: "w".to_string(),
+        };
+        assert_eq!(map.insert_overwrite(v2.clone()), vec![v1]);
+
+        map.validate(ValidateCompact::NonCompact).expect("validation failed");
+    }
+
     #[derive(Debug, Arbitrary)]
     enum Operation {
         // Make inserts a bit more common to try and fill up the map.
         #[weight(3)]
-        Insert(TestEntry),
+        InsertUnique(TestEntry),
+        #[weight(2)]
+        InsertOverwrite(TestEntry),
         Get1(u8),
         Get2(char),
         Get3(String),
@@ -698,12 +753,14 @@ mod tests {
     impl Operation {
         fn remains_compact(&self) -> bool {
             match self {
-                Operation::Insert(_)
+                Operation::InsertUnique(_)
                 | Operation::Get1(_)
                 | Operation::Get2(_)
                 | Operation::Get3(_) => true,
-                // Remove entries can make the map non-compact.
-                Operation::Remove1(_)
+                // The act of removing entries, including calls to
+                // insert_overwrite, can make the map non-compact.
+                Operation::InsertOverwrite(_)
+                | Operation::Remove1(_)
                 | Operation::Remove2(_)
                 | Operation::Remove3(_) => false,
             }
@@ -721,14 +778,14 @@ mod tests {
         let mut compactness = ValidateCompact::Compact;
 
         // Now perform the operations on both maps.
-        for op in ops {
+        for op in ops.into_iter() {
             if compactness == ValidateCompact::Compact && !op.remains_compact()
             {
                 compactness = ValidateCompact::NonCompact;
             }
 
             match op {
-                Operation::Insert(entry) => {
+                Operation::InsertUnique(entry) => {
                     let map_res = map.insert_unique(entry.clone());
                     let naive_res = naive_map.insert_unique(entry.clone());
 
@@ -746,6 +803,19 @@ mod tests {
                         );
                     }
 
+                    map.validate(compactness).expect("map should be valid");
+                }
+                Operation::InsertOverwrite(entry) => {
+                    let mut map_dups = map.insert_overwrite(entry.clone());
+                    map_dups.sort();
+                    let mut naive_dups =
+                        naive_map.insert_overwrite(entry.clone());
+                    naive_dups.sort();
+
+                    assert_eq!(
+                        map_dups, naive_dups,
+                        "map and naive map should agree on insert_overwrite dups"
+                    );
                     map.validate(compactness).expect("map should be valid");
                 }
                 Operation::Get1(key1) => {

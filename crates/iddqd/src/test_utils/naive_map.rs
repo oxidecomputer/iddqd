@@ -60,6 +60,33 @@ impl NaiveMap {
         }
     }
 
+    pub(crate) fn insert_overwrite(
+        &mut self,
+        entry: TestEntry,
+    ) -> Vec<TestEntry> {
+        let dup_indexes = self
+            .entries
+            .iter()
+            .enumerate()
+            .filter_map(|(i, e)| {
+                self.unique_constraint.matches(&entry, e).then_some(i)
+            })
+            .collect::<Vec<_>>();
+        let mut dups = Vec::new();
+
+        // dup_indexes is in sorted order -- remove entries in that order to
+        // handle shifting indexes. (There are more efficient ways to do this.
+        // But this is a model, not the system under test, so the goal here is
+        // to be clear more than to be efficient.)
+        for i in dup_indexes.iter().rev() {
+            dups.push(self.entries.remove(*i));
+        }
+
+        // Now we can push the new entry.
+        self.entries.push(entry);
+        dups
+    }
+
     pub(crate) fn get1(&self, key1: u8) -> Option<&TestEntry> {
         self.entries.iter().find(|e| e.key1 == key1)
     }

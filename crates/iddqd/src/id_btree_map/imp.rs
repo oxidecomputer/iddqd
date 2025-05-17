@@ -133,6 +133,27 @@ impl<T: IdBTreeMapEntry> IdBTreeMap<T> {
         Ok(())
     }
 
+    /// Inserts a value into the map, removing and returning the conflicting
+    /// entry, if any.
+    pub fn insert_overwrite(&mut self, value: T) -> Option<T> {
+        // Trying to write this function for maximal efficiency can get very
+        // tricky, requiring delicate handling of indexes. We follow a very
+        // simple approach instead:
+        //
+        // 1. Remove the entry corresponding to the key that are already in the map.
+        // 2. Add the entry to the map.
+
+        let duplicate = self.remove(value.key());
+
+        if self.insert_unique(value).is_err() {
+            // We should never get here, because we just removed all the
+            // duplicates.
+            panic!("insert_unique failed after removing duplicates");
+        }
+
+        duplicate
+    }
+
     /// Returns true if the map contains the given `key`.
     pub fn contains_key<'a, Q>(&'a self, key: &Q) -> bool
     where
@@ -334,7 +355,9 @@ mod tests {
     enum Operation {
         // Make inserts a bit more common to try and fill up the map.
         #[weight(3)]
-        Insert(TestEntry),
+        InsertUnique(TestEntry),
+        #[weight(2)]
+        InsertOverwrite(TestEntry),
         Get(u8),
         Remove(u8),
     }
@@ -342,8 +365,10 @@ mod tests {
     impl Operation {
         fn remains_compact(&self) -> bool {
             match self {
-                Operation::Insert(_) | Operation::Get(_) => true,
-                Operation::Remove(_) => false,
+                Operation::InsertUnique(_) | Operation::Get(_) => true,
+                // The act of removing entries, including calls to
+                // insert_overwrite, can make the map non-compact.
+                Operation::InsertOverwrite(_) | Operation::Remove(_) => false,
             }
         }
     }
@@ -376,7 +401,7 @@ mod tests {
             }
 
             match op {
-                Operation::Insert(entry) => {
+                Operation::InsertUnique(entry) => {
                     let map_res = map.insert_unique(entry.clone());
                     let naive_res = naive_map.insert_unique(entry.clone());
 
@@ -392,6 +417,20 @@ mod tests {
 
                     map.validate(compactness).expect("map should be valid");
                 }
+                Operation::InsertOverwrite(entry) => {
+                    let map_dups = map.insert_overwrite(entry.clone());
+                    let mut naive_dups =
+                        naive_map.insert_overwrite(entry.clone());
+                    assert!(naive_dups.len() <= 1, "max one conflict");
+                    let naive_dup = naive_dups.pop();
+
+                    assert_eq!(
+                        map_dups, naive_dup,
+                        "map and naive map should agree on insert_overwrite dup"
+                    );
+                    map.validate(compactness).expect("map should be valid");
+                }
+
                 Operation::Get(key) => {
                     let map_res = map.get(&key);
                     let naive_res = naive_map.get1(key);
