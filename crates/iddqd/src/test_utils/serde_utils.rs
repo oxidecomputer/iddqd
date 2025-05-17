@@ -4,7 +4,7 @@
 
 //! Serde-related test utilities.
 
-use super::{MapKind, TestEntry, TestEntryMap};
+use super::{MapKind, TestEntry, TestEntryMap, ValidateCompact};
 use serde::{Deserialize, Serialize};
 
 pub(crate) fn assert_serialize_roundtrip<M>(values: Vec<TestEntry>)
@@ -26,7 +26,9 @@ where
 
     let serialized = serde_json::to_string(&map).unwrap();
     let deserialized: M = serde_json::from_str(&serialized).unwrap();
-    deserialized.validate().expect("deserialized map is valid");
+    deserialized
+        .validate(ValidateCompact::Compact)
+        .expect("deserialized map is valid");
 
     let mut map_entries = map.iter().collect::<Vec<_>>();
     let mut deserialized_entries = deserialized.iter().collect::<Vec<_>>();
