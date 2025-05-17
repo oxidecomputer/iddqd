@@ -4,7 +4,7 @@
 
 //! An example demonstrating `IdBTreeMap` use with complex borrowed keys.
 
-use iddqd::{id_upcast, IdBTreeMap, IdBTreeMapEntry};
+use iddqd::{id_btree_map::Entry, id_upcast, IdBTreeMap, IdBTreeMapEntry};
 use std::path::{Path, PathBuf};
 
 /// These are the entries we'll store in the `IdBTreeMap`.
@@ -78,5 +78,28 @@ fn main() {
     // While iterating over the map, entries will be sorted by their key.
     for entry in map.iter() {
         println!("{:?}", entry);
+    }
+
+    let entry3 = MyStruct {
+        a: "example".to_owned(),
+        b: 20,
+        c: PathBuf::from("/"),
+        d: vec![1, 2, 3],
+    };
+
+    for item in [entry, entry2, entry3] {
+        let entry = map.entry(item.key());
+        match entry {
+            Entry::Occupied(entry) => {
+                // We can get the entry's value.
+                let value = entry.get();
+                println!("occupied: {:?}", value);
+            }
+            Entry::Vacant(entry) => {
+                // We can insert a new value.
+                let value = entry.insert(item);
+                println!("inserted: {:?}", value);
+            }
+        }
     }
 }

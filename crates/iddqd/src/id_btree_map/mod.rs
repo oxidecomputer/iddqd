@@ -6,6 +6,7 @@
 //!
 //! TODO: expand on this
 
+mod entry;
 pub(crate) mod imp;
 mod iter;
 mod ref_mut;
@@ -14,6 +15,7 @@ mod serde_impls;
 mod tables;
 pub(crate) mod trait_defs;
 
+pub use entry::{Entry, OccupiedEntry, VacantEntry};
 pub use imp::IdBTreeMap;
 pub use iter::{IntoIter, Iter, IterMut};
 pub use ref_mut::RefMut;

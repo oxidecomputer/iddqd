@@ -6,6 +6,7 @@ license.workspace = true
 
 [dependencies]
 daft.workspace = true
+debug-ignore.workspace = true
 derive-where.workspace = true
 hashbrown.workspace = true
 rustc-hash.workspace = true

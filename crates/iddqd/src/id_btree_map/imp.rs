@@ -3,10 +3,13 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use super::{
-    tables::IdBTreeMapTables, IdBTreeMapEntry, IdBTreeMapEntryMut, IntoIter,
-    Iter, IterMut, RefMut,
+    tables::IdBTreeMapTables, Entry, IdBTreeMapEntry, IdBTreeMapEntryMut,
+    IntoIter, Iter, IterMut, OccupiedEntry, RefMut, VacantEntry,
 };
-use crate::{errors::DuplicateEntry, support::entry_set::EntrySet};
+use crate::{
+    errors::DuplicateEntry,
+    support::{borrow::DormantMutRef, entry_set::EntrySet},
+};
 use derive_where::derive_where;
 use std::{borrow::Borrow, collections::BTreeSet};
 
@@ -128,7 +131,7 @@ impl<T: IdBTreeMapEntry> IdBTreeMap<T> {
             .key_to_entry
             .insert(next_index, &key, |index| self.entries[index].key());
         drop(key);
-        self.entries.insert(value);
+        self.entries.insert_at_next_index(value);
 
         Ok(())
     }
@@ -176,7 +179,8 @@ impl<T: IdBTreeMapEntry> IdBTreeMap<T> {
 
     /// Gets a mutable reference to the value associated with the given `key`.
     ///
-    /// Due to borrow checker limitations, this requires that `Key` have an owned form.
+    /// Due to borrow checker limitations, this always accepts `T::Key` rather
+    /// than a borrowed form of it.
     pub fn get_mut<'a>(&'a mut self, key: T::Key<'_>) -> Option<RefMut<'a, T>>
     where
         T: IdBTreeMapEntryMut,
@@ -186,31 +190,42 @@ impl<T: IdBTreeMapEntry> IdBTreeMap<T> {
         Some(RefMut::new(entry))
     }
 
-    /// Removes an entry from the map by its `key1`.
+    /// Removes an entry from the map by its `key`.
     ///
-    /// Due to borrow checker limitations, this always accepts `K1` rather than
-    /// a borrowed form of it.
+    /// Due to borrow checker limitations, this always accepts `T::Key` rather
+    /// than a borrowed form of it.
     pub fn remove<'a>(&'a mut self, key: T::Key<'_>) -> Option<T> {
         let Some(remove_index) = self.find_index(&T::upcast_key(key)) else {
             // The entry was not found.
             return None;
         };
 
-        let value = self
-            .entries
-            .remove(remove_index)
-            .expect("entries missing key1 that was just retrieved");
+        self.remove_by_index(remove_index)
+    }
 
-        // Remove the value from the table.
-        self.tables.key_to_entry.remove(remove_index, value.key(), |index| {
-            if index == remove_index {
-                value.key()
-            } else {
-                self.entries[index].key()
+    /// Retrieves an entry by its `key`.
+    pub fn entry<'a>(&'a mut self, key: T::Key<'_>) -> Entry<'a, T> {
+        let (map, dormant_map) = DormantMutRef::new(self);
+        let key = T::upcast_key(key);
+        {
+            // index is explicitly typed to show that it has a trivial Drop impl
+            // that doesn't capture anything from map.
+            let index: Option<usize> = map
+                .tables
+                .key_to_entry
+                .find_index(&key, |index| map.entries[index].key());
+            if let Some(index) = index {
+                drop(key);
+                return Entry::Occupied(
+                    // SAFETY: `map` is not used after this point.
+                    unsafe { OccupiedEntry::new(dormant_map, index) },
+                );
             }
-        });
-
-        Some(value)
+        }
+        Entry::Vacant(
+            // SAFETY: `map` is not used after this point.
+            unsafe { VacantEntry::new(dormant_map) },
+        )
     }
 
     fn find<'a, Q>(&'a self, k: &Q) -> Option<&'a T>
@@ -231,6 +246,89 @@ impl<T: IdBTreeMapEntry> IdBTreeMap<T> {
         self.tables
             .key_to_entry
             .find_index(k, |index| self.entries[index].key())
+    }
+
+    pub(super) fn get_by_index(&self, index: usize) -> Option<&T> {
+        self.entries.get(index)
+    }
+
+    pub(super) fn get_by_index_mut(
+        &mut self,
+        index: usize,
+    ) -> Option<RefMut<'_, T>>
+    where
+        T: IdBTreeMapEntryMut,
+    {
+        self.entries.get_mut(index).map(RefMut::new)
+    }
+
+    pub(super) fn insert_unique_impl(
+        &mut self,
+        value: T,
+    ) -> Result<usize, DuplicateEntry<T, &T>> {
+        let mut duplicates = BTreeSet::new();
+
+        // Check for duplicates *before* inserting the new entry, because we
+        // don't want to partially insert the new entry and then have to roll
+        // back.
+        let key = value.key();
+
+        if let Some(index) = self
+            .tables
+            .key_to_entry
+            .find_index(&key, |index| self.entries[index].key())
+        {
+            duplicates.insert(index);
+        }
+
+        if !duplicates.is_empty() {
+            drop(key);
+            return Err(DuplicateEntry::new(
+                value,
+                duplicates.iter().map(|ix| &self.entries[*ix]).collect(),
+            ));
+        }
+
+        let next_index = self.entries.next_index();
+        self.tables
+            .key_to_entry
+            .insert(next_index, &key, |index| self.entries[index].key());
+        drop(key);
+        self.entries.insert_at_next_index(value);
+
+        Ok(next_index)
+    }
+
+    pub(super) fn remove_by_index(&mut self, remove_index: usize) -> Option<T> {
+        let value = self.entries.remove(remove_index)?;
+
+        // Remove the value from the table.
+        self.tables.key_to_entry.remove(remove_index, value.key(), |index| {
+            if index == remove_index {
+                value.key()
+            } else {
+                self.entries[index].key()
+            }
+        });
+
+        Some(value)
+    }
+
+    pub(super) fn replace_at_index(&mut self, index: usize, value: T) -> T {
+        // We check the key before removing it, to avoid leaving the map in an
+        // inconsistent state.
+        let old_key =
+            self.get_by_index(index).expect("index is known to be valid").key();
+        if T::upcast_key(old_key) != value.key() {
+            panic!(
+                "must insert a value with \
+                 the same key used to create the entry"
+            );
+        }
+
+        // Now that we know the key is the same, we can replace the value
+        // directly without needing to tweak any tables.
+        self.entries.replace(index, value)
     }
 }
 

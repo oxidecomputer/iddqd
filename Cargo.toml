@@ -9,6 +9,7 @@ license = "MPL-2.0"
 [workspace.dependencies]
 anyhow = "1.0.97"
 daft = { version = "0.1.2", features = ["derive"] }
+debug-ignore = "1.0.5"
 derive-where = "1.2.7"
 hashbrown = "0.15.2"
 proptest = "1.6.0"

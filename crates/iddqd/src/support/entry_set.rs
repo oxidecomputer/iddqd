@@ -71,13 +71,11 @@ impl<T> EntrySet<T> {
     }
 
     #[inline]
-    #[expect(dead_code)]
     pub(crate) fn get(&self, index: usize) -> Option<&T> {
         self.entries.get(&index)
     }
 
     #[inline]
-    #[expect(dead_code)]
     pub(crate) fn get_mut(&mut self, index: usize) -> Option<&mut T> {
         self.entries.get_mut(&index)
     }
@@ -88,7 +86,7 @@ impl<T> EntrySet<T> {
     }
 
     #[inline]
-    pub(crate) fn insert(&mut self, value: T) -> usize {
+    pub(crate) fn insert_at_next_index(&mut self, value: T) -> usize {
         let index = self.next_index;
         self.entries.insert(index, value);
         self.next_index += 1;
@@ -104,6 +102,15 @@ impl<T> EntrySet<T> {
             self.next_index -= 1;
         }
         entry
+    }
+
+    // This method assumes that value has the same ID. It also asserts that
+    // `index` is valid (and panics if it isn't).
+    #[inline]
+    pub(crate) fn replace(&mut self, index: usize, value: T) -> T {
+        self.entries
+            .insert(index, value)
+            .unwrap_or_else(|| panic!("EntrySet index not found: {index}"))
     }
 }
 

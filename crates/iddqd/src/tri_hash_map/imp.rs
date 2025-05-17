@@ -179,7 +179,7 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
             ));
         }
 
-        let next_index = self.entries.insert(value);
+        let next_index = self.entries.insert_at_next_index(value);
         // e1, e2 and e3 are all Some because if they were None, duplicates
         // would be non-empty, and we'd have bailed out earlier.
         e1.unwrap().insert(next_index);
