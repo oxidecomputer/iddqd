@@ -34,6 +34,32 @@ impl<T: IdBTreeMapEntry> IdBTreeMap<T> {
         Self { entries: EntrySet::default(), tables: IdBTreeMapTables::new() }
     }
 
+    /// Constructs a new `IdBTreeMap` from an iterator of values, rejecting
+    /// duplicates.
+    ///
+    /// To overwrite duplicates instead, use [`IdBTreeMap::from_iter`].
+    pub fn from_iter_unique<I: IntoIterator<Item = T>>(
+        iter: I,
+    ) -> Result<Self, DuplicateEntry<T>> {
+        let mut map = IdBTreeMap::new();
+        for value in iter {
+            match map.entry(value.key()) {
+                Entry::Occupied(entry) => {
+                    let duplicate = entry.remove();
+                    return Err(DuplicateEntry::__internal_new(
+                        value,
+                        vec![duplicate],
+                    ));
+                }
+                Entry::Vacant(entry) => {
+                    entry.insert(value);
+                }
+            }
+        }
+
+        Ok(map)
+    }
+
     /// Returns true if the map is empty.
     #[inline]
     pub fn is_empty(&self) -> bool {
@@ -378,5 +404,19 @@ impl<T: IdBTreeMapEntryMut> IntoIterator for IdBTreeMap<T> {
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
         IntoIter::new(self.entries, self.tables)
+    }
+}
+
+/// The `FromIterator` implementation for `IdBTreeMap` overwrites duplicate
+/// entries.
+///
+/// To reject duplicates, use [`IdBTreeMap::from_iter_unique`].
+impl<T: IdBTreeMapEntry> FromIterator<T> for IdBTreeMap<T> {
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        let mut map = IdBTreeMap::new();
+        for value in iter {
+            map.insert_overwrite(value);
+        }
+        map
     }
 }

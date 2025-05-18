@@ -636,3 +636,15 @@ impl<T: TriHashMapEntry> IntoIterator for TriHashMap<T> {
         IntoIter::new(self.entries)
     }
 }
+
+/// The `FromIterator` implementation for `TriHashMap` overwrites duplicate
+/// entries.
+impl<T: TriHashMapEntry> FromIterator<T> for TriHashMap<T> {
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        let mut map = TriHashMap::new();
+        for entry in iter {
+            map.insert_overwrite(entry);
+        }
+        map
+    }
+}

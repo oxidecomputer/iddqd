@@ -182,14 +182,20 @@ fn proptest_permutation_eq(
     let mut map1 = IdBTreeMap::<TestEntry>::new();
     let mut map2 = IdBTreeMap::<TestEntry>::new();
 
-    for entry in entries1 {
+    for entry in entries1.clone() {
         map1.insert_unique(entry.clone()).unwrap();
     }
-    for entry in entries2 {
+    for entry in entries2.clone() {
         map2.insert_unique(entry.clone()).unwrap();
     }
 
-    assert_eq_props(map1, map2);
+    assert_eq_props(&map1, &map2);
+
+    // Also test from_iter_unique.
+    let map3 = IdBTreeMap::from_iter_unique(entries1).unwrap();
+    let map4 = IdBTreeMap::from_iter_unique(entries2).unwrap();
+    assert_eq_props(&map1, &map3);
+    assert_eq_props(&map3, &map4);
 }
 
 // Test various conditions for non-equality.
