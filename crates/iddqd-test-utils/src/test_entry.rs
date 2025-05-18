@@ -2,23 +2,21 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::{
-    errors::DuplicateEntry,
-    id_btree_map::{self},
-    id_upcast, tri_hash_map, tri_upcasts, IdBTreeMap, IdBTreeMapEntry,
-    IdBTreeMapEntryMut, TriHashMap, TriHashMapEntry,
+use iddqd::{
+    errors::DuplicateEntry, id_btree_map, id_upcast, internal::ValidateCompact,
+    tri_hash_map, tri_upcasts, IdBTreeMap, IdBTreeMapEntry, IdBTreeMapEntryMut,
+    TriHashMap, TriHashMapEntry,
 };
 use proptest::{prelude::*, sample::SizeRange};
-use std::fmt;
 use test_strategy::Arbitrary;
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Arbitrary)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub(crate) struct TestEntry {
-    pub(crate) key1: u8,
-    pub(crate) key2: char,
-    pub(crate) key3: String,
-    pub(crate) value: String,
+pub struct TestEntry {
+    pub key1: u8,
+    pub key2: char,
+    pub key3: String,
+    pub value: String,
 }
 
 impl PartialEq<&TestEntry> for TestEntry {
@@ -82,14 +80,13 @@ impl TriHashMapEntry for TestEntry {
     tri_upcasts!();
 }
 
-pub(crate) enum MapKind {
+pub enum MapKind {
     BTree,
     Hash,
 }
 
 /// Represents a map of `TestEntry` values. Used for generic tests and assertions.
-#[cfg_attr(not(feature = "serde"), expect(unused))]
-pub(crate) trait TestEntryMap: Clone {
+pub trait TestEntryMap: Clone {
     type RefMut<'a>: IntoRef<'a>
     where
         Self: 'a;
@@ -189,7 +186,7 @@ impl TestEntryMap for TriHashMap<TestEntry> {
     }
 }
 
-pub(crate) trait IntoRef<'a> {
+pub trait IntoRef<'a> {
     fn into_ref(self) -> &'a TestEntry;
 }
 
@@ -205,10 +202,7 @@ impl<'a> IntoRef<'a> for tri_hash_map::RefMut<'a, TestEntry> {
     }
 }
 
-pub(crate) fn assert_iter_eq<M: TestEntryMap>(
-    mut map: M,
-    entries: Vec<&TestEntry>,
-) {
+pub fn assert_iter_eq<M: TestEntryMap>(mut map: M, entries: Vec<&TestEntry>) {
     let mut iter_entries = map.iter().collect::<Vec<_>>();
     iter_entries.sort_by_key(|e| e.key1());
     assert_eq!(iter_entries, entries, ".iter() entries match naive");
@@ -231,7 +225,7 @@ pub(crate) fn assert_iter_eq<M: TestEntryMap>(
 
 // Returns a pair of permutations of a set of unique entries (unique to a given
 // map).
-pub(crate) fn test_entry_permutation_strategy<M: TestEntryMap>(
+pub fn test_entry_permutation_strategy<M: TestEntryMap>(
     size: impl Into<SizeRange>,
 ) -> impl Strategy<Value = (Vec<TestEntry>, Vec<TestEntry>)> {
     prop::collection::vec(any::<TestEntry>(), size.into()).prop_perturb(
@@ -262,39 +256,4 @@ pub(crate) fn test_entry_permutation_strategy<M: TestEntryMap>(
             (set, set2)
         },
     )
-}
-
-/// Assert equality properties.
-///
-/// The PartialEq algorithms in this crate are not obviously symmetric or
-/// reflexive, so we must ensure in our tests that they are.
-#[allow(clippy::eq_op)]
-pub(crate) fn assert_eq_props<T: Eq + fmt::Debug>(a: T, b: T) {
-    assert_eq!(a, a, "a == a");
-    assert_eq!(b, b, "b == b");
-    assert_eq!(a, b, "a == b");
-    assert_eq!(b, a, "b == a");
-}
-
-/// Assert inequality properties.
-///
-/// The PartialEq algorithms in this crate are not obviously symmetric or
-/// reflexive, so we must ensure in our tests that they are.
-#[allow(clippy::eq_op)]
-pub(crate) fn assert_ne_props<T: Eq + fmt::Debug>(a: T, b: T) {
-    // Also check reflexivity while we're here.
-    assert_eq!(a, a, "a == a");
-    assert_eq!(b, b, "b == b");
-    assert_ne!(a, b, "a != b");
-    assert_ne!(b, a, "b != a");
-}
-
-/// For validation, indicate whether we expect integer tables to be compact
-/// (have all values in the range 0..table.len()).
-///
-/// Maps are expected to be compact if no remove operations were performed.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum ValidateCompact {
-    Compact,
-    NonCompact,
 }

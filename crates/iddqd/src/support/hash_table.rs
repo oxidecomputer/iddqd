@@ -27,18 +27,16 @@ impl MapHashTable {
         }
     }
 
-    #[cfg(test)]
     pub(crate) fn len(&self) -> usize {
         self.entries.len()
     }
 
-    #[cfg(test)]
     pub(crate) fn validate(
         &self,
         expected_len: usize,
-        compactness: crate::test_utils::ValidateCompact,
+        compactness: crate::internal::ValidateCompact,
     ) -> anyhow::Result<()> {
-        use crate::test_utils::ValidateCompact;
+        use crate::internal::ValidateCompact;
         use anyhow::ensure;
         use hashbrown::HashSet;
 

@@ -17,7 +17,9 @@ pub struct DuplicateEntry<T, D = T> {
 }
 
 impl<T, D> DuplicateEntry<T, D> {
-    pub(crate) fn new(new: T, duplicates: Vec<D>) -> Self {
+    /// Creates a new `DuplicateEntry` error.
+    #[doc(hidden)]
+    pub fn __internal_new(new: T, duplicates: Vec<D>) -> Self {
         DuplicateEntry { new, duplicates }
     }
 

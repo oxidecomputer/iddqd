@@ -2,38 +2,37 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::TestEntry;
-use crate::errors::DuplicateEntry;
+use crate::test_entry::TestEntry;
+use iddqd::errors::DuplicateEntry;
 
 /// A naive, inefficient map that acts as an oracle for property-based tests.
 ///
 /// This map is stored as a vector without internal indexes, and performs linear
 /// scans.
 #[derive(Debug)]
-pub(crate) struct NaiveMap {
+pub struct NaiveMap {
     entries: Vec<TestEntry>,
     unique_constraint: UniqueConstraint,
 }
 
 impl NaiveMap {
-    pub(crate) fn new_key1() -> Self {
+    pub fn new_key1() -> Self {
         Self { entries: Vec::new(), unique_constraint: UniqueConstraint::Key1 }
     }
 
     // Will use in the future.
-    #[expect(unused)]
-    pub(crate) fn new_key12() -> Self {
+    pub fn new_key12() -> Self {
         Self { entries: Vec::new(), unique_constraint: UniqueConstraint::Key12 }
     }
 
-    pub(crate) fn new_key123() -> Self {
+    pub fn new_key123() -> Self {
         Self {
             entries: Vec::new(),
             unique_constraint: UniqueConstraint::Key123,
         }
     }
 
-    pub(crate) fn insert_unique(
+    pub fn insert_unique(
         &mut self,
         entry: TestEntry,
     ) -> Result<(), DuplicateEntry<TestEntry, &TestEntry>> {
@@ -53,17 +52,14 @@ impl NaiveMap {
             self.entries.push(entry);
             Ok(())
         } else {
-            Err(DuplicateEntry::new(
+            Err(DuplicateEntry::__internal_new(
                 entry,
                 dup_indexes.iter().map(|&i| &self.entries[i]).collect(),
             ))
         }
     }
 
-    pub(crate) fn insert_overwrite(
-        &mut self,
-        entry: TestEntry,
-    ) -> Vec<TestEntry> {
+    pub fn insert_overwrite(&mut self, entry: TestEntry) -> Vec<TestEntry> {
         let dup_indexes = self
             .entries
             .iter()
@@ -87,34 +83,34 @@ impl NaiveMap {
         dups
     }
 
-    pub(crate) fn get1(&self, key1: u8) -> Option<&TestEntry> {
+    pub fn get1(&self, key1: u8) -> Option<&TestEntry> {
         self.entries.iter().find(|e| e.key1 == key1)
     }
 
-    pub(crate) fn get2(&self, key2: char) -> Option<&TestEntry> {
+    pub fn get2(&self, key2: char) -> Option<&TestEntry> {
         self.entries.iter().find(|e| e.key2 == key2)
     }
 
-    pub(crate) fn get3(&self, key3: &str) -> Option<&TestEntry> {
+    pub fn get3(&self, key3: &str) -> Option<&TestEntry> {
         self.entries.iter().find(|e| e.key3 == key3)
     }
 
-    pub(crate) fn remove1(&mut self, key1: u8) -> Option<TestEntry> {
+    pub fn remove1(&mut self, key1: u8) -> Option<TestEntry> {
         let index = self.entries.iter().position(|e| e.key1 == key1)?;
         Some(self.entries.remove(index))
     }
 
-    pub(crate) fn remove2(&mut self, key2: char) -> Option<TestEntry> {
+    pub fn remove2(&mut self, key2: char) -> Option<TestEntry> {
         let index = self.entries.iter().position(|e| e.key2 == key2)?;
         Some(self.entries.remove(index))
     }
 
-    pub(crate) fn remove3(&mut self, key3: &str) -> Option<TestEntry> {
+    pub fn remove3(&mut self, key3: &str) -> Option<TestEntry> {
         let index = self.entries.iter().position(|e| e.key3 == key3)?;
         Some(self.entries.remove(index))
     }
 
-    pub(crate) fn iter(&self) -> impl Iterator<Item = &TestEntry> {
+    pub fn iter(&self) -> impl Iterator<Item = &TestEntry> {
         self.entries.iter()
     }
 }

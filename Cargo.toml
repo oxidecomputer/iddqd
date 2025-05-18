@@ -12,6 +12,8 @@ daft = { version = "0.1.2", features = ["derive"] }
 debug-ignore = "1.0.5"
 derive-where = "1.2.7"
 hashbrown = "0.15.2"
+iddqd = { path = "crates/iddqd" }
+iddqd-test-utils = { path = "crates/iddqd-test-utils" }
 proptest = "1.6.0"
 rustc-hash = "2.1.1"
 serde = { version = "1.0.219", features = ["derive"] }

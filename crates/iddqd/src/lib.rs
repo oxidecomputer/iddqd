@@ -57,10 +57,10 @@
 
 pub mod errors;
 pub mod id_btree_map;
+#[doc(hidden)]
+pub mod internal;
 mod macros;
 mod support;
-#[cfg(test)]
-mod test_utils;
 pub mod tri_hash_map;
 
 pub use id_btree_map::{

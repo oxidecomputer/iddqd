@@ -77,22 +77,3 @@ impl<'a, T: IdBTreeMapEntryMut> RefMutInner<'a, T> {
         self.borrowed
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use crate::{test_utils::TestEntry, IdBTreeMap};
-
-    #[test]
-    #[should_panic(expected = "key changed during RefMut borrow")]
-    fn get_mut_panics_if_key_changes() {
-        let mut map = IdBTreeMap::<TestEntry>::new();
-        map.insert_unique(TestEntry {
-            key1: 128,
-            key2: 'b',
-            key3: "y".to_owned(),
-            value: "x".to_owned(),
-        })
-        .unwrap();
-        map.get_mut(&128).unwrap().key1 = 2;
-    }
-}

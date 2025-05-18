@@ -46,15 +46,3 @@ where
         Ok(map)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::test_utils::{assert_serialize_roundtrip, TestEntry};
-    use test_strategy::proptest;
-
-    #[proptest]
-    fn proptest_serialize_roundtrip(values: Vec<TestEntry>) {
-        assert_serialize_roundtrip::<IdBTreeMap<TestEntry>>(values);
-    }
-}

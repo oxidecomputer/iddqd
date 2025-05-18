@@ -27,11 +27,10 @@ impl TriHashMapTables {
         }
     }
 
-    #[cfg(test)]
     pub(super) fn validate(
         &self,
         expected_len: usize,
-        compactness: crate::test_utils::ValidateCompact,
+        compactness: crate::internal::ValidateCompact,
     ) -> anyhow::Result<()> {
         // Check that all the maps are of the right size.
 

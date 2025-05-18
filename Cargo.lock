@@ -162,8 +162,20 @@ dependencies = [
  "debug-ignore",
  "derive-where",
  "hashbrown",
+ "iddqd-test-utils",
  "proptest",
  "rustc-hash",
+ "serde",
+ "test-strategy",
+]
+
+[[package]]
+name = "iddqd-test-utils"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "iddqd",
+ "proptest",
  "serde",
  "serde_json",
  "test-strategy",

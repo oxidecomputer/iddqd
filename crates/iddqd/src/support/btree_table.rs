@@ -28,18 +28,18 @@ pub(crate) struct MapBTreeTable {
 }
 
 impl MapBTreeTable {
-    #[cfg(test)]
+    #[doc(hidden)]
     pub(crate) fn len(&self) -> usize {
         self.entries.len()
     }
 
-    #[cfg(test)]
+    #[doc(hidden)]
     pub(crate) fn validate(
         &self,
         expected_len: usize,
-        compactness: crate::test_utils::ValidateCompact,
+        compactness: crate::internal::ValidateCompact,
     ) -> anyhow::Result<()> {
-        use crate::test_utils::ValidateCompact;
+        use crate::internal::ValidateCompact;
         use anyhow::{bail, ensure};
 
         ensure!(

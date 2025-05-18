@@ -44,7 +44,6 @@ impl<T> EntrySet<T> {
     }
 
     #[inline]
-    #[cfg_attr(not(test), expect(dead_code))]
     pub(crate) fn iter(&self) -> hash_map::Iter<usize, T> {
         self.entries.iter()
     }

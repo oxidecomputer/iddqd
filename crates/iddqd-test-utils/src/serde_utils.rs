@@ -4,10 +4,11 @@
 
 //! Serde-related test utilities.
 
-use super::{MapKind, TestEntry, TestEntryMap, ValidateCompact};
+use crate::test_entry::{MapKind, TestEntry, TestEntryMap};
+use iddqd::internal::ValidateCompact;
 use serde::{Deserialize, Serialize};
 
-pub(crate) fn assert_serialize_roundtrip<M>(values: Vec<TestEntry>)
+pub fn assert_serialize_roundtrip<M>(values: Vec<TestEntry>)
 where
     M: TestEntryMap + Serialize + for<'de> Deserialize<'de>,
 {
