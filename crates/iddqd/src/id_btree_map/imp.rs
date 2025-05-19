@@ -130,36 +130,7 @@ impl<T: IdOrdItem> IdBTreeMap<T> {
         &mut self,
         value: T,
     ) -> Result<(), DuplicateItem<T, &T>> {
-        let mut duplicates = BTreeSet::new();
-
-        // Check for duplicates *before* inserting the new item, because we
-        // don't want to partially insert the new item and then have to roll
-        // back.
-        let key = value.key();
-
-        if let Some(index) = self
-            .tables
-            .key_to_item
-            .find_index(&key, |index| self.items[index].key())
-        {
-            duplicates.insert(index);
-        }
-
-        if !duplicates.is_empty() {
-            drop(key);
-            return Err(DuplicateItem::__internal_new(
-                value,
-                duplicates.iter().map(|ix| &self.items[*ix]).collect(),
-            ));
-        }
-
-        let next_index = self.items.next_index();
-        self.tables
-            .key_to_item
-            .insert(next_index, &key, |index| self.items[index].key());
-        drop(key);
-        self.items.insert_at_next_index(value);
-
+        let _ = self.insert_unique_impl(value)?;
         Ok(())
     }
 
@@ -170,7 +141,7 @@ impl<T: IdOrdItem> IdBTreeMap<T> {
         // tricky, requiring delicate handling of indexes. We follow a very
         // simple approach instead:
         //
-        // 1. Remove the item corresponding to the key that are already in the map.
+        // 1. Remove the item corresponding to the key that is already in the map.
         // 2. Add the item to the map.
 
         let duplicate = self.remove(value.key());
