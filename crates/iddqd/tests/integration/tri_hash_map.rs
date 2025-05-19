@@ -248,9 +248,8 @@ fn proptest_permutation_eq(
 
 // Test various conditions for non-equality.
 //
-// It's somewhat hard to capture mutations in a proptest (partly because
-// `TriMap` doesn't support mutating existing items at the moment), so this is a
-// small example-based test.
+// It's a bit difficult to capture mutations in a proptest, so this is a small
+// example-based test.
 #[test]
 fn test_permutation_eq_examples() {
     let mut map1 = TriHashMap::<TestItem>::new();
