@@ -4,8 +4,8 @@
 
 use iddqd::{
     errors::DuplicateEntry, id_btree_map, id_upcast, internal::ValidateCompact,
-    tri_hash_map, tri_upcasts, IdBTreeMap, IdBTreeMapEntry, IdBTreeMapEntryMut,
-    TriHashMap, TriHashMapEntry,
+    tri_hash_map, tri_upcasts, IdBTreeMap, IdOrdItem, IdOrdItemMut, TriHashMap,
+    TriHashMapEntry,
 };
 use proptest::{prelude::*, sample::SizeRange};
 use test_strategy::Arbitrary;
@@ -28,7 +28,7 @@ impl PartialEq<&TestEntry> for TestEntry {
     }
 }
 
-impl IdBTreeMapEntry for TestEntry {
+impl IdOrdItem for TestEntry {
     // A bit weird to return a reference to a u8, but this makes sure
     // reference-based keys work properly.
     type Key<'a>
@@ -43,7 +43,7 @@ impl IdBTreeMapEntry for TestEntry {
     id_upcast!();
 }
 
-impl IdBTreeMapEntryMut for TestEntry {
+impl IdOrdItemMut for TestEntry {
     type OwnedKey = u8;
 
     fn owned_key(&self) -> Self::OwnedKey {

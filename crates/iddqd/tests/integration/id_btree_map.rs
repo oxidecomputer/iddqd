@@ -5,7 +5,7 @@
 use iddqd::{
     id_btree_map::{Entry, RefMut},
     internal::ValidateCompact,
-    IdBTreeMap, IdBTreeMapEntry,
+    IdBTreeMap, IdOrdItem,
 };
 use iddqd_test_utils::{
     eq_props::{assert_eq_props, assert_ne_props},

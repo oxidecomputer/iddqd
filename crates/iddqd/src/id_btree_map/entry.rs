@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::{IdBTreeMap, IdBTreeMapEntry, IdBTreeMapEntryMut, RefMut};
+use super::{IdBTreeMap, IdOrdItem, IdOrdItemMut, RefMut};
 use crate::support::borrow::DormantMutRef;
 use debug_ignore::DebugIgnore;
 use derive_where::derive_where;
@@ -10,14 +10,14 @@ use std::fmt;
 
 /// An implementation of the Entry API for [`IdBTreeMap`].
 #[derive_where(Debug; T: fmt::Debug, for<'k> T::Key<'k>: fmt::Debug)]
-pub enum Entry<'a, T: IdBTreeMapEntry> {
+pub enum Entry<'a, T: IdOrdItem> {
     /// A vacant entry.
     Vacant(VacantEntry<'a, T>),
     /// An occupied entry.
     Occupied(OccupiedEntry<'a, T>),
 }
 
-impl<'a, T: IdBTreeMapEntry> Entry<'a, T> {
+impl<'a, T: IdOrdItem> Entry<'a, T> {
     /// Ensures a value is in the entry by inserting the default if empty, and
     /// returns a shared reference to the value in the entry.
     ///
@@ -45,7 +45,7 @@ impl<'a, T: IdBTreeMapEntry> Entry<'a, T> {
     #[inline]
     pub fn or_insert_mut(self, default: T) -> RefMut<'a, T>
     where
-        T: IdBTreeMapEntryMut,
+        T: IdOrdItemMut,
     {
         match self {
             Entry::Occupied(entry) => entry.into_mut(),
@@ -85,7 +85,7 @@ impl<'a, T: IdBTreeMapEntry> Entry<'a, T> {
         default: F,
     ) -> RefMut<'a, T>
     where
-        T: IdBTreeMapEntryMut,
+        T: IdOrdItemMut,
     {
         match self {
             Entry::Occupied(entry) => entry.into_mut(),
@@ -99,7 +99,7 @@ impl<'a, T: IdBTreeMapEntry> Entry<'a, T> {
     pub fn and_modify<F>(self, f: F) -> Self
     where
         F: FnOnce(RefMut<'_, T>),
-        T: IdBTreeMapEntryMut,
+        T: IdOrdItemMut,
     {
         match self {
             Entry::Occupied(mut entry) => {
@@ -125,11 +125,11 @@ impl<'a, T: IdBTreeMapEntry> Entry<'a, T> {
 
 /// A vacant entry.
 #[derive_where(Debug; for<'k> T::Key<'k>: fmt::Debug)]
-pub struct VacantEntry<'a, T: IdBTreeMapEntry> {
+pub struct VacantEntry<'a, T: IdOrdItem> {
     map: DebugIgnore<DormantMutRef<'a, IdBTreeMap<T>>>,
 }
 
-impl<'a, T: IdBTreeMapEntry> VacantEntry<'a, T> {
+impl<'a, T: IdOrdItem> VacantEntry<'a, T> {
     pub(super) unsafe fn new(map: DormantMutRef<'a, IdBTreeMap<T>>) -> Self {
         VacantEntry { map: map.into() }
     }
@@ -156,7 +156,7 @@ impl<'a, T: IdBTreeMapEntry> VacantEntry<'a, T> {
     /// value.
     pub fn insert_mut(self, value: T) -> RefMut<'a, T>
     where
-        T: IdBTreeMapEntryMut,
+        T: IdOrdItemMut,
     {
         // SAFETY: The safety assumption behind `Self::new` guarantees that the
         // original reference to the map is not used at this point.
@@ -189,13 +189,13 @@ impl<'a, T: IdBTreeMapEntry> VacantEntry<'a, T> {
 /// A view into an occupied entry in an [`IdBTreeMap`]. Part of the [`Entry`]
 /// enum.
 #[derive_where(Debug)]
-pub struct OccupiedEntry<'a, T: IdBTreeMapEntry> {
+pub struct OccupiedEntry<'a, T: IdOrdItem> {
     map: DebugIgnore<DormantMutRef<'a, IdBTreeMap<T>>>,
     // index is a valid index into the map's internal hash table.
     index: usize,
 }
 
-impl<'a, T: IdBTreeMapEntry> OccupiedEntry<'a, T> {
+impl<'a, T: IdOrdItem> OccupiedEntry<'a, T> {
     /// # Safety
     ///
     /// After self is created, the original reference created by
@@ -225,7 +225,7 @@ impl<'a, T: IdBTreeMapEntry> OccupiedEntry<'a, T> {
     /// `Entry` value, see [`into_mut`](Self::into_mut).
     pub fn get_mut(&mut self) -> RefMut<'_, T>
     where
-        T: IdBTreeMapEntryMut,
+        T: IdOrdItemMut,
     {
         // SAFETY: The safety assumption behind `Self::new` guarantees that the
         // original reference to the map is not used at this point.
@@ -252,7 +252,7 @@ impl<'a, T: IdBTreeMapEntry> OccupiedEntry<'a, T> {
     /// [`get_mut`](Self::get_mut).
     pub fn into_mut(self) -> RefMut<'a, T>
     where
-        T: IdBTreeMapEntryMut,
+        T: IdOrdItemMut,
     {
         // SAFETY: The safety assumption behind `Self::new` guarantees that the
         // original reference to the map is not used at this point.

@@ -4,7 +4,7 @@
 
 //! An example demonstrating `IdBTreeMap` use with complex borrowed keys.
 
-use iddqd::{id_btree_map::Entry, id_upcast, IdBTreeMap, IdBTreeMapEntry};
+use iddqd::{id_btree_map::Entry, id_upcast, IdBTreeMap, IdOrdItem};
 use std::path::{Path, PathBuf};
 
 /// These are the entries we'll store in the `IdBTreeMap`.
@@ -25,7 +25,7 @@ struct MyKey<'a> {
     d: &'a [usize],
 }
 
-impl IdBTreeMapEntry for MyStruct {
+impl IdOrdItem for MyStruct {
     type Key<'a> = MyKey<'a>;
 
     fn key(&self) -> Self::Key<'_> {

@@ -6,16 +6,16 @@
 
 use std::{rc::Rc, sync::Arc};
 
-/// An entry in an [`IdBTreeMap`].
+/// An element stored in an [`IdBTreeMap`].
 ///
-/// This trait is used to define the keys.
+/// This trait is used to define the key type for the map.
 ///
 /// # Examples
 ///
 /// TODO: Add an example here.
 ///
 /// [`IdBTreeMap`]: crate::IdBTreeMap
-pub trait IdBTreeMapEntry {
+pub trait IdOrdItem {
     /// The key type.
     type Key<'a>: Ord
     where
@@ -25,7 +25,7 @@ pub trait IdBTreeMapEntry {
     fn key(&self) -> Self::Key<'_>;
 
     /// Upcasts the key to a shorter lifetime, in effect asserting that the
-    /// lifetime `'a` on [`IdBTreeMapEntry::Key`] is covariant.
+    /// lifetime `'a` on [`IdOrdItem::Key`] is covariant.
     ///
     /// Typically implemented via the [`id_upcast`] macro.
     fn upcast_key<'short, 'long: 'short>(
@@ -40,8 +40,8 @@ pub trait IdBTreeMapEntry {
 /// key for temporary storage.
 ///
 /// [`IdBTreeMap::get_mut`]: crate::IdBTreeMap::get_mut
-pub trait IdBTreeMapEntryMut: IdBTreeMapEntry {
-    /// An owned key type corresponding to [`IdBTreeMapEntry::Key`].
+pub trait IdOrdItemMut: IdOrdItem {
+    /// An owned key type corresponding to [`IdOrdItem::Key`].
     ///
     /// This can also be a digest, or some other kind of value which changes iff
     /// the key changes.
@@ -53,7 +53,7 @@ pub trait IdBTreeMapEntryMut: IdBTreeMapEntry {
 
 macro_rules! impl_for_ref {
     ($type:ty) => {
-        impl<'b, T: 'b + ?Sized + IdBTreeMapEntry> IdBTreeMapEntry for $type {
+        impl<'b, T: 'b + ?Sized + IdOrdItem> IdOrdItem for $type {
             type Key<'a>
                 = T::Key<'a>
             where
@@ -73,9 +73,7 @@ macro_rules! impl_for_ref {
             }
         }
 
-        impl<'b, T: 'b + ?Sized + IdBTreeMapEntryMut> IdBTreeMapEntryMut
-            for $type
-        {
+        impl<'b, T: 'b + ?Sized + IdOrdItemMut> IdOrdItemMut for $type {
             type OwnedKey = T::OwnedKey;
 
             fn owned_key(&self) -> Self::OwnedKey {
@@ -90,7 +88,7 @@ impl_for_ref!(&'b mut T);
 
 macro_rules! impl_for_box {
     ($type:ty) => {
-        impl<T: ?Sized + IdBTreeMapEntry> IdBTreeMapEntry for $type {
+        impl<T: ?Sized + IdOrdItem> IdOrdItem for $type {
             type Key<'a>
                 = T::Key<'a>
             where
@@ -107,7 +105,7 @@ macro_rules! impl_for_box {
             }
         }
 
-        impl<T: ?Sized + IdBTreeMapEntryMut> IdBTreeMapEntryMut for $type {
+        impl<T: ?Sized + IdOrdItemMut> IdOrdItemMut for $type {
             type OwnedKey = T::OwnedKey;
 
             fn owned_key(&self) -> Self::OwnedKey {

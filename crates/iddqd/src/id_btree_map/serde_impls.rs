@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::{IdBTreeMap, IdBTreeMapEntry};
+use super::{IdBTreeMap, IdOrdItem};
 use serde::{
     ser::SerializeSeq, Deserialize, Deserializer, Serialize, Serializer,
 };
@@ -10,7 +10,7 @@ use std::fmt;
 
 /// An `IdBTreeMap` serializes to the list of entries. Entries are serialized in
 /// order of their keys.
-impl<T: IdBTreeMapEntry> Serialize for IdBTreeMap<T>
+impl<T: IdOrdItem> Serialize for IdBTreeMap<T>
 where
     T: Serialize,
 {
@@ -30,7 +30,7 @@ where
 /// indexes and producing an error if there are any duplicates.
 ///
 /// The `fmt::Debug` bound on `T` ensures better error reporting.
-impl<'de, T: IdBTreeMapEntry + fmt::Debug> Deserialize<'de> for IdBTreeMap<T>
+impl<'de, T: IdOrdItem + fmt::Debug> Deserialize<'de> for IdBTreeMap<T>
 where
     T: Deserialize<'de>,
 {

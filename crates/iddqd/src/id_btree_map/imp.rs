@@ -3,8 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use super::{
-    tables::IdBTreeMapTables, Entry, IdBTreeMapEntry, IdBTreeMapEntryMut,
-    IntoIter, Iter, IterMut, OccupiedEntry, RefMut, VacantEntry,
+    tables::IdBTreeMapTables, Entry, IdOrdItem, IdOrdItemMut, IntoIter, Iter,
+    IterMut, OccupiedEntry, RefMut, VacantEntry,
 };
 use crate::{
     errors::DuplicateEntry,
@@ -20,14 +20,14 @@ use std::{borrow::Borrow, collections::BTreeSet};
 /// lookups by any of the three keys, while preventing duplicates.
 #[derive_where(Default)]
 #[derive(Clone, Debug)]
-pub struct IdBTreeMap<T: IdBTreeMapEntry> {
+pub struct IdBTreeMap<T: IdOrdItem> {
     pub(super) entries: EntrySet<T>,
     // Invariant: the values (usize) in these tables are valid indexes into
     // `entries`, and are a 1:1 mapping.
     tables: IdBTreeMapTables,
 }
 
-impl<T: IdBTreeMapEntry> IdBTreeMap<T> {
+impl<T: IdOrdItem> IdBTreeMap<T> {
     /// Creates a new, empty `IdBTreeMap`.
     #[inline]
     pub fn new() -> Self {
@@ -82,7 +82,7 @@ impl<T: IdBTreeMapEntry> IdBTreeMap<T> {
     #[inline]
     pub fn iter_mut(&mut self) -> IterMut<'_, T>
     where
-        T: IdBTreeMapEntryMut,
+        T: IdOrdItemMut,
     {
         IterMut::new(&mut self.entries, &self.tables)
     }
@@ -210,7 +210,7 @@ impl<T: IdBTreeMapEntry> IdBTreeMap<T> {
     /// than a borrowed form of it.
     pub fn get_mut<'a>(&'a mut self, key: T::Key<'_>) -> Option<RefMut<'a, T>>
     where
-        T: IdBTreeMapEntryMut,
+        T: IdOrdItemMut,
     {
         let index = self.find_index(&T::upcast_key(key))?;
         let entry = &mut self.entries[index];
@@ -284,7 +284,7 @@ impl<T: IdBTreeMapEntry> IdBTreeMap<T> {
         index: usize,
     ) -> Option<RefMut<'_, T>>
     where
-        T: IdBTreeMapEntryMut,
+        T: IdOrdItemMut,
     {
         self.entries.get_mut(index).map(RefMut::new)
     }
@@ -359,7 +359,7 @@ impl<T: IdBTreeMapEntry> IdBTreeMap<T> {
     }
 }
 
-impl<T: IdBTreeMapEntry + PartialEq> PartialEq for IdBTreeMap<T> {
+impl<T: IdOrdItem + PartialEq> PartialEq for IdBTreeMap<T> {
     fn eq(&self, other: &Self) -> bool {
         // Entries are stored in sorted order, so we can just walk over both
         // iterators.
@@ -375,9 +375,9 @@ impl<T: IdBTreeMapEntry + PartialEq> PartialEq for IdBTreeMap<T> {
 }
 
 // The Eq bound on T ensures that the IdBTreeMap forms an equivalence class.
-impl<T: IdBTreeMapEntry + Eq> Eq for IdBTreeMap<T> {}
+impl<T: IdOrdItem + Eq> Eq for IdBTreeMap<T> {}
 
-impl<'a, T: IdBTreeMapEntry> IntoIterator for &'a IdBTreeMap<T> {
+impl<'a, T: IdOrdItem> IntoIterator for &'a IdBTreeMap<T> {
     type Item = &'a T;
     type IntoIter = Iter<'a, T>;
 
@@ -387,7 +387,7 @@ impl<'a, T: IdBTreeMapEntry> IntoIterator for &'a IdBTreeMap<T> {
     }
 }
 
-impl<'a, T: IdBTreeMapEntryMut> IntoIterator for &'a mut IdBTreeMap<T> {
+impl<'a, T: IdOrdItemMut> IntoIterator for &'a mut IdBTreeMap<T> {
     type Item = RefMut<'a, T>;
     type IntoIter = IterMut<'a, T>;
 
@@ -397,7 +397,7 @@ impl<'a, T: IdBTreeMapEntryMut> IntoIterator for &'a mut IdBTreeMap<T> {
     }
 }
 
-impl<T: IdBTreeMapEntryMut> IntoIterator for IdBTreeMap<T> {
+impl<T: IdOrdItemMut> IntoIterator for IdBTreeMap<T> {
     type Item = T;
     type IntoIter = IntoIter<T>;
 
@@ -411,7 +411,7 @@ impl<T: IdBTreeMapEntryMut> IntoIterator for IdBTreeMap<T> {
 /// entries.
 ///
 /// To reject duplicates, use [`IdBTreeMap::from_iter_unique`].
-impl<T: IdBTreeMapEntry> FromIterator<T> for IdBTreeMap<T> {
+impl<T: IdOrdItem> FromIterator<T> for IdBTreeMap<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let mut map = IdBTreeMap::new();
         for value in iter {

@@ -2,9 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::{
-    tables::IdBTreeMapTables, IdBTreeMapEntry, IdBTreeMapEntryMut, RefMut,
-};
+use super::{tables::IdBTreeMapTables, IdOrdItem, IdOrdItemMut, RefMut};
 use crate::support::{btree_table, entry_set::EntrySet};
 use std::iter::FusedIterator;
 
@@ -15,12 +13,12 @@ use std::iter::FusedIterator;
 /// [`IdBTreeMap`]: crate::IdBTreeMap
 /// [`IdBTreeMap::iter`]: crate::IdBTreeMap::iter
 #[derive(Clone, Debug)]
-pub struct Iter<'a, T: IdBTreeMapEntry> {
+pub struct Iter<'a, T: IdOrdItem> {
     entries: &'a EntrySet<T>,
     iter: btree_table::Iter<'a>,
 }
 
-impl<'a, T: IdBTreeMapEntry> Iter<'a, T> {
+impl<'a, T: IdOrdItem> Iter<'a, T> {
     pub(super) fn new(
         entries: &'a EntrySet<T>,
         tables: &'a IdBTreeMapTables,
@@ -29,7 +27,7 @@ impl<'a, T: IdBTreeMapEntry> Iter<'a, T> {
     }
 }
 
-impl<'a, T: IdBTreeMapEntry> Iterator for Iter<'a, T> {
+impl<'a, T: IdOrdItem> Iterator for Iter<'a, T> {
     type Item = &'a T;
 
     #[inline]
@@ -39,7 +37,7 @@ impl<'a, T: IdBTreeMapEntry> Iterator for Iter<'a, T> {
     }
 }
 
-impl<T: IdBTreeMapEntry> ExactSizeIterator for Iter<'_, T> {
+impl<T: IdOrdItem> ExactSizeIterator for Iter<'_, T> {
     #[inline]
     fn len(&self) -> usize {
         self.iter.len()
@@ -47,7 +45,7 @@ impl<T: IdBTreeMapEntry> ExactSizeIterator for Iter<'_, T> {
 }
 
 // btree_set::Iter is a FusedIterator, so Iter is as well.
-impl<T: IdBTreeMapEntry> FusedIterator for Iter<'_, T> {}
+impl<T: IdOrdItem> FusedIterator for Iter<'_, T> {}
 
 /// An iterator over the elements of a [`IdBTreeMap`] by mutable reference.
 ///
@@ -58,12 +56,12 @@ impl<T: IdBTreeMapEntry> FusedIterator for Iter<'_, T> {}
 /// [`IdBTreeMap`]: crate::IdBTreeMap
 /// [`IdBTreeMap::iter_mut`]: crate::IdBTreeMap::iter_mut
 #[derive(Debug)]
-pub struct IterMut<'a, T: IdBTreeMapEntryMut> {
+pub struct IterMut<'a, T: IdOrdItemMut> {
     entries: &'a mut EntrySet<T>,
     iter: btree_table::Iter<'a>,
 }
 
-impl<'a, T: IdBTreeMapEntryMut> IterMut<'a, T> {
+impl<'a, T: IdOrdItemMut> IterMut<'a, T> {
     pub(super) fn new(
         entries: &'a mut EntrySet<T>,
         tables: &'a IdBTreeMapTables,
@@ -72,7 +70,7 @@ impl<'a, T: IdBTreeMapEntryMut> IterMut<'a, T> {
     }
 }
 
-impl<'a, T: IdBTreeMapEntryMut + 'a> Iterator for IterMut<'a, T> {
+impl<'a, T: IdOrdItemMut + 'a> Iterator for IterMut<'a, T> {
     type Item = RefMut<'a, T>;
 
     #[inline]
@@ -110,7 +108,7 @@ impl<'a, T: IdBTreeMapEntryMut + 'a> Iterator for IterMut<'a, T> {
     }
 }
 
-impl<'a, T: IdBTreeMapEntryMut + 'a> ExactSizeIterator for IterMut<'a, T> {
+impl<'a, T: IdOrdItemMut + 'a> ExactSizeIterator for IterMut<'a, T> {
     #[inline]
     fn len(&self) -> usize {
         self.iter.len()
@@ -118,7 +116,7 @@ impl<'a, T: IdBTreeMapEntryMut + 'a> ExactSizeIterator for IterMut<'a, T> {
 }
 
 // hash_map::IterMut is a FusedIterator, so IterMut is as well.
-impl<'a, T: IdBTreeMapEntryMut + 'a> FusedIterator for IterMut<'a, T> {}
+impl<'a, T: IdOrdItemMut + 'a> FusedIterator for IterMut<'a, T> {}
 
 /// An iterator over the elements of a [`IdBTreeMap`] by ownership.
 ///
@@ -127,18 +125,18 @@ impl<'a, T: IdBTreeMapEntryMut + 'a> FusedIterator for IterMut<'a, T> {}
 /// [`IdBTreeMap`]: crate::IdBTreeMap
 /// [`IdBTreeMap::into_iter`]: crate::IdBTreeMap::into_iter
 #[derive(Debug)]
-pub struct IntoIter<T: IdBTreeMapEntry> {
+pub struct IntoIter<T: IdOrdItem> {
     entries: EntrySet<T>,
     iter: btree_table::IntoIter,
 }
 
-impl<T: IdBTreeMapEntry> IntoIter<T> {
+impl<T: IdOrdItem> IntoIter<T> {
     pub(super) fn new(entries: EntrySet<T>, tables: IdBTreeMapTables) -> Self {
         Self { entries, iter: tables.key_to_entry.into_iter() }
     }
 }
 
-impl<T: IdBTreeMapEntry> Iterator for IntoIter<T> {
+impl<T: IdOrdItem> Iterator for IntoIter<T> {
     type Item = T;
 
     #[inline]

@@ -19,4 +19,4 @@ pub use entry::{Entry, OccupiedEntry, VacantEntry};
 pub use imp::IdBTreeMap;
 pub use iter::{IntoIter, Iter, IterMut};
 pub use ref_mut::RefMut;
-pub use trait_defs::{IdBTreeMapEntry, IdBTreeMapEntryMut};
+pub use trait_defs::{IdOrdItem, IdOrdItemMut};

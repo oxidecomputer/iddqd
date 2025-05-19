@@ -65,6 +65,6 @@ pub mod tri_hash_map;
 
 pub use id_btree_map::{
     imp::IdBTreeMap,
-    trait_defs::{IdBTreeMapEntry, IdBTreeMapEntryMut},
+    trait_defs::{IdOrdItem, IdOrdItemMut},
 };
 pub use tri_hash_map::{imp::TriHashMap, trait_defs::TriHashMapEntry};
