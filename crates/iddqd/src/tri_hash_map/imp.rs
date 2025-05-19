@@ -227,7 +227,7 @@ impl<T: TriHashItem> TriHashMap<T> {
     ///
     /// Due to borrow checker limitations, this always accepts `K1` rather than
     /// a borrowed form of it.
-    pub fn remove1<'a>(&'a mut self, key1: T::K1<'_>) -> Option<T> {
+    pub fn remove1(&mut self, key1: T::K1<'_>) -> Option<T> {
         let Some(remove_index) = self.find1_index(&T::upcast_key1(key1)) else {
             // The item was not found.
             return None;
@@ -321,7 +321,7 @@ impl<T: TriHashItem> TriHashMap<T> {
     ///
     /// Due to borrow checker limitations, this always accepts `K1` rather than
     /// a borrowed form of it.
-    pub fn remove2<'a>(&'a mut self, key2: T::K2<'_>) -> Option<T> {
+    pub fn remove2(&mut self, key2: T::K2<'_>) -> Option<T> {
         let Some(remove_index) = self.find2_index(&T::upcast_key2(key2)) else {
             // The item was not found.
             return None;
@@ -415,7 +415,7 @@ impl<T: TriHashItem> TriHashMap<T> {
     ///
     /// Due to borrow checker limitations, this always accepts `K1` rather than
     /// a borrowed form of it.
-    pub fn remove3<'a>(&'a mut self, key3: T::K3<'_>) -> Option<T> {
+    pub fn remove3(&mut self, key3: T::K3<'_>) -> Option<T> {
         let Some(remove_index) = self.find3_index(&T::upcast_key3(key3)) else {
             // The item was not found.
             return None;

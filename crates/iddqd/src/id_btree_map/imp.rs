@@ -192,7 +192,7 @@ impl<T: IdOrdItem> IdBTreeMap<T> {
     ///
     /// Due to borrow checker limitations, this always accepts `T::Key` rather
     /// than a borrowed form of it.
-    pub fn remove<'a>(&'a mut self, key: T::Key<'_>) -> Option<T> {
+    pub fn remove(&mut self, key: T::Key<'_>) -> Option<T> {
         let Some(remove_index) = self.find_index(&T::upcast_key(key)) else {
             // The item was not found.
             return None;
