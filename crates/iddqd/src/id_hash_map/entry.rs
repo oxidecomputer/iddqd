@@ -2,12 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use super::{IdHashItem, IdHashMap, RefMut};
+use crate::support::{borrow::DormantMutRef, hash_table::MapHash};
 use debug_ignore::DebugIgnore;
 use derive_where::derive_where;
-
-use crate::support::{borrow::DormantMutRef, hash_table::MapHash};
-
-use super::{IdHashItem, IdHashMap, RefMut};
 
 /// An implementation of the Entry API for [`IdHashMap`].
 #[derive_where(Debug)]
