@@ -3,9 +3,9 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use iddqd::{
-    errors::DuplicateItem, id_btree_map, id_upcast, internal::ValidateCompact,
-    tri_hash_map, tri_upcasts, IdBTreeMap, IdOrdItem, IdOrdItemMut,
-    TriHashItem, TriHashMap,
+    errors::DuplicateItem, id_btree_map, id_hash_map, id_upcast,
+    internal::ValidateCompact, tri_hash_map, tri_upcasts, IdBTreeMap,
+    IdHashItem, IdHashMap, IdOrdItem, IdOrdItemMut, TriHashItem, TriHashMap,
 };
 use proptest::{prelude::*, sample::SizeRange};
 use test_strategy::Arbitrary;
@@ -26,6 +26,21 @@ impl PartialEq<&TestItem> for TestItem {
             && self.key3 == other.key3
             && self.value == other.value
     }
+}
+
+impl IdHashItem for TestItem {
+    // A bit weird to return a reference to a u8, but this makes sure
+    // reference-based keys work properly.
+    type Key<'a>
+        = &'a u8
+    where
+        Self: 'a;
+
+    fn key(&self) -> Self::Key<'_> {
+        &self.key1
+    }
+
+    id_upcast!();
 }
 
 impl IdOrdItem for TestItem {
@@ -110,6 +125,44 @@ pub trait TestItemMap: Clone {
     fn into_iter(self) -> Self::IntoIter;
 }
 
+impl TestItemMap for IdHashMap<TestItem> {
+    type RefMut<'a> = id_hash_map::RefMut<'a, TestItem>;
+    type Iter<'a> = id_hash_map::Iter<'a, TestItem>;
+    type IterMut<'a> = id_hash_map::IterMut<'a, TestItem>;
+    type IntoIter = id_hash_map::IntoIter<TestItem>;
+
+    fn map_kind() -> MapKind {
+        MapKind::BTree
+    }
+
+    fn new() -> Self {
+        IdHashMap::new()
+    }
+
+    fn validate(&self, compactness: ValidateCompact) -> anyhow::Result<()> {
+        self.validate(compactness)
+    }
+
+    fn insert_unique(
+        &mut self,
+        value: TestItem,
+    ) -> Result<(), DuplicateItem<TestItem, &TestItem>> {
+        self.insert_unique(value)
+    }
+
+    fn iter(&self) -> Self::Iter<'_> {
+        self.iter()
+    }
+
+    fn iter_mut(&mut self) -> Self::IterMut<'_> {
+        self.iter_mut()
+    }
+
+    fn into_iter(self) -> Self::IntoIter {
+        IntoIterator::into_iter(self)
+    }
+}
+
 impl TestItemMap for IdBTreeMap<TestItem> {
     type RefMut<'a> = id_btree_map::RefMut<'a, TestItem>;
     type Iter<'a> = id_btree_map::Iter<'a, TestItem>;
@@ -188,6 +241,12 @@ impl TestItemMap for TriHashMap<TestItem> {
 
 pub trait IntoRef<'a> {
     fn into_ref(self) -> &'a TestItem;
+}
+
+impl<'a> IntoRef<'a> for id_hash_map::RefMut<'a, TestItem> {
+    fn into_ref(self) -> &'a TestItem {
+        self.into_ref()
+    }
 }
 
 impl<'a> IntoRef<'a> for id_btree_map::RefMut<'a, TestItem> {

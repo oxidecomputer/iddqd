@@ -57,6 +57,7 @@
 
 pub mod errors;
 pub mod id_btree_map;
+pub mod id_hash_map;
 #[doc(hidden)]
 pub mod internal;
 mod macros;
@@ -67,4 +68,5 @@ pub use id_btree_map::{
     imp::IdBTreeMap,
     trait_defs::{IdOrdItem, IdOrdItemMut},
 };
+pub use id_hash_map::{imp::IdHashMap, trait_defs::IdHashItem};
 pub use tri_hash_map::{imp::TriHashMap, trait_defs::TriHashItem};

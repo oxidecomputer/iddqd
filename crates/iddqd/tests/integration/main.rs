@@ -3,4 +3,5 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 mod id_btree_map;
+mod id_hash_map;
 mod tri_hash_map;
