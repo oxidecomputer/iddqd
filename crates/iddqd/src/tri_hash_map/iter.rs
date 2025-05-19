@@ -91,7 +91,7 @@ impl<T: TriHashItem> FusedIterator for IterMut<'_, T> {}
 /// Created by [`TriHashMap::into_iter`].
 ///
 /// [`TriHashMap`]: crate::TriHashMap
-/// [`TriHashMap::iter`]: crate::TriHashMap::iter
+/// [`TriHashMap::into_iter`]: crate::TriHashMap::into_iter
 #[derive(Debug)]
 pub struct IntoIter<T: TriHashItem> {
     inner: hash_map::IntoValues<usize, T>,

@@ -131,7 +131,7 @@ impl<'a, T: IdHashItem> VacantEntry<'a, T> {
     }
 }
 
-/// A view into an occupied entry in an [`IdBTreeMap`]. Part of the [`Entry`]
+/// A view into an occupied entry in an [`IdHashMap`]. Part of the [`Entry`]
 /// enum.
 #[derive_where(Debug)]
 pub struct OccupiedEntry<'a, T: IdHashItem> {

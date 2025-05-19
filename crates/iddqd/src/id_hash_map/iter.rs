@@ -91,7 +91,7 @@ impl<T: IdHashItem> FusedIterator for IterMut<'_, T> {}
 /// Created by [`IdHashMap::into_iter`].
 ///
 /// [`IdHashMap`]: crate::IdHashMap
-/// [`IdHashMap::iter`]: crate::IdHashMap::iter
+/// [`IdHashMap::into_iter`]: crate::IdHashMap::into_iter
 #[derive(Debug)]
 pub struct IntoIter<T: IdHashItem> {
     inner: hash_map::IntoValues<usize, T>,

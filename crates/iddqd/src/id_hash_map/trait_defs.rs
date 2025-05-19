@@ -7,6 +7,8 @@ use std::hash::Hash;
 /// An element stored in an [`IdHashMap`].
 ///
 /// This trait is used to define the key type for the map.
+///
+/// [`IdHashMap`]: crate::IdHashMap
 pub trait IdHashItem {
     /// The key type.
     type Key<'a>: Eq + Hash

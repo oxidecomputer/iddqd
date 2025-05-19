@@ -5,6 +5,7 @@ members = ["crates/*"]
 [workspace.package]
 edition = "2021"
 license = "MPL-2.0"
+rust-version = "1.81"
 
 [workspace.dependencies]
 anyhow = "1.0.97"

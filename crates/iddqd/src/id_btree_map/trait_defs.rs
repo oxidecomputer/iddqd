@@ -28,6 +28,8 @@ pub trait IdOrdItem {
     /// lifetime `'a` on [`IdOrdItem::Key`] is covariant.
     ///
     /// Typically implemented via the [`id_upcast`] macro.
+    ///
+    /// [`id_upcast`]: crate::id_upcast
     fn upcast_key<'short, 'long: 'short>(
         long: Self::Key<'long>,
     ) -> Self::Key<'short>;

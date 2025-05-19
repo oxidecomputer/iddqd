@@ -132,7 +132,7 @@ impl TestItemMap for IdHashMap<TestItem> {
     type IntoIter = id_hash_map::IntoIter<TestItem>;
 
     fn map_kind() -> MapKind {
-        MapKind::BTree
+        MapKind::Hash
     }
 
     fn new() -> Self {
