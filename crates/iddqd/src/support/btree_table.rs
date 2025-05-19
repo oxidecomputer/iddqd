@@ -206,10 +206,10 @@ impl Iterator for IntoIter {
     }
 }
 
-fn find_cmp<K, Q, F>(
-    key: &Q,
+fn find_cmp<'a, K: 'a, Q, F: 'a>(
+    key: &'a Q,
     lookup: F,
-) -> impl Fn(Index, Index) -> Ordering + use<'_, K, Q, F>
+) -> impl Fn(Index, Index) -> Ordering + 'a
 where
     F: Fn(usize) -> K,
     K: Ord + Borrow<Q>,
@@ -223,11 +223,11 @@ where
     }
 }
 
-fn insert_cmp<K, Q, F>(
+fn insert_cmp<'a, K: 'a, Q, F: 'a>(
     index: usize,
-    key: &Q,
+    key: &'a Q,
     lookup: F,
-) -> impl Fn(Index, Index) -> Ordering + use<'_, K, Q, F>
+) -> impl Fn(Index, Index) -> Ordering + 'a
 where
     F: Fn(usize) -> K,
     K: Ord + Borrow<Q>,
