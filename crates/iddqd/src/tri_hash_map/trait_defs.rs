@@ -15,7 +15,7 @@ use std::{hash::Hash, rc::Rc, sync::Arc};
 /// TODO: Add an example here.
 ///
 /// [`TriHashMap`]: crate::TriHashMap
-pub trait TriHashMapEntry {
+pub trait TriHashItem {
     /// The first key type.
     type K1<'a>: Eq + Hash
     where
@@ -41,7 +41,7 @@ pub trait TriHashMapEntry {
     fn key3(&self) -> Self::K3<'_>;
 
     /// Upcasts the first key to a shorter lifetime, in effect asserting that
-    /// the lifetime `'a` on [`TriHashMapEntry::K1`] is covariant.
+    /// the lifetime `'a` on [`TriHashItem::K1`] is covariant.
     ///
     /// Typically implemented via the [`tri_upcasts`] macro.
     ///
@@ -51,7 +51,7 @@ pub trait TriHashMapEntry {
     ) -> Self::K1<'short>;
 
     /// Upcasts the second key to a shorter lifetime, in effect asserting that
-    /// the lifetime `'a` on [`TriHashMapEntry::K2`] is covariant.
+    /// the lifetime `'a` on [`TriHashItem::K2`] is covariant.
     ///
     /// Typically implemented via the [`tri_upcasts`] macro.
     ///
@@ -61,7 +61,7 @@ pub trait TriHashMapEntry {
     ) -> Self::K2<'short>;
 
     /// Upcasts the third key to a shorter lifetime, in effect asserting that
-    /// the lifetime `'a` on [`TriHashMapEntry::K3`] is covariant.
+    /// the lifetime `'a` on [`TriHashItem::K3`] is covariant.
     ///
     /// Typically implemented via the [`tri_upcasts`] macro.
     ///
@@ -73,7 +73,7 @@ pub trait TriHashMapEntry {
 
 macro_rules! impl_for_ref {
     ($type:ty) => {
-        impl<'b, T: 'b + ?Sized + TriHashMapEntry> TriHashMapEntry for $type {
+        impl<'b, T: 'b + ?Sized + TriHashItem> TriHashItem for $type {
             type K1<'a>
                 = T::K1<'a>
             where
@@ -134,7 +134,7 @@ impl_for_ref!(&'b mut T);
 
 macro_rules! impl_for_box {
     ($type:ty) => {
-        impl<T: ?Sized + TriHashMapEntry> TriHashMapEntry for $type {
+        impl<T: ?Sized + TriHashItem> TriHashItem for $type {
             type K1<'a>
                 = T::K1<'a>
             where

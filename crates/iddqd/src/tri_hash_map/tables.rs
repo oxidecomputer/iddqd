@@ -4,7 +4,7 @@
 
 use crate::{
     support::hash_table::{MapHash, MapHashTable},
-    TriHashMapEntry,
+    TriHashItem,
 };
 
 #[derive(Clone, Debug, Default)]
@@ -48,10 +48,7 @@ impl TriHashMapTables {
         Ok(())
     }
 
-    pub(super) fn make_hashes<T: TriHashMapEntry>(
-        &self,
-        item: &T,
-    ) -> [MapHash; 3] {
+    pub(super) fn make_hashes<T: TriHashItem>(&self, item: &T) -> [MapHash; 3] {
         let k1 = item.key1();
         let k2 = item.key2();
         let k3 = item.key3();

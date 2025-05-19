@@ -17,4 +17,4 @@ pub(crate) mod trait_defs;
 pub use imp::TriHashMap;
 pub use iter::{IntoIter, Iter, IterMut};
 pub use ref_mut::RefMut;
-pub use trait_defs::TriHashMapEntry;
+pub use trait_defs::TriHashItem;

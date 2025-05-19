@@ -6,7 +6,7 @@ use super::{tables::TriHashMapTables, IntoIter, Iter, IterMut, RefMut};
 use crate::{
     errors::DuplicateEntry,
     support::{entry_set::EntrySet, hash_table::MapHash},
-    TriHashMapEntry,
+    TriHashItem,
 };
 use derive_where::derive_where;
 use hashbrown::hash_table::{Entry, VacantEntry};
@@ -19,14 +19,14 @@ use std::{borrow::Borrow, collections::BTreeSet, hash::Hash};
 /// lookups by any of the three keys, while preventing duplicates.
 #[derive_where(Default)]
 #[derive(Clone, Debug)]
-pub struct TriHashMap<T: TriHashMapEntry> {
+pub struct TriHashMap<T: TriHashItem> {
     pub(super) entries: EntrySet<T>,
     // Invariant: the values (usize) in these tables are valid indexes into
     // `entries`, and are a 1:1 mapping.
     tables: TriHashMapTables,
 }
 
-impl<T: TriHashMapEntry> TriHashMap<T> {
+impl<T: TriHashItem> TriHashMap<T> {
     /// Creates a new, empty `TriHashMap`.
     #[inline]
     pub fn new() -> Self {
@@ -536,7 +536,7 @@ impl<T: TriHashMapEntry> TriHashMap<T> {
     }
 }
 
-impl<T: TriHashMapEntry + PartialEq> PartialEq for TriHashMap<T> {
+impl<T: TriHashItem + PartialEq> PartialEq for TriHashMap<T> {
     fn eq(&self, other: &Self) -> bool {
         // Implementing PartialEq for TriHashMap is tricky because TriHashMap is
         // not semantically like an IndexMap: two maps are equivalent even if
@@ -592,7 +592,7 @@ impl<T: TriHashMapEntry + PartialEq> PartialEq for TriHashMap<T> {
 }
 
 // The Eq bound on T ensures that the TriHashMap forms an equivalence class.
-impl<T: TriHashMapEntry + Eq> Eq for TriHashMap<T> {}
+impl<T: TriHashItem + Eq> Eq for TriHashMap<T> {}
 
 fn detect_dup_or_insert<'a>(
     entry: Entry<'a, usize>,
@@ -607,7 +607,7 @@ fn detect_dup_or_insert<'a>(
     }
 }
 
-impl<'a, T: TriHashMapEntry> IntoIterator for &'a TriHashMap<T> {
+impl<'a, T: TriHashItem> IntoIterator for &'a TriHashMap<T> {
     type Item = &'a T;
     type IntoIter = Iter<'a, T>;
 
@@ -617,7 +617,7 @@ impl<'a, T: TriHashMapEntry> IntoIterator for &'a TriHashMap<T> {
     }
 }
 
-impl<'a, T: TriHashMapEntry> IntoIterator for &'a mut TriHashMap<T> {
+impl<'a, T: TriHashItem> IntoIterator for &'a mut TriHashMap<T> {
     type Item = RefMut<'a, T>;
     type IntoIter = IterMut<'a, T>;
 
@@ -627,7 +627,7 @@ impl<'a, T: TriHashMapEntry> IntoIterator for &'a mut TriHashMap<T> {
     }
 }
 
-impl<T: TriHashMapEntry> IntoIterator for TriHashMap<T> {
+impl<T: TriHashItem> IntoIterator for TriHashMap<T> {
     type Item = T;
     type IntoIter = IntoIter<T>;
 
@@ -639,7 +639,7 @@ impl<T: TriHashMapEntry> IntoIterator for TriHashMap<T> {
 
 /// The `FromIterator` implementation for `TriHashMap` overwrites duplicate
 /// entries.
-impl<T: TriHashMapEntry> FromIterator<T> for TriHashMap<T> {
+impl<T: TriHashItem> FromIterator<T> for TriHashMap<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let mut map = TriHashMap::new();
         for entry in iter {

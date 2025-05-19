@@ -67,4 +67,4 @@ pub use id_btree_map::{
     imp::IdBTreeMap,
     trait_defs::{IdOrdItem, IdOrdItemMut},
 };
-pub use tri_hash_map::{imp::TriHashMap, trait_defs::TriHashMapEntry};
+pub use tri_hash_map::{imp::TriHashMap, trait_defs::TriHashItem};

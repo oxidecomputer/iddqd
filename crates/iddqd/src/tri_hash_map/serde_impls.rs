@@ -2,13 +2,13 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::{TriHashMap, TriHashMapEntry};
+use crate::{TriHashItem, TriHashMap};
 use serde::{Deserialize, Serialize, Serializer};
 use std::fmt;
 
 /// A `TriHashMap` serializes to the list of entries. Entries are serialized in
 /// arbitrary order.
-impl<T: TriHashMapEntry> Serialize for TriHashMap<T>
+impl<T: TriHashItem> Serialize for TriHashMap<T>
 where
     T: Serialize,
 {
@@ -26,7 +26,7 @@ where
 /// then rebuilds the indexes, producing an error if there are any duplicates.
 ///
 /// The `fmt::Debug` bound on `T` ensures better error reporting.
-impl<'de, T: TriHashMapEntry + fmt::Debug> Deserialize<'de> for TriHashMap<T>
+impl<'de, T: TriHashItem + fmt::Debug> Deserialize<'de> for TriHashMap<T>
 where
     T: Deserialize<'de>,
 {

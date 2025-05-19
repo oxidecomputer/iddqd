@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::{support::hash_table::MapHash, TriHashMapEntry};
+use crate::{support::hash_table::MapHash, TriHashItem};
 use std::ops::{Deref, DerefMut};
 
 /// A mutable reference to a [`TriHashMap`] entry.
@@ -42,11 +42,11 @@ use std::ops::{Deref, DerefMut};
 ///
 /// [`TriHashMap`]: crate::TriHashMap
 /// [birthday problem]: https://en.wikipedia.org/wiki/Birthday_problem#Probability_table
-pub struct RefMut<'a, T: TriHashMapEntry> {
+pub struct RefMut<'a, T: TriHashItem> {
     inner: Option<RefMutInner<'a, T>>,
 }
 
-impl<'a, T: TriHashMapEntry> RefMut<'a, T> {
+impl<'a, T: TriHashItem> RefMut<'a, T> {
     pub(super) fn new(hashes: [MapHash; 3], borrowed: &'a mut T) -> Self {
         Self { inner: Some(RefMutInner { hashes, borrowed }) }
     }
@@ -58,7 +58,7 @@ impl<'a, T: TriHashMapEntry> RefMut<'a, T> {
     }
 }
 
-impl<T: TriHashMapEntry> Drop for RefMut<'_, T> {
+impl<T: TriHashItem> Drop for RefMut<'_, T> {
     fn drop(&mut self) {
         if let Some(inner) = self.inner.take() {
             inner.into_ref();
@@ -66,7 +66,7 @@ impl<T: TriHashMapEntry> Drop for RefMut<'_, T> {
     }
 }
 
-impl<T: TriHashMapEntry> Deref for RefMut<'_, T> {
+impl<T: TriHashItem> Deref for RefMut<'_, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -74,18 +74,18 @@ impl<T: TriHashMapEntry> Deref for RefMut<'_, T> {
     }
 }
 
-impl<T: TriHashMapEntry> DerefMut for RefMut<'_, T> {
+impl<T: TriHashItem> DerefMut for RefMut<'_, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.inner.as_mut().unwrap().borrowed
     }
 }
 
-struct RefMutInner<'a, T: TriHashMapEntry> {
+struct RefMutInner<'a, T: TriHashItem> {
     hashes: [MapHash; 3],
     borrowed: &'a mut T,
 }
 
-impl<'a, T: TriHashMapEntry> RefMutInner<'a, T> {
+impl<'a, T: TriHashItem> RefMutInner<'a, T> {
     fn into_ref(self) -> &'a T {
         if !self.hashes[0].is_same_hash(self.borrowed.key1()) {
             panic!("key1 changed during RefMut borrow");

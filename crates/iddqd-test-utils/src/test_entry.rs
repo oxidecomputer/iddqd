@@ -4,8 +4,8 @@
 
 use iddqd::{
     errors::DuplicateEntry, id_btree_map, id_upcast, internal::ValidateCompact,
-    tri_hash_map, tri_upcasts, IdBTreeMap, IdOrdItem, IdOrdItemMut, TriHashMap,
-    TriHashMapEntry,
+    tri_hash_map, tri_upcasts, IdBTreeMap, IdOrdItem, IdOrdItemMut,
+    TriHashItem, TriHashMap,
 };
 use proptest::{prelude::*, sample::SizeRange};
 use test_strategy::Arbitrary;
@@ -51,7 +51,7 @@ impl IdOrdItemMut for TestEntry {
     }
 }
 
-impl TriHashMapEntry for TestEntry {
+impl TriHashItem for TestEntry {
     // These types are chosen to represent various kinds of keys in the
     // proptest below.
     //

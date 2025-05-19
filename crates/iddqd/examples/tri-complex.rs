@@ -4,7 +4,7 @@
 
 //! An example demonstrating `TriHashMap` use with complex borrowed keys.
 
-use iddqd::{tri_upcasts, TriHashMap, TriHashMapEntry};
+use iddqd::{tri_upcasts, TriHashItem, TriHashMap};
 use std::path::{Path, PathBuf};
 
 /// These are the entries we'll store in the `TriHashMap`.
@@ -31,7 +31,7 @@ struct MyKey2<'a> {
     d: &'a [usize],
 }
 
-impl TriHashMapEntry for MyStruct {
+impl TriHashItem for MyStruct {
     type K1<'a> = MyKey1<'a>;
     type K2<'a> = MyKey2<'a>;
     // And finally, the map will be indexed uniquely by the `a` field, i.e.

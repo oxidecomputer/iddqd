@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use super::{tables::TriHashMapTables, RefMut};
-use crate::{support::entry_set::EntrySet, TriHashMapEntry};
+use crate::{support::entry_set::EntrySet, TriHashItem};
 use std::{collections::hash_map, iter::FusedIterator};
 
 /// An iterator over the elements of a [`TriHashMap`] by shared reference.
@@ -13,17 +13,17 @@ use std::{collections::hash_map, iter::FusedIterator};
 /// [`TriHashMap`]: crate::TriHashMap
 /// [`TriHashMap::iter`]: crate::TriHashMap::iter
 #[derive(Clone, Debug, Default)]
-pub struct Iter<'a, T: TriHashMapEntry> {
+pub struct Iter<'a, T: TriHashItem> {
     inner: hash_map::Values<'a, usize, T>,
 }
 
-impl<'a, T: TriHashMapEntry> Iter<'a, T> {
+impl<'a, T: TriHashItem> Iter<'a, T> {
     pub(crate) fn new(entries: &'a EntrySet<T>) -> Self {
         Self { inner: entries.values() }
     }
 }
 
-impl<'a, T: TriHashMapEntry> Iterator for Iter<'a, T> {
+impl<'a, T: TriHashItem> Iterator for Iter<'a, T> {
     type Item = &'a T;
 
     #[inline]
@@ -32,7 +32,7 @@ impl<'a, T: TriHashMapEntry> Iterator for Iter<'a, T> {
     }
 }
 
-impl<T: TriHashMapEntry> ExactSizeIterator for Iter<'_, T> {
+impl<T: TriHashItem> ExactSizeIterator for Iter<'_, T> {
     #[inline]
     fn len(&self) -> usize {
         self.inner.len()
@@ -40,7 +40,7 @@ impl<T: TriHashMapEntry> ExactSizeIterator for Iter<'_, T> {
 }
 
 // hash_map::Iter is a FusedIterator, so Iter is as well.
-impl<T: TriHashMapEntry> FusedIterator for Iter<'_, T> {}
+impl<T: TriHashItem> FusedIterator for Iter<'_, T> {}
 
 /// An iterator over the elements of a [`TriHashMap`] by mutable reference.
 ///
@@ -51,12 +51,12 @@ impl<T: TriHashMapEntry> FusedIterator for Iter<'_, T> {}
 /// [`TriHashMap`]: crate::TriHashMap
 /// [`TriHashMap::iter_mut`]: crate::TriHashMap::iter_mut
 #[derive(Debug)]
-pub struct IterMut<'a, T: TriHashMapEntry> {
+pub struct IterMut<'a, T: TriHashItem> {
     tables: &'a TriHashMapTables,
     inner: hash_map::ValuesMut<'a, usize, T>,
 }
 
-impl<'a, T: TriHashMapEntry> IterMut<'a, T> {
+impl<'a, T: TriHashItem> IterMut<'a, T> {
     pub(super) fn new(
         tables: &'a TriHashMapTables,
         entries: &'a mut EntrySet<T>,
@@ -65,7 +65,7 @@ impl<'a, T: TriHashMapEntry> IterMut<'a, T> {
     }
 }
 
-impl<'a, T: TriHashMapEntry> Iterator for IterMut<'a, T> {
+impl<'a, T: TriHashItem> Iterator for IterMut<'a, T> {
     type Item = RefMut<'a, T>;
 
     #[inline]
@@ -76,7 +76,7 @@ impl<'a, T: TriHashMapEntry> Iterator for IterMut<'a, T> {
     }
 }
 
-impl<T: TriHashMapEntry> ExactSizeIterator for IterMut<'_, T> {
+impl<T: TriHashItem> ExactSizeIterator for IterMut<'_, T> {
     #[inline]
     fn len(&self) -> usize {
         self.inner.len()
@@ -84,7 +84,7 @@ impl<T: TriHashMapEntry> ExactSizeIterator for IterMut<'_, T> {
 }
 
 // hash_map::IterMut is a FusedIterator, so IterMut is as well.
-impl<T: TriHashMapEntry> FusedIterator for IterMut<'_, T> {}
+impl<T: TriHashItem> FusedIterator for IterMut<'_, T> {}
 
 /// An iterator over the elements of a [`TriHashMap`] by ownership.
 ///
@@ -93,17 +93,17 @@ impl<T: TriHashMapEntry> FusedIterator for IterMut<'_, T> {}
 /// [`TriHashMap`]: crate::TriHashMap
 /// [`TriHashMap::iter`]: crate::TriHashMap::iter
 #[derive(Debug)]
-pub struct IntoIter<T: TriHashMapEntry> {
+pub struct IntoIter<T: TriHashItem> {
     inner: hash_map::IntoValues<usize, T>,
 }
 
-impl<T: TriHashMapEntry> IntoIter<T> {
+impl<T: TriHashItem> IntoIter<T> {
     pub(crate) fn new(entries: EntrySet<T>) -> Self {
         Self { inner: entries.into_values() }
     }
 }
 
-impl<T: TriHashMapEntry> Iterator for IntoIter<T> {
+impl<T: TriHashItem> Iterator for IntoIter<T> {
     type Item = T;
 
     #[inline]
@@ -112,7 +112,7 @@ impl<T: TriHashMapEntry> Iterator for IntoIter<T> {
     }
 }
 
-impl<T: TriHashMapEntry> ExactSizeIterator for IntoIter<T> {
+impl<T: TriHashItem> ExactSizeIterator for IntoIter<T> {
     #[inline]
     fn len(&self) -> usize {
         self.inner.len()
@@ -120,4 +120,4 @@ impl<T: TriHashMapEntry> ExactSizeIterator for IntoIter<T> {
 }
 
 // hash_map::IterMut is a FusedIterator, so IterMut is as well.
-impl<T: TriHashMapEntry> FusedIterator for IntoIter<T> {}
+impl<T: TriHashItem> FusedIterator for IntoIter<T> {}

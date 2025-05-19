@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use iddqd::{internal::ValidateCompact, TriHashMap, TriHashMapEntry};
+use iddqd::{internal::ValidateCompact, TriHashItem, TriHashMap};
 use iddqd_test_utils::{
     eq_props::{assert_eq_props, assert_ne_props},
     naive_map::NaiveMap,
