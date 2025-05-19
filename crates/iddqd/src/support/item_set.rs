@@ -9,12 +9,12 @@ use std::{
     ops::{Index, IndexMut},
 };
 
-/// A map of entries stored by integer index.
+/// A map of items stored by integer index.
 #[derive(Clone, Debug)]
 #[derive_where(Default)]
-pub(crate) struct EntrySet<T> {
+pub(crate) struct ItemSet<T> {
     // rustc-hash's FxHashMap is custom-designed for compact-ish integer keys.
-    entries: FxHashMap<usize, T>,
+    items: FxHashMap<usize, T>,
     // The next index to use. This only ever goes up, not down.
     //
     // An alternative might be to use a free list of indexes, but that's
@@ -22,10 +22,10 @@ pub(crate) struct EntrySet<T> {
     next_index: usize,
 }
 
-impl<T> EntrySet<T> {
+impl<T> ItemSet<T> {
     pub(crate) fn with_capacity(capacity: usize) -> Self {
         Self {
-            entries: FxHashMap::with_capacity_and_hasher(
+            items: FxHashMap::with_capacity_and_hasher(
                 capacity,
                 Default::default(),
             ),
@@ -35,48 +35,48 @@ impl<T> EntrySet<T> {
 
     #[inline]
     pub(crate) fn is_empty(&self) -> bool {
-        self.entries.is_empty()
+        self.items.is_empty()
     }
 
     #[inline]
     pub(crate) fn len(&self) -> usize {
-        self.entries.len()
+        self.items.len()
     }
 
     #[inline]
     pub(crate) fn iter(&self) -> hash_map::Iter<usize, T> {
-        self.entries.iter()
+        self.items.iter()
     }
 
     #[inline]
     #[expect(dead_code)]
     pub(crate) fn iter_mut(&mut self) -> hash_map::IterMut<usize, T> {
-        self.entries.iter_mut()
+        self.items.iter_mut()
     }
 
     #[inline]
     pub(crate) fn values(&self) -> hash_map::Values<'_, usize, T> {
-        self.entries.values()
+        self.items.values()
     }
 
     #[inline]
     pub(crate) fn values_mut(&mut self) -> hash_map::ValuesMut<'_, usize, T> {
-        self.entries.values_mut()
+        self.items.values_mut()
     }
 
     #[inline]
     pub(crate) fn into_values(self) -> hash_map::IntoValues<usize, T> {
-        self.entries.into_values()
+        self.items.into_values()
     }
 
     #[inline]
     pub(crate) fn get(&self, index: usize) -> Option<&T> {
-        self.entries.get(&index)
+        self.items.get(&index)
     }
 
     #[inline]
     pub(crate) fn get_mut(&mut self, index: usize) -> Option<&mut T> {
-        self.entries.get_mut(&index)
+        self.items.get_mut(&index)
     }
 
     #[inline]
@@ -87,14 +87,14 @@ impl<T> EntrySet<T> {
     #[inline]
     pub(crate) fn insert_at_next_index(&mut self, value: T) -> usize {
         let index = self.next_index;
-        self.entries.insert(index, value);
+        self.items.insert(index, value);
         self.next_index += 1;
         index
     }
 
     #[inline]
     pub(crate) fn remove(&mut self, index: usize) -> Option<T> {
-        let entry = self.entries.remove(&index);
+        let entry = self.items.remove(&index);
         if entry.is_some() && index == self.next_index - 1 {
             // If we removed the last entry, decrement next_index. Not strictly
             // necessary but a nice optimization.
@@ -107,7 +107,7 @@ impl<T> EntrySet<T> {
     // `index` is valid (and panics if it isn't).
     #[inline]
     pub(crate) fn replace(&mut self, index: usize, value: T) -> T {
-        self.entries
+        self.items
             .insert(index, value)
             .unwrap_or_else(|| panic!("EntrySet index not found: {index}"))
     }
@@ -115,37 +115,37 @@ impl<T> EntrySet<T> {
 
 #[cfg(feature = "serde")]
 mod serde_impls {
-    use super::EntrySet;
+    use super::ItemSet;
     use serde::Serialize;
 
-    impl<T: Serialize> Serialize for EntrySet<T> {
+    impl<T: Serialize> Serialize for ItemSet<T> {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where
             S: serde::Serializer,
         {
-            // Serialize just the entries -- don't serialize the map keys. We'll
+            // Serialize just the items -- don't serialize the map keys. We'll
             // rebuild the map keys on deserialization.
-            serializer.collect_seq(self.entries.values())
+            serializer.collect_seq(self.items.values())
         }
     }
 }
 
-impl<T> Index<usize> for EntrySet<T> {
+impl<T> Index<usize> for ItemSet<T> {
     type Output = T;
 
     #[inline]
     fn index(&self, index: usize) -> &Self::Output {
-        self.entries
+        self.items
             .get(&index)
-            .unwrap_or_else(|| panic!("EntrySet index not found: {index}"))
+            .unwrap_or_else(|| panic!("ItemSet index not found: {index}"))
     }
 }
 
-impl<T> IndexMut<usize> for EntrySet<T> {
+impl<T> IndexMut<usize> for ItemSet<T> {
     #[inline]
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        self.entries
+        self.items
             .get_mut(&index)
-            .unwrap_or_else(|| panic!("EntrySet index not found: {index}"))
+            .unwrap_or_else(|| panic!("ItemSet index not found: {index}"))
     }
 }

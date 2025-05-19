@@ -7,7 +7,7 @@
 use iddqd::{tri_upcasts, TriHashItem, TriHashMap};
 use std::path::{Path, PathBuf};
 
-/// These are the entries we'll store in the `TriHashMap`.
+/// These are the items we'll store in the `TriHashMap`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct MyStruct {
     a: String,
@@ -59,17 +59,17 @@ fn main() {
     // Make a `TriHashMap` with the keys we defined above.
     let mut map = TriHashMap::new();
 
-    let entry = MyStruct {
+    let item = MyStruct {
         a: "example".to_owned(),
         b: 20,
         c: PathBuf::from("/"),
         d: Vec::new(),
     };
 
-    // Add an entry to the map.
-    map.insert_unique(entry.clone()).unwrap();
+    // Add an item to the map.
+    map.insert_unique(item.clone()).unwrap();
 
-    // This entry will conflict with the previous one due to the `a` field
+    // This item will conflict with the previous one due to the `a` field
     // matching.
     map.insert_unique(MyStruct {
         a: "example".to_owned(),
@@ -80,15 +80,15 @@ fn main() {
     .unwrap_err();
 
     // Lookups can happen based on any of the keys. For example, we can look up
-    // an entry by the first key.
-    assert_eq!(map.get1(&MyKey1 { b: 20, c: Path::new("/") }), Some(&entry));
+    // an item by the first key.
+    assert_eq!(map.get1(&MyKey1 { b: 20, c: Path::new("/") }), Some(&item));
 
-    // We can also look up an entry by anything that implements `Borrow`. For
+    // We can also look up an item by anything that implements `Borrow`. For
     // example, &str for the third key.
-    assert_eq!(map.get3("example"), Some(&entry));
+    assert_eq!(map.get3("example"), Some(&item));
 
-    // For hash-based maps, iteration yields the entries in an arbitrary order.
-    for entry in &map {
-        println!("entry: {entry:?}");
+    // For hash-based maps, iteration yields the items in an arbitrary order.
+    for item in &map {
+        println!("item: {item:?}");
     }
 }

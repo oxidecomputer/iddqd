@@ -9,9 +9,9 @@ use crate::{
 
 #[derive(Clone, Debug, Default)]
 pub(super) struct TriHashMapTables {
-    pub(super) k1_to_entry: MapHashTable,
-    pub(super) k2_to_entry: MapHashTable,
-    pub(super) k3_to_entry: MapHashTable,
+    pub(super) k1_to_item: MapHashTable,
+    pub(super) k2_to_item: MapHashTable,
+    pub(super) k3_to_item: MapHashTable,
 }
 
 impl TriHashMapTables {
@@ -21,9 +21,9 @@ impl TriHashMapTables {
 
     pub(super) fn with_capacity(capacity: usize) -> Self {
         Self {
-            k1_to_entry: MapHashTable::with_capacity(capacity),
-            k2_to_entry: MapHashTable::with_capacity(capacity),
-            k3_to_entry: MapHashTable::with_capacity(capacity),
+            k1_to_item: MapHashTable::with_capacity(capacity),
+            k2_to_item: MapHashTable::with_capacity(capacity),
+            k3_to_item: MapHashTable::with_capacity(capacity),
         }
     }
 
@@ -35,15 +35,15 @@ impl TriHashMapTables {
         // Check that all the maps are of the right size.
 
         use anyhow::Context;
-        self.k1_to_entry
+        self.k1_to_item
             .validate(expected_len, compactness)
-            .context("k1_to_entry failed validation")?;
-        self.k2_to_entry
+            .context("k1_to_item failed validation")?;
+        self.k2_to_item
             .validate(expected_len, compactness)
-            .context("k2_to_entry failed validation")?;
-        self.k3_to_entry
+            .context("k2_to_item failed validation")?;
+        self.k3_to_item
             .validate(expected_len, compactness)
-            .context("k3_to_entry failed validation")?;
+            .context("k3_to_item failed validation")?;
 
         Ok(())
     }
@@ -53,9 +53,9 @@ impl TriHashMapTables {
         let k2 = item.key2();
         let k3 = item.key3();
 
-        let h1 = self.k1_to_entry.compute_hash(k1);
-        let h2 = self.k2_to_entry.compute_hash(k2);
-        let h3 = self.k3_to_entry.compute_hash(k3);
+        let h1 = self.k1_to_item.compute_hash(k1);
+        let h2 = self.k2_to_item.compute_hash(k2);
+        let h3 = self.k3_to_item.compute_hash(k3);
 
         [h1, h2, h3]
     }

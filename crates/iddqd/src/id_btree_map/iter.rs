@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use super::{tables::IdBTreeMapTables, IdOrdItem, IdOrdItemMut, RefMut};
-use crate::support::{btree_table, entry_set::EntrySet};
+use crate::support::{btree_table, item_set::ItemSet};
 use std::iter::FusedIterator;
 
 /// An iterator over the elements of an [`IdBTreeMap`] by shared reference.
@@ -14,16 +14,16 @@ use std::iter::FusedIterator;
 /// [`IdBTreeMap::iter`]: crate::IdBTreeMap::iter
 #[derive(Clone, Debug)]
 pub struct Iter<'a, T: IdOrdItem> {
-    entries: &'a EntrySet<T>,
+    items: &'a ItemSet<T>,
     iter: btree_table::Iter<'a>,
 }
 
 impl<'a, T: IdOrdItem> Iter<'a, T> {
     pub(super) fn new(
-        entries: &'a EntrySet<T>,
+        items: &'a ItemSet<T>,
         tables: &'a IdBTreeMapTables,
     ) -> Self {
-        Self { entries, iter: tables.key_to_entry.iter() }
+        Self { items, iter: tables.key_to_item.iter() }
     }
 }
 
@@ -33,7 +33,7 @@ impl<'a, T: IdOrdItem> Iterator for Iter<'a, T> {
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         let index = self.iter.next()?;
-        Some(&self.entries[index])
+        Some(&self.items[index])
     }
 }
 
@@ -57,16 +57,16 @@ impl<T: IdOrdItem> FusedIterator for Iter<'_, T> {}
 /// [`IdBTreeMap::iter_mut`]: crate::IdBTreeMap::iter_mut
 #[derive(Debug)]
 pub struct IterMut<'a, T: IdOrdItemMut> {
-    entries: &'a mut EntrySet<T>,
+    items: &'a mut ItemSet<T>,
     iter: btree_table::Iter<'a>,
 }
 
 impl<'a, T: IdOrdItemMut> IterMut<'a, T> {
     pub(super) fn new(
-        entries: &'a mut EntrySet<T>,
+        items: &'a mut ItemSet<T>,
         tables: &'a IdBTreeMapTables,
     ) -> Self {
-        Self { entries, iter: tables.key_to_entry.iter() }
+        Self { items, iter: tables.key_to_item.iter() }
     }
 }
 
@@ -76,13 +76,13 @@ impl<'a, T: IdOrdItemMut + 'a> Iterator for IterMut<'a, T> {
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         let index = self.iter.next()?;
-        let entry = &mut self.entries[index];
+        let item = &mut self.items[index];
 
         // SAFETY: This lifetime extension from self to 'a is safe based on two
         // things:
         //
         // 1. We never repeat indexes, i.e. for an index i, once we've handed
-        //    out an entry at i, creating `&mut T`, we'll never get the index i
+        //    out an item at i, creating `&mut T`, we'll never get the index i
         //    again. (This is guaranteed from the set-based nature of the
         //    iterator.) This means that we don't ever create a mutable alias to
         //    the same memory.
@@ -93,8 +93,8 @@ impl<'a, T: IdOrdItemMut + 'a> Iterator for IterMut<'a, T> {
         //    function would have been called with an old index i. But we don't
         //    need to do that.
         //
-        // 2. All mutable references to data within self.entries are derived
-        //    from self.entries. So, the rule described at [1] is upheld:
+        // 2. All mutable references to data within self.items are derived from
+        //    self.items. So, the rule described at [1] is upheld:
         //
         //    > When creating a mutable reference, then while this reference
         //    > exists, the memory it points to must not get accessed (read or
@@ -103,8 +103,8 @@ impl<'a, T: IdOrdItemMut + 'a> Iterator for IterMut<'a, T> {
         //
         // [1]:
         //     https://doc.rust-lang.org/std/ptr/index.html#pointer-to-reference-conversion
-        let entry = unsafe { std::mem::transmute::<&mut T, &'a mut T>(entry) };
-        Some(RefMut::new(entry))
+        let item = unsafe { std::mem::transmute::<&mut T, &'a mut T>(item) };
+        Some(RefMut::new(item))
     }
 }
 
@@ -126,13 +126,13 @@ impl<'a, T: IdOrdItemMut + 'a> FusedIterator for IterMut<'a, T> {}
 /// [`IdBTreeMap::into_iter`]: crate::IdBTreeMap::into_iter
 #[derive(Debug)]
 pub struct IntoIter<T: IdOrdItem> {
-    entries: EntrySet<T>,
+    items: ItemSet<T>,
     iter: btree_table::IntoIter,
 }
 
 impl<T: IdOrdItem> IntoIter<T> {
-    pub(super) fn new(entries: EntrySet<T>, tables: IdBTreeMapTables) -> Self {
-        Self { entries, iter: tables.key_to_entry.into_iter() }
+    pub(super) fn new(items: ItemSet<T>, tables: IdBTreeMapTables) -> Self {
+        Self { items, iter: tables.key_to_item.into_iter() }
     }
 }
 
@@ -143,9 +143,9 @@ impl<T: IdOrdItem> Iterator for IntoIter<T> {
     fn next(&mut self) -> Option<Self::Item> {
         let index = self.iter.next()?;
         let next = self
-            .entries
+            .items
             .remove(index)
-            .unwrap_or_else(|| panic!("index {index} not found in entries"));
+            .unwrap_or_else(|| panic!("index {index} not found in items"));
         Some(next)
     }
 }

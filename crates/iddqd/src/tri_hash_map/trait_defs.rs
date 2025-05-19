@@ -6,7 +6,7 @@
 
 use std::{hash::Hash, rc::Rc, sync::Arc};
 
-/// An entry in a [`TriHashMap`].
+/// An item in a [`TriHashMap`].
 ///
 /// This trait is used to define the keys.
 ///

@@ -16,19 +16,19 @@ use std::{
 #[derive(Clone, Debug, Default)]
 pub(crate) struct MapHashTable {
     pub(super) state: RandomState,
-    pub(super) entries: HashTable<usize>,
+    pub(super) items: HashTable<usize>,
 }
 
 impl MapHashTable {
     pub(crate) fn with_capacity(capacity: usize) -> Self {
         Self {
             state: RandomState::new(),
-            entries: HashTable::with_capacity(capacity),
+            items: HashTable::with_capacity(capacity),
         }
     }
 
     pub(crate) fn len(&self) -> usize {
-        self.entries.len()
+        self.items.len()
     }
 
     pub(crate) fn validate(
@@ -48,9 +48,9 @@ impl MapHashTable {
 
         match compactness {
             ValidateCompact::Compact => {
-                // All entries between 0 (inclusive) and self.len() (exclusive)
+                // All items between 0 (inclusive) and self.len() (exclusive)
                 // are expected to be present, and there are no duplicates.
-                let mut values: Vec<_> = self.entries.iter().copied().collect();
+                let mut values: Vec<_> = self.items.iter().copied().collect();
                 values.sort_unstable();
                 for (i, value) in values.iter().enumerate() {
                     ensure!(
@@ -61,7 +61,7 @@ impl MapHashTable {
             }
             ValidateCompact::NonCompact => {
                 // There should be no duplicates.
-                let values: Vec<_> = self.entries.iter().copied().collect();
+                let values: Vec<_> = self.items.iter().copied().collect();
                 let value_set: HashSet<_> = values.iter().copied().collect();
                 ensure!(
                     value_set.len() == values.len(),
@@ -92,7 +92,7 @@ impl MapHashTable {
         Q: ?Sized + Hash + Eq,
     {
         let hash = self.state.hash_one(key);
-        self.entries.find(hash, |index| lookup(*index).borrow() == key).copied()
+        self.items.find(hash, |index| lookup(*index).borrow() == key).copied()
     }
 
     pub(crate) fn entry<K: Hash + Eq, F>(
@@ -104,7 +104,7 @@ impl MapHashTable {
         F: Fn(usize) -> K,
     {
         let hash = self.state.hash_one(&key);
-        self.entries.entry(
+        self.items.entry(
             hash,
             |index| lookup(*index) == key,
             |v| self.state.hash_one(lookup(*v)),
@@ -122,7 +122,7 @@ impl MapHashTable {
         Q: ?Sized + Hash + Eq,
     {
         let hash = self.state.hash_one(key);
-        self.entries.find_entry(hash, |index| lookup(*index).borrow() == key)
+        self.items.find_entry(hash, |index| lookup(*index).borrow() == key)
     }
 }
 

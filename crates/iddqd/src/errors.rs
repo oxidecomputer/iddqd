@@ -8,28 +8,27 @@
 
 use std::fmt;
 
-/// An error type returned when an entry is inserted that conflicts with
-/// existing entries.
+/// An item conflicts with existing items.
 #[derive(Debug)]
-pub struct DuplicateEntry<T, D = T> {
+pub struct DuplicateItem<T, D = T> {
     new: T,
     duplicates: Vec<D>,
 }
 
-impl<T, D> DuplicateEntry<T, D> {
-    /// Creates a new `DuplicateEntry` error.
+impl<T, D> DuplicateItem<T, D> {
+    /// Creates a new `DuplicateItem` error.
     #[doc(hidden)]
     pub fn __internal_new(new: T, duplicates: Vec<D>) -> Self {
-        DuplicateEntry { new, duplicates }
+        DuplicateItem { new, duplicates }
     }
 
-    /// Returns the new entry that was attempted to be inserted.
+    /// Returns the new item that was attempted to be inserted.
     #[inline]
-    pub fn new_entry(&self) -> &T {
+    pub fn new_item(&self) -> &T {
         &self.new
     }
 
-    /// Returns the list of entries that conflict with the new entry.
+    /// Returns the list of items that conflict with the new item.
     #[inline]
     pub fn duplicates(&self) -> &[D] {
         &self.duplicates
@@ -41,28 +40,28 @@ impl<T, D> DuplicateEntry<T, D> {
     }
 }
 
-impl<T: Clone> DuplicateEntry<T, &T> {
-    /// Converts self to an owned `DuplicateEntry` by cloning the list of
+impl<T: Clone> DuplicateItem<T, &T> {
+    /// Converts self to an owned `DuplicateItem` by cloning the list of
     /// duplicates.
     ///
     /// If `T` is `'static`, the owned form is suitable for conversion to
     /// `Box<dyn std::error::Error>`, `anyhow::Error`, and so on.
-    pub fn into_owned(self) -> DuplicateEntry<T> {
-        DuplicateEntry {
+    pub fn into_owned(self) -> DuplicateItem<T> {
+        DuplicateItem {
             new: self.new,
             duplicates: self.duplicates.into_iter().cloned().collect(),
         }
     }
 }
 
-impl<T: fmt::Debug, D: fmt::Debug> fmt::Display for DuplicateEntry<T, D> {
+impl<T: fmt::Debug, D: fmt::Debug> fmt::Display for DuplicateItem<T, D> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "new entry: {:?} conflicts with existing: {:?}",
+            "new item: {:?} conflicts with existing: {:?}",
             self.new, self.duplicates
         )
     }
 }
 
-impl<T: fmt::Debug, D: fmt::Debug> std::error::Error for DuplicateEntry<T, D> {}
+impl<T: fmt::Debug, D: fmt::Debug> std::error::Error for DuplicateItem<T, D> {}

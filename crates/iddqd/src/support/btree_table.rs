@@ -5,7 +5,7 @@
 //! A "table" of b-tree-based indexes.
 //!
 //! Similar to [`super::hash_table::MapHashTable`], b-tree based tables store
-//! integers (that are indexes corresponding to entries), but use an external
+//! integers (that are indexes corresponding to items), but use an external
 //! comparator.
 
 use std::{
@@ -24,13 +24,13 @@ thread_local! {
 /// A B-tree-based table with an external comparator.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct MapBTreeTable {
-    entries: BTreeSet<Index>,
+    items: BTreeSet<Index>,
 }
 
 impl MapBTreeTable {
     #[doc(hidden)]
     pub(crate) fn len(&self) -> usize {
-        self.entries.len()
+        self.items.len()
     }
 
     #[doc(hidden)]
@@ -50,11 +50,11 @@ impl MapBTreeTable {
 
         match compactness {
             ValidateCompact::Compact => {
-                // All entries between 0 (inclusive) and self.len() (exclusive)
+                // All items between 0 (inclusive) and self.len() (exclusive)
                 // are present, and there are no duplicates. Also, the sentinel
                 // value should not be stored.
                 let mut indexes: Vec<_> = Vec::with_capacity(expected_len);
-                for index in &self.entries {
+                for index in &self.items {
                     match index.0 {
                         Index::SENTINEL_VALUE => {
                             bail!("index should not be used in path");
@@ -75,7 +75,7 @@ impl MapBTreeTable {
             ValidateCompact::NonCompact => {
                 // There should be no duplicates, and the sentinel value
                 // should not be stored.
-                let indexes: Vec<_> = self.entries.iter().copied().collect();
+                let indexes: Vec<_> = self.items.iter().copied().collect();
                 let index_set: BTreeSet<usize> =
                     indexes.iter().map(|ix| ix.0).collect();
                 ensure!(
@@ -110,7 +110,7 @@ impl MapBTreeTable {
 
         let guard = CmpDropGuard::new(&f);
 
-        let ret = match self.entries.get(&Index::SENTINEL) {
+        let ret = match self.items.get(&Index::SENTINEL) {
             Some(Index(v)) if *v == Index::SENTINEL_VALUE => {
                 panic!("internal map shouldn't store sentinel value")
             }
@@ -135,7 +135,7 @@ impl MapBTreeTable {
         let f = insert_cmp(index, key, lookup);
         let guard = CmpDropGuard::new(&f);
 
-        self.entries.insert(Index::new(index));
+        self.items.insert(Index::new(index));
 
         // drop(guard) isn't necessary, but we make it explicit
         drop(guard);
@@ -149,18 +149,18 @@ impl MapBTreeTable {
         let f = insert_cmp(index, &key, lookup);
         let guard = CmpDropGuard::new(&f);
 
-        self.entries.remove(&Index::new(index));
+        self.items.remove(&Index::new(index));
 
         // drop(guard) isn't necessary, but we make it explicit
         drop(guard);
     }
 
     pub(crate) fn iter(&self) -> Iter {
-        Iter::new(self.entries.iter())
+        Iter::new(self.items.iter())
     }
 
     pub(crate) fn into_iter(self) -> IntoIter {
-        IntoIter::new(self.entries.into_iter())
+        IntoIter::new(self.items.into_iter())
     }
 }
 

@@ -2,8 +2,8 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::test_entry::TestEntry;
-use iddqd::errors::DuplicateEntry;
+use crate::test_item::TestItem;
+use iddqd::errors::DuplicateItem;
 
 /// A naive, inefficient map that acts as an oracle for property-based tests.
 ///
@@ -11,107 +11,103 @@ use iddqd::errors::DuplicateEntry;
 /// scans.
 #[derive(Debug)]
 pub struct NaiveMap {
-    entries: Vec<TestEntry>,
+    items: Vec<TestItem>,
     unique_constraint: UniqueConstraint,
 }
 
 impl NaiveMap {
     pub fn new_key1() -> Self {
-        Self { entries: Vec::new(), unique_constraint: UniqueConstraint::Key1 }
+        Self { items: Vec::new(), unique_constraint: UniqueConstraint::Key1 }
     }
 
     // Will use in the future.
     pub fn new_key12() -> Self {
-        Self { entries: Vec::new(), unique_constraint: UniqueConstraint::Key12 }
+        Self { items: Vec::new(), unique_constraint: UniqueConstraint::Key12 }
     }
 
     pub fn new_key123() -> Self {
-        Self {
-            entries: Vec::new(),
-            unique_constraint: UniqueConstraint::Key123,
-        }
+        Self { items: Vec::new(), unique_constraint: UniqueConstraint::Key123 }
     }
 
     pub fn insert_unique(
         &mut self,
-        entry: TestEntry,
-    ) -> Result<(), DuplicateEntry<TestEntry, &TestEntry>> {
-        // Cannot store the duplicates directly here because of borrow
-        // checker issues. Instead, we store indexes and then map them to
-        // entries.
+        item: TestItem,
+    ) -> Result<(), DuplicateItem<TestItem, &TestItem>> {
+        // Cannot store the duplicates directly here because of borrow checker
+        // issues. Instead, we store indexes and then map them to items.
         let dup_indexes = self
-            .entries
+            .items
             .iter()
             .enumerate()
             .filter_map(|(i, e)| {
-                self.unique_constraint.matches(&entry, e).then_some(i)
+                self.unique_constraint.matches(&item, e).then_some(i)
             })
             .collect::<Vec<_>>();
 
         if dup_indexes.is_empty() {
-            self.entries.push(entry);
+            self.items.push(item);
             Ok(())
         } else {
-            Err(DuplicateEntry::__internal_new(
-                entry,
-                dup_indexes.iter().map(|&i| &self.entries[i]).collect(),
+            Err(DuplicateItem::__internal_new(
+                item,
+                dup_indexes.iter().map(|&i| &self.items[i]).collect(),
             ))
         }
     }
 
-    pub fn insert_overwrite(&mut self, entry: TestEntry) -> Vec<TestEntry> {
+    pub fn insert_overwrite(&mut self, item: TestItem) -> Vec<TestItem> {
         let dup_indexes = self
-            .entries
+            .items
             .iter()
             .enumerate()
             .filter_map(|(i, e)| {
-                self.unique_constraint.matches(&entry, e).then_some(i)
+                self.unique_constraint.matches(&item, e).then_some(i)
             })
             .collect::<Vec<_>>();
         let mut dups = Vec::new();
 
-        // dup_indexes is in sorted order -- remove entries in that order to
+        // dup_indexes is in sorted order -- remove items in that order to
         // handle shifting indexes. (There are more efficient ways to do this.
         // But this is a model, not the system under test, so the goal here is
         // to be clear more than to be efficient.)
         for i in dup_indexes.iter().rev() {
-            dups.push(self.entries.remove(*i));
+            dups.push(self.items.remove(*i));
         }
 
-        // Now we can push the new entry.
-        self.entries.push(entry);
+        // Now we can push the new item.
+        self.items.push(item);
         dups
     }
 
-    pub fn get1(&self, key1: u8) -> Option<&TestEntry> {
-        self.entries.iter().find(|e| e.key1 == key1)
+    pub fn get1(&self, key1: u8) -> Option<&TestItem> {
+        self.items.iter().find(|e| e.key1 == key1)
     }
 
-    pub fn get2(&self, key2: char) -> Option<&TestEntry> {
-        self.entries.iter().find(|e| e.key2 == key2)
+    pub fn get2(&self, key2: char) -> Option<&TestItem> {
+        self.items.iter().find(|e| e.key2 == key2)
     }
 
-    pub fn get3(&self, key3: &str) -> Option<&TestEntry> {
-        self.entries.iter().find(|e| e.key3 == key3)
+    pub fn get3(&self, key3: &str) -> Option<&TestItem> {
+        self.items.iter().find(|e| e.key3 == key3)
     }
 
-    pub fn remove1(&mut self, key1: u8) -> Option<TestEntry> {
-        let index = self.entries.iter().position(|e| e.key1 == key1)?;
-        Some(self.entries.remove(index))
+    pub fn remove1(&mut self, key1: u8) -> Option<TestItem> {
+        let index = self.items.iter().position(|e| e.key1 == key1)?;
+        Some(self.items.remove(index))
     }
 
-    pub fn remove2(&mut self, key2: char) -> Option<TestEntry> {
-        let index = self.entries.iter().position(|e| e.key2 == key2)?;
-        Some(self.entries.remove(index))
+    pub fn remove2(&mut self, key2: char) -> Option<TestItem> {
+        let index = self.items.iter().position(|e| e.key2 == key2)?;
+        Some(self.items.remove(index))
     }
 
-    pub fn remove3(&mut self, key3: &str) -> Option<TestEntry> {
-        let index = self.entries.iter().position(|e| e.key3 == key3)?;
-        Some(self.entries.remove(index))
+    pub fn remove3(&mut self, key3: &str) -> Option<TestItem> {
+        let index = self.items.iter().position(|e| e.key3 == key3)?;
+        Some(self.items.remove(index))
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = &TestEntry> {
-        self.entries.iter()
+    pub fn iter(&self) -> impl Iterator<Item = &TestItem> {
+        self.items.iter()
     }
 }
 
@@ -124,16 +120,16 @@ enum UniqueConstraint {
 }
 
 impl UniqueConstraint {
-    fn matches(&self, entry: &TestEntry, other: &TestEntry) -> bool {
+    fn matches(&self, item: &TestItem, other: &TestItem) -> bool {
         match self {
-            UniqueConstraint::Key1 => entry.key1 == other.key1,
+            UniqueConstraint::Key1 => item.key1 == other.key1,
             UniqueConstraint::Key12 => {
-                entry.key1 == other.key1 || entry.key2 == other.key2
+                item.key1 == other.key1 || item.key2 == other.key2
             }
             UniqueConstraint::Key123 => {
-                entry.key1 == other.key1
-                    || entry.key2 == other.key2
-                    || entry.key3 == other.key3
+                item.key1 == other.key1
+                    || item.key2 == other.key2
+                    || item.key3 == other.key3
             }
         }
     }

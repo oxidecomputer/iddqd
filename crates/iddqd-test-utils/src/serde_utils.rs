@@ -4,13 +4,13 @@
 
 //! Serde-related test utilities.
 
-use crate::test_entry::{MapKind, TestEntry, TestEntryMap};
+use crate::test_item::{MapKind, TestItem, TestItemMap};
 use iddqd::internal::ValidateCompact;
 use serde::{Deserialize, Serialize};
 
-pub fn assert_serialize_roundtrip<M>(values: Vec<TestEntry>)
+pub fn assert_serialize_roundtrip<M>(values: Vec<TestItem>)
 where
-    M: TestEntryMap + Serialize + for<'de> Deserialize<'de>,
+    M: TestItemMap + Serialize + for<'de> Deserialize<'de>,
 {
     let mut map = M::new();
     let mut first_error = None;
@@ -31,20 +31,20 @@ where
         .validate(ValidateCompact::Compact)
         .expect("deserialized map is valid");
 
-    let mut map_entries = map.iter().collect::<Vec<_>>();
-    let mut deserialized_entries = deserialized.iter().collect::<Vec<_>>();
+    let mut map_items = map.iter().collect::<Vec<_>>();
+    let mut deserialized_items = deserialized.iter().collect::<Vec<_>>();
 
     match M::map_kind() {
         MapKind::BTree => {
-            // No sorting required -- we expect the entries to be in order.
+            // No sorting required -- we expect the items to be in order.
         }
         MapKind::Hash => {
-            // Sort the entries, since we don't care about the order.
-            map_entries.sort();
-            deserialized_entries.sort();
+            // Sort the items, since we don't care about the order.
+            map_items.sort();
+            deserialized_items.sort();
         }
     }
-    assert_eq!(map_entries, deserialized_entries, "entries match");
+    assert_eq!(map_items, deserialized_items, "items match");
 
     // Try deserializing the full list of values directly, and see that the
     // error reported is the same as first_error.

@@ -7,7 +7,7 @@
 use iddqd::{id_btree_map::Entry, id_upcast, IdBTreeMap, IdOrdItem};
 use std::path::{Path, PathBuf};
 
-/// These are the entries we'll store in the `IdBTreeMap`.
+/// These are the items we'll store in the `IdBTreeMap`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct MyStruct {
     a: String,
@@ -39,17 +39,17 @@ fn main() {
     // Make a `TriHashMap` with the keys we defined above.
     let mut map = IdBTreeMap::new();
 
-    let entry = MyStruct {
+    let item = MyStruct {
         a: "example".to_owned(),
         b: 20,
         c: PathBuf::from("/"),
         d: Vec::new(),
     };
 
-    // Add an entry to the map.
-    map.insert_unique(entry.clone()).unwrap();
+    // Add an item to the map.
+    map.insert_unique(item.clone()).unwrap();
 
-    // This entry will conflict with the previous one due to b, c and d
+    // This item will conflict with the previous one due to b, c and d
     // matching.
     map.insert_unique(MyStruct {
         a: "something-else".to_owned(),
@@ -59,46 +59,46 @@ fn main() {
     })
     .unwrap_err();
 
-    // Add another entry to the map. Note that this entry has the same c and d
+    // Add another item to the map. Note that this item has the same c and d
     // but a different b.
-    let entry2 = MyStruct {
+    let item2 = MyStruct {
         a: "example".to_owned(),
         b: 10,
         c: PathBuf::from("/"),
         d: Vec::new(),
     };
-    map.insert_unique(entry2.clone()).unwrap();
+    map.insert_unique(item2.clone()).unwrap();
 
     // Lookups can happen based on a borrowed key. For example:
     assert_eq!(
         map.get(&MyKey { b: 20, c: Path::new("/"), d: &[] }),
-        Some(&entry)
+        Some(&item)
     );
 
-    // While iterating over the map, entries will be sorted by their key.
-    for entry in map.iter() {
-        println!("{:?}", entry);
+    // While iterating over the map, items will be sorted by their key.
+    for item in map.iter() {
+        println!("{:?}", item);
     }
 
-    let entry3 = MyStruct {
+    let item3 = MyStruct {
         a: "example".to_owned(),
         b: 20,
         c: PathBuf::from("/"),
         d: vec![1, 2, 3],
     };
 
-    for item in [entry, entry2, entry3] {
+    for item in [item, item2, item3] {
         let entry = map.entry(item.key());
         match entry {
             Entry::Occupied(entry) => {
-                // We can get the entry's value.
-                let value = entry.get();
-                println!("occupied: {:?}", value);
+                // Get the entry's item.
+                let item = entry.get();
+                println!("occupied: {:?}", item);
             }
             Entry::Vacant(entry) => {
-                // We can insert a new value.
-                let value = entry.insert(item);
-                println!("inserted: {:?}", value);
+                // Insert a new item.
+                let item_ref = entry.insert(item);
+                println!("inserted: {:?}", item_ref);
             }
         }
     }

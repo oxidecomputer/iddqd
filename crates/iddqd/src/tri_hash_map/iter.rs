@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use super::{tables::TriHashMapTables, RefMut};
-use crate::{support::entry_set::EntrySet, TriHashItem};
+use crate::{support::item_set::ItemSet, TriHashItem};
 use std::{collections::hash_map, iter::FusedIterator};
 
 /// An iterator over the elements of a [`TriHashMap`] by shared reference.
@@ -18,8 +18,8 @@ pub struct Iter<'a, T: TriHashItem> {
 }
 
 impl<'a, T: TriHashItem> Iter<'a, T> {
-    pub(crate) fn new(entries: &'a EntrySet<T>) -> Self {
-        Self { inner: entries.values() }
+    pub(crate) fn new(items: &'a ItemSet<T>) -> Self {
+        Self { inner: items.values() }
     }
 }
 
@@ -59,9 +59,9 @@ pub struct IterMut<'a, T: TriHashItem> {
 impl<'a, T: TriHashItem> IterMut<'a, T> {
     pub(super) fn new(
         tables: &'a TriHashMapTables,
-        entries: &'a mut EntrySet<T>,
+        items: &'a mut ItemSet<T>,
     ) -> Self {
-        Self { tables, inner: entries.values_mut() }
+        Self { tables, inner: items.values_mut() }
     }
 }
 
@@ -98,8 +98,8 @@ pub struct IntoIter<T: TriHashItem> {
 }
 
 impl<T: TriHashItem> IntoIter<T> {
-    pub(crate) fn new(entries: EntrySet<T>) -> Self {
-        Self { inner: entries.into_values() }
+    pub(crate) fn new(items: ItemSet<T>) -> Self {
+        Self { inner: items.into_values() }
     }
 }
 

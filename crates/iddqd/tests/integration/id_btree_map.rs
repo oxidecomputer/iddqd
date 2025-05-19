@@ -10,17 +10,17 @@ use iddqd::{
 use iddqd_test_utils::{
     eq_props::{assert_eq_props, assert_ne_props},
     naive_map::NaiveMap,
-    test_entry::{assert_iter_eq, test_entry_permutation_strategy, TestEntry},
+    test_item::{assert_iter_eq, test_item_permutation_strategy, TestItem},
 };
 use proptest::prelude::*;
 use test_strategy::{proptest, Arbitrary};
 
 #[test]
 fn test_insert_unique() {
-    let mut map = IdBTreeMap::<TestEntry>::new();
+    let mut map = IdBTreeMap::<TestItem>::new();
 
     // Add an element.
-    let v1 = TestEntry {
+    let v1 = TestItem {
         key1: 20,
         key2: 'a',
         key3: "x".to_string(),
@@ -30,23 +30,23 @@ fn test_insert_unique() {
 
     // Add an exact duplicate, which should error out.
     let error = map.insert_unique(v1.clone()).unwrap_err();
-    assert_eq!(error.new_entry(), &v1);
+    assert_eq!(error.new_item(), &v1);
     assert_eq!(error.duplicates(), vec![&v1]);
 
     // Add a duplicate against just key1, which should error out.
-    let v2 = TestEntry {
+    let v2 = TestItem {
         key1: 20,
         key2: 'b',
         key3: "y".to_string(),
         value: "v".to_string(),
     };
     let error = map.insert_unique(v2.clone()).unwrap_err();
-    assert_eq!(error.new_entry(), &v2);
+    assert_eq!(error.new_item(), &v2);
     assert_eq!(error.duplicates(), vec![&v1]);
 
     // Add a duplicate against key2. IdBTreeMap only uses key1 here, so this
     // should be allowed.
-    let v3 = TestEntry {
+    let v3 = TestItem {
         key1: 5,
         key2: 'a',
         key3: "y".to_string(),
@@ -55,22 +55,22 @@ fn test_insert_unique() {
     map.insert_unique(v3.clone()).unwrap();
 
     // Add a duplicate against key1, which should error out.
-    let v4 = TestEntry {
+    let v4 = TestItem {
         key1: 5,
         key2: 'b',
         key3: "x".to_string(),
         value: "v".to_string(),
     };
     let error = map.insert_unique(v4.clone()).unwrap_err();
-    assert_eq!(error.new_entry(), &v4);
+    assert_eq!(error.new_item(), &v4);
 
-    // Iterate over the entries mutably. This ensures that miri detects
-    // unsafety if it exists.
-    let entries: Vec<RefMut<_>> = map.iter_mut().collect();
-    let e1 = &*entries[0];
+    // Iterate over the items mutably. This ensures that miri detects UB if it
+    // exists.
+    let items: Vec<RefMut<_>> = map.iter_mut().collect();
+    let e1 = &*items[0];
     assert_eq!(*e1, v3);
 
-    let e2 = &*entries[1];
+    let e2 = &*items[1];
     assert_eq!(*e2, v1);
 }
 
@@ -78,9 +78,9 @@ fn test_insert_unique() {
 enum Operation {
     // Make inserts a bit more common to try and fill up the map.
     #[weight(3)]
-    InsertUnique(TestEntry),
+    InsertUnique(TestItem),
     #[weight(2)]
-    InsertOverwrite(TestEntry),
+    InsertOverwrite(TestItem),
     Get(u8),
     Remove(u8),
 }
@@ -89,8 +89,8 @@ impl Operation {
     fn remains_compact(&self) -> bool {
         match self {
             Operation::InsertUnique(_) | Operation::Get(_) => true,
-            // The act of removing entries, including calls to
-            // insert_overwrite, can make the map non-compact.
+            // The act of removing items, including calls to insert_overwrite,
+            // can make the map non-compact.
             Operation::InsertOverwrite(_) | Operation::Remove(_) => false,
         }
     }
@@ -112,7 +112,7 @@ fn proptest_ops(
         Operation,
     >,
 ) {
-    let mut map = IdBTreeMap::<TestEntry>::new();
+    let mut map = IdBTreeMap::<TestItem>::new();
     let mut naive_map = NaiveMap::new_key1();
 
     let mut compactness = ValidateCompact::Compact;
@@ -124,22 +124,22 @@ fn proptest_ops(
         }
 
         match op {
-            Operation::InsertUnique(entry) => {
-                let map_res = map.insert_unique(entry.clone());
-                let naive_res = naive_map.insert_unique(entry.clone());
+            Operation::InsertUnique(item) => {
+                let map_res = map.insert_unique(item.clone());
+                let naive_res = naive_map.insert_unique(item.clone());
 
                 assert_eq!(map_res.is_ok(), naive_res.is_ok());
                 if let Err(map_err) = map_res {
                     let naive_err = naive_res.unwrap_err();
-                    assert_eq!(map_err.new_entry(), naive_err.new_entry());
+                    assert_eq!(map_err.new_item(), naive_err.new_item());
                     assert_eq!(map_err.duplicates(), naive_err.duplicates());
                 }
 
                 map.validate(compactness).expect("map should be valid");
             }
-            Operation::InsertOverwrite(entry) => {
-                let map_dups = map.insert_overwrite(entry.clone());
-                let mut naive_dups = naive_map.insert_overwrite(entry.clone());
+            Operation::InsertOverwrite(item) => {
+                let map_dups = map.insert_overwrite(item.clone());
+                let mut naive_dups = naive_map.insert_overwrite(item.clone());
                 assert!(naive_dups.len() <= 1, "max one conflict");
                 let naive_dup = naive_dups.pop();
 
@@ -166,34 +166,34 @@ fn proptest_ops(
         }
 
         // Check that the iterators work correctly.
-        let mut naive_entries = naive_map.iter().collect::<Vec<_>>();
-        naive_entries.sort_by_key(|e| *e.key());
+        let mut naive_items = naive_map.iter().collect::<Vec<_>>();
+        naive_items.sort_by_key(|e| *e.key());
 
-        assert_iter_eq(map.clone(), naive_entries);
+        assert_iter_eq(map.clone(), naive_items);
     }
 }
 
 #[proptest(cases = 64)]
 fn proptest_permutation_eq(
-    #[strategy(test_entry_permutation_strategy::<IdBTreeMap<TestEntry>>(0..PERMUTATION_LEN))]
-    entries: (Vec<TestEntry>, Vec<TestEntry>),
+    #[strategy(test_item_permutation_strategy::<IdBTreeMap<TestItem>>(0..PERMUTATION_LEN))]
+    items: (Vec<TestItem>, Vec<TestItem>),
 ) {
-    let (entries1, entries2) = entries;
-    let mut map1 = IdBTreeMap::<TestEntry>::new();
-    let mut map2 = IdBTreeMap::<TestEntry>::new();
+    let (items1, items2) = items;
+    let mut map1 = IdBTreeMap::<TestItem>::new();
+    let mut map2 = IdBTreeMap::<TestItem>::new();
 
-    for entry in entries1.clone() {
-        map1.insert_unique(entry.clone()).unwrap();
+    for item in items1.clone() {
+        map1.insert_unique(item.clone()).unwrap();
     }
-    for entry in entries2.clone() {
-        map2.insert_unique(entry.clone()).unwrap();
+    for item in items2.clone() {
+        map2.insert_unique(item.clone()).unwrap();
     }
 
     assert_eq_props(&map1, &map2);
 
     // Also test from_iter_unique.
-    let map3 = IdBTreeMap::from_iter_unique(entries1).unwrap();
-    let map4 = IdBTreeMap::from_iter_unique(entries2).unwrap();
+    let map3 = IdBTreeMap::from_iter_unique(items1).unwrap();
+    let map4 = IdBTreeMap::from_iter_unique(items2).unwrap();
     assert_eq_props(&map1, &map3);
     assert_eq_props(&map3, &map4);
 }
@@ -201,35 +201,35 @@ fn proptest_permutation_eq(
 // Test various conditions for non-equality.
 #[test]
 fn test_permutation_eq_examples() {
-    let mut map1 = IdBTreeMap::<TestEntry>::new();
-    let mut map2 = IdBTreeMap::<TestEntry>::new();
+    let mut map1 = IdBTreeMap::<TestItem>::new();
+    let mut map2 = IdBTreeMap::<TestItem>::new();
 
     // Two empty maps are equal.
     assert_eq!(map1, map2);
 
-    // Insert a single entry into one map.
-    let entry = TestEntry {
+    // Insert a single item into one map.
+    let item = TestItem {
         key1: 0,
         key2: 'a',
         key3: "x".to_string(),
         value: "v".to_string(),
     };
-    map1.insert_unique(entry.clone()).unwrap();
+    map1.insert_unique(item.clone()).unwrap();
 
     // The maps are not equal.
     assert_ne_props(&map1, &map2);
 
-    // Insert the same entry into the other map.
-    map2.insert_unique(entry.clone()).unwrap();
+    // Insert the same item into the other map.
+    map2.insert_unique(item.clone()).unwrap();
 
     // The maps are now equal.
     assert_eq_props(&map1, &map2);
 
     {
-        // Insert an entry with the same key2 and key3 but a different
+        // Insert an item with the same key2 and key3 but a different
         // key1.
         let mut map1 = map1.clone();
-        map1.insert_unique(TestEntry {
+        map1.insert_unique(TestItem {
             key1: 1,
             key2: 'b',
             key3: "y".to_string(),
@@ -239,7 +239,7 @@ fn test_permutation_eq_examples() {
         assert_ne_props(&map1, &map2);
 
         let mut map2 = map2.clone();
-        map2.insert_unique(TestEntry {
+        map2.insert_unique(TestItem {
             key1: 2,
             key2: 'b',
             key3: "y".to_string(),
@@ -250,10 +250,9 @@ fn test_permutation_eq_examples() {
     }
 
     {
-        // Insert an entry with the same key1 and key3 but a different
-        // key2.
+        // Insert an item with the same key1 and key3 but a different key2.
         let mut map1 = map1.clone();
-        map1.insert_unique(TestEntry {
+        map1.insert_unique(TestItem {
             key1: 1,
             key2: 'b',
             key3: "y".to_string(),
@@ -263,7 +262,7 @@ fn test_permutation_eq_examples() {
         assert_ne_props(&map1, &map2);
 
         let mut map2 = map2.clone();
-        map2.insert_unique(TestEntry {
+        map2.insert_unique(TestItem {
             key1: 1,
             key2: 'c',
             key3: "y".to_string(),
@@ -274,10 +273,9 @@ fn test_permutation_eq_examples() {
     }
 
     {
-        // Insert an entry with the same key1 and key2 but a different
-        // key3.
+        // Insert an item with the same key1 and key2 but a different key3.
         let mut map1 = map1.clone();
-        map1.insert_unique(TestEntry {
+        map1.insert_unique(TestItem {
             key1: 1,
             key2: 'b',
             key3: "y".to_string(),
@@ -287,7 +285,7 @@ fn test_permutation_eq_examples() {
         assert_ne_props(&map1, &map2);
 
         let mut map2 = map2.clone();
-        map2.insert_unique(TestEntry {
+        map2.insert_unique(TestItem {
             key1: 1,
             key2: 'b',
             key3: "z".to_string(),
@@ -298,10 +296,10 @@ fn test_permutation_eq_examples() {
     }
 
     {
-        // Insert an entry where all the keys are the same, but the value is
+        // Insert an item where all the keys are the same, but the value is
         // different.
         let mut map1 = map1.clone();
-        map1.insert_unique(TestEntry {
+        map1.insert_unique(TestItem {
             key1: 1,
             key2: 'b',
             key3: "y".to_string(),
@@ -311,7 +309,7 @@ fn test_permutation_eq_examples() {
         assert_ne_props(&map1, &map2);
 
         let mut map2 = map2.clone();
-        map2.insert_unique(TestEntry {
+        map2.insert_unique(TestItem {
             key1: 1,
             key2: 'b',
             key3: "y".to_string(),
@@ -325,8 +323,8 @@ fn test_permutation_eq_examples() {
 #[test]
 #[should_panic(expected = "key changed during RefMut borrow")]
 fn get_mut_panics_if_key_changes() {
-    let mut map = IdBTreeMap::<TestEntry>::new();
-    map.insert_unique(TestEntry {
+    let mut map = IdBTreeMap::<TestItem>::new();
+    map.insert_unique(TestItem {
         key1: 128,
         key2: 'b',
         key3: "y".to_owned(),
@@ -339,7 +337,7 @@ fn get_mut_panics_if_key_changes() {
 #[test]
 #[should_panic = "key already present in map"]
 fn insert_panics_for_present_key() {
-    let v1 = TestEntry {
+    let v1 = TestItem {
         key1: 0,
         key2: 'a',
         key3: "foo".to_owned(),
@@ -348,7 +346,7 @@ fn insert_panics_for_present_key() {
     let mut map = IdBTreeMap::new();
     map.insert_unique(v1.clone()).expect("insert_unique succeeded");
 
-    let v2 = TestEntry {
+    let v2 = TestItem {
         key1: 1,
         key2: 'a',
         key3: "bar".to_owned(),
@@ -363,7 +361,7 @@ fn insert_panics_for_present_key() {
 #[test]
 #[should_panic = "key already present in map"]
 fn insert_mut_panics_for_present_key() {
-    let v1 = TestEntry {
+    let v1 = TestItem {
         key1: 0,
         key2: 'a',
         key3: "foo".to_owned(),
@@ -372,7 +370,7 @@ fn insert_mut_panics_for_present_key() {
     let mut map = IdBTreeMap::new();
     map.insert_unique(v1.clone()).expect("insert_unique succeeded");
 
-    let v2 = TestEntry {
+    let v2 = TestItem {
         key1: 1,
         key2: 'a',
         key3: "bar".to_owned(),
@@ -387,7 +385,7 @@ fn insert_mut_panics_for_present_key() {
 #[test]
 #[should_panic = "key already present in map"]
 fn insert_entry_panics_for_present_key() {
-    let v1 = TestEntry {
+    let v1 = TestItem {
         key1: 0,
         key2: 'a',
         key3: "foo".to_owned(),
@@ -396,7 +394,7 @@ fn insert_entry_panics_for_present_key() {
     let mut map = IdBTreeMap::new();
     map.insert_unique(v1.clone()).expect("insert_unique succeeded");
 
-    let v2 = TestEntry {
+    let v2 = TestItem {
         key1: 1,
         key2: 'a',
         key3: "bar".to_owned(),
@@ -412,12 +410,12 @@ fn insert_entry_panics_for_present_key() {
 mod serde_tests {
     use iddqd::IdBTreeMap;
     use iddqd_test_utils::{
-        serde_utils::assert_serialize_roundtrip, test_entry::TestEntry,
+        serde_utils::assert_serialize_roundtrip, test_item::TestItem,
     };
     use test_strategy::proptest;
 
     #[proptest]
-    fn proptest_serialize_roundtrip(values: Vec<TestEntry>) {
-        assert_serialize_roundtrip::<IdBTreeMap<TestEntry>>(values);
+    fn proptest_serialize_roundtrip(values: Vec<TestItem>) {
+        assert_serialize_roundtrip::<IdBTreeMap<TestItem>>(values);
     }
 }

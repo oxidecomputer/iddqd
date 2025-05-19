@@ -5,7 +5,7 @@
 use crate::{support::hash_table::MapHash, TriHashItem};
 use std::ops::{Deref, DerefMut};
 
-/// A mutable reference to a [`TriHashMap`] entry.
+/// A mutable reference to a [`TriHashMap`] item.
 ///
 /// This is a wrapper around a `&mut T` that panics when dropped, if the
 /// borrowed value's keys have changed since the wrapper was created.

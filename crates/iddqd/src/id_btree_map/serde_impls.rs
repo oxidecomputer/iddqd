@@ -8,7 +8,7 @@ use serde::{
 };
 use std::fmt;
 
-/// An `IdBTreeMap` serializes to the list of entries. Entries are serialized in
+/// An `IdBTreeMap` serializes to the list of items. Items are serialized in
 /// order of their keys.
 impl<T: IdOrdItem> Serialize for IdBTreeMap<T>
 where
@@ -19,14 +19,14 @@ where
         serializer: S,
     ) -> Result<S::Ok, S::Error> {
         let mut seq = serializer.serialize_seq(Some(self.len()))?;
-        for entry in self {
-            seq.serialize_element(entry)?;
+        for item in self {
+            seq.serialize_element(item)?;
         }
         seq.end()
     }
 }
 
-/// The `Deserialize` impl deserializes the list of entries, rebuilding the
+/// The `Deserialize` impl deserializes the list of items, rebuilding the
 /// indexes and producing an error if there are any duplicates.
 ///
 /// The `fmt::Debug` bound on `T` ensures better error reporting.
@@ -38,10 +38,10 @@ where
     where
         D: Deserializer<'de>,
     {
-        let entries = Vec::<T>::deserialize(deserializer)?;
+        let items = Vec::<T>::deserialize(deserializer)?;
         let mut map = IdBTreeMap::new();
-        for entry in entries {
-            map.insert_unique(entry).map_err(serde::de::Error::custom)?;
+        for item in items {
+            map.insert_unique(item).map_err(serde::de::Error::custom)?;
         }
         Ok(map)
     }

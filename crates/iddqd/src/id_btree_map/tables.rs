@@ -6,7 +6,7 @@ use crate::support::btree_table::MapBTreeTable;
 
 #[derive(Clone, Debug, Default)]
 pub(super) struct IdBTreeMapTables {
-    pub(super) key_to_entry: MapBTreeTable,
+    pub(super) key_to_item: MapBTreeTable,
 }
 
 impl IdBTreeMapTables {
@@ -23,9 +23,9 @@ impl IdBTreeMapTables {
         // Check that all the maps are of the right size.
         use anyhow::Context;
 
-        self.key_to_entry
+        self.key_to_item
             .validate(expected_len, compactness)
-            .context("key_to_entry failed validation")?;
+            .context("key_to_item failed validation")?;
 
         Ok(())
     }

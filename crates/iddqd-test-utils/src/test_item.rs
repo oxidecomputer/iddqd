@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use iddqd::{
-    errors::DuplicateEntry, id_btree_map, id_upcast, internal::ValidateCompact,
+    errors::DuplicateItem, id_btree_map, id_upcast, internal::ValidateCompact,
     tri_hash_map, tri_upcasts, IdBTreeMap, IdOrdItem, IdOrdItemMut,
     TriHashItem, TriHashMap,
 };
@@ -12,15 +12,15 @@ use test_strategy::Arbitrary;
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Arbitrary)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct TestEntry {
+pub struct TestItem {
     pub key1: u8,
     pub key2: char,
     pub key3: String,
     pub value: String,
 }
 
-impl PartialEq<&TestEntry> for TestEntry {
-    fn eq(&self, other: &&TestEntry) -> bool {
+impl PartialEq<&TestItem> for TestItem {
+    fn eq(&self, other: &&TestItem) -> bool {
         self.key1 == other.key1
             && self.key2 == other.key2
             && self.key3 == other.key3
@@ -28,7 +28,7 @@ impl PartialEq<&TestEntry> for TestEntry {
     }
 }
 
-impl IdOrdItem for TestEntry {
+impl IdOrdItem for TestItem {
     // A bit weird to return a reference to a u8, but this makes sure
     // reference-based keys work properly.
     type Key<'a>
@@ -43,7 +43,7 @@ impl IdOrdItem for TestEntry {
     id_upcast!();
 }
 
-impl IdOrdItemMut for TestEntry {
+impl IdOrdItemMut for TestItem {
     type OwnedKey = u8;
 
     fn owned_key(&self) -> Self::OwnedKey {
@@ -51,7 +51,7 @@ impl IdOrdItemMut for TestEntry {
     }
 }
 
-impl TriHashItem for TestEntry {
+impl TriHashItem for TestItem {
     // These types are chosen to represent various kinds of keys in the
     // proptest below.
     //
@@ -86,35 +86,35 @@ pub enum MapKind {
 }
 
 /// Represents a map of `TestEntry` values. Used for generic tests and assertions.
-pub trait TestEntryMap: Clone {
+pub trait TestItemMap: Clone {
     type RefMut<'a>: IntoRef<'a>
     where
         Self: 'a;
-    type Iter<'a>: Iterator<Item = &'a TestEntry>
+    type Iter<'a>: Iterator<Item = &'a TestItem>
     where
         Self: 'a;
     type IterMut<'a>: Iterator<Item = Self::RefMut<'a>>
     where
         Self: 'a;
-    type IntoIter: Iterator<Item = TestEntry>;
+    type IntoIter: Iterator<Item = TestItem>;
 
     fn map_kind() -> MapKind;
     fn new() -> Self;
     fn validate(&self, compactness: ValidateCompact) -> anyhow::Result<()>;
     fn insert_unique(
         &mut self,
-        value: TestEntry,
-    ) -> Result<(), DuplicateEntry<TestEntry, &TestEntry>>;
+        value: TestItem,
+    ) -> Result<(), DuplicateItem<TestItem, &TestItem>>;
     fn iter(&self) -> Self::Iter<'_>;
     fn iter_mut(&mut self) -> Self::IterMut<'_>;
     fn into_iter(self) -> Self::IntoIter;
 }
 
-impl TestEntryMap for IdBTreeMap<TestEntry> {
-    type RefMut<'a> = id_btree_map::RefMut<'a, TestEntry>;
-    type Iter<'a> = id_btree_map::Iter<'a, TestEntry>;
-    type IterMut<'a> = id_btree_map::IterMut<'a, TestEntry>;
-    type IntoIter = id_btree_map::IntoIter<TestEntry>;
+impl TestItemMap for IdBTreeMap<TestItem> {
+    type RefMut<'a> = id_btree_map::RefMut<'a, TestItem>;
+    type Iter<'a> = id_btree_map::Iter<'a, TestItem>;
+    type IterMut<'a> = id_btree_map::IterMut<'a, TestItem>;
+    type IntoIter = id_btree_map::IntoIter<TestItem>;
 
     fn map_kind() -> MapKind {
         MapKind::BTree
@@ -130,8 +130,8 @@ impl TestEntryMap for IdBTreeMap<TestEntry> {
 
     fn insert_unique(
         &mut self,
-        value: TestEntry,
-    ) -> Result<(), DuplicateEntry<TestEntry, &TestEntry>> {
+        value: TestItem,
+    ) -> Result<(), DuplicateItem<TestItem, &TestItem>> {
         self.insert_unique(value)
     }
 
@@ -148,11 +148,11 @@ impl TestEntryMap for IdBTreeMap<TestEntry> {
     }
 }
 
-impl TestEntryMap for TriHashMap<TestEntry> {
-    type RefMut<'a> = tri_hash_map::RefMut<'a, TestEntry>;
-    type Iter<'a> = tri_hash_map::Iter<'a, TestEntry>;
-    type IterMut<'a> = tri_hash_map::IterMut<'a, TestEntry>;
-    type IntoIter = tri_hash_map::IntoIter<TestEntry>;
+impl TestItemMap for TriHashMap<TestItem> {
+    type RefMut<'a> = tri_hash_map::RefMut<'a, TestItem>;
+    type Iter<'a> = tri_hash_map::Iter<'a, TestItem>;
+    type IterMut<'a> = tri_hash_map::IterMut<'a, TestItem>;
+    type IntoIter = tri_hash_map::IntoIter<TestItem>;
 
     fn map_kind() -> MapKind {
         MapKind::Hash
@@ -168,8 +168,8 @@ impl TestEntryMap for TriHashMap<TestEntry> {
 
     fn insert_unique(
         &mut self,
-        value: TestEntry,
-    ) -> Result<(), DuplicateEntry<TestEntry, &TestEntry>> {
+        value: TestItem,
+    ) -> Result<(), DuplicateItem<TestItem, &TestItem>> {
         self.insert_unique(value)
     }
 
@@ -187,63 +187,56 @@ impl TestEntryMap for TriHashMap<TestEntry> {
 }
 
 pub trait IntoRef<'a> {
-    fn into_ref(self) -> &'a TestEntry;
+    fn into_ref(self) -> &'a TestItem;
 }
 
-impl<'a> IntoRef<'a> for id_btree_map::RefMut<'a, TestEntry> {
-    fn into_ref(self) -> &'a TestEntry {
+impl<'a> IntoRef<'a> for id_btree_map::RefMut<'a, TestItem> {
+    fn into_ref(self) -> &'a TestItem {
         self.into_ref()
     }
 }
 
-impl<'a> IntoRef<'a> for tri_hash_map::RefMut<'a, TestEntry> {
-    fn into_ref(self) -> &'a TestEntry {
+impl<'a> IntoRef<'a> for tri_hash_map::RefMut<'a, TestItem> {
+    fn into_ref(self) -> &'a TestItem {
         self.into_ref()
     }
 }
 
-pub fn assert_iter_eq<M: TestEntryMap>(mut map: M, entries: Vec<&TestEntry>) {
-    let mut iter_entries = map.iter().collect::<Vec<_>>();
-    iter_entries.sort_by_key(|e| e.key1());
-    assert_eq!(iter_entries, entries, ".iter() entries match naive");
+pub fn assert_iter_eq<M: TestItemMap>(mut map: M, items: Vec<&TestItem>) {
+    let mut iter = map.iter().collect::<Vec<_>>();
+    iter.sort_by_key(|e| e.key1());
+    assert_eq!(iter, items, ".iter() items match naive ones");
 
-    let mut iter_mut_entries =
-        map.iter_mut().map(|v| v.into_ref()).collect::<Vec<_>>();
-    iter_mut_entries.sort_by_key(|e| e.key1());
-    assert_eq!(
-        iter_mut_entries, entries,
-        ".iter_mut() entries match naive ones"
-    );
+    let mut iter_mut = map.iter_mut().map(|v| v.into_ref()).collect::<Vec<_>>();
+    iter_mut.sort_by_key(|e| e.key1());
+    assert_eq!(iter_mut, items, ".iter_mut() items match naive ones");
 
-    let mut into_iter_entries = map.clone().into_iter().collect::<Vec<_>>();
-    into_iter_entries.sort_by_key(|e| e.key1());
-    assert_eq!(
-        into_iter_entries, entries,
-        ".into_iter() entries match naive ones"
-    );
+    let mut into_iter = map.clone().into_iter().collect::<Vec<_>>();
+    into_iter.sort_by_key(|e| e.key1());
+    assert_eq!(into_iter, items, ".into_iter() items match naive ones");
 }
 
-// Returns a pair of permutations of a set of unique entries (unique to a given
+// Returns a pair of permutations of a set of unique items (unique to a given
 // map).
-pub fn test_entry_permutation_strategy<M: TestEntryMap>(
+pub fn test_item_permutation_strategy<M: TestItemMap>(
     size: impl Into<SizeRange>,
-) -> impl Strategy<Value = (Vec<TestEntry>, Vec<TestEntry>)> {
-    prop::collection::vec(any::<TestEntry>(), size.into()).prop_perturb(
+) -> impl Strategy<Value = (Vec<TestItem>, Vec<TestItem>)> {
+    prop::collection::vec(any::<TestItem>(), size.into()).prop_perturb(
         |v, mut rng| {
             // It is possible (likely even) that the input vector has
             // duplicates. How can we remove them? The easiest way is to use
             // the logic that already exists to check for duplicates. Insert
-            // all the entries one by one, then get the list.
+            // all the items one by one, then get the list.
             let mut map = M::new();
-            for entry in v {
-                // The error case here is expected -- we're actively
-                // de-duping entries right now.
-                _ = map.insert_unique(entry);
+            for item in v {
+                // The error case here is expected -- we're actively de-duping
+                // items right now.
+                _ = map.insert_unique(item);
             }
             let set: Vec<_> = map.into_iter().collect();
 
-            // Now shuffle the entries. This is a simple Fisher-Yates
-            // shuffle (Durstenfeld variant, low to high).
+            // Now shuffle the items. This is a simple Fisher-Yates shuffle
+            // (Durstenfeld variant, low to high).
             let mut set2 = set.clone();
             if set.len() < 2 {
                 return (set, set2);

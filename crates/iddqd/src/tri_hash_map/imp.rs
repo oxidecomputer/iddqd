@@ -4,8 +4,8 @@
 
 use super::{tables::TriHashMapTables, IntoIter, Iter, IterMut, RefMut};
 use crate::{
-    errors::DuplicateEntry,
-    support::{entry_set::EntrySet, hash_table::MapHash},
+    errors::DuplicateItem,
+    support::{hash_table::MapHash, item_set::ItemSet},
     TriHashItem,
 };
 use derive_where::derive_where;
@@ -14,15 +14,15 @@ use std::{borrow::Borrow, collections::BTreeSet, hash::Hash};
 
 /// A 1:1:1 (trijective) map for three keys and a value.
 ///
-/// The storage mechanism is a fast hash table of integer indexes to entries,
-/// with these indexes stored in three hashmaps. This allows for efficient
-/// lookups by any of the three keys, while preventing duplicates.
+/// The storage mechanism is a fast hash table of integer indexes to items, with
+/// these indexes stored in three hashmaps. This allows for efficient lookups by
+/// any of the three keys, while preventing duplicates.
 #[derive_where(Default)]
 #[derive(Clone, Debug)]
 pub struct TriHashMap<T: TriHashItem> {
-    pub(super) entries: EntrySet<T>,
+    pub(super) items: ItemSet<T>,
     // Invariant: the values (usize) in these tables are valid indexes into
-    // `entries`, and are a 1:1 mapping.
+    // `items`, and are a 1:1 mapping.
     tables: TriHashMapTables,
 }
 
@@ -30,13 +30,13 @@ impl<T: TriHashItem> TriHashMap<T> {
     /// Creates a new, empty `TriHashMap`.
     #[inline]
     pub fn new() -> Self {
-        Self { entries: EntrySet::default(), tables: TriHashMapTables::new() }
+        Self { items: ItemSet::default(), tables: TriHashMapTables::new() }
     }
 
     /// Creates a new `TriHashMap` with the given capacity.
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
-            entries: EntrySet::with_capacity(capacity),
+            items: ItemSet::with_capacity(capacity),
             tables: TriHashMapTables::with_capacity(capacity),
         }
     }
@@ -44,25 +44,25 @@ impl<T: TriHashItem> TriHashMap<T> {
     /// Returns true if the map is empty.
     #[inline]
     pub fn is_empty(&self) -> bool {
-        self.entries.is_empty()
+        self.items.is_empty()
     }
 
-    /// Returns the number of entries in the map.
+    /// Returns the number of items in the map.
     #[inline]
     pub fn len(&self) -> usize {
-        self.entries.len()
+        self.items.len()
     }
 
-    /// Iterates over the entries in the map.
+    /// Iterates over the items in the map.
     #[inline]
     pub fn iter(&self) -> Iter<'_, T> {
-        Iter::new(&self.entries)
+        Iter::new(&self.items)
     }
 
-    /// Iterates over the entries in the map, allowing for mutation.
+    /// Iterates over the items in the map, allowing for mutation.
     #[inline]
     pub fn iter_mut(&mut self) -> IterMut<'_, T> {
-        IterMut::new(&self.tables, &mut self.entries)
+        IterMut::new(&self.tables, &mut self.items)
     }
 
     /// Checks general invariants of the map.
@@ -79,27 +79,27 @@ impl<T: TriHashItem> TriHashMap<T> {
     {
         use anyhow::Context;
 
-        self.tables.validate(self.entries.len(), compactness)?;
+        self.tables.validate(self.items.len(), compactness)?;
 
         // Check that the indexes are all correct.
-        for (&ix, entry) in self.entries.iter() {
-            let key1 = entry.key1();
-            let key2 = entry.key2();
-            let key3 = entry.key3();
+        for (&ix, item) in self.items.iter() {
+            let key1 = item.key1();
+            let key2 = item.key2();
+            let key3 = item.key3();
 
             let ix1 = self.find1_index(&key1).with_context(|| {
-                format!("entry at index {ix} has no key1 index")
+                format!("item at index {ix} has no key1 index")
             })?;
             let ix2 = self.find2_index(&key2).with_context(|| {
-                format!("entry at index {ix} has no key2 index")
+                format!("item at index {ix} has no key2 index")
             })?;
             let ix3 = self.find3_index(&key3).with_context(|| {
-                format!("entry at index {ix} has no key3 index")
+                format!("item at index {ix} has no key3 index")
             })?;
 
             if ix1 != ix || ix2 != ix || ix3 != ix {
                 return Err(anyhow::anyhow!(
-                    "entry at index {} has mismatched indexes: ix1: {}, ix2: {}, ix3: {}",
+                    "item at index {} has mismatched indexes: ix1: {}, ix2: {}, ix3: {}",
                     ix,
                     ix1,
                     ix2,
@@ -111,15 +111,15 @@ impl<T: TriHashItem> TriHashMap<T> {
         Ok(())
     }
 
-    /// Inserts a value into the map, removing any conflicting entries and
-    /// returning a list of those entries.
+    /// Inserts a value into the map, removing any conflicting items and
+    /// returning a list of those items.
     pub fn insert_overwrite(&mut self, value: T) -> Vec<T> {
         // Trying to write this function for maximal efficiency can get very
         // tricky, requiring delicate handling of indexes. We follow a very
         // simple approach instead:
         //
-        // 1. Remove entries corresponding to keys that are already in the map.
-        // 2. Add the entry to the map.
+        // 1. Remove items corresponding to keys that are already in the map.
+        // 2. Add the item to the map.
 
         let mut duplicates = Vec::new();
         duplicates.extend(self.remove1(value.key1()));
@@ -140,11 +140,11 @@ impl<T: TriHashItem> TriHashMap<T> {
     pub fn insert_unique(
         &mut self,
         value: T,
-    ) -> Result<(), DuplicateEntry<T, &T>> {
+    ) -> Result<(), DuplicateItem<T, &T>> {
         let mut duplicates = BTreeSet::new();
 
-        // Check for duplicates *before* inserting the new entry, because we
-        // don't want to partially insert the new entry and then have to roll
+        // Check for duplicates *before* inserting the new item, because we
+        // don't want to partially insert the new item and then have to roll
         // back.
         let (e1, e2, e3) = {
             let k1 = value.key1();
@@ -153,33 +153,33 @@ impl<T: TriHashItem> TriHashMap<T> {
 
             let e1 = detect_dup_or_insert(
                 self.tables
-                    .k1_to_entry
-                    .entry(k1, |index| self.entries[index].key1()),
+                    .k1_to_item
+                    .entry(k1, |index| self.items[index].key1()),
                 &mut duplicates,
             );
             let e2 = detect_dup_or_insert(
                 self.tables
-                    .k2_to_entry
-                    .entry(k2, |index| self.entries[index].key2()),
+                    .k2_to_item
+                    .entry(k2, |index| self.items[index].key2()),
                 &mut duplicates,
             );
             let e3 = detect_dup_or_insert(
                 self.tables
-                    .k3_to_entry
-                    .entry(k3, |index| self.entries[index].key3()),
+                    .k3_to_item
+                    .entry(k3, |index| self.items[index].key3()),
                 &mut duplicates,
             );
             (e1, e2, e3)
         };
 
         if !duplicates.is_empty() {
-            return Err(DuplicateEntry::__internal_new(
+            return Err(DuplicateItem::__internal_new(
                 value,
-                duplicates.iter().map(|ix| &self.entries[*ix]).collect(),
+                duplicates.iter().map(|ix| &self.items[*ix]).collect(),
             ));
         }
 
-        let next_index = self.entries.insert_at_next_index(value);
+        let next_index = self.items.insert_at_next_index(value);
         // e1, e2 and e3 are all Some because if they were None, duplicates
         // would be non-empty, and we'd have bailed out earlier.
         e1.unwrap().insert(next_index);
@@ -218,67 +218,67 @@ impl<T: TriHashItem> TriHashMap<T> {
         key1: T::K1<'_>,
     ) -> Option<RefMut<'a, T>> {
         let index = self.find1_index(&T::upcast_key1(key1))?;
-        let hashes = self.make_hashes(&self.entries[index]);
-        let entry = &mut self.entries[index];
-        Some(RefMut::new(hashes, entry))
+        let hashes = self.make_hashes(&self.items[index]);
+        let item = &mut self.items[index];
+        Some(RefMut::new(hashes, item))
     }
 
-    /// Removes an entry from the map by its `key1`.
+    /// Removes an item from the map by its `key1`.
     ///
     /// Due to borrow checker limitations, this always accepts `K1` rather than
     /// a borrowed form of it.
     pub fn remove1<'a>(&'a mut self, key1: T::K1<'_>) -> Option<T> {
         let Some(remove_index) = self.find1_index(&T::upcast_key1(key1)) else {
-            // The entry was not found.
+            // The item was not found.
             return None;
         };
 
         let value = self
-            .entries
+            .items
             .remove(remove_index)
-            .expect("entries missing key1 that was just retrieved");
+            .expect("items missing key1 that was just retrieved");
 
         // Remove the value from the tables.
-        let Ok(entry1) =
-            self.tables.k1_to_entry.find_entry(&value.key1(), |index| {
+        let Ok(item1) =
+            self.tables.k1_to_item.find_entry(&value.key1(), |index| {
                 if index == remove_index {
                     value.key1()
                 } else {
-                    self.entries[index].key1()
+                    self.items[index].key1()
                 }
             })
         else {
-            // The entry was not found.
-            panic!("we just looked this entry up");
+            // The item was not found.
+            panic!("we just looked this item up");
         };
-        let Ok(entry2) =
-            self.tables.k2_to_entry.find_entry(&value.key2(), |index| {
+        let Ok(item2) =
+            self.tables.k2_to_item.find_entry(&value.key2(), |index| {
                 if index == remove_index {
                     value.key2()
                 } else {
-                    self.entries[index].key2()
+                    self.items[index].key2()
                 }
             })
         else {
-            // The entry was not found.
+            // The item was not found.
             panic!("inconsistent indexes: key1 present, key2 absent");
         };
-        let Ok(entry3) =
-            self.tables.k3_to_entry.find_entry(&value.key3(), |index| {
+        let Ok(item3) =
+            self.tables.k3_to_item.find_entry(&value.key3(), |index| {
                 if index == remove_index {
                     value.key3()
                 } else {
-                    self.entries[index].key3()
+                    self.items[index].key3()
                 }
             })
         else {
-            // The entry was not found.
+            // The item was not found.
             panic!("inconsistent indexes: key1 present, key3 absent");
         };
 
-        entry1.remove();
-        entry2.remove();
-        entry3.remove();
+        item1.remove();
+        item2.remove();
+        item3.remove();
 
         Some(value)
     }
@@ -312,67 +312,67 @@ impl<T: TriHashItem> TriHashMap<T> {
         key2: T::K2<'_>,
     ) -> Option<RefMut<'a, T>> {
         let index = self.find2_index(&T::upcast_key2(key2))?;
-        let hashes = self.make_hashes(&self.entries[index]);
-        let entry = &mut self.entries[index];
-        Some(RefMut::new(hashes, entry))
+        let hashes = self.make_hashes(&self.items[index]);
+        let item = &mut self.items[index];
+        Some(RefMut::new(hashes, item))
     }
 
-    /// Removes an entry from the map by its `key2`.
+    /// Removes an item from the map by its `key2`.
     ///
     /// Due to borrow checker limitations, this always accepts `K1` rather than
     /// a borrowed form of it.
     pub fn remove2<'a>(&'a mut self, key2: T::K2<'_>) -> Option<T> {
         let Some(remove_index) = self.find2_index(&T::upcast_key2(key2)) else {
-            // The entry was not found.
+            // The item was not found.
             return None;
         };
 
         let value = self
-            .entries
+            .items
             .remove(remove_index)
-            .expect("entries missing key2 that was just retrieved");
+            .expect("items missing key2 that was just retrieved");
 
         // Remove the value from the tables.
-        let Ok(entry1) =
-            self.tables.k1_to_entry.find_entry(&value.key1(), |index| {
+        let Ok(item1) =
+            self.tables.k1_to_item.find_entry(&value.key1(), |index| {
                 if index == remove_index {
                     value.key1()
                 } else {
-                    self.entries[index].key1()
+                    self.items[index].key1()
                 }
             })
         else {
-            // The entry was not found.
+            // The item was not found.
             panic!("inconsistent indexes: key2 present, key1 absent");
         };
-        let Ok(entry2) =
-            self.tables.k2_to_entry.find_entry(&value.key2(), |index| {
+        let Ok(item2) =
+            self.tables.k2_to_item.find_entry(&value.key2(), |index| {
                 if index == remove_index {
                     value.key2()
                 } else {
-                    self.entries[index].key2()
+                    self.items[index].key2()
                 }
             })
         else {
-            // The entry was not found.
-            panic!("we just looked this entry up");
+            // The item was not found.
+            panic!("we just looked this item up");
         };
-        let Ok(entry3) =
-            self.tables.k3_to_entry.find_entry(&value.key3(), |index| {
+        let Ok(item3) =
+            self.tables.k3_to_item.find_entry(&value.key3(), |index| {
                 if index == remove_index {
                     value.key3()
                 } else {
-                    self.entries[index].key3()
+                    self.items[index].key3()
                 }
             })
         else {
-            // The entry was not found.
+            // The item was not found.
             panic!("inconsistent indexes: key2 present, key3 absent");
         };
 
-        entry1.remove();
-        entry2.remove();
-        entry3.remove();
+        item1.remove();
+        item2.remove();
+        item3.remove();
 
         Some(value)
     }
@@ -406,67 +406,67 @@ impl<T: TriHashItem> TriHashMap<T> {
         key3: T::K3<'_>,
     ) -> Option<RefMut<'a, T>> {
         let index = self.find3_index(&T::upcast_key3(key3))?;
-        let hashes = self.make_hashes(&self.entries[index]);
-        let entry = &mut self.entries[index];
-        Some(RefMut::new(hashes, entry))
+        let hashes = self.make_hashes(&self.items[index]);
+        let item = &mut self.items[index];
+        Some(RefMut::new(hashes, item))
     }
 
-    /// Removes an entry from the map by its `key3`.
+    /// Removes an item from the map by its `key3`.
     ///
     /// Due to borrow checker limitations, this always accepts `K1` rather than
     /// a borrowed form of it.
     pub fn remove3<'a>(&'a mut self, key3: T::K3<'_>) -> Option<T> {
         let Some(remove_index) = self.find3_index(&T::upcast_key3(key3)) else {
-            // The entry was not found.
+            // The item was not found.
             return None;
         };
 
         let value = self
-            .entries
+            .items
             .remove(remove_index)
-            .expect("entries missing key3 that was just retrieved");
+            .expect("items missing key3 that was just retrieved");
 
         // Remove the value from the tables.
-        let Ok(entry1) =
-            self.tables.k1_to_entry.find_entry(&value.key1(), |index| {
+        let Ok(item1) =
+            self.tables.k1_to_item.find_entry(&value.key1(), |index| {
                 if index == remove_index {
                     value.key1()
                 } else {
-                    self.entries[index].key1()
+                    self.items[index].key1()
                 }
             })
         else {
-            // The entry was not found.
+            // The item was not found.
             panic!("inconsistent indexes: key3 present, key1 absent");
         };
-        let Ok(entry2) =
-            self.tables.k2_to_entry.find_entry(&value.key2(), |index| {
+        let Ok(item2) =
+            self.tables.k2_to_item.find_entry(&value.key2(), |index| {
                 if index == remove_index {
                     value.key2()
                 } else {
-                    self.entries[index].key2()
+                    self.items[index].key2()
                 }
             })
         else {
-            // The entry was not found.
+            // The item was not found.
             panic!("inconsistent indexes: key3 present, key2 absent");
         };
-        let Ok(entry3) =
-            self.tables.k3_to_entry.find_entry(&value.key3(), |index| {
+        let Ok(item3) =
+            self.tables.k3_to_item.find_entry(&value.key3(), |index| {
                 if index == remove_index {
                     value.key3()
                 } else {
-                    self.entries[index].key3()
+                    self.items[index].key3()
                 }
             })
         else {
-            // The entry was not found.
-            panic!("we just looked this entry up");
+            // The item was not found.
+            panic!("we just looked this item up");
         };
 
-        entry1.remove();
-        entry2.remove();
-        entry3.remove();
+        item1.remove();
+        item2.remove();
+        item3.remove();
 
         Some(value)
     }
@@ -477,7 +477,7 @@ impl<T: TriHashItem> TriHashMap<T> {
         T: 'a,
         Q: Eq + Hash + ?Sized,
     {
-        self.find1_index(k).map(|ix| &self.entries[ix])
+        self.find1_index(k).map(|ix| &self.items[ix])
     }
 
     fn find1_index<'a, Q>(&'a self, k: &Q) -> Option<usize>
@@ -486,9 +486,7 @@ impl<T: TriHashItem> TriHashMap<T> {
         T: 'a,
         Q: Eq + Hash + ?Sized,
     {
-        self.tables
-            .k1_to_entry
-            .find_index(k, |index| self.entries[index].key1())
+        self.tables.k1_to_item.find_index(k, |index| self.items[index].key1())
     }
 
     fn find2<'a, Q>(&'a self, k: &Q) -> Option<&'a T>
@@ -497,7 +495,7 @@ impl<T: TriHashItem> TriHashMap<T> {
         T: 'a,
         Q: Eq + Hash + ?Sized,
     {
-        self.find2_index(k).map(|ix| &self.entries[ix])
+        self.find2_index(k).map(|ix| &self.items[ix])
     }
 
     fn find2_index<'a, Q>(&'a self, k: &Q) -> Option<usize>
@@ -506,9 +504,7 @@ impl<T: TriHashItem> TriHashMap<T> {
         T: 'a,
         Q: Eq + Hash + ?Sized,
     {
-        self.tables
-            .k2_to_entry
-            .find_index(k, |index| self.entries[index].key2())
+        self.tables.k2_to_item.find_index(k, |index| self.items[index].key2())
     }
 
     fn find3<'a, Q>(&'a self, k: &Q) -> Option<&'a T>
@@ -517,7 +513,7 @@ impl<T: TriHashItem> TriHashMap<T> {
         T: 'a,
         Q: Eq + Hash + ?Sized,
     {
-        self.find3_index(k).map(|ix| &self.entries[ix])
+        self.find3_index(k).map(|ix| &self.items[ix])
     }
 
     fn find3_index<'a, Q>(&'a self, k: &Q) -> Option<usize>
@@ -526,9 +522,7 @@ impl<T: TriHashItem> TriHashMap<T> {
         T: 'a,
         Q: Eq + Hash + ?Sized,
     {
-        self.tables
-            .k3_to_entry
-            .find_index(k, |index| self.entries[index].key3())
+        self.tables.k3_to_item.find_index(k, |index| self.items[index].key3())
     }
 
     fn make_hashes(&self, item: &T) -> [MapHash; 3] {
@@ -540,24 +534,24 @@ impl<T: TriHashItem + PartialEq> PartialEq for TriHashMap<T> {
     fn eq(&self, other: &Self) -> bool {
         // Implementing PartialEq for TriHashMap is tricky because TriHashMap is
         // not semantically like an IndexMap: two maps are equivalent even if
-        // their entries are in a different order. In other words, any
-        // permutation of entries is equivalent.
+        // their items are in a different order. In other words, any permutation
+        // of items is equivalent.
         //
-        // We also can't sort the entries because they're not necessarily Ord.
+        // We also can't sort the items because they're not necessarily Ord.
         //
         // So we write a custom equality check that checks that each key in one
-        // map points to the same entry as in the other map.
+        // map points to the same item as in the other map.
 
-        if self.entries.len() != other.entries.len() {
+        if self.items.len() != other.items.len() {
             return false;
         }
 
-        // Walk over all the entries in the first map and check that they point
-        // to the same entry in the second map.
-        for entry in self.entries.values() {
-            let k1 = entry.key1();
-            let k2 = entry.key2();
-            let k3 = entry.key3();
+        // Walk over all the items in the first map and check that they point to
+        // the same item in the second map.
+        for item in self.items.values() {
+            let k1 = item.key1();
+            let k2 = item.key2();
+            let k3 = item.key3();
 
             // Check that the indexes are the same in the other map.
             let Some(other_ix1) = other.find1_index(&k1) else {
@@ -572,17 +566,17 @@ impl<T: TriHashItem + PartialEq> PartialEq for TriHashMap<T> {
 
             if other_ix1 != other_ix2 || other_ix1 != other_ix3 {
                 // All the keys were present but they didn't point to the same
-                // entry.
+                // item.
                 return false;
             }
 
-            // Check that the other map's entry is the same as this map's
-            // entry. (This is what we use the `PartialEq` bound on T for.)
+            // Check that the other map's item is the same as this map's
+            // item. (This is what we use the `PartialEq` bound on T for.)
             //
             // Because we've checked that other_ix1, other_ix2 and other_ix3 are
-            // Some, we know that it is valid and points to the expected entry.
-            let other_entry = &other.entries[other_ix1];
-            if entry != other_entry {
+            // Some, we know that it is valid and points to the expected item.
+            let other_item = &other.items[other_ix1];
+            if item != other_item {
                 return false;
             }
         }
@@ -595,10 +589,10 @@ impl<T: TriHashItem + PartialEq> PartialEq for TriHashMap<T> {
 impl<T: TriHashItem + Eq> Eq for TriHashMap<T> {}
 
 fn detect_dup_or_insert<'a>(
-    entry: Entry<'a, usize>,
+    item: Entry<'a, usize>,
     duplicates: &mut BTreeSet<usize>,
 ) -> Option<VacantEntry<'a, usize>> {
-    match entry {
+    match item {
         Entry::Vacant(slot) => Some(slot),
         Entry::Occupied(slot) => {
             duplicates.insert(*slot.get());
@@ -633,17 +627,17 @@ impl<T: TriHashItem> IntoIterator for TriHashMap<T> {
 
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
-        IntoIter::new(self.entries)
+        IntoIter::new(self.items)
     }
 }
 
 /// The `FromIterator` implementation for `TriHashMap` overwrites duplicate
-/// entries.
+/// items.
 impl<T: TriHashItem> FromIterator<T> for TriHashMap<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let mut map = TriHashMap::new();
-        for entry in iter {
-            map.insert_overwrite(entry);
+        for item in iter {
+            map.insert_overwrite(item);
         }
         map
     }

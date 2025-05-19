@@ -7,23 +7,23 @@ use super::{
     IterMut, OccupiedEntry, RefMut, VacantEntry,
 };
 use crate::{
-    errors::DuplicateEntry,
-    support::{borrow::DormantMutRef, entry_set::EntrySet},
+    errors::DuplicateItem,
+    support::{borrow::DormantMutRef, item_set::ItemSet},
 };
 use derive_where::derive_where;
 use std::{borrow::Borrow, collections::BTreeSet};
 
 /// An ordered map where the keys are part of the values, based on a B-Tree.
 ///
-/// The storage mechanism is a fast hash table of integer indexes to entries,
-/// with these indexes stored in three b-tree maps. This allows for efficient
-/// lookups by any of the three keys, while preventing duplicates.
+/// The storage mechanism is a fast hash table of integer indexes to items, with
+/// these indexes stored in three b-tree maps. This allows for efficient lookups
+/// by any of the three keys, while preventing duplicates.
 #[derive_where(Default)]
 #[derive(Clone, Debug)]
 pub struct IdBTreeMap<T: IdOrdItem> {
-    pub(super) entries: EntrySet<T>,
+    pub(super) items: ItemSet<T>,
     // Invariant: the values (usize) in these tables are valid indexes into
-    // `entries`, and are a 1:1 mapping.
+    // `items`, and are a 1:1 mapping.
     tables: IdBTreeMapTables,
 }
 
@@ -31,7 +31,7 @@ impl<T: IdOrdItem> IdBTreeMap<T> {
     /// Creates a new, empty `IdBTreeMap`.
     #[inline]
     pub fn new() -> Self {
-        Self { entries: EntrySet::default(), tables: IdBTreeMapTables::new() }
+        Self { items: ItemSet::default(), tables: IdBTreeMapTables::new() }
     }
 
     /// Constructs a new `IdBTreeMap` from an iterator of values, rejecting
@@ -40,13 +40,13 @@ impl<T: IdOrdItem> IdBTreeMap<T> {
     /// To overwrite duplicates instead, use [`IdBTreeMap::from_iter`].
     pub fn from_iter_unique<I: IntoIterator<Item = T>>(
         iter: I,
-    ) -> Result<Self, DuplicateEntry<T>> {
+    ) -> Result<Self, DuplicateItem<T>> {
         let mut map = IdBTreeMap::new();
         for value in iter {
             match map.entry(value.key()) {
                 Entry::Occupied(entry) => {
                     let duplicate = entry.remove();
-                    return Err(DuplicateEntry::__internal_new(
+                    return Err(DuplicateItem::__internal_new(
                         value,
                         vec![duplicate],
                     ));
@@ -63,28 +63,28 @@ impl<T: IdOrdItem> IdBTreeMap<T> {
     /// Returns true if the map is empty.
     #[inline]
     pub fn is_empty(&self) -> bool {
-        self.entries.is_empty()
+        self.items.is_empty()
     }
 
-    /// Returns the number of entries in the map.
+    /// Returns the number of items in the map.
     #[inline]
     pub fn len(&self) -> usize {
-        self.entries.len()
+        self.items.len()
     }
 
-    /// Iterates over the entries in the map.
+    /// Iterates over the items in the map.
     #[inline]
     pub fn iter(&self) -> Iter<'_, T> {
-        Iter::new(&self.entries, &self.tables)
+        Iter::new(&self.items, &self.tables)
     }
 
-    /// Iterates over the entries in the map, allowing for mutation.
+    /// Iterates over the items in the map, allowing for mutation.
     #[inline]
     pub fn iter_mut(&mut self) -> IterMut<'_, T>
     where
         T: IdOrdItemMut,
     {
-        IterMut::new(&mut self.entries, &self.tables)
+        IterMut::new(&mut self.items, &self.tables)
     }
 
     /// Checks general invariants of the map.
@@ -102,19 +102,19 @@ impl<T: IdOrdItem> IdBTreeMap<T> {
     {
         use anyhow::Context;
 
-        self.tables.validate(self.entries.len(), compactness)?;
+        self.tables.validate(self.items.len(), compactness)?;
 
         // Check that the indexes are all correct.
-        for (&ix, entry) in self.entries.iter() {
-            let key = entry.key();
+        for (&ix, item) in self.items.iter() {
+            let key = item.key();
 
             let ix1 = self.find_index(&key).with_context(|| {
-                format!("entry at index {ix} has no key index")
+                format!("item at index {ix} has no key index")
             })?;
 
             if ix1 != ix {
                 return Err(anyhow::anyhow!(
-                    "entry at index {ix} has mismatched indexes: {} != {}",
+                    "item at index {ix} has mismatched indexes: {} != {}",
                     ix,
                     ix1,
                 ));
@@ -129,49 +129,49 @@ impl<T: IdOrdItem> IdBTreeMap<T> {
     pub fn insert_unique(
         &mut self,
         value: T,
-    ) -> Result<(), DuplicateEntry<T, &T>> {
+    ) -> Result<(), DuplicateItem<T, &T>> {
         let mut duplicates = BTreeSet::new();
 
-        // Check for duplicates *before* inserting the new entry, because we
-        // don't want to partially insert the new entry and then have to roll
+        // Check for duplicates *before* inserting the new item, because we
+        // don't want to partially insert the new item and then have to roll
         // back.
         let key = value.key();
 
         if let Some(index) = self
             .tables
-            .key_to_entry
-            .find_index(&key, |index| self.entries[index].key())
+            .key_to_item
+            .find_index(&key, |index| self.items[index].key())
         {
             duplicates.insert(index);
         }
 
         if !duplicates.is_empty() {
             drop(key);
-            return Err(DuplicateEntry::__internal_new(
+            return Err(DuplicateItem::__internal_new(
                 value,
-                duplicates.iter().map(|ix| &self.entries[*ix]).collect(),
+                duplicates.iter().map(|ix| &self.items[*ix]).collect(),
             ));
         }
 
-        let next_index = self.entries.next_index();
+        let next_index = self.items.next_index();
         self.tables
-            .key_to_entry
-            .insert(next_index, &key, |index| self.entries[index].key());
+            .key_to_item
+            .insert(next_index, &key, |index| self.items[index].key());
         drop(key);
-        self.entries.insert_at_next_index(value);
+        self.items.insert_at_next_index(value);
 
         Ok(())
     }
 
     /// Inserts a value into the map, removing and returning the conflicting
-    /// entry, if any.
+    /// item, if any.
     pub fn insert_overwrite(&mut self, value: T) -> Option<T> {
         // Trying to write this function for maximal efficiency can get very
         // tricky, requiring delicate handling of indexes. We follow a very
         // simple approach instead:
         //
-        // 1. Remove the entry corresponding to the key that are already in the map.
-        // 2. Add the entry to the map.
+        // 1. Remove the item corresponding to the key that are already in the map.
+        // 2. Add the item to the map.
 
         let duplicate = self.remove(value.key());
 
@@ -204,7 +204,7 @@ impl<T: IdOrdItem> IdBTreeMap<T> {
         self.find(key)
     }
 
-    /// Gets a mutable reference to the value associated with the given `key`.
+    /// Gets a mutable reference to the item associated with the given `key`.
     ///
     /// Due to borrow checker limitations, this always accepts `T::Key` rather
     /// than a borrowed form of it.
@@ -213,17 +213,17 @@ impl<T: IdOrdItem> IdBTreeMap<T> {
         T: IdOrdItemMut,
     {
         let index = self.find_index(&T::upcast_key(key))?;
-        let entry = &mut self.entries[index];
-        Some(RefMut::new(entry))
+        let item = &mut self.items[index];
+        Some(RefMut::new(item))
     }
 
-    /// Removes an entry from the map by its `key`.
+    /// Removes an item from the map by its `key`.
     ///
     /// Due to borrow checker limitations, this always accepts `T::Key` rather
     /// than a borrowed form of it.
     pub fn remove<'a>(&'a mut self, key: T::Key<'_>) -> Option<T> {
         let Some(remove_index) = self.find_index(&T::upcast_key(key)) else {
-            // The entry was not found.
+            // The item was not found.
             return None;
         };
 
@@ -239,8 +239,8 @@ impl<T: IdOrdItem> IdBTreeMap<T> {
             // that doesn't capture anything from map.
             let index: Option<usize> = map
                 .tables
-                .key_to_entry
-                .find_index(&key, |index| map.entries[index].key());
+                .key_to_item
+                .find_index(&key, |index| map.items[index].key());
             if let Some(index) = index {
                 drop(key);
                 return Entry::Occupied(
@@ -261,7 +261,7 @@ impl<T: IdOrdItem> IdBTreeMap<T> {
         T: 'a,
         Q: Ord + ?Sized,
     {
-        self.find_index(k).map(|ix| &self.entries[ix])
+        self.find_index(k).map(|ix| &self.items[ix])
     }
 
     fn find_index<'a, Q>(&'a self, k: &Q) -> Option<usize>
@@ -270,13 +270,11 @@ impl<T: IdOrdItem> IdBTreeMap<T> {
         T: 'a,
         Q: Ord + ?Sized,
     {
-        self.tables
-            .key_to_entry
-            .find_index(k, |index| self.entries[index].key())
+        self.tables.key_to_item.find_index(k, |index| self.items[index].key())
     }
 
     pub(super) fn get_by_index(&self, index: usize) -> Option<&T> {
-        self.entries.get(index)
+        self.items.get(index)
     }
 
     pub(super) fn get_by_index_mut(
@@ -286,55 +284,55 @@ impl<T: IdOrdItem> IdBTreeMap<T> {
     where
         T: IdOrdItemMut,
     {
-        self.entries.get_mut(index).map(RefMut::new)
+        self.items.get_mut(index).map(RefMut::new)
     }
 
     pub(super) fn insert_unique_impl(
         &mut self,
         value: T,
-    ) -> Result<usize, DuplicateEntry<T, &T>> {
+    ) -> Result<usize, DuplicateItem<T, &T>> {
         let mut duplicates = BTreeSet::new();
 
-        // Check for duplicates *before* inserting the new entry, because we
-        // don't want to partially insert the new entry and then have to roll
+        // Check for duplicates *before* inserting the new item, because we
+        // don't want to partially insert the new item and then have to roll
         // back.
         let key = value.key();
 
         if let Some(index) = self
             .tables
-            .key_to_entry
-            .find_index(&key, |index| self.entries[index].key())
+            .key_to_item
+            .find_index(&key, |index| self.items[index].key())
         {
             duplicates.insert(index);
         }
 
         if !duplicates.is_empty() {
             drop(key);
-            return Err(DuplicateEntry::__internal_new(
+            return Err(DuplicateItem::__internal_new(
                 value,
-                duplicates.iter().map(|ix| &self.entries[*ix]).collect(),
+                duplicates.iter().map(|ix| &self.items[*ix]).collect(),
             ));
         }
 
-        let next_index = self.entries.next_index();
+        let next_index = self.items.next_index();
         self.tables
-            .key_to_entry
-            .insert(next_index, &key, |index| self.entries[index].key());
+            .key_to_item
+            .insert(next_index, &key, |index| self.items[index].key());
         drop(key);
-        self.entries.insert_at_next_index(value);
+        self.items.insert_at_next_index(value);
 
         Ok(next_index)
     }
 
     pub(super) fn remove_by_index(&mut self, remove_index: usize) -> Option<T> {
-        let value = self.entries.remove(remove_index)?;
+        let value = self.items.remove(remove_index)?;
 
         // Remove the value from the table.
-        self.tables.key_to_entry.remove(remove_index, value.key(), |index| {
+        self.tables.key_to_item.remove(remove_index, value.key(), |index| {
             if index == remove_index {
                 value.key()
             } else {
-                self.entries[index].key()
+                self.items[index].key()
             }
         });
 
@@ -355,21 +353,21 @@ impl<T: IdOrdItem> IdBTreeMap<T> {
 
         // Now that we know the key is the same, we can replace the value
         // directly without needing to tweak any tables.
-        self.entries.replace(index, value)
+        self.items.replace(index, value)
     }
 }
 
 impl<T: IdOrdItem + PartialEq> PartialEq for IdBTreeMap<T> {
     fn eq(&self, other: &Self) -> bool {
-        // Entries are stored in sorted order, so we can just walk over both
+        // Items are stored in sorted order, so we can just walk over both
         // iterators.
-        if self.entries.len() != other.entries.len() {
+        if self.items.len() != other.items.len() {
             return false;
         }
 
-        self.iter().zip(other.iter()).all(|(entry1, entry2)| {
-            // Check that the entries are equal.
-            entry1 == entry2
+        self.iter().zip(other.iter()).all(|(item1, item2)| {
+            // Check that the items are equal.
+            item1 == item2
         })
     }
 }
@@ -403,12 +401,12 @@ impl<T: IdOrdItemMut> IntoIterator for IdBTreeMap<T> {
 
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
-        IntoIter::new(self.entries, self.tables)
+        IntoIter::new(self.items, self.tables)
     }
 }
 
 /// The `FromIterator` implementation for `IdBTreeMap` overwrites duplicate
-/// entries.
+/// items.
 ///
 /// To reject duplicates, use [`IdBTreeMap::from_iter_unique`].
 impl<T: IdOrdItem> FromIterator<T> for IdBTreeMap<T> {

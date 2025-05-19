@@ -4,5 +4,5 @@
 
 pub(crate) mod borrow;
 pub(crate) mod btree_table;
-pub(crate) mod entry_set;
 pub(crate) mod hash_table;
+pub(crate) mod item_set;
