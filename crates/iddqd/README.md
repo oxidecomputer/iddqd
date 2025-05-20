@@ -8,51 +8,87 @@
 [![Rust: ^1.83.0](https://img.shields.io/badge/rust-^1.83.0-93450a.svg?logo=rust)](https://doc.rust-lang.org/cargo/reference/manifest.html#the-rust-version-field)
 <!-- cargo-sync-rdme ]] -->
 <!-- cargo-sync-rdme rustdoc [[ -->
-Maps where the keys are part of the values.
+Maps where keys are borrowed from values.
 
-## Motivation
+This crate consists of several map types, collectively called **ID maps**:
 
-Consider a typical key-value map where the keys and values are associated
-with each other. For example:
+* [`IdBTreeMap`](https://docs.rs/iddqd/0.1.0/iddqd/id_btree_map/imp/struct.IdBTreeMap.html): A B-Tree based map where keys are borrowed from values.
+* [`IdHashMap`](https://docs.rs/iddqd/0.1.0/iddqd/id_hash_map/imp/struct.IdHashMap.html): A hash map where keys are borrowed from values.
+* [`TriHashMap`](https://docs.rs/iddqd/0.1.0/iddqd/tri_hash_map/imp/struct.TriHashMap.html): A hash map with three keys, borrowed from values.
+
+## Usage
+
+* Pick your ID map type.
+* Depending on the ID map type, implement [`IdOrdItem`](https://docs.rs/iddqd/0.1.0/iddqd/id_btree_map/trait_defs/trait.IdOrdItem.html), [`IdHashItem`](https://docs.rs/iddqd/0.1.0/iddqd/id_hash_map/trait_defs/trait.IdHashItem.html), or
+  [`TriHashItem`](https://docs.rs/iddqd/0.1.0/iddqd/tri_hash_map/trait_defs/trait.TriHashItem.html) for your value type.
+* Store values in the ID map type.
+
+### Features
+
+This crate was built out a practical need for map types, and addresses
+issues encountered using Rust’s default map types in practice at Oxide.
+
+* Keys are retrieved from values, not stored separately from them. Separate
+  storage has been a recurring pain point in our codebases: if keys are
+  duplicated within values, it’s proven to be hard to maintain consistency
+  between keys and values. This crate addresses that need.
+* Keys may be borrowed from values, which allows for more flexible
+  implementations. (They don’t have to be borrowed, but they can be.)
+* There’s no `insert` method; insertion must be through either
+  `insert_override` or `insert_unique`. You must pick an insertion
+  behavior.
+* The serde implementations reject duplicate keys.
+
+### Examples
+
+An example for [`IdBTreeMap`](https://docs.rs/iddqd/0.1.0/iddqd/id_btree_map/imp/struct.IdBTreeMap.html):
 
 ````rust
-use std::collections::HashMap;
+use iddqd::{IdBTreeMap, IdOrdItem, id_upcast};
 
-let map: HashMap<String, u32> = HashMap::new();
-````
-
-Now, it’s common to associate the keys and values with each other. One way
-to do this is to pass around tuples, for example `(&str, u32)`. But that’s
-inconvenient, so users may instead store structs where the value contains a
-duplicate copy of the key.
-
-````rust
-use std::collections::HashMap;
-
-struct MyStruct {
-    key: String,
-    value: u32,
+#[derive(Debug)]
+struct User {
+    name: String,
+    age: u8,
 }
 
-let mut map: HashMap<String, MyStruct> = HashMap::new();
+// Implement IdOrdItem so the map knows how to get the key from the value.
+impl IdOrdItem for User {
+    // The key type can borrow from the value.
+    type Key<'a> = &'a str;
 
-map.insert("foo".to_string(), MyStruct { key: "foo".to_string(), value: 42 });
+    fn key(&self) -> Self::Key<'_> {
+        &self.name
+    }
+
+    id_upcast!();
+}
+
+let mut users = IdBTreeMap::<User>::new();
+
+// You must pick an insertion behavior. insert_unique returns an error if
+// the key already exists.
+users.insert_unique(User { name: "Alice".to_string(), age: 30 }).unwrap();
+users.insert_unique(User { name: "Bob".to_string(), age: 35 }).unwrap();
+
+// Lookup by name:
+assert_eq!(users.get("Alice").unwrap().age, 30);
+assert_eq!(users.get("Bob").unwrap().age, 35);
+
+// Iterate over users:
+for user in &users {
+    println!("User {}: {}", user.name, user.age);
+}
 ````
 
-But there’s nothing here which enforces any kind of consistency between the
-key and the value:
+## Minimum supported Rust version (MSRV)
 
-````rust
-let mut map: HashMap<String, MyStruct> = HashMap::new();
+This crate’s MSRV is **Rust 1.83**. At any time, at least the last 6 months
+of stable Rust releases are supported.
 
-// This is allowed, but it violates internal consistency.
-map.insert("foo".to_string(), MyStruct { key: "bar".to_string(), value: 42 });
-````
+## Optional features
 
-That’s where this crate comes in. It provides map types where the keys are
-part of the values.
-
-**TODO**: show example here.
+* `serde`: Enables serde support for all ID map types. *Not enabled by default.*
 <!-- cargo-sync-rdme ]] -->
 
 ## License
