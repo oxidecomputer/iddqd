@@ -35,8 +35,8 @@ jobs:
       - name: Check for differences
         run: git diff --exit-code
     
-  build-and-test-msrv:
-    name: Build and test (MSRV)
+  build-and-test:
+    name: Build and test
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -61,3 +61,21 @@ jobs:
         run: just powerset nextest run
       - name: Doctests
         run: just powerset test --doc
+
+  miri:
+    name: Run tests on miri
+    runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly
+      - uses: Swatinem/rust-cache@23bce251a8cd2ffc3c1075eaa2367cf899916d84 # v2
+      - uses: taiki-e/install-action@cargo-hack
+      - uses: taiki-e/install-action@nextest
+      - name: Run tests
+        run: cargo +nightly miri nextest run
+      - name: Doctests
+        run: cargo +nightly miri test --doc

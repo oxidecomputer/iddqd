@@ -1,0 +1,3 @@
+[profile.default-miri]
+# proptests are too slow to be run through miri
+default-filter = "not test(proptest)"
