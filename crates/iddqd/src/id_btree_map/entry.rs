@@ -6,10 +6,9 @@ use super::{IdBTreeMap, IdOrdItem, IdOrdItemMut, RefMut};
 use crate::support::borrow::DormantMutRef;
 use debug_ignore::DebugIgnore;
 use derive_where::derive_where;
-use std::fmt;
 
 /// An implementation of the Entry API for [`IdBTreeMap`].
-#[derive_where(Debug; T: fmt::Debug)]
+#[derive_where(Debug)]
 pub enum Entry<'a, T: IdOrdItem> {
     /// A vacant entry.
     Vacant(VacantEntry<'a, T>),
