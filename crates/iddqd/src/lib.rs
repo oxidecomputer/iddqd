@@ -8,12 +8,13 @@
 //!
 //! - [`IdBTreeMap`]: A B-Tree based map where keys are borrowed from values.
 //! - [`IdHashMap`]: A hash map where keys are borrowed from values.
+//! - [`BiHashMap`]: A hash map with two keys, borrowed from values.
 //! - [`TriHashMap`]: A hash map with three keys, borrowed from values.
 //!
 //! # Usage
 //!
 //! * Pick your ID map type.
-//! * Depending on the ID map type, implement [`IdOrdItem`], [`IdHashItem`], or
+//! * Depending on the ID map type, implement [`IdOrdItem`], [`IdHashItem`], [`BiHashItem`], or
 //!   [`TriHashItem`] for your value type.
 //! * Store values in the ID map type.
 //!
@@ -144,6 +145,7 @@
 
 #![warn(missing_docs)]
 
+pub mod bi_hash_map;
 pub mod errors;
 pub mod id_btree_map;
 pub mod id_hash_map;
@@ -153,6 +155,7 @@ mod macros;
 mod support;
 pub mod tri_hash_map;
 
+pub use bi_hash_map::{imp::BiHashMap, trait_defs::BiHashItem};
 pub use id_btree_map::{
     imp::IdBTreeMap,
     trait_defs::{IdOrdItem, IdOrdItemMut},

@@ -1,0 +1,54 @@
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+
+use crate::{
+    internal::{ValidateCompact, ValidationError},
+    support::hash_table::{MapHash, MapHashTable},
+    BiHashItem,
+};
+
+#[derive(Clone, Debug, Default)]
+pub(super) struct BiHashMapTables {
+    pub(super) k1_to_item: MapHashTable,
+    pub(super) k2_to_item: MapHashTable,
+}
+
+impl BiHashMapTables {
+    pub(super) fn new() -> Self {
+        Self::default()
+    }
+
+    pub(super) fn with_capacity(capacity: usize) -> Self {
+        Self {
+            k1_to_item: MapHashTable::with_capacity(capacity),
+            k2_to_item: MapHashTable::with_capacity(capacity),
+        }
+    }
+
+    pub(super) fn validate(
+        &self,
+        expected_len: usize,
+        compactness: ValidateCompact,
+    ) -> Result<(), ValidationError> {
+        // Check that all the maps are of the right size.
+        self.k1_to_item.validate(expected_len, compactness).map_err(
+            |error| ValidationError::Table { name: "k1_to_table", error },
+        )?;
+        self.k2_to_item.validate(expected_len, compactness).map_err(
+            |error| ValidationError::Table { name: "k2_to_table", error },
+        )?;
+
+        Ok(())
+    }
+
+    pub(super) fn make_hashes<T: BiHashItem>(&self, item: &T) -> [MapHash; 2] {
+        let k1 = item.key1();
+        let k2 = item.key2();
+
+        let h1 = self.k1_to_item.compute_hash(k1);
+        let h2 = self.k2_to_item.compute_hash(k2);
+
+        [h1, h2]
+    }
+}

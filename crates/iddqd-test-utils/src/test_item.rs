@@ -3,11 +3,12 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use iddqd::{
+    bi_hash_map, bi_upcasts,
     errors::DuplicateItem,
     id_btree_map, id_hash_map, id_upcast,
     internal::{ValidateCompact, ValidationError},
-    tri_hash_map, tri_upcasts, IdBTreeMap, IdHashItem, IdHashMap, IdOrdItem,
-    IdOrdItemMut, TriHashItem, TriHashMap,
+    tri_hash_map, tri_upcasts, BiHashItem, BiHashMap, IdBTreeMap, IdHashItem,
+    IdHashMap, IdOrdItem, IdOrdItemMut, TriHashItem, TriHashMap,
 };
 use proptest::{prelude::*, sample::SizeRange};
 use test_strategy::Arbitrary;
@@ -66,6 +67,25 @@ impl IdOrdItemMut for TestItem {
     fn owned_key(&self) -> Self::OwnedKey {
         self.key1
     }
+}
+
+impl BiHashItem for TestItem {
+    // We use u8 since there can only be 256 values, increasing the
+    // likelihood of collisions in the proptest below.
+    type K1<'a> = u8;
+    // char is chosen because the Arbitrary impl for it is biased towards
+    // ASCII, increasing the likelihood of collisions.
+    type K2<'a> = char;
+
+    fn key1(&self) -> Self::K1<'_> {
+        self.key1
+    }
+
+    fn key2(&self) -> Self::K2<'_> {
+        self.key2
+    }
+
+    bi_upcasts!();
 }
 
 impl TriHashItem for TestItem {
@@ -128,6 +148,47 @@ pub trait TestItemMap: Clone {
     fn iter(&self) -> Self::Iter<'_>;
     fn iter_mut(&mut self) -> Self::IterMut<'_>;
     fn into_iter(self) -> Self::IntoIter;
+}
+
+impl TestItemMap for BiHashMap<TestItem> {
+    type RefMut<'a> = bi_hash_map::RefMut<'a, TestItem>;
+    type Iter<'a> = bi_hash_map::Iter<'a, TestItem>;
+    type IterMut<'a> = bi_hash_map::IterMut<'a, TestItem>;
+    type IntoIter = bi_hash_map::IntoIter<TestItem>;
+
+    fn map_kind() -> MapKind {
+        MapKind::Hash
+    }
+
+    fn new() -> Self {
+        BiHashMap::new()
+    }
+
+    fn validate(
+        &self,
+        compactness: ValidateCompact,
+    ) -> Result<(), ValidationError> {
+        self.validate(compactness)
+    }
+
+    fn insert_unique(
+        &mut self,
+        value: TestItem,
+    ) -> Result<(), DuplicateItem<TestItem, &TestItem>> {
+        self.insert_unique(value)
+    }
+
+    fn iter(&self) -> Self::Iter<'_> {
+        self.iter()
+    }
+
+    fn iter_mut(&mut self) -> Self::IterMut<'_> {
+        self.iter_mut()
+    }
+
+    fn into_iter(self) -> Self::IntoIter {
+        IntoIterator::into_iter(self)
+    }
 }
 
 impl TestItemMap for IdHashMap<TestItem> {
@@ -257,6 +318,12 @@ pub trait IntoRef<'a> {
     fn into_ref(self) -> &'a TestItem;
 }
 
+impl<'a> IntoRef<'a> for bi_hash_map::RefMut<'a, TestItem> {
+    fn into_ref(self) -> &'a TestItem {
+        self.into_ref()
+    }
+}
+
 impl<'a> IntoRef<'a> for id_hash_map::RefMut<'a, TestItem> {
     fn into_ref(self) -> &'a TestItem {
         self.into_ref()
@@ -277,15 +344,15 @@ impl<'a> IntoRef<'a> for tri_hash_map::RefMut<'a, TestItem> {
 
 pub fn assert_iter_eq<M: TestItemMap>(mut map: M, items: Vec<&TestItem>) {
     let mut iter = map.iter().collect::<Vec<_>>();
-    iter.sort_by_key(|e| e.key1());
+    iter.sort_by_key(|e| e.key1);
     assert_eq!(iter, items, ".iter() items match naive ones");
 
     let mut iter_mut = map.iter_mut().map(|v| v.into_ref()).collect::<Vec<_>>();
-    iter_mut.sort_by_key(|e| e.key1());
+    iter_mut.sort_by_key(|e| e.key1);
     assert_eq!(iter_mut, items, ".iter_mut() items match naive ones");
 
     let mut into_iter = map.clone().into_iter().collect::<Vec<_>>();
-    into_iter.sort_by_key(|e| e.key1());
+    into_iter.sort_by_key(|e| e.key1);
     assert_eq!(into_iter, items, ".into_iter() items match naive ones");
 }
 
