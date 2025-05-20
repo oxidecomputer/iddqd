@@ -71,7 +71,7 @@ impl<'a, T: BiHashItem> Iterator for IterMut<'a, T> {
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         let next = self.inner.next()?;
-        let hashes = self.tables.make_hashes(next);
+        let hashes = self.tables.make_hashes::<T>(&next.key1(), &next.key2());
         Some(RefMut::new(hashes, next))
     }
 }

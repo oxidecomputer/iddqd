@@ -364,7 +364,7 @@ fn get_mut_panics_if_key2_changes() {
 }
 
 #[test]
-#[should_panic = "key hashes do not match"]
+#[should_panic = "key1 hashes do not match"]
 fn insert_panics_for_non_matching_key1() {
     let v1 = TestItem {
         key1: 0,
@@ -381,14 +381,14 @@ fn insert_panics_for_non_matching_key1() {
         key3: "bar".to_owned(),
         value: "value".to_owned(),
     };
-    let entry = map.entry1(v2.key1());
+    let entry = map.entry(2, 'b');
     assert!(matches!(entry, Entry::Vacant(_)));
-    // Try inserting v1, which is present in the map.
-    entry.or_insert(v1);
+    // Try inserting v2 which matches v1's key2 but not key1.
+    entry.or_insert(v2);
 }
 
 #[test]
-#[should_panic = "key hashes do not match"]
+#[should_panic = "key2 hashes do not match"]
 fn insert_panics_for_non_matching_key2() {
     let v1 = TestItem {
         key1: 0,
@@ -405,15 +405,14 @@ fn insert_panics_for_non_matching_key2() {
         key3: "bar".to_owned(),
         value: "value".to_owned(),
     };
-    let entry = map.entry2(v2.key2());
+    let entry = map.entry(1, 'c');
     assert!(matches!(entry, Entry::Vacant(_)));
-    // Try inserting v1, which is present in the map.
-    entry.or_insert(v1);
+    // Try inserting v2 which matches v1's key1 but not key2.
+    entry.or_insert(v2);
 }
 
 #[test]
-#[should_panic = "key hashes do not match"]
-fn insert_entry_panics_for_non_matching_key1() {
+fn entry_insert_non_matching_key1() {
     let v1 = TestItem {
         key1: 0,
         key2: 'a',
@@ -424,24 +423,25 @@ fn insert_entry_panics_for_non_matching_key1() {
     map.insert_unique(v1.clone()).expect("insert_unique succeeded");
 
     let v2 = TestItem {
+        // key1 is different, key2 is the same.
         key1: 1,
-        key2: 'b',
+        key2: 'a',
         key3: "bar".to_owned(),
         value: "value".to_owned(),
     };
-    let entry = map.entry1(v2.key1());
-    assert!(matches!(entry, Entry::Vacant(_)));
+    let entry = map.entry(v2.key1(), v2.key2());
+    let Entry::Occupied(mut entry) = entry else {
+        panic!("expected OccupiedEntry");
+    };
     // Try inserting v1, which is present in the map.
-    if let Entry::Vacant(entry) = entry {
-        entry.insert_entry(v1);
-    } else {
-        panic!("expected VacantEntry");
-    }
+    assert!(!entry.is_unique(), "only key1 matches");
+    let old_items = entry.insert(v2);
+    assert_eq!(old_items, vec![v1]);
+    assert!(entry.is_unique(), "entry is now unique");
 }
 
 #[test]
-#[should_panic = "key hashes do not match"]
-fn insert_entry_panics_for_non_matching_key2() {
+fn entry_insert_non_matching_key2() {
     let v1 = TestItem {
         key1: 0,
         key2: 'a',
@@ -452,12 +452,43 @@ fn insert_entry_panics_for_non_matching_key2() {
     map.insert_unique(v1.clone()).expect("insert_unique succeeded");
 
     let v2 = TestItem {
+        // key1 is the same, key2 is different.
+        key1: 0,
+        key2: 'b',
+        key3: "bar".to_owned(),
+        value: "value".to_owned(),
+    };
+    let entry = map.entry(v2.key1(), v2.key2());
+    let Entry::Occupied(mut entry) = entry else {
+        panic!("expected OccupiedEntry");
+    };
+    // Try inserting v1, which is present in the map.
+    assert!(!entry.is_unique(), "only key1 matches");
+    let old_items = entry.insert(v2);
+    assert_eq!(old_items, vec![v1]);
+    assert!(entry.is_unique(), "entry is now unique");
+}
+
+#[test]
+#[should_panic = "key1 hashes do not match"]
+fn insert_entry_panics_for_non_matching_keys() {
+    let v1 = TestItem {
+        key1: 0,
+        key2: 'a',
+        key3: "foo".to_owned(),
+        value: "value".to_owned(),
+    };
+    let mut map = BiHashMap::new();
+    map.insert_unique(v1.clone()).expect("insert_unique succeeded");
+
+    let v2 = TestItem {
+        // Both keys are different.
         key1: 1,
         key2: 'b',
         key3: "bar".to_owned(),
         value: "value".to_owned(),
     };
-    let entry = map.entry2(v2.key2());
+    let entry = map.entry(v2.key1(), v2.key2());
     assert!(matches!(entry, Entry::Vacant(_)));
     // Try inserting v1, which is present in the map.
     if let Entry::Vacant(entry) = entry {

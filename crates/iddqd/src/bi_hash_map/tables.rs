@@ -42,10 +42,11 @@ impl BiHashMapTables {
         Ok(())
     }
 
-    pub(super) fn make_hashes<T: BiHashItem>(&self, item: &T) -> [MapHash; 2] {
-        let k1 = item.key1();
-        let k2 = item.key2();
-
+    pub(super) fn make_hashes<T: BiHashItem>(
+        &self,
+        k1: &T::K1<'_>,
+        k2: &T::K2<'_>,
+    ) -> [MapHash; 2] {
         let h1 = self.k1_to_item.compute_hash(k1);
         let h2 = self.k2_to_item.compute_hash(k2);
 

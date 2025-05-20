@@ -55,6 +55,13 @@ impl<'a, T: BiHashItem> RefMut<'a, T> {
         Self { inner: Some(RefMutInner { hashes, borrowed }) }
     }
 
+    /// Borrows self into a shorter-lived `RefMut`.
+    pub fn reborrow(&mut self) -> RefMut<'_, T> {
+        let inner = self.inner.take().unwrap();
+        let borrowed = &mut *inner.borrowed;
+        RefMut::new(inner.hashes, borrowed)
+    }
+
     /// Converts this `RefMut` into a `&'a T`.
     pub fn into_ref(mut self) -> &'a T {
         let inner = self.inner.take().unwrap();
@@ -104,7 +111,7 @@ impl<'a, T: BiHashItem> RefMutInner<'a, T> {
 
 impl<T: BiHashItem + fmt::Debug> fmt::Debug for RefMutInner<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("RefMut")
+        f.debug_struct("RefMutInner")
             .field("borrowed", self.borrowed)
             .finish_non_exhaustive()
     }

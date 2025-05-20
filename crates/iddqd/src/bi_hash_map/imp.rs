@@ -3,11 +3,13 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use super::{
-    entry::{EntryHash, EntryIndex},
+    entry::OccupiedEntryRef,
+    entry_indexes::{DisjointKeys, EntryIndexes},
     tables::BiHashMapTables,
     Entry, IntoIter, Iter, IterMut, OccupiedEntry, RefMut, VacantEntry,
 };
 use crate::{
+    bi_hash_map::entry::OccupiedEntryMut,
     errors::DuplicateItem,
     internal::ValidationError,
     support::{borrow::DormantMutRef, hash_table::MapHash, item_set::ItemSet},
@@ -193,32 +195,57 @@ impl<T: BiHashItem> BiHashMap<T> {
         self.remove_by_index(remove_index)
     }
 
-    /// Retrieves an entry by its `key1`.
-    pub fn entry1<'a>(&'a mut self, key1: T::K1<'_>) -> Entry<'a, T> {
+    /// Retrieves an entry by its keys.
+    pub fn entry<'a>(
+        &'a mut self,
+        key1: T::K1<'_>,
+        key2: T::K2<'_>,
+    ) -> Entry<'a, T> {
         let (map, dormant_map) = DormantMutRef::new(self);
-        let key = T::upcast_key1(key1);
-        {
-            // index is explicitly typed to show that it has a trivial Drop impl
-            // that doesn't capture anything from map.
-            let index: Option<usize> = map
+        let key1 = T::upcast_key1(key1);
+        let key2 = T::upcast_key2(key2);
+        let (index1, index2) = {
+            // index1 and index2 are explicitly typed to show that it has a
+            // trivial Drop impl that doesn't capture anything from map.
+            let index1: Option<usize> = map
                 .tables
                 .k1_to_item
-                .find_index(&key, |index| map.items[index].key1());
-            if let Some(index) = index {
-                drop(key);
-                return Entry::Occupied(
+                .find_index(&key1, |index| map.items[index].key1());
+            let index2: Option<usize> = map
+                .tables
+                .k2_to_item
+                .find_index(&key2, |index| map.items[index].key2());
+            (index1, index2)
+        };
+
+        match (index1, index2) {
+            (Some(index1), Some(index2)) if index1 == index2 => {
+                // The item is already in the map.
+                drop(key1);
+                Entry::Occupied(
                     // SAFETY: `map` is not used after this point.
                     unsafe {
-                        OccupiedEntry::new(dormant_map, EntryIndex::Key1(index))
+                        OccupiedEntry::new(
+                            dormant_map,
+                            EntryIndexes::Unique(index1),
+                        )
                     },
-                );
+                )
             }
+            (None, None) => {
+                let hashes = map.tables.make_hashes::<T>(&key1, &key2);
+                Entry::Vacant(
+                    // SAFETY: `map` is not used after this point.
+                    unsafe { VacantEntry::new(dormant_map, hashes) },
+                )
+            }
+            (index1, index2) => Entry::Occupied(unsafe {
+                OccupiedEntry::new(
+                    dormant_map,
+                    EntryIndexes::Multiple { index1, index2 },
+                )
+            }),
         }
-        let hash = map.make_key1_hash(&key);
-        Entry::Vacant(
-            // SAFETY: `map` is not used after this point.
-            unsafe { VacantEntry::new(dormant_map, hash) },
-        )
     }
 
     /// Returns true if the map contains the given `key2`.
@@ -268,34 +295,6 @@ impl<T: BiHashItem> BiHashMap<T> {
         self.remove_by_index(remove_index)
     }
 
-    /// Retrieves an entry by its `key2`.
-    pub fn entry2<'a>(&'a mut self, key2: T::K2<'_>) -> Entry<'a, T> {
-        let (map, dormant_map) = DormantMutRef::new(self);
-        let key = T::upcast_key2(key2);
-        {
-            // index is explicitly typed to show that it has a trivial Drop impl
-            // that doesn't capture anything from map.
-            let index: Option<usize> = map
-                .tables
-                .k2_to_item
-                .find_index(&key, |index| map.items[index].key2());
-            if let Some(index) = index {
-                drop(key);
-                return Entry::Occupied(
-                    // SAFETY: `map` is not used after this point.
-                    unsafe {
-                        OccupiedEntry::new(dormant_map, EntryIndex::Key2(index))
-                    },
-                );
-            }
-        }
-        let hash = map.make_key2_hash(&key);
-        Entry::Vacant(
-            // SAFETY: `map` is not used after this point.
-            unsafe { VacantEntry::new(dormant_map, hash) },
-        )
-    }
-
     fn find1<'a, Q>(&'a self, k: &Q) -> Option<&'a T>
     where
         T::K1<'a>: Borrow<Q>,
@@ -332,8 +331,70 @@ impl<T: BiHashItem> BiHashMap<T> {
         self.tables.k2_to_item.find_index(k, |index| self.items[index].key2())
     }
 
-    pub(super) fn get_by_index(&self, index: usize) -> Option<&T> {
-        self.items.get(index)
+    pub(super) fn get_by_entry_index(
+        &self,
+        indexes: EntryIndexes,
+    ) -> OccupiedEntryRef<'_, T> {
+        match indexes {
+            EntryIndexes::Unique(index) => OccupiedEntryRef::Unique(
+                self.items.get(index).expect("index is valid"),
+            ),
+            EntryIndexes::Multiple { index1, index2 } => {
+                let by_key1 = index1
+                    .map(|k| self.items.get(k).expect("key1 index is valid"));
+                let by_key2 = index2
+                    .map(|k| self.items.get(k).expect("key2 index is valid"));
+                OccupiedEntryRef::Multiple { by_key1, by_key2 }
+            }
+        }
+    }
+
+    pub(super) fn get_by_entry_index_mut(
+        &mut self,
+        indexes: EntryIndexes,
+    ) -> OccupiedEntryMut<'_, T> {
+        match indexes.disjoint_keys() {
+            DisjointKeys::Unique(index) => {
+                let item = self.items.get_mut(index).expect("index is valid");
+                let hashes =
+                    self.tables.make_hashes::<T>(&item.key1(), &item.key2());
+                OccupiedEntryMut::Unique(RefMut::new(hashes, item))
+            }
+            DisjointKeys::Key1(index1) => {
+                let item =
+                    self.items.get_mut(index1).expect("key1 index is valid");
+                let hashes =
+                    self.tables.make_hashes::<T>(&item.key1(), &item.key2());
+                OccupiedEntryMut::Multiple {
+                    by_key1: Some(RefMut::new(hashes, item)),
+                    by_key2: None,
+                }
+            }
+            DisjointKeys::Key2(index2) => {
+                let item =
+                    self.items.get_mut(index2).expect("key2 index is valid");
+                let hashes =
+                    self.tables.make_hashes::<T>(&item.key1(), &item.key2());
+                OccupiedEntryMut::Multiple {
+                    by_key1: None,
+                    by_key2: Some(RefMut::new(hashes, item)),
+                }
+            }
+            DisjointKeys::Key12(indexes) => {
+                let mut items = self.items.get_disjoint_mut(indexes);
+                let item1 = items[0].take().expect("key1 index is valid");
+                let item2 = items[1].take().expect("key2 index is valid");
+                let hashes1 =
+                    self.tables.make_hashes::<T>(&item1.key1(), &item1.key2());
+                let hashes2 =
+                    self.tables.make_hashes::<T>(&item2.key1(), &item2.key2());
+
+                OccupiedEntryMut::Multiple {
+                    by_key1: Some(RefMut::new(hashes1, item1)),
+                    by_key2: Some(RefMut::new(hashes2, item2)),
+                }
+            }
+        }
     }
 
     pub(super) fn get_by_index_mut(
@@ -341,7 +402,8 @@ impl<T: BiHashItem> BiHashMap<T> {
         index: usize,
     ) -> Option<RefMut<'_, T>> {
         let borrowed = self.items.get_mut(index)?;
-        let hashes = self.tables.make_hashes(borrowed);
+        let hashes =
+            self.tables.make_hashes::<T>(&borrowed.key1(), &borrowed.key2());
         let item = &mut self.items[index];
         Some(RefMut::new(hashes, item))
     }
@@ -390,6 +452,35 @@ impl<T: BiHashItem> BiHashMap<T> {
         Ok(next_index)
     }
 
+    pub(super) fn remove_by_entry_index(
+        &mut self,
+        indexes: EntryIndexes,
+    ) -> Vec<T> {
+        match indexes {
+            EntryIndexes::Unique(index) => {
+                // Since all keys match, we can simply replace the item.
+                let old_item =
+                    self.remove_by_index(index).expect("index is valid");
+                vec![old_item]
+            }
+            EntryIndexes::Multiple { index1, index2 } => {
+                let mut old_items = Vec::new();
+                if let Some(index1) = index1 {
+                    old_items.push(
+                        self.remove_by_index(index1).expect("index1 is valid"),
+                    );
+                }
+                if let Some(index2) = index2 {
+                    old_items.push(
+                        self.remove_by_index(index2).expect("index2 is valid"),
+                    );
+                }
+
+                old_items
+            }
+        }
+    }
+
     pub(super) fn remove_by_index(&mut self, remove_index: usize) -> Option<T> {
         let value = self.items.remove(remove_index)?;
 
@@ -425,65 +516,55 @@ impl<T: BiHashItem> BiHashMap<T> {
         Some(value)
     }
 
-    pub(super) fn replace_at_index(
+    pub(super) fn replace_at_indexes(
         &mut self,
-        index: EntryIndex,
+        indexes: EntryIndexes,
         value: T,
-    ) -> Vec<T> {
-        {
-            let key1 = value.key1();
-            let key2 = value.key2();
+    ) -> (usize, Vec<T>) {
+        match indexes {
+            EntryIndexes::Unique(index) => {
+                let old_item = &self.items[index];
+                if old_item.key1() != value.key1() {
+                    panic!("key1 mismatch");
+                }
+                if old_item.key2() != value.key2() {
+                    panic!("key2 mismatch");
+                }
 
-            // We check the key before removing it, to avoid leaving the map in an
-            // inconsistent state.
-            let old_item = self
-                .get_by_index(index.index())
-                .expect("index is known to be valid");
-            match index {
-                EntryIndex::Key1(_) => {
-                    if key1 != old_item.key1() {
-                        panic!("key1 does not match item at index");
+                // Since all keys match, we can simply replace the item.
+                let old_item = self.items.replace(index, value);
+                (index, vec![old_item])
+            }
+            EntryIndexes::Multiple { index1, index2 } => {
+                let mut old_items = Vec::new();
+                if let Some(index1) = index1 {
+                    let old_item = &self.items[index1];
+                    if old_item.key1() != value.key1() {
+                        panic!("key1 mismatch");
                     }
+                    old_items.push(self.remove_by_index(index1).unwrap());
                 }
-                EntryIndex::Key2(_) => {
-                    if key2 != old_item.key2() {
-                        panic!("key2 does not match item at index");
+                if let Some(index2) = index2 {
+                    let old_item = &self.items[index2];
+                    if old_item.key2() != value.key2() {
+                        panic!("key2 mismatch");
                     }
+                    old_items.push(self.remove_by_index(index2).unwrap());
                 }
+
+                // Insert the new item.
+                let Ok(next_index) = self.insert_unique_impl(value) else {
+                    unreachable!(
+                        "insert_unique cannot fail after removing duplicates"
+                    );
+                };
+                (next_index, old_items)
             }
         }
-
-        // Now that we know the key is the same, remove the value at index, but
-        // also any other items that conflict.
-        let mut old_items = Vec::new();
-        match index {
-            EntryIndex::Key1(_) => {
-                // Also remove by key2 if found.
-                old_items.extend(self.remove2(value.key2()));
-            }
-            EntryIndex::Key2(_) => {
-                // Also remove by key1 if found.
-                old_items.extend(self.remove1(value.key1()));
-            }
-        }
-
-        // Remove the item at the provided index after removing other items, so
-        // that `self.remove1` and `self.remove2` don't see an inconsistent
-        // state.
-        old_items.push(self.items.replace(index.index(), value));
-        old_items
-    }
-
-    fn make_key1_hash(&self, key: &T::K1<'_>) -> EntryHash {
-        EntryHash::Key1(self.tables.k1_to_item.compute_hash(key))
-    }
-
-    fn make_key2_hash(&self, key: &T::K2<'_>) -> EntryHash {
-        EntryHash::Key2(self.tables.k2_to_item.compute_hash(key))
     }
 
     fn make_hashes(&self, item: &T) -> [MapHash; 2] {
-        self.tables.make_hashes(item)
+        self.tables.make_hashes::<T>(&item.key1(), &item.key2())
     }
 }
 

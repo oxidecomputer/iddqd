@@ -80,6 +80,14 @@ impl<T> ItemSet<T> {
     }
 
     #[inline]
+    pub(crate) fn get_disjoint_mut<const N: usize>(
+        &mut self,
+        indexes: [&usize; N],
+    ) -> [Option<&mut T>; N] {
+        self.items.get_disjoint_mut(indexes)
+    }
+
+    #[inline]
     pub(crate) fn next_index(&self) -> usize {
         self.next_index
     }
