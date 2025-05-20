@@ -26,10 +26,10 @@ impl<'a, T: IdOrdItem> Entry<'a, T> {
     /// the key should be what was passed into [`IdBTreeMap::entry`], but that
     /// isn't checked in this API due to borrow checker limitations.)
     #[inline]
-    pub fn or_insert(self, default: T) -> &'a T {
+    pub fn or_insert_ref(self, default: T) -> &'a T {
         match self {
             Entry::Occupied(entry) => entry.into_ref(),
-            Entry::Vacant(entry) => entry.insert(default),
+            Entry::Vacant(entry) => entry.insert_ref(default),
         }
     }
 
@@ -42,13 +42,13 @@ impl<'a, T: IdOrdItem> Entry<'a, T> {
     /// the key should be what was passed into [`IdBTreeMap::entry`], but that
     /// isn't checked in this API due to borrow checker limitations.)
     #[inline]
-    pub fn or_insert_mut(self, default: T) -> RefMut<'a, T>
+    pub fn or_insert(self, default: T) -> RefMut<'a, T>
     where
         T: IdOrdItemMut,
     {
         match self {
             Entry::Occupied(entry) => entry.into_mut(),
-            Entry::Vacant(entry) => entry.insert_mut(default),
+            Entry::Vacant(entry) => entry.insert(default),
         }
     }
 
@@ -62,10 +62,10 @@ impl<'a, T: IdOrdItem> Entry<'a, T> {
     /// the key should be what was passed into [`IdBTreeMap::entry`], but that
     /// isn't checked in this API due to borrow checker limitations.)
     #[inline]
-    pub fn or_insert_with<F: FnOnce() -> T>(self, default: F) -> &'a T {
+    pub fn or_insert_with_ref<F: FnOnce() -> T>(self, default: F) -> &'a T {
         match self {
             Entry::Occupied(entry) => entry.into_ref(),
-            Entry::Vacant(entry) => entry.insert(default()),
+            Entry::Vacant(entry) => entry.insert_ref(default()),
         }
     }
 
@@ -79,16 +79,13 @@ impl<'a, T: IdOrdItem> Entry<'a, T> {
     /// the key should be what was passed into [`IdBTreeMap::entry`], but that
     /// isn't checked in this API due to borrow checker limitations.)
     #[inline]
-    pub fn or_insert_with_mut<F: FnOnce() -> T>(
-        self,
-        default: F,
-    ) -> RefMut<'a, T>
+    pub fn or_insert_with<F: FnOnce() -> T>(self, default: F) -> RefMut<'a, T>
     where
         T: IdOrdItemMut,
     {
         match self {
             Entry::Occupied(entry) => entry.into_mut(),
-            Entry::Vacant(entry) => entry.insert_mut(default()),
+            Entry::Vacant(entry) => entry.insert(default()),
         }
     }
 
@@ -129,7 +126,7 @@ impl<'a, T: IdOrdItem> VacantEntry<'a, T> {
     /// Panics if the key is already present in the map. (The intention is that
     /// the key should be what was passed into [`IdBTreeMap::entry`], but that
     /// isn't checked in this API due to borrow checker limitations.)
-    pub fn insert(self, value: T) -> &'a T {
+    pub fn insert_ref(self, value: T) -> &'a T {
         // SAFETY: The safety assumption behind `Self::new` guarantees that the
         // original reference to the map is not used at this point.
         let map = unsafe { self.map.0.awaken() };
@@ -141,7 +138,7 @@ impl<'a, T: IdOrdItem> VacantEntry<'a, T> {
 
     /// Sets the entry to a new value, returning a mutable reference to the
     /// value.
-    pub fn insert_mut(self, value: T) -> RefMut<'a, T>
+    pub fn insert(self, value: T) -> RefMut<'a, T>
     where
         T: IdOrdItemMut,
     {

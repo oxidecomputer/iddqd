@@ -53,7 +53,7 @@ impl<T: IdOrdItem> IdBTreeMap<T> {
                     ));
                 }
                 Entry::Vacant(entry) => {
-                    entry.insert(value);
+                    entry.insert_ref(value);
                 }
             }
         }

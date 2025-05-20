@@ -336,7 +336,31 @@ fn get_mut_panics_if_key_changes() {
 
 #[test]
 #[should_panic = "key already present in map"]
-fn insert_panics_for_present_key() {
+fn or_insert_ref_panics_for_present_key() {
+    let v1 = TestItem {
+        key1: 0,
+        key2: 'a',
+        key3: "foo".to_owned(),
+        value: "value".to_owned(),
+    };
+    let mut map = IdBTreeMap::new();
+    map.insert_unique(v1.clone()).expect("insert_unique succeeded");
+
+    let v2 = TestItem {
+        key1: 1,
+        key2: 'a',
+        key3: "bar".to_owned(),
+        value: "value".to_owned(),
+    };
+    let entry = map.entry(v2.key());
+    assert!(matches!(entry, Entry::Vacant(_)));
+    // Try inserting v1, which is present in the map.
+    entry.or_insert_ref(v1);
+}
+
+#[test]
+#[should_panic = "key already present in map"]
+fn or_insert_panics_for_present_key() {
     let v1 = TestItem {
         key1: 0,
         key2: 'a',
@@ -356,30 +380,6 @@ fn insert_panics_for_present_key() {
     assert!(matches!(entry, Entry::Vacant(_)));
     // Try inserting v1, which is present in the map.
     entry.or_insert(v1);
-}
-
-#[test]
-#[should_panic = "key already present in map"]
-fn insert_mut_panics_for_present_key() {
-    let v1 = TestItem {
-        key1: 0,
-        key2: 'a',
-        key3: "foo".to_owned(),
-        value: "value".to_owned(),
-    };
-    let mut map = IdBTreeMap::new();
-    map.insert_unique(v1.clone()).expect("insert_unique succeeded");
-
-    let v2 = TestItem {
-        key1: 1,
-        key2: 'a',
-        key3: "bar".to_owned(),
-        value: "value".to_owned(),
-    };
-    let entry = map.entry(v2.key());
-    assert!(matches!(entry, Entry::Vacant(_)));
-    // Try inserting v1, which is present in the map.
-    entry.or_insert_mut(v1);
 }
 
 #[test]

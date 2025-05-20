@@ -97,7 +97,7 @@ fn main() {
             }
             Entry::Vacant(entry) => {
                 // Insert a new item.
-                let item_ref = entry.insert(item);
+                let item_ref = entry.insert_ref(item);
                 println!("inserted: {:?}", item_ref);
             }
         }
