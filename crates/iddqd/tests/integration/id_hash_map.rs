@@ -330,6 +330,77 @@ fn get_mut_panics_if_key_changes() {
 }
 
 #[test]
+fn entry_examples() {
+    let mut map = IdHashMap::<TestItem>::new();
+    let item1 = TestItem {
+        key1: 0,
+        key2: 'a',
+        key3: "x".to_string(),
+        value: "v".to_string(),
+    };
+
+    let Entry::Vacant(entry) = map.entry(item1.key()) else {
+        panic!("expected VacantEntry")
+    };
+    let mut entry = entry.insert_entry(item1.clone());
+
+    assert_eq!(entry.get(), &item1);
+    assert_eq!(entry.get_mut().into_ref(), &item1);
+    assert_eq!(entry.into_ref(), &item1);
+
+    // Try looking up another item with the same key1.
+    let item2 = TestItem {
+        key1: 0,
+        key2: 'b',
+        key3: "y".to_string(),
+        value: "x".to_string(),
+    };
+
+    let Entry::Occupied(mut entry) = map.entry(item2.key()) else {
+        panic!("expected OccupiedEntry");
+    };
+    assert_eq!(entry.insert(item2.clone()), item1);
+
+    assert_eq!(entry.remove(), item2);
+
+    // Put item2 back in via the Entry API.
+    let item2_mut = map.entry(item2.key()).or_insert(item2.clone());
+    assert_eq!(item2_mut.into_ref(), &item2);
+
+    // Add another item using or_insert_with.
+    let item3 = TestItem {
+        key1: 1,
+        key2: 'b',
+        key3: "y".to_string(),
+        value: "x".to_string(),
+    };
+    let item3_mut = map.entry(item3.key()).or_insert_with(|| item3.clone());
+    assert_eq!(item3_mut.into_ref(), &item3);
+
+    // item4 is similar to item3 except with a different value.
+    let item4 = TestItem {
+        key1: 1,
+        key2: 'b',
+        key3: "y".to_string(),
+        value: "some-other-value".to_string(),
+    };
+    // item4 should *not* be inserted via this path.
+    let item3_mut = map.entry(item4.key()).or_insert(item4.clone());
+    assert_eq!(item3_mut.into_ref(), &item3);
+
+    // Similarly, item4 should *not* be inserted via the or_insert_with path.
+    let item3_mut = map
+        .entry(item4.key())
+        .or_insert_with(|| panic!("or_insert_with called for existing key"));
+    assert_eq!(item3_mut.into_ref(), &item3);
+
+    // The and_modify path should be called, however.
+    let mut and_modify_called = false;
+    map.entry(item4.key()).and_modify(|_| and_modify_called = true);
+    assert!(and_modify_called);
+}
+
+#[test]
 #[should_panic = "key hashes do not match"]
 fn insert_panics_for_non_matching_key() {
     let v1 = TestItem {

@@ -5,10 +5,10 @@
 use iddqd::{
     bi_hash_map, bi_upcasts,
     errors::DuplicateItem,
-    id_ord_map, id_hash_map, id_upcast,
+    id_hash_map, id_ord_map, id_upcast,
     internal::{ValidateCompact, ValidationError},
     tri_hash_map, tri_upcasts, BiHashItem, BiHashMap, IdHashItem, IdHashMap,
-    IdOrdItem, IdOrdItemMut, TriHashItem, TriHashMap, IdOrdMap,
+    IdOrdItem, IdOrdItemMut, IdOrdMap, TriHashItem, TriHashMap,
 };
 use proptest::{prelude::*, sample::SizeRange};
 use test_strategy::Arbitrary;
