@@ -63,18 +63,6 @@ impl<'a, T: BiHashItem> Entry<'a, T> {
             Entry::Vacant(entry) => Entry::Vacant(entry),
         }
     }
-
-    /// Sets the value of the entry, and returns an `OccupiedEntry`.
-    #[inline]
-    pub fn insert_entry(self, value: T) -> OccupiedEntry<'a, T> {
-        match self {
-            Entry::Occupied(mut entry) => {
-                entry.insert(value);
-                entry
-            }
-            Entry::Vacant(entry) => entry.insert_entry(value),
-        }
-    }
 }
 
 /// A vacant entry.

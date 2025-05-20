@@ -432,7 +432,11 @@ fn insert_entry_panics_for_non_matching_key1() {
     let entry = map.entry1(v2.key1());
     assert!(matches!(entry, Entry::Vacant(_)));
     // Try inserting v1, which is present in the map.
-    entry.insert_entry(v1);
+    if let Entry::Vacant(entry) = entry {
+        entry.insert_entry(v1);
+    } else {
+        panic!("expected VacantEntry");
+    }
 }
 
 #[test]
@@ -456,7 +460,11 @@ fn insert_entry_panics_for_non_matching_key2() {
     let entry = map.entry2(v2.key2());
     assert!(matches!(entry, Entry::Vacant(_)));
     // Try inserting v1, which is present in the map.
-    entry.insert_entry(v1);
+    if let Entry::Vacant(entry) = entry {
+        entry.insert_entry(v1);
+    } else {
+        panic!("expected VacantEntry");
+    }
 }
 
 #[cfg(feature = "serde")]

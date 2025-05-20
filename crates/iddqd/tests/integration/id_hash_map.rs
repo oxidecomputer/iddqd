@@ -374,7 +374,11 @@ fn insert_entry_panics_for_non_matching_key() {
     let entry = map.entry(v2.key());
     assert!(matches!(entry, Entry::Vacant(_)));
     // Try inserting v1, which is present in the map.
-    entry.insert_entry(v1);
+    if let Entry::Vacant(vacant_entry) = entry {
+        vacant_entry.insert_entry(v1);
+    } else {
+        panic!("expected VacantEntry");
+    }
 }
 
 #[cfg(feature = "serde")]
