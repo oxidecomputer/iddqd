@@ -4,6 +4,7 @@
 
 //! A wrapper around a hash table with some random state.
 
+use crate::internal::{TableValidationError, ValidateCompact};
 use hashbrown::{
     hash_table::{AbsentEntry, Entry, OccupiedEntry},
     HashTable,
@@ -34,17 +35,16 @@ impl MapHashTable {
     pub(crate) fn validate(
         &self,
         expected_len: usize,
-        compactness: crate::internal::ValidateCompact,
-    ) -> anyhow::Result<()> {
-        use crate::internal::ValidateCompact;
-        use anyhow::ensure;
+        compactness: ValidateCompact,
+    ) -> Result<(), TableValidationError> {
         use hashbrown::HashSet;
 
-        ensure!(
-            self.len() == expected_len,
-            "expected length {expected_len}, was {}",
-            self.len()
-        );
+        if self.len() != expected_len {
+            return Err(TableValidationError::new(format!(
+                "expected length {expected_len}, was {}",
+                self.len()
+            )));
+        }
 
         match compactness {
             ValidateCompact::Compact => {
@@ -53,23 +53,25 @@ impl MapHashTable {
                 let mut values: Vec<_> = self.items.iter().copied().collect();
                 values.sort_unstable();
                 for (i, value) in values.iter().enumerate() {
-                    ensure!(
-                        *value == i,
-                        "value at index {i} should be {i}, was {value}",
-                    );
+                    if *value != i {
+                        return Err(TableValidationError::new(format!(
+                            "expected value at index {i} to be {i}, was {value}"
+                        )));
+                    }
                 }
             }
             ValidateCompact::NonCompact => {
                 // There should be no duplicates.
                 let values: Vec<_> = self.items.iter().copied().collect();
                 let value_set: HashSet<_> = values.iter().copied().collect();
-                ensure!(
-                    value_set.len() == values.len(),
-                    "expected no duplicates, but found {} duplicates \
-                     (values: {:?})",
-                    values.len() - value_set.len(),
-                    values,
-                );
+                if value_set.len() != values.len() {
+                    return Err(TableValidationError::new(format!(
+                        "expected no duplicates, but found {} duplicates \
+                         (values: {:?})",
+                        values.len() - value_set.len(),
+                        values,
+                    )));
+                }
             }
         }
 

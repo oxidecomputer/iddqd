@@ -8,6 +8,7 @@ use super::{
 };
 use crate::{
     errors::DuplicateItem,
+    internal::{ValidateCompact, ValidationError},
     support::{borrow::DormantMutRef, item_set::ItemSet},
 };
 use derive_where::derive_where;
@@ -92,32 +93,26 @@ impl<T: IdOrdItem> IdBTreeMap<T> {
     /// The code below always upholds these invariants, but it's useful to have
     /// an explicit check for tests.
     #[doc(hidden)]
-    // TODO: replace anyhow
     pub fn validate(
         &self,
-        compactness: crate::internal::ValidateCompact,
-    ) -> anyhow::Result<()>
-    where
-        T: std::fmt::Debug,
-    {
-        use anyhow::Context;
-
+        compactness: ValidateCompact,
+    ) -> Result<(), ValidationError> {
         self.tables.validate(self.items.len(), compactness)?;
 
         // Check that the indexes are all correct.
         for (&ix, item) in self.items.iter() {
             let key = item.key();
-
-            let ix1 = self.find_index(&key).with_context(|| {
-                format!("item at index {ix} has no key index")
-            })?;
+            let Some(ix1) = self.find_index(&key) else {
+                return Err(ValidationError::general(format!(
+                    "item at index {ix} has no key1 index"
+                )));
+            };
 
             if ix1 != ix {
-                return Err(anyhow::anyhow!(
-                    "item at index {ix} has mismatched indexes: {} != {}",
-                    ix,
-                    ix1,
-                ));
+                return Err(ValidationError::General(format!(
+                    "item at index {} has mismatched indexes: ix1: {}",
+                    ix, ix1,
+                )));
             }
         }
 

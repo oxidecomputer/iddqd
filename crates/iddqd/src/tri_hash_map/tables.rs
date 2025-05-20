@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
+    internal::{ValidateCompact, ValidationError},
     support::hash_table::{MapHash, MapHashTable},
     TriHashItem,
 };
@@ -30,20 +31,18 @@ impl TriHashMapTables {
     pub(super) fn validate(
         &self,
         expected_len: usize,
-        compactness: crate::internal::ValidateCompact,
-    ) -> anyhow::Result<()> {
+        compactness: ValidateCompact,
+    ) -> Result<(), ValidationError> {
         // Check that all the maps are of the right size.
-
-        use anyhow::Context;
-        self.k1_to_item
-            .validate(expected_len, compactness)
-            .context("k1_to_item failed validation")?;
-        self.k2_to_item
-            .validate(expected_len, compactness)
-            .context("k2_to_item failed validation")?;
-        self.k3_to_item
-            .validate(expected_len, compactness)
-            .context("k3_to_item failed validation")?;
+        self.k1_to_item.validate(expected_len, compactness).map_err(
+            |error| ValidationError::Table { name: "k1_to_table", error },
+        )?;
+        self.k2_to_item.validate(expected_len, compactness).map_err(
+            |error| ValidationError::Table { name: "k2_to_table", error },
+        )?;
+        self.k3_to_item.validate(expected_len, compactness).map_err(
+            |error| ValidationError::Table { name: "k3_to_table", error },
+        )?;
 
         Ok(())
     }

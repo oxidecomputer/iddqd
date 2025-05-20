@@ -5,8 +5,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
-anyhow.workspace = true
-iddqd = { workspace = true }
+iddqd.workspace = true
 proptest.workspace = true
 serde = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }

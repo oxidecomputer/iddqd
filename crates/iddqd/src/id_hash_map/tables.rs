@@ -3,6 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{
+    internal::{ValidateCompact, ValidationError},
     support::hash_table::{MapHash, MapHashTable},
     IdHashItem,
 };
@@ -24,14 +25,11 @@ impl IdHashMapTables {
     pub(super) fn validate(
         &self,
         expected_len: usize,
-        compactness: crate::internal::ValidateCompact,
-    ) -> anyhow::Result<()> {
-        // Check that all the maps are of the right size.
-
-        use anyhow::Context;
-        self.key_to_item
-            .validate(expected_len, compactness)
-            .context("k1_to_item failed validation")?;
+        compactness: ValidateCompact,
+    ) -> Result<(), ValidationError> {
+        self.key_to_item.validate(expected_len, compactness).map_err(
+            |error| ValidationError::Table { name: "key_to_table", error },
+        )?;
 
         Ok(())
     }

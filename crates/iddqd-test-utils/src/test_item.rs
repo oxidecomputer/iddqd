@@ -3,9 +3,11 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use iddqd::{
-    errors::DuplicateItem, id_btree_map, id_hash_map, id_upcast,
-    internal::ValidateCompact, tri_hash_map, tri_upcasts, IdBTreeMap,
-    IdHashItem, IdHashMap, IdOrdItem, IdOrdItemMut, TriHashItem, TriHashMap,
+    errors::DuplicateItem,
+    id_btree_map, id_hash_map, id_upcast,
+    internal::{ValidateCompact, ValidationError},
+    tri_hash_map, tri_upcasts, IdBTreeMap, IdHashItem, IdHashMap, IdOrdItem,
+    IdOrdItemMut, TriHashItem, TriHashMap,
 };
 use proptest::{prelude::*, sample::SizeRange};
 use test_strategy::Arbitrary;
@@ -115,7 +117,10 @@ pub trait TestItemMap: Clone {
 
     fn map_kind() -> MapKind;
     fn new() -> Self;
-    fn validate(&self, compactness: ValidateCompact) -> anyhow::Result<()>;
+    fn validate(
+        &self,
+        compactness: ValidateCompact,
+    ) -> Result<(), ValidationError>;
     fn insert_unique(
         &mut self,
         value: TestItem,
@@ -139,7 +144,10 @@ impl TestItemMap for IdHashMap<TestItem> {
         IdHashMap::new()
     }
 
-    fn validate(&self, compactness: ValidateCompact) -> anyhow::Result<()> {
+    fn validate(
+        &self,
+        compactness: ValidateCompact,
+    ) -> Result<(), ValidationError> {
         self.validate(compactness)
     }
 
@@ -177,7 +185,10 @@ impl TestItemMap for IdBTreeMap<TestItem> {
         IdBTreeMap::new()
     }
 
-    fn validate(&self, compactness: ValidateCompact) -> anyhow::Result<()> {
+    fn validate(
+        &self,
+        compactness: ValidateCompact,
+    ) -> Result<(), ValidationError> {
         self.validate(compactness)
     }
 
@@ -215,7 +226,10 @@ impl TestItemMap for TriHashMap<TestItem> {
         TriHashMap::new()
     }
 
-    fn validate(&self, compactness: ValidateCompact) -> anyhow::Result<()> {
+    fn validate(
+        &self,
+        compactness: ValidateCompact,
+    ) -> Result<(), ValidationError> {
         self.validate(compactness)
     }
 

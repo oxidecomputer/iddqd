@@ -6,7 +6,6 @@ license.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-anyhow.workspace = true
 daft.workspace = true
 debug-ignore.workspace = true
 derive-where.workspace = true

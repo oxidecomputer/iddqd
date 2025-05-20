@@ -8,6 +8,7 @@ use super::{
 };
 use crate::{
     errors::DuplicateItem,
+    internal::{ValidateCompact, ValidationError},
     support::{borrow::DormantMutRef, hash_table::MapHash, item_set::ItemSet},
 };
 use derive_where::derive_where;
@@ -68,28 +69,27 @@ impl<T: IdHashItem> IdHashMap<T> {
     #[doc(hidden)]
     pub fn validate(
         &self,
-        compactness: crate::internal::ValidateCompact,
-    ) -> anyhow::Result<()>
+        compactness: ValidateCompact,
+    ) -> Result<(), ValidationError>
     where
         T: std::fmt::Debug,
     {
-        use anyhow::Context;
-
         self.tables.validate(self.items.len(), compactness)?;
 
         // Check that the indexes are all correct.
         for (&ix, item) in self.items.iter() {
             let key = item.key();
-            let ix1 = self.find_index(&key).with_context(|| {
-                format!("item at index {ix} has no key1 index")
-            })?;
+            let Some(ix1) = self.find_index(&key) else {
+                return Err(ValidationError::general(format!(
+                    "item at index {ix} has no key1 index"
+                )));
+            };
 
             if ix1 != ix {
-                return Err(anyhow::anyhow!(
+                return Err(ValidationError::General(format!(
                     "item at index {} has mismatched indexes: ix1: {}",
-                    ix,
-                    ix1,
-                ));
+                    ix, ix1,
+                )));
             }
         }
 

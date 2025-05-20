@@ -2,7 +2,10 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::support::btree_table::MapBTreeTable;
+use crate::{
+    internal::{ValidateCompact, ValidationError},
+    support::btree_table::MapBTreeTable,
+};
 
 #[derive(Clone, Debug, Default)]
 pub(super) struct IdBTreeMapTables {
@@ -18,14 +21,11 @@ impl IdBTreeMapTables {
     pub(super) fn validate(
         &self,
         expected_len: usize,
-        compactness: crate::internal::ValidateCompact,
-    ) -> anyhow::Result<()> {
-        // Check that all the maps are of the right size.
-        use anyhow::Context;
-
-        self.key_to_item
-            .validate(expected_len, compactness)
-            .context("key_to_item failed validation")?;
+        compactness: ValidateCompact,
+    ) -> Result<(), ValidationError> {
+        self.key_to_item.validate(expected_len, compactness).map_err(
+            |error| ValidationError::Table { name: "key_to_item", error },
+        )?;
 
         Ok(())
     }

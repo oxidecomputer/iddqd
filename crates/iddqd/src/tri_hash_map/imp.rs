@@ -5,6 +5,7 @@
 use super::{tables::TriHashMapTables, IntoIter, Iter, IterMut, RefMut};
 use crate::{
     errors::DuplicateItem,
+    internal::ValidationError,
     support::{hash_table::MapHash, item_set::ItemSet},
     TriHashItem,
 };
@@ -73,12 +74,10 @@ impl<T: TriHashItem> TriHashMap<T> {
     pub fn validate(
         &self,
         compactness: crate::internal::ValidateCompact,
-    ) -> anyhow::Result<()>
+    ) -> Result<(), ValidationError>
     where
         T: std::fmt::Debug,
     {
-        use anyhow::Context;
-
         self.tables.validate(self.items.len(), compactness)?;
 
         // Check that the indexes are all correct.
@@ -87,24 +86,30 @@ impl<T: TriHashItem> TriHashMap<T> {
             let key2 = item.key2();
             let key3 = item.key3();
 
-            let ix1 = self.find1_index(&key1).with_context(|| {
-                format!("item at index {ix} has no key1 index")
-            })?;
-            let ix2 = self.find2_index(&key2).with_context(|| {
-                format!("item at index {ix} has no key2 index")
-            })?;
-            let ix3 = self.find3_index(&key3).with_context(|| {
-                format!("item at index {ix} has no key3 index")
-            })?;
+            let Some(ix1) = self.find1_index(&key1) else {
+                return Err(ValidationError::general(format!(
+                    "item at index {} has no key1 index",
+                    ix
+                )));
+            };
+            let Some(ix2) = self.find2_index(&key2) else {
+                return Err(ValidationError::general(format!(
+                    "item at index {} has no key2 index",
+                    ix
+                )));
+            };
+            let Some(ix3) = self.find3_index(&key3) else {
+                return Err(ValidationError::general(format!(
+                    "item at index {} has no key3 index",
+                    ix
+                )));
+            };
 
             if ix1 != ix || ix2 != ix || ix3 != ix {
-                return Err(anyhow::anyhow!(
-                    "item at index {} has mismatched indexes: ix1: {}, ix2: {}, ix3: {}",
-                    ix,
-                    ix1,
-                    ix2,
-                    ix3
-                ));
+                return Err(ValidationError::general(format!(
+                    "item at index {} has inconsistent indexes: {}/{}/{}",
+                    ix, ix1, ix2, ix3
+                )));
             }
         }
 

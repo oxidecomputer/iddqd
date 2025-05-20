@@ -8,6 +8,7 @@
 //! integers (that are indexes corresponding to items), but use an external
 //! comparator.
 
+use crate::internal::{TableValidationError, ValidateCompact};
 use std::{
     borrow::Borrow,
     cell::Cell,
@@ -37,16 +38,14 @@ impl MapBTreeTable {
     pub(crate) fn validate(
         &self,
         expected_len: usize,
-        compactness: crate::internal::ValidateCompact,
-    ) -> anyhow::Result<()> {
-        use crate::internal::ValidateCompact;
-        use anyhow::{bail, ensure};
-
-        ensure!(
-            self.len() == expected_len,
-            "expected length {expected_len}, was {}",
-            self.len()
-        );
+        compactness: ValidateCompact,
+    ) -> Result<(), TableValidationError> {
+        if self.len() != expected_len {
+            return Err(TableValidationError::new(format!(
+                "expected length {expected_len}, was {}",
+                self.len(),
+            )));
+        }
 
         match compactness {
             ValidateCompact::Compact => {
@@ -57,7 +56,9 @@ impl MapBTreeTable {
                 for index in &self.items {
                     match index.0 {
                         Index::SENTINEL_VALUE => {
-                            bail!("index should not be used in path");
+                            return Err(TableValidationError::new(
+                                "sentinel value should not be stored in map",
+                            ));
                         }
                         v => {
                             indexes.push(v);
@@ -66,10 +67,11 @@ impl MapBTreeTable {
                 }
                 indexes.sort_unstable();
                 for (i, index) in indexes.iter().enumerate() {
-                    ensure!(
-                        *index == i,
-                        "value at index {i} should be {i}, was {index}",
-                    );
+                    if *index != i {
+                        return Err(TableValidationError::new(format!(
+                            "value at index {i} should be {i}, was {index}",
+                        )));
+                    }
                 }
             }
             ValidateCompact::NonCompact => {
@@ -78,18 +80,19 @@ impl MapBTreeTable {
                 let indexes: Vec<_> = self.items.iter().copied().collect();
                 let index_set: BTreeSet<usize> =
                     indexes.iter().map(|ix| ix.0).collect();
-                ensure!(
-                    index_set.len() == indexes.len(),
-                    "expected no duplicates, but found {} duplicates \
-                     (values: {:?})",
-                    indexes.len() - index_set.len(),
-                    indexes,
-                );
-                ensure!(
-                    !index_set.contains(&Index::SENTINEL_VALUE),
-                    "expected sentinel value to be absent from the set, \
-                     but found it"
-                );
+                if index_set.len() != indexes.len() {
+                    return Err(TableValidationError::new(format!(
+                        "expected no duplicates, but found {} duplicates \
+                         (values: {:?})",
+                        indexes.len() - index_set.len(),
+                        indexes,
+                    )));
+                }
+                if index_set.contains(&Index::SENTINEL_VALUE) {
+                    return Err(TableValidationError::new(
+                        "sentinel value should not be stored in map",
+                    ));
+                }
             }
         }
 
