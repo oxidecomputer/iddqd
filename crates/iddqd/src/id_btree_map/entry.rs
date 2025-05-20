@@ -9,7 +9,7 @@ use derive_where::derive_where;
 use std::fmt;
 
 /// An implementation of the Entry API for [`IdBTreeMap`].
-#[derive_where(Debug; T: fmt::Debug, for<'k> T::Key<'k>: fmt::Debug)]
+#[derive_where(Debug; T: fmt::Debug)]
 pub enum Entry<'a, T: IdOrdItem> {
     /// A vacant entry.
     Vacant(VacantEntry<'a, T>),
@@ -124,7 +124,7 @@ impl<'a, T: IdOrdItem> Entry<'a, T> {
 }
 
 /// A vacant entry.
-#[derive_where(Debug; for<'k> T::Key<'k>: fmt::Debug)]
+#[derive_where(Debug)]
 pub struct VacantEntry<'a, T: IdOrdItem> {
     map: DebugIgnore<DormantMutRef<'a, IdBTreeMap<T>>>,
 }
