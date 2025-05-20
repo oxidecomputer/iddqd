@@ -2,7 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use iddqd::{internal::ValidateCompact, TriHashItem, TriHashMap};
+use iddqd::{
+    internal::ValidateCompact, tri_hash_map::RefMut, TriHashItem, TriHashMap,
+};
 use iddqd_test_utils::{
     eq_props::{assert_eq_props, assert_ne_props},
     naive_map::NaiveMap,
@@ -68,6 +70,16 @@ fn test_insert_unique() {
         value: "v".to_string(),
     };
     map.insert_unique(v5.clone()).unwrap();
+
+    // Iterate over the items mutably. This ensures that miri detects UB if it
+    // exists.
+    let mut items: Vec<RefMut<_>> = map.iter_mut().collect();
+    items.sort_by_key(|e| e.key1());
+    let e1 = &*items[0];
+    assert_eq!(*e1, v1);
+
+    let e2 = &*items[1];
+    assert_eq!(*e2, v5);
 }
 
 // Example-based test for insert_overwrite.
