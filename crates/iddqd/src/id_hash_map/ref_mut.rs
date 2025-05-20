@@ -100,10 +100,10 @@ impl<'a, T: IdHashItem> RefMutInner<'a, T> {
     }
 }
 
-impl<T: IdHashItem + fmt::Debug> fmt::Debug for RefMut<'_, T> {
+impl<T: IdHashItem + fmt::Debug> fmt::Debug for RefMutInner<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("RefMut")
-            .field("borrowed", &self.inner.as_ref().unwrap().borrowed)
+        f.debug_struct("RefMutInner")
+            .field("borrowed", self.borrowed)
             .finish_non_exhaustive()
     }
 }

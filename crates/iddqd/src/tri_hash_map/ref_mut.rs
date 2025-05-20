@@ -108,7 +108,7 @@ impl<'a, T: TriHashItem> RefMutInner<'a, T> {
 impl<T: TriHashItem + fmt::Debug> fmt::Debug for RefMutInner<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("RefMutInner")
-            .field("borrowed", &self.borrowed)
+            .field("borrowed", self.borrowed)
             .finish_non_exhaustive()
     }
 }
