@@ -3,7 +3,9 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use iddqd::{
-    bi_hash_map::RefMut, internal::ValidateCompact, BiHashItem, BiHashMap,
+    bi_hash_map::{Entry, RefMut},
+    internal::ValidateCompact,
+    BiHashItem, BiHashMap,
 };
 use iddqd_test_utils::{
     eq_props::{assert_eq_props, assert_ne_props},
@@ -359,6 +361,102 @@ fn get_mut_panics_if_key2_changes() {
     })
     .unwrap();
     map.get1_mut(128).unwrap().key2 = 'c';
+}
+
+#[test]
+#[should_panic = "key hashes do not match"]
+fn insert_panics_for_non_matching_key1() {
+    let v1 = TestItem {
+        key1: 0,
+        key2: 'a',
+        key3: "foo".to_owned(),
+        value: "value".to_owned(),
+    };
+    let mut map = BiHashMap::new();
+    map.insert_unique(v1.clone()).expect("insert_unique succeeded");
+
+    let v2 = TestItem {
+        key1: 1,
+        key2: 'b',
+        key3: "bar".to_owned(),
+        value: "value".to_owned(),
+    };
+    let entry = map.entry1(v2.key1());
+    assert!(matches!(entry, Entry::Vacant(_)));
+    // Try inserting v1, which is present in the map.
+    entry.or_insert(v1);
+}
+
+#[test]
+#[should_panic = "key hashes do not match"]
+fn insert_panics_for_non_matching_key2() {
+    let v1 = TestItem {
+        key1: 0,
+        key2: 'a',
+        key3: "foo".to_owned(),
+        value: "value".to_owned(),
+    };
+    let mut map = BiHashMap::new();
+    map.insert_unique(v1.clone()).expect("insert_unique succeeded");
+
+    let v2 = TestItem {
+        key1: 1,
+        key2: 'b',
+        key3: "bar".to_owned(),
+        value: "value".to_owned(),
+    };
+    let entry = map.entry2(v2.key2());
+    assert!(matches!(entry, Entry::Vacant(_)));
+    // Try inserting v1, which is present in the map.
+    entry.or_insert(v1);
+}
+
+#[test]
+#[should_panic = "key hashes do not match"]
+fn insert_entry_panics_for_non_matching_key1() {
+    let v1 = TestItem {
+        key1: 0,
+        key2: 'a',
+        key3: "foo".to_owned(),
+        value: "value".to_owned(),
+    };
+    let mut map = BiHashMap::new();
+    map.insert_unique(v1.clone()).expect("insert_unique succeeded");
+
+    let v2 = TestItem {
+        key1: 1,
+        key2: 'b',
+        key3: "bar".to_owned(),
+        value: "value".to_owned(),
+    };
+    let entry = map.entry1(v2.key1());
+    assert!(matches!(entry, Entry::Vacant(_)));
+    // Try inserting v1, which is present in the map.
+    entry.insert_entry(v1);
+}
+
+#[test]
+#[should_panic = "key hashes do not match"]
+fn insert_entry_panics_for_non_matching_key2() {
+    let v1 = TestItem {
+        key1: 0,
+        key2: 'a',
+        key3: "foo".to_owned(),
+        value: "value".to_owned(),
+    };
+    let mut map = BiHashMap::new();
+    map.insert_unique(v1.clone()).expect("insert_unique succeeded");
+
+    let v2 = TestItem {
+        key1: 1,
+        key2: 'b',
+        key3: "bar".to_owned(),
+        value: "value".to_owned(),
+    };
+    let entry = map.entry2(v2.key2());
+    assert!(matches!(entry, Entry::Vacant(_)));
+    // Try inserting v1, which is present in the map.
+    entry.insert_entry(v1);
 }
 
 #[cfg(feature = "serde")]

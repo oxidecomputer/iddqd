@@ -2,15 +2,19 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::{tables::BiHashMapTables, IntoIter, Iter, IterMut, RefMut};
+use super::{
+    entry::{EntryHash, EntryIndex},
+    tables::BiHashMapTables,
+    Entry, IntoIter, Iter, IterMut, OccupiedEntry, RefMut, VacantEntry,
+};
 use crate::{
     errors::DuplicateItem,
     internal::ValidationError,
-    support::{hash_table::MapHash, item_set::ItemSet},
+    support::{borrow::DormantMutRef, hash_table::MapHash, item_set::ItemSet},
     BiHashItem,
 };
 use derive_where::derive_where;
-use hashbrown::hash_table::{Entry, VacantEntry};
+use hashbrown::hash_table;
 use std::{borrow::Borrow, collections::BTreeSet, hash::Hash};
 
 /// A 1:1 (bijective) map for two keys and a value.
@@ -138,43 +142,7 @@ impl<T: BiHashItem> BiHashMap<T> {
         &mut self,
         value: T,
     ) -> Result<(), DuplicateItem<T, &T>> {
-        let mut duplicates = BTreeSet::new();
-
-        // Check for duplicates *before* inserting the new item, because we
-        // don't want to partially insert the new item and then have to roll
-        // back.
-        let (e1, e2) = {
-            let k1 = value.key1();
-            let k2 = value.key2();
-
-            let e1 = detect_dup_or_insert(
-                self.tables
-                    .k1_to_item
-                    .entry(k1, |index| self.items[index].key1()),
-                &mut duplicates,
-            );
-            let e2 = detect_dup_or_insert(
-                self.tables
-                    .k2_to_item
-                    .entry(k2, |index| self.items[index].key2()),
-                &mut duplicates,
-            );
-            (e1, e2)
-        };
-
-        if !duplicates.is_empty() {
-            return Err(DuplicateItem::__internal_new(
-                value,
-                duplicates.iter().map(|ix| &self.items[*ix]).collect(),
-            ));
-        }
-
-        let next_index = self.items.insert_at_next_index(value);
-        // e1 and e2 are all Some because if they were None, duplicates
-        // would be non-empty, and we'd have bailed out earlier.
-        e1.unwrap().insert(next_index);
-        e2.unwrap().insert(next_index);
-
+        let _ = self.insert_unique_impl(value)?;
         Ok(())
     }
 
@@ -222,41 +190,35 @@ impl<T: BiHashItem> BiHashMap<T> {
             return None;
         };
 
-        let value = self
-            .items
-            .remove(remove_index)
-            .expect("items missing key1 that was just retrieved");
+        self.remove_by_index(remove_index)
+    }
 
-        // Remove the value from the tables.
-        let Ok(item1) =
-            self.tables.k1_to_item.find_entry(&value.key1(), |index| {
-                if index == remove_index {
-                    value.key1()
-                } else {
-                    self.items[index].key1()
-                }
-            })
-        else {
-            // The item was not found.
-            panic!("we just looked this item up");
-        };
-        let Ok(item2) =
-            self.tables.k2_to_item.find_entry(&value.key2(), |index| {
-                if index == remove_index {
-                    value.key2()
-                } else {
-                    self.items[index].key2()
-                }
-            })
-        else {
-            // The item was not found.
-            panic!("inconsistent indexes: key1 present, key2 absent");
-        };
-
-        item1.remove();
-        item2.remove();
-
-        Some(value)
+    /// Retrieves an entry by its `key1`.
+    pub fn entry1<'a>(&'a mut self, key1: T::K1<'_>) -> Entry<'a, T> {
+        let (map, dormant_map) = DormantMutRef::new(self);
+        let key = T::upcast_key1(key1);
+        {
+            // index is explicitly typed to show that it has a trivial Drop impl
+            // that doesn't capture anything from map.
+            let index: Option<usize> = map
+                .tables
+                .k1_to_item
+                .find_index(&key, |index| map.items[index].key1());
+            if let Some(index) = index {
+                drop(key);
+                return Entry::Occupied(
+                    // SAFETY: `map` is not used after this point.
+                    unsafe {
+                        OccupiedEntry::new(dormant_map, EntryIndex::Key1(index))
+                    },
+                );
+            }
+        }
+        let hash = map.make_key1_hash(&key);
+        Entry::Vacant(
+            // SAFETY: `map` is not used after this point.
+            unsafe { VacantEntry::new(dormant_map, hash) },
+        )
     }
 
     /// Returns true if the map contains the given `key2`.
@@ -303,41 +265,35 @@ impl<T: BiHashItem> BiHashMap<T> {
             return None;
         };
 
-        let value = self
-            .items
-            .remove(remove_index)
-            .expect("items missing key2 that was just retrieved");
+        self.remove_by_index(remove_index)
+    }
 
-        // Remove the value from the tables.
-        let Ok(item1) =
-            self.tables.k1_to_item.find_entry(&value.key1(), |index| {
-                if index == remove_index {
-                    value.key1()
-                } else {
-                    self.items[index].key1()
-                }
-            })
-        else {
-            // The item was not found.
-            panic!("inconsistent indexes: key2 present, key1 absent");
-        };
-        let Ok(item2) =
-            self.tables.k2_to_item.find_entry(&value.key2(), |index| {
-                if index == remove_index {
-                    value.key2()
-                } else {
-                    self.items[index].key2()
-                }
-            })
-        else {
-            // The item was not found.
-            panic!("we just looked this item up");
-        };
-
-        item1.remove();
-        item2.remove();
-
-        Some(value)
+    /// Retrieves an entry by its `key2`.
+    pub fn entry2<'a>(&'a mut self, key2: T::K2<'_>) -> Entry<'a, T> {
+        let (map, dormant_map) = DormantMutRef::new(self);
+        let key = T::upcast_key2(key2);
+        {
+            // index is explicitly typed to show that it has a trivial Drop impl
+            // that doesn't capture anything from map.
+            let index: Option<usize> = map
+                .tables
+                .k2_to_item
+                .find_index(&key, |index| map.items[index].key2());
+            if let Some(index) = index {
+                drop(key);
+                return Entry::Occupied(
+                    // SAFETY: `map` is not used after this point.
+                    unsafe {
+                        OccupiedEntry::new(dormant_map, EntryIndex::Key2(index))
+                    },
+                );
+            }
+        }
+        let hash = map.make_key2_hash(&key);
+        Entry::Vacant(
+            // SAFETY: `map` is not used after this point.
+            unsafe { VacantEntry::new(dormant_map, hash) },
+        )
     }
 
     fn find1<'a, Q>(&'a self, k: &Q) -> Option<&'a T>
@@ -374,6 +330,156 @@ impl<T: BiHashItem> BiHashMap<T> {
         Q: Eq + Hash + ?Sized,
     {
         self.tables.k2_to_item.find_index(k, |index| self.items[index].key2())
+    }
+
+    pub(super) fn get_by_index(&self, index: usize) -> Option<&T> {
+        self.items.get(index)
+    }
+
+    pub(super) fn get_by_index_mut(
+        &mut self,
+        index: usize,
+    ) -> Option<RefMut<'_, T>> {
+        let borrowed = self.items.get_mut(index)?;
+        let hashes = self.tables.make_hashes(borrowed);
+        let item = &mut self.items[index];
+        Some(RefMut::new(hashes, item))
+    }
+
+    pub(super) fn insert_unique_impl(
+        &mut self,
+        value: T,
+    ) -> Result<usize, DuplicateItem<T, &T>> {
+        let mut duplicates = BTreeSet::new();
+
+        // Check for duplicates *before* inserting the new item, because we
+        // don't want to partially insert the new item and then have to roll
+        // back.
+        let (e1, e2) = {
+            let k1 = value.key1();
+            let k2 = value.key2();
+
+            let e1 = detect_dup_or_insert(
+                self.tables
+                    .k1_to_item
+                    .entry(k1, |index| self.items[index].key1()),
+                &mut duplicates,
+            );
+            let e2 = detect_dup_or_insert(
+                self.tables
+                    .k2_to_item
+                    .entry(k2, |index| self.items[index].key2()),
+                &mut duplicates,
+            );
+            (e1, e2)
+        };
+
+        if !duplicates.is_empty() {
+            return Err(DuplicateItem::__internal_new(
+                value,
+                duplicates.iter().map(|ix| &self.items[*ix]).collect(),
+            ));
+        }
+
+        let next_index = self.items.insert_at_next_index(value);
+        // e1 and e2 are all Some because if they were None, duplicates
+        // would be non-empty, and we'd have bailed out earlier.
+        e1.unwrap().insert(next_index);
+        e2.unwrap().insert(next_index);
+
+        Ok(next_index)
+    }
+
+    pub(super) fn remove_by_index(&mut self, remove_index: usize) -> Option<T> {
+        let value = self.items.remove(remove_index)?;
+
+        // Remove the value from the tables.
+        let Ok(item1) =
+            self.tables.k1_to_item.find_entry(&value.key1(), |index| {
+                if index == remove_index {
+                    value.key1()
+                } else {
+                    self.items[index].key1()
+                }
+            })
+        else {
+            // The item was not found.
+            panic!("remove_index {remove_index} not found in k1_to_item");
+        };
+        let Ok(item2) =
+            self.tables.k2_to_item.find_entry(&value.key2(), |index| {
+                if index == remove_index {
+                    value.key2()
+                } else {
+                    self.items[index].key2()
+                }
+            })
+        else {
+            // The item was not found.
+            panic!("remove_index {remove_index} not found in k2_to_item")
+        };
+
+        item1.remove();
+        item2.remove();
+
+        Some(value)
+    }
+
+    pub(super) fn replace_at_index(
+        &mut self,
+        index: EntryIndex,
+        value: T,
+    ) -> Vec<T> {
+        {
+            let key1 = value.key1();
+            let key2 = value.key2();
+
+            // We check the key before removing it, to avoid leaving the map in an
+            // inconsistent state.
+            let old_item = self
+                .get_by_index(index.index())
+                .expect("index is known to be valid");
+            match index {
+                EntryIndex::Key1(_) => {
+                    if key1 != old_item.key1() {
+                        panic!("key1 does not match item at index");
+                    }
+                }
+                EntryIndex::Key2(_) => {
+                    if key2 != old_item.key2() {
+                        panic!("key2 does not match item at index");
+                    }
+                }
+            }
+        }
+
+        // Now that we know the key is the same, remove the value at index, but
+        // also any other items that conflict.
+        let mut old_items = Vec::new();
+        match index {
+            EntryIndex::Key1(_) => {
+                // Also remove by key2 if found.
+                old_items.extend(self.remove2(value.key2()));
+            }
+            EntryIndex::Key2(_) => {
+                // Also remove by key1 if found.
+                old_items.extend(self.remove1(value.key1()));
+            }
+        }
+
+        // Remove the item at the provided index after removing other items, so
+        // that `self.remove1` and `self.remove2` don't see an inconsistent
+        // state.
+        old_items.push(self.items.replace(index.index(), value));
+        old_items
+    }
+
+    fn make_key1_hash(&self, key: &T::K1<'_>) -> EntryHash {
+        EntryHash::Key1(self.tables.k1_to_item.compute_hash(key))
+    }
+
+    fn make_key2_hash(&self, key: &T::K2<'_>) -> EntryHash {
+        EntryHash::Key2(self.tables.k2_to_item.compute_hash(key))
     }
 
     fn make_hashes(&self, item: &T) -> [MapHash; 2] {
@@ -436,12 +542,12 @@ impl<T: BiHashItem + PartialEq> PartialEq for BiHashMap<T> {
 impl<T: BiHashItem + Eq> Eq for BiHashMap<T> {}
 
 fn detect_dup_or_insert<'a>(
-    item: Entry<'a, usize>,
+    item: hash_table::Entry<'a, usize>,
     duplicates: &mut BTreeSet<usize>,
-) -> Option<VacantEntry<'a, usize>> {
+) -> Option<hash_table::VacantEntry<'a, usize>> {
     match item {
-        Entry::Vacant(slot) => Some(slot),
-        Entry::Occupied(slot) => {
+        hash_table::Entry::Vacant(slot) => Some(slot),
+        hash_table::Entry::Occupied(slot) => {
             duplicates.insert(*slot.get());
             None
         }
