@@ -5,7 +5,7 @@
 ![License: MPL-2.0](https://img.shields.io/crates/l/iddqd.svg?)
 [![crates.io](https://img.shields.io/crates/v/iddqd.svg?logo=rust)](https://crates.io/crates/iddqd)
 [![docs.rs](https://img.shields.io/docsrs/iddqd.svg?logo=docs.rs)](https://docs.rs/iddqd)
-[![Rust: ^1.83.0](https://img.shields.io/badge/rust-^1.83.0-93450a.svg?logo=rust)](https://doc.rust-lang.org/cargo/reference/manifest.html#the-rust-version-field)
+[![Rust: ^1.86.0](https://img.shields.io/badge/rust-^1.86.0-93450a.svg?logo=rust)](https://doc.rust-lang.org/cargo/reference/manifest.html#the-rust-version-field)
 <!-- cargo-sync-rdme ]] -->
 <!-- cargo-sync-rdme rustdoc [[ -->
 Maps where keys are borrowed from values.
@@ -142,8 +142,7 @@ assert_eq!(
 
 ## Minimum supported Rust version (MSRV)
 
-This crate’s MSRV is **Rust 1.83**. At any time, at least the last 6 months
-of stable Rust releases are supported.
+This crate’s MSRV is **Rust 1.86**.
 
 ## Optional features
 

@@ -136,8 +136,7 @@
 //!
 //! # Minimum supported Rust version (MSRV)
 //!
-//! This crate's MSRV is **Rust 1.83**. At any time, at least the last 6 months
-//! of stable Rust releases are supported.
+//! This crate's MSRV is **Rust 1.86**.
 //!
 //! # Optional features
 //!
