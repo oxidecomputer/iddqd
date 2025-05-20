@@ -72,6 +72,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@master
         with:
           toolchain: nightly
+          components: miri
       - uses: Swatinem/rust-cache@23bce251a8cd2ffc3c1075eaa2367cf899916d84 # v2
       - uses: taiki-e/install-action@cargo-hack
       - uses: taiki-e/install-action@nextest
