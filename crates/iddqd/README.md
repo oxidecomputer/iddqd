@@ -81,6 +81,64 @@ for user in &users {
 }
 ````
 
+An example for [`IdHashMap`](https://docs.rs/iddqd/0.1.0/iddqd/id_hash_map/imp/struct.IdHashMap.html), showing complex borrowed keys.
+
+````rust
+use iddqd::{IdHashMap, IdHashItem, id_upcast};
+
+#[derive(Debug)]
+struct Artifact {
+    name: String,
+    version: String,
+    data: Vec<u8>,
+}
+
+// The key type is a borrowed form of the name and version. It needs to
+// implement `Hash + Eq`.
+#[derive(Hash, PartialEq, Eq)]
+struct ArtifactKey<'a> {
+    name: &'a str,
+    version: &'a str,
+}
+
+impl IdHashItem for Artifact {
+    // The key type can borrow from the value.
+    type Key<'a> = ArtifactKey<'a>;
+
+    fn key(&self) -> Self::Key<'_> {
+        ArtifactKey {
+            name: &self.name,
+            version: &self.version,
+        }
+    }
+
+    id_upcast!();
+}
+
+let mut artifacts = IdHashMap::<Artifact>::new();
+
+// Add artifacts to the map.
+artifacts.insert_unique(Artifact {
+    name: "artifact1".to_owned(),
+    version: "1.0".to_owned(),
+    data: b"data1".to_vec(),
+}).unwrap();
+artifacts.insert_unique(Artifact {
+    name: "artifact2".to_owned(),
+    version: "1.0".to_owned(),
+    data: b"data2".to_vec(),
+}).unwrap();
+
+// Look up artifacts by name and version.
+assert_eq!(
+    artifacts
+        .get(&ArtifactKey { name: "artifact1", version: "1.0" })
+        .unwrap()
+        .data,
+    b"data1",
+);
+````
+
 ## Minimum supported Rust version (MSRV)
 
 This crate’s MSRV is **Rust 1.83**. At any time, at least the last 6 months
