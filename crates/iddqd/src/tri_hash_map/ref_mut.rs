@@ -3,7 +3,10 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{support::hash_table::MapHash, TriHashItem};
-use std::ops::{Deref, DerefMut};
+use std::{
+    fmt,
+    ops::{Deref, DerefMut},
+};
 
 /// A mutable reference to a [`TriHashMap`] item.
 ///
@@ -42,6 +45,7 @@ use std::ops::{Deref, DerefMut};
 ///
 /// [`TriHashMap`]: crate::TriHashMap
 /// [birthday problem]: https://en.wikipedia.org/wiki/Birthday_problem#Probability_table
+#[derive(Debug)]
 pub struct RefMut<'a, T: TriHashItem> {
     inner: Option<RefMutInner<'a, T>>,
 }
@@ -98,5 +102,13 @@ impl<'a, T: TriHashItem> RefMutInner<'a, T> {
         }
 
         self.borrowed
+    }
+}
+
+impl<T: TriHashItem + fmt::Debug> fmt::Debug for RefMutInner<'_, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RefMutInner")
+            .field("borrowed", &self.borrowed)
+            .finish_non_exhaustive()
     }
 }

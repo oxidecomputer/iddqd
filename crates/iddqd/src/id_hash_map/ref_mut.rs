@@ -3,7 +3,10 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{support::hash_table::MapHash, IdHashItem};
-use std::ops::{Deref, DerefMut};
+use std::{
+    fmt,
+    ops::{Deref, DerefMut},
+};
 
 /// A mutable reference to an [`IdHashMap`] item.
 ///
@@ -43,6 +46,7 @@ use std::ops::{Deref, DerefMut};
 ///
 /// [`IdHashMap`]: crate::IdHashMap
 /// [birthday problem]: https://en.wikipedia.org/wiki/Birthday_problem#Probability_table
+#[derive(Debug)]
 pub struct RefMut<'a, T: IdHashItem> {
     inner: Option<RefMutInner<'a, T>>,
 }
@@ -93,5 +97,13 @@ impl<'a, T: IdHashItem> RefMutInner<'a, T> {
         }
 
         self.borrowed
+    }
+}
+
+impl<T: IdHashItem + fmt::Debug> fmt::Debug for RefMut<'_, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RefMut")
+            .field("borrowed", &self.inner.as_ref().unwrap().borrowed)
+            .finish_non_exhaustive()
     }
 }

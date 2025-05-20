@@ -3,7 +3,10 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use crate::{support::hash_table::MapHash, BiHashItem};
-use std::ops::{Deref, DerefMut};
+use std::{
+    fmt,
+    ops::{Deref, DerefMut},
+};
 
 /// A mutable reference to a [`BiHashMap`] item.
 ///
@@ -42,6 +45,7 @@ use std::ops::{Deref, DerefMut};
 ///
 /// [`BiHashMap`]: crate::BiHashMap
 /// [birthday problem]: https://en.wikipedia.org/wiki/Birthday_problem#Probability_table
+#[derive(Debug)]
 pub struct RefMut<'a, T: BiHashItem> {
     inner: Option<RefMutInner<'a, T>>,
 }
@@ -95,5 +99,13 @@ impl<'a, T: BiHashItem> RefMutInner<'a, T> {
         }
 
         self.borrowed
+    }
+}
+
+impl<T: BiHashItem + fmt::Debug> fmt::Debug for RefMutInner<'_, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RefMut")
+            .field("borrowed", self.borrowed)
+            .finish_non_exhaustive()
     }
 }

@@ -3,7 +3,6 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use super::IdOrdItemMut;
-use derive_where::derive_where;
 use std::{
     fmt,
     ops::{Deref, DerefMut},
@@ -20,7 +19,7 @@ use std::{
 /// purpose, `RefMut` requires that `IdOrdItemMut` be implemented.
 ///
 /// [`IdOrdMap`]: crate::IdOrdMap
-#[derive_where(Debug; T: fmt::Debug, T::OwnedKey: fmt::Debug)]
+#[derive(Debug)]
 pub struct RefMut<'a, T: IdOrdItemMut> {
     inner: Option<RefMutInner<'a, T>>,
 }
@@ -61,7 +60,6 @@ impl<T: IdOrdItemMut> DerefMut for RefMut<'_, T> {
     }
 }
 
-#[derive_where(Debug; T: fmt::Debug, T::OwnedKey: fmt::Debug)]
 struct RefMutInner<'a, T: IdOrdItemMut> {
     key: T::OwnedKey,
     borrowed: &'a mut T,
@@ -75,5 +73,13 @@ impl<'a, T: IdOrdItemMut> RefMutInner<'a, T> {
         }
 
         self.borrowed
+    }
+}
+
+impl<T: IdOrdItemMut + fmt::Debug> fmt::Debug for RefMutInner<'_, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RefMutInner")
+            .field("borrowed", self.borrowed)
+            .finish_non_exhaustive()
     }
 }
