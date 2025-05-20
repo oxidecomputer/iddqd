@@ -42,27 +42,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
-name = "daft"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca607475e0cd38d41f8d1a5bd8985e7cdc1a205a69942211a475b02e48e406e0"
-dependencies = [
- "daft-derive",
- "paste",
-]
-
-[[package]]
-name = "daft-derive"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a78e2436bc785be168ec3641025f713acc89b541ab41c318d7a1cfb4a4c2c50e"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
-
-[[package]]
 name = "debug-ignore"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -151,7 +130,6 @@ dependencies = [
 name = "iddqd"
 version = "0.1.0"
 dependencies = [
- "daft",
  "debug-ignore",
  "derive-where",
  "hashbrown",
@@ -217,12 +195,6 @@ name = "once_cell"
 version = "1.21.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "42f5e15c9953c5e4ccceeb2e7382a716482c34515315f7b03532b8b4e8393d2d"
-
-[[package]]
-name = "paste"
-version = "1.0.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
 name = "ppv-lite86"
