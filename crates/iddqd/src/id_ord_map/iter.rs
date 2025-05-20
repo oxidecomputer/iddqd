@@ -2,16 +2,16 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::{tables::IdBTreeMapTables, IdOrdItem, IdOrdItemMut, RefMut};
+use super::{tables::IdOrdMapTables, IdOrdItem, IdOrdItemMut, RefMut};
 use crate::support::{btree_table, item_set::ItemSet};
 use std::iter::FusedIterator;
 
-/// An iterator over the elements of an [`IdBTreeMap`] by shared reference.
+/// An iterator over the elements of an [`IdOrdMap`] by shared reference.
 ///
-/// Created by [`IdBTreeMap::iter`], and ordered by keys.
+/// Created by [`IdOrdMap::iter`], and ordered by keys.
 ///
-/// [`IdBTreeMap`]: crate::IdBTreeMap
-/// [`IdBTreeMap::iter`]: crate::IdBTreeMap::iter
+/// [`IdOrdMap`]: crate::IdOrdMap
+/// [`IdOrdMap::iter`]: crate::IdOrdMap::iter
 #[derive(Clone, Debug)]
 pub struct Iter<'a, T: IdOrdItem> {
     items: &'a ItemSet<T>,
@@ -21,7 +21,7 @@ pub struct Iter<'a, T: IdOrdItem> {
 impl<'a, T: IdOrdItem> Iter<'a, T> {
     pub(super) fn new(
         items: &'a ItemSet<T>,
-        tables: &'a IdBTreeMapTables,
+        tables: &'a IdOrdMapTables,
     ) -> Self {
         Self { items, iter: tables.key_to_item.iter() }
     }
@@ -47,14 +47,14 @@ impl<T: IdOrdItem> ExactSizeIterator for Iter<'_, T> {
 // btree_set::Iter is a FusedIterator, so Iter is as well.
 impl<T: IdOrdItem> FusedIterator for Iter<'_, T> {}
 
-/// An iterator over the elements of a [`IdBTreeMap`] by mutable reference.
+/// An iterator over the elements of a [`IdOrdMap`] by mutable reference.
 ///
 /// This iterator returns [`RefMut`] instances.
 ///
-/// Created by [`IdBTreeMap::iter_mut`], and ordered by keys.
+/// Created by [`IdOrdMap::iter_mut`], and ordered by keys.
 ///
-/// [`IdBTreeMap`]: crate::IdBTreeMap
-/// [`IdBTreeMap::iter_mut`]: crate::IdBTreeMap::iter_mut
+/// [`IdOrdMap`]: crate::IdOrdMap
+/// [`IdOrdMap::iter_mut`]: crate::IdOrdMap::iter_mut
 #[derive(Debug)]
 pub struct IterMut<'a, T: IdOrdItemMut> {
     items: &'a mut ItemSet<T>,
@@ -64,7 +64,7 @@ pub struct IterMut<'a, T: IdOrdItemMut> {
 impl<'a, T: IdOrdItemMut> IterMut<'a, T> {
     pub(super) fn new(
         items: &'a mut ItemSet<T>,
-        tables: &'a IdBTreeMapTables,
+        tables: &'a IdOrdMapTables,
     ) -> Self {
         Self { items, iter: tables.key_to_item.iter() }
     }
@@ -118,12 +118,12 @@ impl<'a, T: IdOrdItemMut + 'a> ExactSizeIterator for IterMut<'a, T> {
 // hash_map::IterMut is a FusedIterator, so IterMut is as well.
 impl<'a, T: IdOrdItemMut + 'a> FusedIterator for IterMut<'a, T> {}
 
-/// An iterator over the elements of a [`IdBTreeMap`] by ownership.
+/// An iterator over the elements of a [`IdOrdMap`] by ownership.
 ///
-/// Created by [`IdBTreeMap::into_iter`], and ordered by keys.
+/// Created by [`IdOrdMap::into_iter`], and ordered by keys.
 ///
-/// [`IdBTreeMap`]: crate::IdBTreeMap
-/// [`IdBTreeMap::into_iter`]: crate::IdBTreeMap::into_iter
+/// [`IdOrdMap`]: crate::IdOrdMap
+/// [`IdOrdMap::into_iter`]: crate::IdOrdMap::into_iter
 #[derive(Debug)]
 pub struct IntoIter<T: IdOrdItem> {
     items: ItemSet<T>,
@@ -131,7 +131,7 @@ pub struct IntoIter<T: IdOrdItem> {
 }
 
 impl<T: IdOrdItem> IntoIter<T> {
-    pub(super) fn new(items: ItemSet<T>, tables: IdBTreeMapTables) -> Self {
+    pub(super) fn new(items: ItemSet<T>, tables: IdOrdMapTables) -> Self {
         Self { items, iter: tables.key_to_item.into_iter() }
     }
 }

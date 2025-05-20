@@ -35,7 +35,7 @@ where
     let mut deserialized_items = deserialized.iter().collect::<Vec<_>>();
 
     match M::map_kind() {
-        MapKind::BTree => {
+        MapKind::Ord => {
             // No sorting required -- we expect the items to be in order.
         }
         MapKind::Hash => {

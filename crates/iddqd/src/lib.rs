@@ -6,7 +6,7 @@
 //!
 //! This crate consists of several map types, collectively called **ID maps**:
 //!
-//! - [`IdBTreeMap`]: A B-Tree based map where keys are borrowed from values.
+//! - [`IdOrdMap`]: A B-Tree based map where keys are borrowed from values.
 //! - [`IdHashMap`]: A hash map where keys are borrowed from values.
 //! - [`BiHashMap`]: A hash map with two keys, borrowed from values.
 //! - [`TriHashMap`]: A hash map with three keys, borrowed from values.
@@ -36,10 +36,10 @@
 //!
 //! ## Examples
 //!
-//! An example for [`IdBTreeMap`]:
+//! An example for [`IdOrdMap`]:
 //!
 //! ```
-//! use iddqd::{IdBTreeMap, IdOrdItem, id_upcast};
+//! use iddqd::{IdOrdMap, IdOrdItem, id_upcast};
 //!
 //! #[derive(Debug)]
 //! struct User {
@@ -59,7 +59,7 @@
 //!     id_upcast!();
 //! }
 //!
-//! let mut users = IdBTreeMap::<User>::new();
+//! let mut users = IdOrdMap::<User>::new();
 //!
 //! // You must pick an insertion behavior. insert_unique returns an error if
 //! // the key already exists.
@@ -147,8 +147,8 @@
 
 pub mod bi_hash_map;
 pub mod errors;
-pub mod id_btree_map;
 pub mod id_hash_map;
+pub mod id_ord_map;
 #[doc(hidden)]
 pub mod internal;
 mod macros;
@@ -156,9 +156,9 @@ mod support;
 pub mod tri_hash_map;
 
 pub use bi_hash_map::{imp::BiHashMap, trait_defs::BiHashItem};
-pub use id_btree_map::{
-    imp::IdBTreeMap,
+pub use id_hash_map::{imp::IdHashMap, trait_defs::IdHashItem};
+pub use id_ord_map::{
+    imp::IdOrdMap,
     trait_defs::{IdOrdItem, IdOrdItemMut},
 };
-pub use id_hash_map::{imp::IdHashMap, trait_defs::IdHashItem};
 pub use tri_hash_map::{imp::TriHashMap, trait_defs::TriHashItem};

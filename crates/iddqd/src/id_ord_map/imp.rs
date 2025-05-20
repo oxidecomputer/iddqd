@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use super::{
-    tables::IdBTreeMapTables, Entry, IdOrdItem, IdOrdItemMut, IntoIter, Iter,
+    tables::IdOrdMapTables, Entry, IdOrdItem, IdOrdItemMut, IntoIter, Iter,
     IterMut, OccupiedEntry, RefMut, VacantEntry,
 };
 use crate::{
@@ -21,28 +21,28 @@ use std::{borrow::Borrow, collections::BTreeSet};
 /// by any of the three keys, while preventing duplicates.
 #[derive_where(Default)]
 #[derive(Clone, Debug)]
-pub struct IdBTreeMap<T: IdOrdItem> {
+pub struct IdOrdMap<T: IdOrdItem> {
     pub(super) items: ItemSet<T>,
     // Invariant: the values (usize) in these tables are valid indexes into
     // `items`, and are a 1:1 mapping.
-    tables: IdBTreeMapTables,
+    tables: IdOrdMapTables,
 }
 
-impl<T: IdOrdItem> IdBTreeMap<T> {
-    /// Creates a new, empty `IdBTreeMap`.
+impl<T: IdOrdItem> IdOrdMap<T> {
+    /// Creates a new, empty `IdOrdMap`.
     #[inline]
     pub fn new() -> Self {
-        Self { items: ItemSet::default(), tables: IdBTreeMapTables::new() }
+        Self { items: ItemSet::default(), tables: IdOrdMapTables::new() }
     }
 
-    /// Constructs a new `IdBTreeMap` from an iterator of values, rejecting
+    /// Constructs a new `IdOrdMap` from an iterator of values, rejecting
     /// duplicates.
     ///
-    /// To overwrite duplicates instead, use [`IdBTreeMap::from_iter`].
+    /// To overwrite duplicates instead, use [`IdOrdMap::from_iter`].
     pub fn from_iter_unique<I: IntoIterator<Item = T>>(
         iter: I,
     ) -> Result<Self, DuplicateItem<T>> {
-        let mut map = IdBTreeMap::new();
+        let mut map = IdOrdMap::new();
         for value in iter {
             match map.entry(value.key()) {
                 Entry::Occupied(entry) => {
@@ -323,7 +323,7 @@ impl<T: IdOrdItem> IdBTreeMap<T> {
     }
 }
 
-impl<T: IdOrdItem + PartialEq> PartialEq for IdBTreeMap<T> {
+impl<T: IdOrdItem + PartialEq> PartialEq for IdOrdMap<T> {
     fn eq(&self, other: &Self) -> bool {
         // Items are stored in sorted order, so we can just walk over both
         // iterators.
@@ -338,10 +338,10 @@ impl<T: IdOrdItem + PartialEq> PartialEq for IdBTreeMap<T> {
     }
 }
 
-// The Eq bound on T ensures that the IdBTreeMap forms an equivalence class.
-impl<T: IdOrdItem + Eq> Eq for IdBTreeMap<T> {}
+// The Eq bound on T ensures that the IdOrdMap forms an equivalence class.
+impl<T: IdOrdItem + Eq> Eq for IdOrdMap<T> {}
 
-impl<'a, T: IdOrdItem> IntoIterator for &'a IdBTreeMap<T> {
+impl<'a, T: IdOrdItem> IntoIterator for &'a IdOrdMap<T> {
     type Item = &'a T;
     type IntoIter = Iter<'a, T>;
 
@@ -351,7 +351,7 @@ impl<'a, T: IdOrdItem> IntoIterator for &'a IdBTreeMap<T> {
     }
 }
 
-impl<'a, T: IdOrdItemMut> IntoIterator for &'a mut IdBTreeMap<T> {
+impl<'a, T: IdOrdItemMut> IntoIterator for &'a mut IdOrdMap<T> {
     type Item = RefMut<'a, T>;
     type IntoIter = IterMut<'a, T>;
 
@@ -361,7 +361,7 @@ impl<'a, T: IdOrdItemMut> IntoIterator for &'a mut IdBTreeMap<T> {
     }
 }
 
-impl<T: IdOrdItemMut> IntoIterator for IdBTreeMap<T> {
+impl<T: IdOrdItemMut> IntoIterator for IdOrdMap<T> {
     type Item = T;
     type IntoIter = IntoIter<T>;
 
@@ -371,13 +371,13 @@ impl<T: IdOrdItemMut> IntoIterator for IdBTreeMap<T> {
     }
 }
 
-/// The `FromIterator` implementation for `IdBTreeMap` overwrites duplicate
+/// The `FromIterator` implementation for `IdOrdMap` overwrites duplicate
 /// items.
 ///
-/// To reject duplicates, use [`IdBTreeMap::from_iter_unique`].
-impl<T: IdOrdItem> FromIterator<T> for IdBTreeMap<T> {
+/// To reject duplicates, use [`IdOrdMap::from_iter_unique`].
+impl<T: IdOrdItem> FromIterator<T> for IdOrdMap<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        let mut map = IdBTreeMap::new();
+        let mut map = IdOrdMap::new();
         for value in iter {
             map.insert_overwrite(value);
         }

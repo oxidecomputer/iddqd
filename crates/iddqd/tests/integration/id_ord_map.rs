@@ -3,9 +3,9 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use iddqd::{
-    id_btree_map::{Entry, RefMut},
+    id_ord_map::{Entry, RefMut},
     internal::ValidateCompact,
-    IdBTreeMap, IdOrdItem,
+    IdOrdItem, IdOrdMap,
 };
 use iddqd_test_utils::{
     eq_props::{assert_eq_props, assert_ne_props},
@@ -17,7 +17,7 @@ use test_strategy::{proptest, Arbitrary};
 
 #[test]
 fn test_insert_unique() {
-    let mut map = IdBTreeMap::<TestItem>::new();
+    let mut map = IdOrdMap::<TestItem>::new();
 
     // Add an element.
     let v1 = TestItem {
@@ -44,7 +44,7 @@ fn test_insert_unique() {
     assert_eq!(error.new_item(), &v2);
     assert_eq!(error.duplicates(), vec![&v1]);
 
-    // Add a duplicate against key2. IdBTreeMap only uses key1 here, so this
+    // Add a duplicate against key2. IdOrdMap only uses key1 here, so this
     // should be allowed.
     let v3 = TestItem {
         key1: 5,
@@ -112,7 +112,7 @@ fn proptest_ops(
         Operation,
     >,
 ) {
-    let mut map = IdBTreeMap::<TestItem>::new();
+    let mut map = IdOrdMap::<TestItem>::new();
     let mut naive_map = NaiveMap::new_key1();
 
     let mut compactness = ValidateCompact::Compact;
@@ -175,12 +175,12 @@ fn proptest_ops(
 
 #[proptest(cases = 64)]
 fn proptest_permutation_eq(
-    #[strategy(test_item_permutation_strategy::<IdBTreeMap<TestItem>>(0..PERMUTATION_LEN))]
+    #[strategy(test_item_permutation_strategy::<IdOrdMap<TestItem>>(0..PERMUTATION_LEN))]
     items: (Vec<TestItem>, Vec<TestItem>),
 ) {
     let (items1, items2) = items;
-    let mut map1 = IdBTreeMap::<TestItem>::new();
-    let mut map2 = IdBTreeMap::<TestItem>::new();
+    let mut map1 = IdOrdMap::<TestItem>::new();
+    let mut map2 = IdOrdMap::<TestItem>::new();
 
     for item in items1.clone() {
         map1.insert_unique(item.clone()).unwrap();
@@ -192,8 +192,8 @@ fn proptest_permutation_eq(
     assert_eq_props(&map1, &map2);
 
     // Also test from_iter_unique.
-    let map3 = IdBTreeMap::from_iter_unique(items1).unwrap();
-    let map4 = IdBTreeMap::from_iter_unique(items2).unwrap();
+    let map3 = IdOrdMap::from_iter_unique(items1).unwrap();
+    let map4 = IdOrdMap::from_iter_unique(items2).unwrap();
     assert_eq_props(&map1, &map3);
     assert_eq_props(&map3, &map4);
 }
@@ -201,8 +201,8 @@ fn proptest_permutation_eq(
 // Test various conditions for non-equality.
 #[test]
 fn test_permutation_eq_examples() {
-    let mut map1 = IdBTreeMap::<TestItem>::new();
-    let mut map2 = IdBTreeMap::<TestItem>::new();
+    let mut map1 = IdOrdMap::<TestItem>::new();
+    let mut map2 = IdOrdMap::<TestItem>::new();
 
     // Two empty maps are equal.
     assert_eq!(map1, map2);
@@ -323,7 +323,7 @@ fn test_permutation_eq_examples() {
 #[test]
 #[should_panic(expected = "key changed during RefMut borrow")]
 fn get_mut_panics_if_key_changes() {
-    let mut map = IdBTreeMap::<TestItem>::new();
+    let mut map = IdOrdMap::<TestItem>::new();
     map.insert_unique(TestItem {
         key1: 128,
         key2: 'b',
@@ -343,7 +343,7 @@ fn or_insert_ref_panics_for_present_key() {
         key3: "foo".to_owned(),
         value: "value".to_owned(),
     };
-    let mut map = IdBTreeMap::new();
+    let mut map = IdOrdMap::new();
     map.insert_unique(v1.clone()).expect("insert_unique succeeded");
 
     let v2 = TestItem {
@@ -367,7 +367,7 @@ fn or_insert_panics_for_present_key() {
         key3: "foo".to_owned(),
         value: "value".to_owned(),
     };
-    let mut map = IdBTreeMap::new();
+    let mut map = IdOrdMap::new();
     map.insert_unique(v1.clone()).expect("insert_unique succeeded");
 
     let v2 = TestItem {
@@ -391,7 +391,7 @@ fn insert_entry_panics_for_present_key() {
         key3: "foo".to_owned(),
         value: "value".to_owned(),
     };
-    let mut map = IdBTreeMap::new();
+    let mut map = IdOrdMap::new();
     map.insert_unique(v1.clone()).expect("insert_unique succeeded");
 
     let v2 = TestItem {
@@ -412,7 +412,7 @@ fn insert_entry_panics_for_present_key() {
 
 #[cfg(feature = "serde")]
 mod serde_tests {
-    use iddqd::IdBTreeMap;
+    use iddqd::IdOrdMap;
     use iddqd_test_utils::{
         serde_utils::assert_serialize_roundtrip, test_item::TestItem,
     };
@@ -420,6 +420,6 @@ mod serde_tests {
 
     #[proptest]
     fn proptest_serialize_roundtrip(values: Vec<TestItem>) {
-        assert_serialize_roundtrip::<IdBTreeMap<TestItem>>(values);
+        assert_serialize_roundtrip::<IdOrdMap<TestItem>>(values);
     }
 }

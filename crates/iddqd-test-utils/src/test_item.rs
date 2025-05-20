@@ -5,10 +5,10 @@
 use iddqd::{
     bi_hash_map, bi_upcasts,
     errors::DuplicateItem,
-    id_btree_map, id_hash_map, id_upcast,
+    id_ord_map, id_hash_map, id_upcast,
     internal::{ValidateCompact, ValidationError},
-    tri_hash_map, tri_upcasts, BiHashItem, BiHashMap, IdBTreeMap, IdHashItem,
-    IdHashMap, IdOrdItem, IdOrdItemMut, TriHashItem, TriHashMap,
+    tri_hash_map, tri_upcasts, BiHashItem, BiHashMap, IdHashItem, IdHashMap,
+    IdOrdItem, IdOrdItemMut, TriHashItem, TriHashMap, IdOrdMap,
 };
 use proptest::{prelude::*, sample::SizeRange};
 use test_strategy::Arbitrary;
@@ -118,7 +118,7 @@ impl TriHashItem for TestItem {
 }
 
 pub enum MapKind {
-    BTree,
+    Ord,
     Hash,
 }
 
@@ -232,18 +232,18 @@ impl TestItemMap for IdHashMap<TestItem> {
     }
 }
 
-impl TestItemMap for IdBTreeMap<TestItem> {
-    type RefMut<'a> = id_btree_map::RefMut<'a, TestItem>;
-    type Iter<'a> = id_btree_map::Iter<'a, TestItem>;
-    type IterMut<'a> = id_btree_map::IterMut<'a, TestItem>;
-    type IntoIter = id_btree_map::IntoIter<TestItem>;
+impl TestItemMap for IdOrdMap<TestItem> {
+    type RefMut<'a> = id_ord_map::RefMut<'a, TestItem>;
+    type Iter<'a> = id_ord_map::Iter<'a, TestItem>;
+    type IterMut<'a> = id_ord_map::IterMut<'a, TestItem>;
+    type IntoIter = id_ord_map::IntoIter<TestItem>;
 
     fn map_kind() -> MapKind {
-        MapKind::BTree
+        MapKind::Ord
     }
 
     fn new() -> Self {
-        IdBTreeMap::new()
+        IdOrdMap::new()
     }
 
     fn validate(
@@ -330,7 +330,7 @@ impl<'a> IntoRef<'a> for id_hash_map::RefMut<'a, TestItem> {
     }
 }
 
-impl<'a> IntoRef<'a> for id_btree_map::RefMut<'a, TestItem> {
+impl<'a> IntoRef<'a> for id_ord_map::RefMut<'a, TestItem> {
     fn into_ref(self) -> &'a TestItem {
         self.into_ref()
     }

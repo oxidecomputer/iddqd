@@ -12,7 +12,7 @@ Maps where keys are borrowed from values.
 
 This crate consists of several map types, collectively called **ID maps**:
 
-* [`IdBTreeMap`](https://docs.rs/iddqd/0.1.0/iddqd/id_btree_map/imp/struct.IdBTreeMap.html): A B-Tree based map where keys are borrowed from values.
+* [`IdOrdMap`](https://docs.rs/iddqd/0.1.0/iddqd/id_ord_map/imp/struct.IdOrdMap.html): A B-Tree based map where keys are borrowed from values.
 * [`IdHashMap`](https://docs.rs/iddqd/0.1.0/iddqd/id_hash_map/imp/struct.IdHashMap.html): A hash map where keys are borrowed from values.
 * [`BiHashMap`](https://docs.rs/iddqd/0.1.0/iddqd/bi_hash_map/imp/struct.BiHashMap.html): A hash map with two keys, borrowed from values.
 * [`TriHashMap`](https://docs.rs/iddqd/0.1.0/iddqd/tri_hash_map/imp/struct.TriHashMap.html): A hash map with three keys, borrowed from values.
@@ -20,7 +20,7 @@ This crate consists of several map types, collectively called **ID maps**:
 ## Usage
 
 * Pick your ID map type.
-* Depending on the ID map type, implement [`IdOrdItem`](https://docs.rs/iddqd/0.1.0/iddqd/id_btree_map/trait_defs/trait.IdOrdItem.html), [`IdHashItem`](https://docs.rs/iddqd/0.1.0/iddqd/id_hash_map/trait_defs/trait.IdHashItem.html), [`BiHashItem`](https://docs.rs/iddqd/0.1.0/iddqd/bi_hash_map/trait_defs/trait.BiHashItem.html), or
+* Depending on the ID map type, implement [`IdOrdItem`](https://docs.rs/iddqd/0.1.0/iddqd/id_ord_map/trait_defs/trait.IdOrdItem.html), [`IdHashItem`](https://docs.rs/iddqd/0.1.0/iddqd/id_hash_map/trait_defs/trait.IdHashItem.html), [`BiHashItem`](https://docs.rs/iddqd/0.1.0/iddqd/bi_hash_map/trait_defs/trait.BiHashItem.html), or
   [`TriHashItem`](https://docs.rs/iddqd/0.1.0/iddqd/tri_hash_map/trait_defs/trait.TriHashItem.html) for your value type.
 * Store values in the ID map type.
 
@@ -42,10 +42,10 @@ issues encountered using Rust’s default map types in practice at Oxide.
 
 ### Examples
 
-An example for [`IdBTreeMap`](https://docs.rs/iddqd/0.1.0/iddqd/id_btree_map/imp/struct.IdBTreeMap.html):
+An example for [`IdOrdMap`](https://docs.rs/iddqd/0.1.0/iddqd/id_ord_map/imp/struct.IdOrdMap.html):
 
 ````rust
-use iddqd::{IdBTreeMap, IdOrdItem, id_upcast};
+use iddqd::{IdOrdMap, IdOrdItem, id_upcast};
 
 #[derive(Debug)]
 struct User {
@@ -65,7 +65,7 @@ impl IdOrdItem for User {
     id_upcast!();
 }
 
-let mut users = IdBTreeMap::<User>::new();
+let mut users = IdOrdMap::<User>::new();
 
 // You must pick an insertion behavior. insert_unique returns an error if
 // the key already exists.

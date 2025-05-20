@@ -7,7 +7,7 @@ use crate::support::{borrow::DormantMutRef, hash_table::MapHash};
 use debug_ignore::DebugIgnore;
 use derive_where::derive_where;
 
-/// An implementation of the Entry API for [`IdBTreeMap`].
+/// An implementation of the Entry API for [`BiHashMap`].
 #[derive_where(Debug)]
 pub enum Entry<'a, T: BiHashItem> {
     /// A vacant entry.
@@ -23,7 +23,7 @@ impl<'a, T: BiHashItem> Entry<'a, T> {
     /// # Panics
     ///
     /// Panics if the key hashes to a different value than the one passed
-    /// into [`IdHashMap::entry`].
+    /// into [`BiHashMap::entry`].
     #[inline]
     pub fn or_insert(self, default: T) -> RefMut<'a, T> {
         match self {
@@ -39,7 +39,7 @@ impl<'a, T: BiHashItem> Entry<'a, T> {
     /// # Panics
     ///
     /// Panics if the key hashes to a different value than the one passed
-    /// into [`IdHashMap::entry`].
+    /// into [`BiHashMap::entry`].
     #[inline]
     pub fn or_insert_with<F: FnOnce() -> T>(self, default: F) -> RefMut<'a, T> {
         match self {
@@ -140,7 +140,7 @@ impl<'a, T: BiHashItem> VacantEntry<'a, T> {
     }
 }
 
-/// A view into an occupied entry in an [`IdHashMap`]. Part of the [`Entry`]
+/// A view into an occupied entry in a [`BiHashMap`]. Part of the [`Entry`]
 /// enum.
 #[derive_where(Debug)]
 pub struct OccupiedEntry<'a, T: BiHashItem> {

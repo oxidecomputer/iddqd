@@ -2,11 +2,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! Trait definitions for `IdBTreeMap`.
+//! Trait definitions for `IdOrdMap`.
 
 use std::{rc::Rc, sync::Arc};
 
-/// An element stored in an [`IdBTreeMap`].
+/// An element stored in an [`IdOrdMap`].
 ///
 /// This trait is used to define the key type for the map.
 ///
@@ -14,7 +14,7 @@ use std::{rc::Rc, sync::Arc};
 ///
 /// TODO: Add an example here.
 ///
-/// [`IdBTreeMap`]: crate::IdBTreeMap
+/// [`IdOrdMap`]: crate::IdOrdMap
 pub trait IdOrdItem {
     /// The key type.
     type Key<'a>: Ord
@@ -35,13 +35,13 @@ pub trait IdOrdItem {
     ) -> Self::Key<'short>;
 }
 
-/// Required to be implemented for [`IdBTreeMap::get_mut`] to be called.
+/// Required to be implemented for [`IdOrdMap::get_mut`] to be called.
 ///
 /// The `get_mut` method returns a wrapper which ensures that the key doesn't
 /// change during mutation. This trait is used to return an owned form of the
 /// key for temporary storage.
 ///
-/// [`IdBTreeMap::get_mut`]: crate::IdBTreeMap::get_mut
+/// [`IdOrdMap::get_mut`]: crate::IdOrdMap::get_mut
 pub trait IdOrdItemMut: IdOrdItem {
     /// An owned key type corresponding to [`IdOrdItem::Key`].
     ///

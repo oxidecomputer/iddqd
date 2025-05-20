@@ -2,12 +2,12 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::{IdBTreeMap, IdOrdItem, IdOrdItemMut, RefMut};
+use super::{IdOrdItem, IdOrdItemMut, IdOrdMap, RefMut};
 use crate::support::borrow::DormantMutRef;
 use debug_ignore::DebugIgnore;
 use derive_where::derive_where;
 
-/// An implementation of the Entry API for [`IdBTreeMap`].
+/// An implementation of the Entry API for [`IdOrdMap`].
 #[derive_where(Debug)]
 pub enum Entry<'a, T: IdOrdItem> {
     /// A vacant entry.
@@ -23,7 +23,7 @@ impl<'a, T: IdOrdItem> Entry<'a, T> {
     /// # Panics
     ///
     /// Panics if the key is already present in the map. (The intention is that
-    /// the key should be what was passed into [`IdBTreeMap::entry`], but that
+    /// the key should be what was passed into [`IdOrdMap::entry`], but that
     /// isn't checked in this API due to borrow checker limitations.)
     #[inline]
     pub fn or_insert_ref(self, default: T) -> &'a T {
@@ -39,7 +39,7 @@ impl<'a, T: IdOrdItem> Entry<'a, T> {
     /// # Panics
     ///
     /// Panics if the key is already present in the map. (The intention is that
-    /// the key should be what was passed into [`IdBTreeMap::entry`], but that
+    /// the key should be what was passed into [`IdOrdMap::entry`], but that
     /// isn't checked in this API due to borrow checker limitations.)
     #[inline]
     pub fn or_insert(self, default: T) -> RefMut<'a, T>
@@ -59,7 +59,7 @@ impl<'a, T: IdOrdItem> Entry<'a, T> {
     /// # Panics
     ///
     /// Panics if the key is already present in the map. (The intention is that
-    /// the key should be what was passed into [`IdBTreeMap::entry`], but that
+    /// the key should be what was passed into [`IdOrdMap::entry`], but that
     /// isn't checked in this API due to borrow checker limitations.)
     #[inline]
     pub fn or_insert_with_ref<F: FnOnce() -> T>(self, default: F) -> &'a T {
@@ -76,7 +76,7 @@ impl<'a, T: IdOrdItem> Entry<'a, T> {
     /// # Panics
     ///
     /// Panics if the key is already present in the map. (The intention is that
-    /// the key should be what was passed into [`IdBTreeMap::entry`], but that
+    /// the key should be what was passed into [`IdOrdMap::entry`], but that
     /// isn't checked in this API due to borrow checker limitations.)
     #[inline]
     pub fn or_insert_with<F: FnOnce() -> T>(self, default: F) -> RefMut<'a, T>
@@ -110,11 +110,11 @@ impl<'a, T: IdOrdItem> Entry<'a, T> {
 /// A vacant entry.
 #[derive_where(Debug)]
 pub struct VacantEntry<'a, T: IdOrdItem> {
-    map: DebugIgnore<DormantMutRef<'a, IdBTreeMap<T>>>,
+    map: DebugIgnore<DormantMutRef<'a, IdOrdMap<T>>>,
 }
 
 impl<'a, T: IdOrdItem> VacantEntry<'a, T> {
-    pub(super) unsafe fn new(map: DormantMutRef<'a, IdBTreeMap<T>>) -> Self {
+    pub(super) unsafe fn new(map: DormantMutRef<'a, IdOrdMap<T>>) -> Self {
         VacantEntry { map: map.into() }
     }
 
@@ -124,7 +124,7 @@ impl<'a, T: IdOrdItem> VacantEntry<'a, T> {
     /// # Panics
     ///
     /// Panics if the key is already present in the map. (The intention is that
-    /// the key should be what was passed into [`IdBTreeMap::entry`], but that
+    /// the key should be what was passed into [`IdOrdMap::entry`], but that
     /// isn't checked in this API due to borrow checker limitations.)
     pub fn insert_ref(self, value: T) -> &'a T {
         // SAFETY: The safety assumption behind `Self::new` guarantees that the
@@ -170,11 +170,11 @@ impl<'a, T: IdOrdItem> VacantEntry<'a, T> {
     }
 }
 
-/// A view into an occupied entry in an [`IdBTreeMap`]. Part of the [`Entry`]
+/// A view into an occupied entry in an [`IdOrdMap`]. Part of the [`Entry`]
 /// enum.
 #[derive_where(Debug)]
 pub struct OccupiedEntry<'a, T: IdOrdItem> {
-    map: DebugIgnore<DormantMutRef<'a, IdBTreeMap<T>>>,
+    map: DebugIgnore<DormantMutRef<'a, IdOrdMap<T>>>,
     // index is a valid index into the map's internal hash table.
     index: usize,
 }
@@ -185,7 +185,7 @@ impl<'a, T: IdOrdItem> OccupiedEntry<'a, T> {
     /// After self is created, the original reference created by
     /// `DormantMutRef::new` must not be used.
     pub(super) unsafe fn new(
-        map: DormantMutRef<'a, IdBTreeMap<T>>,
+        map: DormantMutRef<'a, IdOrdMap<T>>,
         index: usize,
     ) -> Self {
         OccupiedEntry { map: map.into(), index }

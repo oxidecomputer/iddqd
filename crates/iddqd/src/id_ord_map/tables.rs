@@ -8,11 +8,11 @@ use crate::{
 };
 
 #[derive(Clone, Debug, Default)]
-pub(super) struct IdBTreeMapTables {
+pub(super) struct IdOrdMapTables {
     pub(super) key_to_item: MapBTreeTable,
 }
 
-impl IdBTreeMapTables {
+impl IdOrdMapTables {
     pub(super) fn new() -> Self {
         Self::default()
     }

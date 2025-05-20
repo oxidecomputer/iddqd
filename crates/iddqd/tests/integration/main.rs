@@ -3,6 +3,6 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 mod bi_hash_map;
-mod id_btree_map;
 mod id_hash_map;
+mod id_ord_map;
 mod tri_hash_map;

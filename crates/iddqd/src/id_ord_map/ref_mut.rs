@@ -9,7 +9,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-/// A mutable reference to an [`IdBTreeMap`] entry.
+/// A mutable reference to an [`IdOrdMap`] entry.
 ///
 /// This is a wrapper around a `&mut T` that panics when dropped, if the
 /// borrowed value's key has changed since the wrapper was created.
@@ -19,7 +19,7 @@ use std::{
 /// `RefMut` uses an owned form of the key to compare equality with. For this
 /// purpose, `RefMut` requires that `IdOrdItemMut` be implemented.
 ///
-/// [`IdBTreeMap`]: crate::IdBTreeMap
+/// [`IdOrdMap`]: crate::IdOrdMap
 #[derive_where(Debug; T: fmt::Debug, T::OwnedKey: fmt::Debug)]
 pub struct RefMut<'a, T: IdOrdItemMut> {
     inner: Option<RefMutInner<'a, T>>,

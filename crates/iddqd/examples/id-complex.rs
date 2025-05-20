@@ -2,12 +2,12 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-//! An example demonstrating `IdBTreeMap` use with complex borrowed keys.
+//! An example demonstrating `IdOrdMap` use with complex borrowed keys.
 
-use iddqd::{id_btree_map::Entry, id_upcast, IdBTreeMap, IdOrdItem};
+use iddqd::{id_ord_map::Entry, id_upcast, IdOrdItem, IdOrdMap};
 use std::path::{Path, PathBuf};
 
-/// These are the items we'll store in the `IdBTreeMap`.
+/// These are the items we'll store in the `IdOrdMap`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct MyStruct {
     a: String,
@@ -37,7 +37,7 @@ impl IdOrdItem for MyStruct {
 
 fn main() {
     // Make a `TriHashMap` with the keys we defined above.
-    let mut map = IdBTreeMap::new();
+    let mut map = IdOrdMap::new();
 
     let item = MyStruct {
         a: "example".to_owned(),
