@@ -1,7 +1,7 @@
 use std::hash::{BuildHasher, Hash, RandomState};
 
 /// Packages up a state and a hash for later validation.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct MapHash {
     pub(super) state: RandomState,
     pub(super) hash: u64,

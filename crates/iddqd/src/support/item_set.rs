@@ -1,10 +1,11 @@
-use crate::internal::{ValidateCompact, ValidationError};
 use derive_where::derive_where;
 use rustc_hash::FxHashMap;
 use std::{
     collections::hash_map,
     ops::{Index, IndexMut},
 };
+
+use crate::internal::{ValidateCompact, ValidationError};
 
 /// A map of items stored by integer index.
 #[derive(Clone, Debug)]
@@ -132,6 +133,18 @@ impl<T> ItemSet<T> {
         if entry.is_some() && index == self.next_index - 1 {
             // If we removed the last entry, decrement next_index. Not strictly
             // necessary but a nice optimization.
+            //
+            // This does not guarantee compactness, since it's possible for the
+            // following set of operations to occur:
+            //
+            // 0. start at next_index = 0
+            // 1. insert 0, next_index = 1
+            // 2. insert 1, next_index = 2
+            // 3. remove 0, next_index = 2
+            // 4. remove 1, next_index = 1 (not 0, even though the map is empty)
+            //
+            // Compactness would require a heap acting as a free list. But that
+            // seems generally unnecessary.
             self.next_index -= 1;
         }
         entry

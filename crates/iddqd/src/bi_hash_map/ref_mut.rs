@@ -54,9 +54,9 @@ impl<'a, T: BiHashItem> RefMut<'a, T> {
     ///
     /// This `RefMut` will also check hash equality on drop.
     pub fn reborrow(&mut self) -> RefMut<'_, T> {
-        let inner = self.inner.take().unwrap();
+        let inner = self.inner.as_mut().unwrap();
         let borrowed = &mut *inner.borrowed;
-        RefMut::new(inner.hashes, borrowed)
+        RefMut::new(inner.hashes.clone(), borrowed)
     }
 
     /// Converts this `RefMut` into a `&'a T`.

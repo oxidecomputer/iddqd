@@ -16,6 +16,20 @@ use std::{
 };
 
 thread_local! {
+    /// Stores an external comparator function to provide dynamic scoping.
+    ///
+    /// std's BTreeMap doesn't allow passing an external comparator, so we make
+    /// do with this function that's passed in through dynamic scoping.
+    ///
+    /// This works by:
+    ///
+    /// * We store an `Index` in the BTreeSet which knows how to call this
+    ///   dynamic comparator.
+    /// * When we need to compare two `Index` values, we create a
+    ///   CmpDropGuard. This struct is responsible for managing the lifetime of
+    ///   the comparator.
+    /// * When the CmpDropGuard is dropped (including due to a panic), we reset
+    ///   the comparator to None.
     static CMP: Cell<Option<&'static dyn Fn(Index, Index) -> Ordering>>
         = const { Cell::new(None) };
 }
