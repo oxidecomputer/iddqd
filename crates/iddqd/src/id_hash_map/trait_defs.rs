@@ -1,3 +1,4 @@
+use alloc::{boxed::Box, rc::Rc, sync::Arc};
 use core::hash::Hash;
 
 /// An element stored in an [`IdHashMap`].
@@ -52,3 +53,55 @@ pub trait IdHashItem {
         long: Self::Key<'long>,
     ) -> Self::Key<'short>;
 }
+
+macro_rules! impl_for_ref {
+    ($type:ty) => {
+        impl<'b, T: 'b + ?Sized + IdHashItem> IdHashItem for $type {
+            type Key<'a>
+                = T::Key<'a>
+            where
+                Self: 'a;
+
+            fn key(&self) -> Self::Key<'_> {
+                (**self).key()
+            }
+
+            fn upcast_key<'short, 'long: 'short>(
+                long: Self::Key<'long>,
+            ) -> Self::Key<'short>
+            where
+                Self: 'long,
+            {
+                T::upcast_key(long)
+            }
+        }
+    };
+}
+
+impl_for_ref!(&'b T);
+impl_for_ref!(&'b mut T);
+
+macro_rules! impl_for_box {
+    ($type:ty) => {
+        impl<T: ?Sized + IdHashItem> IdHashItem for $type {
+            type Key<'a>
+                = T::Key<'a>
+            where
+                Self: 'a;
+
+            fn key(&self) -> Self::Key<'_> {
+                (**self).key()
+            }
+
+            fn upcast_key<'short, 'long: 'short>(
+                long: Self::Key<'long>,
+            ) -> Self::Key<'short> {
+                T::upcast_key(long)
+            }
+        }
+    };
+}
+
+impl_for_box!(Box<T>);
+impl_for_box!(Rc<T>);
+impl_for_box!(Arc<T>);

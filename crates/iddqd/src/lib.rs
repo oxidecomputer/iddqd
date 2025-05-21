@@ -170,6 +170,7 @@
 //! # Optional features
 //!
 //! - `serde`: Enables serde support for all ID map types. *Not enabled by default.*
+//! - `daft`: Enables [`daft`] support for all ID map types. *Not enabled by default.*
 //! - `std`: Enables std support. *Enabled by default.*
 //!
 //! # Related work
@@ -208,4 +209,6 @@ pub use bi_hash_map::{imp::BiHashMap, trait_defs::BiHashItem};
 pub use id_hash_map::{imp::IdHashMap, trait_defs::IdHashItem};
 #[cfg(feature = "std")]
 pub use id_ord_map::{imp::IdOrdMap, trait_defs::IdOrdItem};
+#[cfg(feature = "daft")]
+pub use support::daft_utils::IdLeaf;
 pub use tri_hash_map::{imp::TriHashMap, trait_defs::TriHashItem};

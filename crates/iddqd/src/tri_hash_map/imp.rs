@@ -256,6 +256,78 @@ impl<T: TriHashItem> TriHashMap<T> {
         Ok(())
     }
 
+    /// Returns true if the map contains a single item that matches all three
+    /// keys.
+    pub fn contains_key_unique<'a, Q1, Q2, Q3>(
+        &'a self,
+        key1: &Q1,
+        key2: &Q2,
+        key3: &Q3,
+    ) -> bool
+    where
+        T::K1<'a>: Borrow<Q1>,
+        T::K2<'a>: Borrow<Q2>,
+        T::K3<'a>: Borrow<Q3>,
+        T: 'a,
+        Q1: Eq + Hash + ?Sized,
+        Q2: Eq + Hash + ?Sized,
+        Q3: Eq + Hash + ?Sized,
+    {
+        self.get_unique(key1, key2, key3).is_some()
+    }
+
+    /// Gets a reference to the unique item associated with the given `key1`,
+    /// `key2`, and `key3`, if it exists.
+    pub fn get_unique<'a, Q1, Q2, Q3>(
+        &'a self,
+        key1: &Q1,
+        key2: &Q2,
+        key3: &Q3,
+    ) -> Option<&'a T>
+    where
+        T::K1<'a>: Borrow<Q1>,
+        T::K2<'a>: Borrow<Q2>,
+        T::K3<'a>: Borrow<Q3>,
+        T: 'a,
+        Q1: Eq + Hash + ?Sized,
+        Q2: Eq + Hash + ?Sized,
+        Q3: Eq + Hash + ?Sized,
+    {
+        let index = self.find1_index(key1)?;
+        let item = &self.items[index];
+        if item.key2().borrow() == key2.borrow()
+            && item.key3().borrow() == key3.borrow()
+        {
+            Some(item)
+        } else {
+            None
+        }
+    }
+
+    /// Gets a mutable reference to the unique item associated with the given
+    /// `key1`, `key2`, and `key3`, if it exists.
+    ///
+    /// Due to borrow checker limitations, this always accepts `K1`, `K2`, and
+    /// `K3` rather than borrowed forms.
+    pub fn get_mut_unique<'a>(
+        &'a mut self,
+        key1: T::K1<'_>,
+        key2: T::K2<'_>,
+        key3: T::K3<'_>,
+    ) -> Option<RefMut<'a, T>> {
+        let index = self.find1_index(&T::upcast_key1(key1))?;
+        let item = &mut self.items[index];
+
+        if item.key2() == T::upcast_key2(key2)
+            && item.key3() == T::upcast_key3(key3)
+        {
+            let hashes = self.tables.make_hashes(&item);
+            Some(RefMut::new(hashes, item))
+        } else {
+            None
+        }
+    }
+
     /// Returns true if the map contains the given `key1`.
     pub fn contains_key1<'a, Q>(&'a self, key1: &Q) -> bool
     where

@@ -196,6 +196,62 @@ impl<T: BiHashItem> BiHashMap<T> {
         Ok(())
     }
 
+    /// Returns true if the map contains a single item that matches both `key1` and `key2`.
+    pub fn contains_key_unique<'a, Q1, Q2>(
+        &'a self,
+        key1: &Q1,
+        key2: &Q2,
+    ) -> bool
+    where
+        T::K1<'a>: Borrow<Q1>,
+        T::K2<'a>: Borrow<Q2>,
+        T: 'a,
+        Q1: Eq + Hash + ?Sized,
+        Q2: Eq + Hash + ?Sized,
+    {
+        self.get_unique(key1, key2).is_some()
+    }
+
+    /// Gets a reference to the unique item associated with the given `key1` and
+    /// `key2`, if it exists.
+    pub fn get_unique<'a, Q1, Q2>(
+        &'a self,
+        key1: &Q1,
+        key2: &Q2,
+    ) -> Option<&'a T>
+    where
+        T::K1<'a>: Borrow<Q1>,
+        T::K2<'a>: Borrow<Q2>,
+        T: 'a,
+        Q1: Eq + Hash + ?Sized,
+        Q2: Eq + Hash + ?Sized,
+    {
+        let index = self.find1_index(key1)?;
+        let item = &self.items[index];
+        if item.key2().borrow() == key2.borrow() { Some(item) } else { None }
+    }
+
+    /// Gets a mutable reference to the unique item associated with the given
+    /// `key1` and `key2`, if it exists.
+    //
+    /// Due to borrow checker limitations, this always accepts `K1` and `K2`
+    /// rather than borrowed forms.
+    pub fn get_mut_unique<'a>(
+        &'a mut self,
+        key1: T::K1<'_>,
+        key2: T::K2<'_>,
+    ) -> Option<RefMut<'a, T>> {
+        let index = self.find1_index(&T::upcast_key1(key1))?;
+        let item = &mut self.items[index];
+        if item.key2() == T::upcast_key2(key2) {
+            let hashes =
+                self.tables.make_hashes::<T>(&item.key1(), &item.key2());
+            Some(RefMut::new(hashes, item))
+        } else {
+            None
+        }
+    }
+
     /// Returns true if the map contains the given `key1`.
     pub fn contains_key1<'a, Q>(&'a self, key1: &Q) -> bool
     where

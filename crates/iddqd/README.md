@@ -178,6 +178,7 @@ platform-specific notion of thread locals, would suffice to make
 ## Optional features
 
 * `serde`: Enables serde support for all ID map types. *Not enabled by default.*
+* `daft`: Enables [`daft`](https://docs.rs/daft/0.1.3/daft/index.html) support for all ID map types. *Not enabled by default.*
 * `std`: Enables std support. *Enabled by default.*
 
 ## Related work
