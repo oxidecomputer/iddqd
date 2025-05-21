@@ -151,13 +151,20 @@ impl<'a, T: BiHashItem> OccupiedEntry<'a, T> {
         OccupiedEntry { map: map.into(), indexes }
     }
 
-    /// Returns true if this is a unique entry.
+    /// Returns true if the entry is unique.
     ///
     /// Since [`BiHashMap`] is keyed by two keys, it's possible for
-    /// `OccupiedEntry` to match up to two separate entries. This function
-    /// returns true if the entry is unique, meaning it only matches one entry.
+    /// `OccupiedEntry` to match up to two separate items. This function returns
+    /// true if the entry is unique, meaning all keys point to exactly one item.
     pub fn is_unique(&self) -> bool {
         self.indexes.is_unique()
+    }
+
+    /// Returns true if the `OccupiedEntry` represents more than one item, or if
+    /// some keys are not present.
+    #[inline]
+    pub fn is_non_unique(&self) -> bool {
+        !self.is_unique()
     }
 
     /// Returns references to values that match the provided keys.
@@ -253,6 +260,10 @@ pub enum OccupiedEntryRef<'a, T: BiHashItem> {
 
 impl<'a, T: BiHashItem> OccupiedEntryRef<'a, T> {
     /// Returns true if the entry is unique.
+    ///
+    /// Since [`BiHashMap`] is keyed by two keys, it's possible for
+    /// `OccupiedEntry` to match up to two separate items. This function returns
+    /// true if the entry is unique, meaning all keys point to exactly one item.
     #[inline]
     pub fn is_unique(&self) -> bool {
         matches!(self, Self::Unique(_))
@@ -263,6 +274,15 @@ impl<'a, T: BiHashItem> OccupiedEntryRef<'a, T> {
     #[inline]
     pub fn is_non_unique(&self) -> bool {
         matches!(self, Self::NonUnique { .. })
+    }
+
+    /// Returns a reference to the value if it is unique.
+    #[inline]
+    pub fn as_unique(&self) -> Option<&'a T> {
+        match self {
+            Self::Unique(v) => Some(v),
+            Self::NonUnique { .. } => None,
+        }
     }
 
     /// Returns a reference to the value fetched by the first key.
@@ -314,6 +334,15 @@ impl<'a, T: BiHashItem> OccupiedEntryMut<'a, T> {
     #[inline]
     pub fn is_non_unique(&self) -> bool {
         matches!(self, Self::NonUnique { .. })
+    }
+
+    /// Returns a reference to the value if it is unique.
+    #[inline]
+    pub fn as_unique(&mut self) -> Option<RefMut<'_, T>> {
+        match self {
+            Self::Unique(v) => Some(v.reborrow()),
+            Self::NonUnique { .. } => None,
+        }
     }
 
     /// Returns a mutable reference to the value fetched by the first key.

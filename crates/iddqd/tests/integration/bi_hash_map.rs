@@ -337,6 +337,106 @@ fn get_mut_panics_if_key2_changes() {
 }
 
 #[test]
+fn entry_examples() {
+    let mut map = BiHashMap::<TestItem>::new();
+    let item1 = TestItem::new(0, 'a', "x", "v");
+
+    let Entry::Vacant(entry) = map.entry(item1.key1(), item1.key2()) else {
+        panic!("expected VacantEntry")
+    };
+    let mut entry = entry.insert_entry(item1.clone());
+
+    assert!(entry.is_unique());
+    assert!(!entry.is_non_unique());
+    assert_eq!(entry.get().as_unique(), Some(&item1));
+    assert_eq!(entry.get().by_key1(), Some(&item1));
+    assert_eq!(entry.get().by_key2(), Some(&item1));
+    assert_eq!(entry.get_mut().as_unique().unwrap().into_ref(), &item1);
+    assert_eq!(entry.get_mut().by_key1().unwrap().into_ref(), &item1);
+    assert_eq!(entry.get_mut().by_key2().unwrap().into_ref(), &item1);
+    assert_eq!(entry.into_ref().as_unique(), Some(&item1));
+
+    // Test a non-unique item.
+    let item2 = TestItem::new(0, 'b', "x", "v");
+    let Entry::Occupied(mut entry) = map.entry(item2.key1(), item2.key2())
+    else {
+        panic!("expected OccupiedEntry")
+    };
+
+    assert!(!entry.is_unique());
+    assert!(entry.is_non_unique());
+    assert_eq!(entry.get().as_unique(), None);
+    assert_eq!(entry.get().by_key1(), Some(&item1));
+    assert_eq!(entry.get().by_key2(), None);
+    assert!(entry.get_mut().as_unique().is_none());
+    assert_eq!(entry.get_mut().by_key1().unwrap().into_ref(), &item1);
+    assert!(entry.get_mut().by_key2().is_none());
+
+    // Try inserting item2 into the map.
+    let old_items = entry.insert(item2.clone());
+    assert_eq!(old_items, vec![item1]);
+
+    // The entry should now be unique.
+    assert!(entry.is_unique());
+    assert!(!entry.is_non_unique());
+    assert_eq!(entry.get().as_unique(), Some(&item2));
+    assert_eq!(entry.get().by_key1(), Some(&item2));
+    assert_eq!(entry.get().by_key2(), Some(&item2));
+
+    // Try removing the entry.
+    let removed = entry.remove();
+    assert_eq!(removed, vec![item2]);
+    // There should be no items left in the map.
+    assert_eq!(map.len(), 0);
+
+    // Try adding an item with or_insert_with.
+    let item3 = TestItem::new(1, 'c', "x", "v");
+    {
+        let mut item3_mut = map
+            .entry(item3.key1(), item3.key2())
+            .or_insert_with(|| item3.clone());
+        assert_eq!(item3_mut.as_unique().unwrap().into_ref(), &item3);
+    }
+
+    // item4 has some conflicts so it should *not* be inserted via the
+    // or_insert_with path.
+    let item4 = TestItem::new(1, 'd', "x", "v");
+    {
+        let mut item3_mut = map
+            .entry(item4.key1(), item4.key2())
+            .or_insert_with(|| item4.clone());
+        assert_eq!(item3_mut.by_key1().unwrap().into_ref(), &item3);
+    }
+
+    // item5 has no conflicts.
+    let item5 = TestItem::new(2, 'e', "x", "v");
+    {
+        let mut item5_mut = map
+            .entry(item5.key1(), item5.key2())
+            .or_insert_with(|| item5.clone());
+        assert_eq!(item5_mut.as_unique().unwrap().into_ref(), &item5);
+    }
+
+    // item6 conflicts with both item3 and item5, so `and_modify` should be
+    // called twice.
+    let item6 = TestItem::new(2, 'c', "x", "v");
+    {
+        let mut item3_seen = false;
+        let mut item5_seen = false;
+        let entry = map.entry(item6.key1(), item6.key2()).and_modify(|item| {
+            if *item == &item3 {
+                item3_seen = true;
+            } else if *item == &item5 {
+                item5_seen = true;
+            }
+        });
+        assert!(matches!(entry, Entry::Occupied(_)));
+        assert!(item3_seen);
+        assert!(item5_seen);
+    }
+}
+
+#[test]
 #[should_panic = "key1 hashes do not match"]
 fn insert_panics_for_non_matching_key1() {
     let v1 = TestItem::new(0, 'a', "foo", "value");
