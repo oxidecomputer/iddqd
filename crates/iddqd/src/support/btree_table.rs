@@ -228,11 +228,21 @@ where
     K: Ord + Borrow<Q> + 'a,
     Q: ?Sized + Ord,
 {
-    move |a: Index, b: Index| match (a.0, b.0) {
-        (Index::SENTINEL_VALUE, Index::SENTINEL_VALUE) => Ordering::Equal,
-        (Index::SENTINEL_VALUE, v) => key.borrow().cmp(lookup(v).borrow()),
-        (v, Index::SENTINEL_VALUE) => lookup(v).borrow().cmp(key.borrow()),
-        (a, b) => lookup(a).borrow().cmp(lookup(b).borrow()),
+    move |a: Index, b: Index| {
+        if a.0 == b.0 {
+            // This is potentially load-bearing! It means that even if the Eq
+            // implementation on map items is wrong, we treat items at the same
+            // index as equal.
+            //
+            // Unsafe code relies on this to ensure that we don't return
+            // multiple mutable references to the same index.
+            return Ordering::Equal;
+        }
+        match (a.0, b.0) {
+            (Index::SENTINEL_VALUE, v) => key.borrow().cmp(lookup(v).borrow()),
+            (v, Index::SENTINEL_VALUE) => lookup(v).borrow().cmp(key.borrow()),
+            (a, b) => lookup(a).borrow().cmp(lookup(b).borrow()),
+        }
     }
 }
 
@@ -246,21 +256,25 @@ where
     K: Ord + Borrow<Q> + 'a,
     Q: ?Sized + Ord,
 {
-    move |a: Index, b: Index| match (a.0, b.0) {
-        // The sentinel value should not be invoked at all, because it's not
-        // passed in during insert and not stored in the table.
-        (Index::SENTINEL_VALUE, _) | (_, Index::SENTINEL_VALUE) => {
-            panic!("sentinel value should not be invoked in insert path")
+    move |a: Index, b: Index| {
+        if a.0 == b.0 {
+            // This is potentially load-bearing! It means that even if the Eq
+            // implementation on map items is wrong, we treat items at the same
+            // index as equal.
+            //
+            // Unsafe code relies on this to ensure that we don't return
+            // multiple mutable references to the same index.
+            return Ordering::Equal;
         }
-        (a, b) => {
-            if a == b {
-                return Ordering::Equal;
+        match (a.0, b.0) {
+            // The sentinel value should not be invoked at all, because it's not
+            // passed in during insert and not stored in the table.
+            (Index::SENTINEL_VALUE, _) | (_, Index::SENTINEL_VALUE) => {
+                panic!("sentinel value should not be invoked in insert path")
             }
-            match (a, b) {
-                (a, b) if a == index => key.borrow().cmp(lookup(b).borrow()),
-                (a, b) if b == index => lookup(a).borrow().cmp(key.borrow()),
-                (a, b) => lookup(a).borrow().cmp(lookup(b).borrow()),
-            }
+            (a, b) if a == index => key.borrow().cmp(lookup(b).borrow()),
+            (a, b) if b == index => lookup(a).borrow().cmp(key.borrow()),
+            (a, b) => lookup(a).borrow().cmp(lookup(b).borrow()),
         }
     }
 }
