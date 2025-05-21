@@ -21,7 +21,6 @@ use std::{
 /// purpose, `RefMut` requires that `IdOrdItemMut` be implemented.
 ///
 /// [`IdOrdMap`]: crate::IdOrdMap
-#[derive(Debug)]
 pub struct RefMut<'a, T: IdOrdItem>
 where
     for<'k> T::Key<'k>: Hash,
@@ -76,6 +75,20 @@ where
     }
 }
 
+impl<T: IdOrdItem + fmt::Debug> fmt::Debug for RefMut<'_, T>
+where
+    for<'k> T::Key<'k>: Hash,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.inner {
+            Some(ref inner) => inner.fmt(f),
+            None => {
+                f.debug_struct("RefMut").field("borrowed", &"missing").finish()
+            }
+        }
+    }
+}
+
 struct RefMutInner<'a, T: IdOrdItem> {
     hash: MapHash,
     borrowed: &'a mut T,
@@ -96,8 +109,6 @@ where
 
 impl<T: IdOrdItem + fmt::Debug> fmt::Debug for RefMutInner<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("RefMutInner")
-            .field("borrowed", self.borrowed)
-            .finish_non_exhaustive()
+        self.borrowed.fmt(f)
     }
 }

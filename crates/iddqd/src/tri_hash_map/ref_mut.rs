@@ -45,7 +45,6 @@ use std::{
 ///
 /// [`TriHashMap`]: crate::TriHashMap
 /// [birthday problem]: https://en.wikipedia.org/wiki/Birthday_problem#Probability_table
-#[derive(Debug)]
 pub struct RefMut<'a, T: TriHashItem> {
     inner: Option<RefMutInner<'a, T>>,
 }
@@ -84,6 +83,17 @@ impl<T: TriHashItem> DerefMut for RefMut<'_, T> {
     }
 }
 
+impl<T: TriHashItem + fmt::Debug> fmt::Debug for RefMut<'_, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.inner {
+            Some(ref inner) => inner.fmt(f),
+            None => {
+                f.debug_struct("RefMut").field("borrowed", &"missing").finish()
+            }
+        }
+    }
+}
+
 struct RefMutInner<'a, T: TriHashItem> {
     hashes: [MapHash; 3],
     borrowed: &'a mut T,
@@ -107,8 +117,6 @@ impl<'a, T: TriHashItem> RefMutInner<'a, T> {
 
 impl<T: TriHashItem + fmt::Debug> fmt::Debug for RefMutInner<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("RefMutInner")
-            .field("borrowed", self.borrowed)
-            .finish_non_exhaustive()
+        self.borrowed.fmt(f)
     }
 }

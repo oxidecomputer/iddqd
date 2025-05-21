@@ -18,7 +18,7 @@ struct MyStruct {
 
 /// The map will be indexed uniquely by (b, c, d). Note that this is a
 /// borrowed key that can be constructed efficiently.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 struct MyKey<'a> {
     b: usize,
     c: &'a Path,
@@ -74,6 +74,16 @@ fn main() {
         map.get(&MyKey { b: 20, c: Path::new("/"), d: &[] }),
         Some(&item)
     );
+
+    // Values can also be mutated in place, as long as the key type implements
+    // `Hash`. For example:
+    {
+        let mut item =
+            map.get_mut(MyKey { b: 20, c: Path::new("/"), d: &[] }).unwrap();
+        item.a = "changed".to_owned();
+
+        // Key changes will be checked when the item is dropped.
+    }
 
     // While iterating over the map, items will be sorted by their key.
     for item in map.iter() {

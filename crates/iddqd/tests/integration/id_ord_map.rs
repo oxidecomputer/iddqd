@@ -67,8 +67,14 @@ fn test_insert_unique() {
     // Iterate over the items mutably. This ensures that miri detects UB if it
     // exists.
     let items: Vec<RefMut<_>> = map.iter_mut().collect();
-    let e1 = &*items[0];
-    assert_eq!(*e1, v3);
+    let e1 = &items[0];
+    assert_eq!(**e1, v3);
+
+    // Test that the RefMut Debug impl looks good.
+    assert_eq!(
+        format!("{:?}", e1),
+        r#"TestItem { key1: 5, key2: 'a', key3: "y", value: "v" }"#,
+    );
 
     let e2 = &*items[1];
     assert_eq!(*e2, v1);

@@ -68,8 +68,14 @@ fn test_insert_unique() {
     // exists.
     let mut items: Vec<RefMut<_>> = map.iter_mut().collect();
     items.sort_by_key(|e| e.key1());
-    let e1 = &*items[0];
-    assert_eq!(*e1, v1);
+    let e1 = &items[0];
+    assert_eq!(**e1, v1);
+
+    // Test that the RefMut Debug impl looks good.
+    assert_eq!(
+        format!("{:?}", e1),
+        r#"TestItem { key1: 0, key2: 'a', key3: "x", value: "v" }"#,
+    );
 
     let e2 = &*items[1];
     assert_eq!(*e2, v4);
