@@ -1,6 +1,6 @@
 //! A hash map where keys are part of the values.
 //!
-//! TODO: expand on this
+//! For more information, see [`IdHashMap`].
 
 mod entry;
 pub(crate) mod imp;

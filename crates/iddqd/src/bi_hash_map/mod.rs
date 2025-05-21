@@ -1,6 +1,6 @@
 //! A hash map where values are uniquely indexed by two keys.
 //!
-//! TODO: expand on this
+//! For more information, see [`BiHashMap`].
 
 mod entry;
 mod entry_indexes;

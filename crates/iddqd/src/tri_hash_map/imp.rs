@@ -17,6 +17,61 @@ use hashbrown::hash_table::{Entry, VacantEntry};
 /// The storage mechanism is a fast hash table of integer indexes to items, with
 /// these indexes stored in three hashmaps. This allows for efficient lookups by
 /// any of the three keys, while preventing duplicates.
+///
+/// # Examples
+///
+/// ```
+/// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
+///
+/// #[derive(Debug, PartialEq, Eq)]
+/// struct Person {
+///     id: u32,
+///     email: String,
+///     phone: String,
+///     name: String,
+/// }
+///
+/// // Implement TriHashItem to define the three key types.
+/// impl TriHashItem for Person {
+///     type K1<'a> = u32;
+///     type K2<'a> = &'a str;
+///     type K3<'a> = &'a str;
+///
+///     fn key1(&self) -> Self::K1<'_> {
+///         self.id
+///     }
+///
+///     fn key2(&self) -> Self::K2<'_> {
+///         &self.email
+///     }
+///
+///     fn key3(&self) -> Self::K3<'_> {
+///         &self.phone
+///     }
+///
+///     tri_upcast!();
+/// }
+///
+/// // Create a TriHashMap and insert items.
+/// let mut people = TriHashMap::new();
+/// people.insert_unique(Person {
+///     id: 1,
+///     email: "alice@example.com".to_string(),
+///     phone: "555-1234".to_string(),
+///     name: "Alice".to_string(),
+/// })
+/// .unwrap();
+///
+/// // Lookup by any of the three keys.
+/// let person = people.get1(&1).unwrap();
+/// assert_eq!(person.name, "Alice");
+///
+/// let person = people.get2("alice@example.com").unwrap();
+/// assert_eq!(person.id, 1);
+///
+/// let person = people.get3("555-1234").unwrap();
+/// assert_eq!(person.email, "alice@example.com");
+/// ```
 #[derive_where(Default)]
 #[derive(Clone)]
 pub struct TriHashMap<T: TriHashItem> {

@@ -1,6 +1,6 @@
 //! A hash map where values are uniquely indexed by three keys.
 //!
-//! TODO: expand on this
+//! For more information, see [`TriHashMap`].
 
 pub(crate) mod imp;
 mod iter;

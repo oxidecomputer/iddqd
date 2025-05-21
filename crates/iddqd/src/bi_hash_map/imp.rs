@@ -22,8 +22,48 @@ use hashbrown::hash_table;
 /// A 1:1 (bijective) map for two keys and a value.
 ///
 /// The storage mechanism is a fast hash table of integer indexes to items, with
-/// these indexes stored in two hashmaps. This allows for efficient lookups by
-/// either of the two keys, while preventing duplicates.
+/// these indexes stored in two hash tables. This allows for efficient lookups
+/// by either of the two keys and prevents duplicates.
+///
+/// # Examples
+///
+/// ```
+/// use iddqd::{BiHashMap, BiHashItem, bi_upcast};
+///
+/// // Define a struct with two keys and a value.
+/// #[derive(Debug, PartialEq, Eq)]
+/// struct MyItem {
+///     id: u32,
+///     name: &'static str,
+///     value: i32,
+/// }
+///
+/// // Implement BiHashItem for the struct.
+/// impl BiHashItem for MyItem {
+///     type K1<'a> = u32;
+///     type K2<'a> = &'a str;
+///
+///     fn key1(&self) -> Self::K1<'_> { self.id }
+///     fn key2(&self) -> Self::K2<'_> { self.name }
+///
+///     bi_upcast!();
+/// }
+///
+/// // Create a new BiHashMap and insert items.
+/// let mut map = BiHashMap::new();
+/// map.insert_unique(MyItem { id: 1, name: "foo", value: 42 }).unwrap();
+/// map.insert_unique(MyItem { id: 2, name: "bar", value: 99 }).unwrap();
+///
+/// // Look up by the first key.
+/// assert_eq!(map.get1(&1).unwrap().value, 42);
+/// assert_eq!(map.get1(&2).unwrap().value, 99);
+/// assert!(map.get1(&3).is_none());
+///
+/// // Look up by the second key.
+/// assert_eq!(map.get2(&"foo").unwrap().value, 42);
+/// assert_eq!(map.get2(&"bar").unwrap().value, 99);
+/// assert!(map.get2(&"baz").is_none());
+/// ```
 #[derive_where(Default)]
 #[derive(Clone)]
 pub struct BiHashMap<T: BiHashItem> {

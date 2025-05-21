@@ -13,6 +13,45 @@ use derive_where::derive_where;
 use hashbrown::hash_table;
 
 /// A hash map where the key is part of the value.
+///
+/// The storage mechanism is a fast hash table of integer indexes to items, with
+/// these indexes stored in a hash table. This allows for efficient lookups by
+/// the key and prevents duplicates.
+///
+/// # Examples
+///
+/// ```
+/// use iddqd::{IdHashMap, IdHashItem, id_upcast};
+///
+/// // Define a struct with a key.
+/// #[derive(Debug, PartialEq, Eq, Hash)]
+/// struct MyItem {
+///     id: String,
+///     value: u32,
+/// }
+///
+/// // Implement IdHashItem for the struct.
+/// impl IdHashItem for MyItem {
+///     // Keys can borrow from the item.
+///     type Key<'a> = &'a str;
+///
+///     fn key(&self) -> Self::Key<'_> {
+///         &self.id
+///     }
+///
+///     id_upcast!();
+/// }
+///
+/// // Create an IdHashMap and insert items.
+/// let mut map = IdHashMap::new();
+/// map.insert_unique(MyItem { id: "foo".to_string(), value: 42 }).unwrap();
+/// map.insert_unique(MyItem { id: "bar".to_string(), value: 20 }).unwrap();
+///
+/// // Look up items by their keys.
+/// assert_eq!(map.get("foo").unwrap().value, 42);
+/// assert_eq!(map.get("bar").unwrap().value, 20);
+/// assert!(map.get("baz").is_none());
+/// ```
 #[derive_where(Default)]
 #[derive(Clone)]
 pub struct IdHashMap<T: IdHashItem> {

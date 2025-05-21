@@ -9,7 +9,37 @@ use core::hash::Hash;
 ///
 /// # Examples
 ///
-/// TODO: Add an example here.
+/// ```
+/// use iddqd::{BiHashMap, BiHashItem, bi_upcast};
+///
+/// // Define a struct with two keys.
+/// #[derive(Debug, PartialEq, Eq, Hash)]
+/// struct MyPair {
+///     id: u32,
+///     name: String,
+/// }
+///
+/// // Implement BiHashItem for the struct.
+/// impl BiHashItem for MyPair {
+///     type K1<'a> = u32;
+///     type K2<'a> = &'a str;
+///
+///     fn key1(&self) -> Self::K1<'_> {
+///         self.id
+///     }
+///
+///     fn key2(&self) -> Self::K2<'_> {
+///         &self.name
+///     }
+///
+///     bi_upcast!();
+/// }
+///
+/// // Create a BiHashMap and insert items.
+/// let mut map = BiHashMap::new();
+/// map.insert_unique(MyPair { id: 1, name: "Alice".to_string() }).unwrap();
+/// map.insert_unique(MyPair { id: 2, name: "Bob".to_string() }).unwrap();
+/// ```
 ///
 /// [`BiHashMap`]: crate::BiHashMap
 pub trait BiHashItem {

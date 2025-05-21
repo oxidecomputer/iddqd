@@ -8,7 +8,33 @@ use alloc::{boxed::Box, rc::Rc, sync::Arc};
 ///
 /// # Examples
 ///
-/// TODO: Add an example here.
+/// ```
+/// use iddqd::{IdOrdMap, IdOrdItem, id_upcast};
+///
+/// // Define a struct with a key.
+/// #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+/// struct MyItem {
+///     id: String,
+///     value: u32,
+/// }
+///
+/// // Implement IdOrdItem for the struct.
+/// impl IdOrdItem for MyItem {
+///     // Keys can borrow from the item.
+///     type Key<'a> = &'a str;
+///
+///     fn key(&self) -> Self::Key<'_> {
+///         &self.id
+///     }
+///
+///     id_upcast!();
+/// }
+///
+/// // Create an IdOrdMap and insert items.
+/// let mut map = IdOrdMap::new();
+/// map.insert_unique(MyItem { id: "foo".to_string(), value: 42 }).unwrap();
+/// map.insert_unique(MyItem { id: "bar".to_string(), value: 20 }).unwrap();
+/// ```
 ///
 /// [`IdOrdMap`]: crate::IdOrdMap
 pub trait IdOrdItem {

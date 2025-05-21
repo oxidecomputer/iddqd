@@ -9,7 +9,53 @@ use core::hash::Hash;
 ///
 /// # Examples
 ///
-/// TODO: Add an example here.
+/// ```
+/// use iddqd::{TriHashMap, TriHashItem, tri_upcast};
+///
+/// // Define a struct with three keys.
+/// #[derive(Debug, PartialEq, Eq, Hash)]
+/// struct Person {
+///     id: u32,
+///     name: String,
+///     email: String,
+/// }
+///
+/// // Implement TriHashItem for the struct.
+/// impl TriHashItem for Person {
+///     type K1<'a> = u32;
+///     type K2<'a> = &'a str;
+///     type K3<'a> = &'a str;
+///
+///     fn key1(&self) -> Self::K1<'_> {
+///         self.id
+///     }
+///
+///     fn key2(&self) -> Self::K2<'_> {
+///         &self.name
+///     }
+///
+///     fn key3(&self) -> Self::K3<'_> {
+///         &self.email
+///     }
+///
+///     tri_upcast!();
+/// }
+///
+/// // Create a TriHashMap and insert items.
+/// let mut map = TriHashMap::new();
+/// map.insert_unique(Person { 
+///     id: 1, 
+///     name: "Alice".to_string(), 
+///     email: "alice@example.com".to_string() 
+/// })
+/// .unwrap();
+/// map.insert_unique(Person { 
+///     id: 2, 
+///     name: "Bob".to_string(), 
+///     email: "bob@example.com".to_string() 
+/// })
+/// .unwrap();
+/// ```
 ///
 /// [`TriHashMap`]: crate::TriHashMap
 pub trait TriHashItem {

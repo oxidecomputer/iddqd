@@ -1,6 +1,6 @@
 //! An ordered map where the keys are part of the values, based on a B-Tree.
 //!
-//! TODO: expand on this
+//! For more information, see [`IdOrdMap`].
 
 mod entry;
 pub(crate) mod imp;
