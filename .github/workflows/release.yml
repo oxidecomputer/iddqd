@@ -22,7 +22,7 @@ jobs:
           tool: cargo-release@0.25.17,just
       - uses: taiki-e/create-gh-release-action@b7abb0cf5e72cb5500307b577f9ca3fd4c5be9d2 # v1
         with:
-          prefix: daft
+          prefix: iddqd
           changelog: CHANGELOG.md
           title: $prefix $version
           branch: main
