@@ -291,23 +291,11 @@ fn test_permutation_eq_examples() {
         // Insert an item with the same key1 and key2 but a different
         // key3.
         let mut map1 = map1.clone();
-        map1.insert_unique(TestItem {
-            key1: 1,
-            key2: 'b',
-            key3: "y".to_string(),
-            value: "v".to_string(),
-        })
-        .unwrap();
+        map1.insert_unique(TestItem::new(1, 'b', "y", "v")).unwrap();
         assert_ne_props(&map1, &map2);
 
         let mut map2 = map2.clone();
-        map2.insert_unique(TestItem {
-            key1: 1,
-            key2: 'b',
-            key3: "z".to_string(),
-            value: "v".to_string(),
-        })
-        .unwrap();
+        map2.insert_unique(TestItem::new(1, 'b', "z", "v")).unwrap();
         assert_ne_props(&map1, &map2);
     }
 

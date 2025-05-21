@@ -332,21 +332,11 @@ fn insert_panics_for_non_matching_key() {
 #[test]
 #[should_panic = "key hashes do not match"]
 fn insert_entry_panics_for_non_matching_key() {
-    let v1 = TestItem {
-        key1: 0,
-        key2: 'a',
-        key3: "foo".to_owned(),
-        value: "value".to_owned(),
-    };
+    let v1 = TestItem::new(0, 'a', "foo", "value");
     let mut map = IdHashMap::new();
     map.insert_unique(v1.clone()).expect("insert_unique succeeded");
 
-    let v2 = TestItem {
-        key1: 1,
-        key2: 'a',
-        key3: "bar".to_owned(),
-        value: "value".to_owned(),
-    };
+    let v2 = TestItem::new(1, 'a', "bar", "value");
     let entry = map.entry(v2.key());
     assert!(matches!(entry, Entry::Vacant(_)));
     // Try inserting v1, which is present in the map.
