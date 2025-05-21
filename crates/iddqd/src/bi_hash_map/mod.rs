@@ -2,6 +2,8 @@
 //!
 //! For more information, see [`BiHashMap`].
 
+#[cfg(feature = "daft")]
+mod daft_impls;
 mod entry;
 mod entry_indexes;
 pub(crate) mod imp;
@@ -12,6 +14,8 @@ mod serde_impls;
 mod tables;
 pub(crate) mod trait_defs;
 
+#[cfg(feature = "daft")]
+pub use daft_impls::Diff;
 pub use entry::{
     Entry, OccupiedEntry, OccupiedEntryMut, OccupiedEntryRef, VacantEntry,
 };

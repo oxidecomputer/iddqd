@@ -102,21 +102,31 @@ fn test_insert_unique() {
 
     // Iterate over the items mutably. This ensures that miri detects UB if it
     // exists.
-    let mut items: Vec<RefMut<_>> = map.iter_mut().collect();
-    items.sort_by(|a, b| a.key1().cmp(&b.key1()));
-    let e1 = &items[0];
-    assert_eq!(**e1, v1);
+    {
+        let mut items: Vec<RefMut<_>> = map.iter_mut().collect();
+        items.sort_by(|a, b| a.key1().cmp(&b.key1()));
+        let e1 = &items[0];
+        assert_eq!(**e1, v1);
 
-    // Test that the RefMut Debug impl looks good.
-    assert!(
-        format!("{:?}", e1).starts_with(
-            r#"TestItem { key1: 0, key2: 'a', key3: "x", value: "v""#
-        ),
-        "RefMut Debug impl should forward to TestItem",
+        // Test that the RefMut Debug impl looks good.
+        assert!(
+            format!("{:?}", e1).starts_with(
+                r#"TestItem { key1: 0, key2: 'a', key3: "x", value: "v""#
+            ),
+            "RefMut Debug impl should forward to TestItem",
+        );
+
+        let e2 = &*items[1];
+        assert_eq!(*e2, v5);
+    }
+
+    // Check that the *unique methods work.
+    assert!(map.contains_key_unique(&v5.key1(), &v5.key2(), &v5.key3()));
+    assert_eq!(map.get_unique(&v5.key1(), &v5.key2(), &v5.key3()), Some(&v5));
+    assert_eq!(
+        *map.get_mut_unique(v5.key1(), v5.key2(), v5.key3()).unwrap(),
+        &v5
     );
-
-    let e2 = &*items[1];
-    assert_eq!(*e2, v5);
 }
 
 // Example-based test for insert_overwrite.
