@@ -113,7 +113,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
         &self,
         compactness: ValidateCompact,
     ) -> Result<(), ValidationError> {
-        self.tables.validate(self.items.len(), compactness)?;
+        self.tables.validate(self.len(), compactness)?;
 
         // Check that the indexes are all correct.
         for (&ix, item) in self.items.iter() {
