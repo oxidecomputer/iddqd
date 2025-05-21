@@ -7,8 +7,9 @@ use crate::{
     internal::{ValidateChaos, ValidateCompact, ValidationError},
     support::{borrow::DormantMutRef, item_set::ItemSet},
 };
+use alloc::collections::BTreeSet;
+use core::{borrow::Borrow, fmt, hash::Hash};
 use derive_where::derive_where;
-use std::{borrow::Borrow, collections::BTreeSet, fmt, hash::Hash};
 
 /// An ordered map where the keys are part of the values, based on a B-Tree.
 ///

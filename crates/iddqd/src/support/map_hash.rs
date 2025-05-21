@@ -1,9 +1,12 @@
-use std::hash::{BuildHasher, Hash, RandomState};
+use core::hash::{BuildHasher, Hash};
+use hashbrown::DefaultHashBuilder;
+
+pub(crate) type HashState = DefaultHashBuilder;
 
 /// Packages up a state and a hash for later validation.
 #[derive(Clone, Debug)]
 pub(crate) struct MapHash {
-    pub(super) state: RandomState,
+    pub(super) state: HashState,
     pub(super) hash: u64,
 }
 

@@ -1,5 +1,6 @@
 use super::{BiHashItem, BiHashMap, RefMut, entry_indexes::EntryIndexes};
 use crate::support::{borrow::DormantMutRef, map_hash::MapHash};
+use alloc::vec::Vec;
 use debug_ignore::DebugIgnore;
 use derive_where::derive_where;
 

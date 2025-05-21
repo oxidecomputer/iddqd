@@ -15,4 +15,5 @@ serde_json = { workspace = true, optional = true }
 test-strategy.workspace = true
 
 [features]
+std = ["iddqd/std"]
 serde = ["dep:serde", "dep:serde_json", "iddqd/serde"]

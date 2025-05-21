@@ -7,9 +7,10 @@ use crate::{
         fmt_utils::StrDisplayAsDebug, item_set::ItemSet, map_hash::MapHash,
     },
 };
+use alloc::{collections::BTreeSet, vec::Vec};
+use core::{borrow::Borrow, fmt, hash::Hash};
 use derive_where::derive_where;
 use hashbrown::hash_table::{Entry, VacantEntry};
-use std::{borrow::Borrow, collections::BTreeSet, fmt, hash::Hash};
 
 /// A 1:1:1 (trijective) map for three keys and a value.
 ///
@@ -81,7 +82,7 @@ impl<T: TriHashItem> TriHashMap<T> {
         compactness: crate::internal::ValidateCompact,
     ) -> Result<(), ValidationError>
     where
-        T: std::fmt::Debug,
+        T: core::fmt::Debug,
     {
         self.items.validate(compactness)?;
         self.tables.validate(self.len(), compactness)?;

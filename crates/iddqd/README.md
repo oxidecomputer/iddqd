@@ -36,7 +36,7 @@ issues encountered using Rust’s default map types in practice at Oxide.
 * Keys may be borrowed from values, which allows for more flexible
   implementations. (They don’t have to be borrowed, but they can be.)
 * There’s no `insert` method; insertion must be through either
-  `insert_override` or `insert_unique`. You must pick an insertion
+  `insert_overwrite` or `insert_unique`. You must pick an insertion
   behavior.
 * The serde implementations reject duplicate keys.
 
@@ -152,14 +152,26 @@ assert_eq!(
 );
 ````
 
+## No-std compatibility
+
+Most of this crate is no-std compatible, though [`alloc`](https://doc.rust-lang.org/nightly/alloc/index.html) is required.
+
+The [`IdOrdMap`](https://docs.rs/iddqd/0.1.0/iddqd/id_ord_map/imp/struct.IdOrdMap.html) type is not currently no-std compatible due to its use of a
+thread-local. This thread-local is just a way to work around a limitation in
+std’s `BTreeMap` API, though. Either a custom B-Tree implementation, or a
+platform-specific notion of thread locals, would suffice to make
+[`IdOrdMap`](https://docs.rs/iddqd/0.1.0/iddqd/id_ord_map/imp/struct.IdOrdMap.html) no-std compatible.
+
 ## Optional features
 
 * `serde`: Enables serde support for all ID map types. *Not enabled by default.*
+* `std`: Enables std support. *Enabled by default.*
 
 ## Related work
 
 * [`bimap`](https://docs.rs/bimap) provides a bijective map, but does not
-  have a way to associate arbitrary values. However, it supports
+  have a way to associate arbitrary values with each pair of keys. However, it
+  does support an ordered map type without the need for std.
 
 ## Minimum supported Rust version (MSRV)
 

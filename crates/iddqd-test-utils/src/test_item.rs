@@ -1,11 +1,13 @@
 use iddqd::{
-    BiHashItem, BiHashMap, IdHashItem, IdHashMap, IdOrdItem, IdOrdMap,
-    TriHashItem, TriHashMap, bi_hash_map, bi_upcast,
+    BiHashItem, BiHashMap, IdHashItem, IdHashMap, TriHashItem, TriHashMap,
+    bi_hash_map, bi_upcast,
     errors::DuplicateItem,
-    id_hash_map, id_ord_map, id_upcast,
-    internal::{ValidateChaos, ValidateCompact, ValidationError},
+    id_hash_map, id_upcast,
+    internal::{ValidateCompact, ValidationError},
     tri_hash_map, tri_upcast,
 };
+#[cfg(feature = "std")]
+use iddqd::{IdOrdItem, IdOrdMap, id_ord_map};
 use proptest::{prelude::*, sample::SizeRange};
 use std::cell::Cell;
 use test_strategy::Arbitrary;
@@ -277,6 +279,7 @@ impl IdHashItem for TestItem {
     id_upcast!();
 }
 
+#[cfg(feature = "std")]
 impl IdOrdItem for TestItem {
     // A bit weird to return a reference to a u8, but this makes sure
     // reference-based keys work properly.
@@ -439,6 +442,7 @@ impl TestItemMap for IdHashMap<TestItem> {
     }
 }
 
+#[cfg(feature = "std")]
 impl TestItemMap for IdOrdMap<TestItem> {
     type RefMut<'a> = id_ord_map::RefMut<'a, TestItem>;
     type Iter<'a> = id_ord_map::Iter<'a, TestItem>;
@@ -457,7 +461,7 @@ impl TestItemMap for IdOrdMap<TestItem> {
         &self,
         compactness: ValidateCompact,
     ) -> Result<(), ValidationError> {
-        self.validate(compactness, ValidateChaos::No)
+        self.validate(compactness, iddqd::internal::ValidateChaos::No)
     }
 
     fn insert_unique(
@@ -537,6 +541,7 @@ impl<'a> IntoRef<'a> for id_hash_map::RefMut<'a, TestItem> {
     }
 }
 
+#[cfg(feature = "std")]
 impl<'a> IntoRef<'a> for id_ord_map::RefMut<'a, TestItem> {
     fn into_ref(self) -> &'a TestItem {
         self.into_ref()

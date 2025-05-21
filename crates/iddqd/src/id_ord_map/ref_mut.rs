@@ -1,6 +1,6 @@
 use super::IdOrdItem;
 use crate::support::map_hash::MapHash;
-use std::{
+use core::{
     fmt,
     hash::Hash,
     ops::{Deref, DerefMut},

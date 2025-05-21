@@ -14,9 +14,10 @@ use crate::{
         map_hash::MapHash,
     },
 };
+use alloc::{collections::BTreeSet, vec::Vec};
+use core::{borrow::Borrow, fmt, hash::Hash};
 use derive_where::derive_where;
 use hashbrown::hash_table;
-use std::{borrow::Borrow, collections::BTreeSet, fmt, hash::Hash};
 
 /// A 1:1 (bijective) map for two keys and a value.
 ///
@@ -88,7 +89,7 @@ impl<T: BiHashItem> BiHashMap<T> {
         compactness: ValidateCompact,
     ) -> Result<(), ValidationError>
     where
-        T: std::fmt::Debug,
+        T: core::fmt::Debug,
     {
         self.items.validate(compactness)?;
         self.tables.validate(self.len(), compactness)?;

@@ -1,6 +1,7 @@
 use crate::{BiHashItem, BiHashMap};
+use alloc::vec::Vec;
+use core::fmt;
 use serde::{Deserialize, Serialize, Serializer};
-use std::fmt;
 
 /// A `BiHashMap` serializes to the list of items. Items are serialized in
 /// arbitrary order.

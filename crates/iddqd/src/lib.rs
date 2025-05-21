@@ -26,7 +26,7 @@
 //! * Keys may be borrowed from values, which allows for more flexible
 //!   implementations. (They don't have to be borrowed, but they can be.)
 //! * There's no `insert` method; insertion must be through either
-//!   `insert_override` or `insert_unique`. You must pick an insertion
+//!   `insert_overwrite` or `insert_unique`. You must pick an insertion
 //!   behavior.
 //! * The serde implementations reject duplicate keys.
 //!
@@ -47,6 +47,7 @@
 //! An example for [`IdOrdMap`]:
 //!
 //! ```
+//! # #[cfg(feature = "std")] {
 //! use iddqd::{IdOrdMap, IdOrdItem, id_upcast};
 //!
 //! #[derive(Debug)]
@@ -82,6 +83,7 @@
 //! for user in &users {
 //!     println!("User {}: {}", user.name, user.age);
 //! }
+//! # }
 //! ```
 //!
 //! An example for [`IdHashMap`], showing complex borrowed keys.
@@ -142,26 +144,46 @@
 //! );
 //! ```
 //!
+//! # No-std compatibility
+//!
+//! Most of this crate is no-std compatible, though [`alloc`] is required.
+//!
+//! The [`IdOrdMap`] type is not currently no-std compatible due to its use of a
+//! thread-local. This thread-local is just a way to work around a limitation in
+//! std's `BTreeMap` API, though. Either a custom B-Tree implementation, or a
+//! platform-specific notion of thread locals, would suffice to make
+//! [`IdOrdMap`] no-std compatible.
+//!
 //! # Optional features
 //!
 //! - `serde`: Enables serde support for all ID map types. *Not enabled by default.*
+//! - `std`: Enables std support. *Enabled by default.*
 //!
 //! # Related work
 //!
 //! - [`bimap`](https://docs.rs/bimap) provides a bijective map, but does not
-//!   have a way to associate arbitrary values. However, it supports
+//!   have a way to associate arbitrary values with each pair of keys. However, it
+//!   does support an ordered map type without the need for std.
 //!
 //! # Minimum supported Rust version (MSRV)
 //!
 //! This crate's MSRV is **Rust 1.81**. In general we aim for 6 months of Rust
 //! compatibility.
 
+#![no_std]
 #![cfg_attr(doc_cfg, feature(doc_auto_cfg))]
 #![warn(missing_docs)]
+
+#[cfg_attr(not(feature = "std"), macro_use)] // for `format!`
+extern crate alloc;
+#[cfg(feature = "std")]
+#[macro_use]
+extern crate std;
 
 pub mod bi_hash_map;
 pub mod errors;
 pub mod id_hash_map;
+#[cfg(feature = "std")]
 pub mod id_ord_map;
 #[doc(hidden)]
 pub mod internal;
@@ -171,5 +193,6 @@ pub mod tri_hash_map;
 
 pub use bi_hash_map::{imp::BiHashMap, trait_defs::BiHashItem};
 pub use id_hash_map::{imp::IdHashMap, trait_defs::IdHashItem};
+#[cfg(feature = "std")]
 pub use id_ord_map::{imp::IdOrdMap, trait_defs::IdOrdItem};
 pub use tri_hash_map::{imp::TriHashMap, trait_defs::TriHashItem};

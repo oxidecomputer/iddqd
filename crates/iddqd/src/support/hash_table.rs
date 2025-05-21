@@ -2,25 +2,37 @@
 
 use super::map_hash::MapHash;
 use crate::internal::{TableValidationError, ValidateCompact};
-use hashbrown::{
-    HashTable,
-    hash_table::{AbsentEntry, Entry, OccupiedEntry},
-};
-use std::{
+use alloc::vec::Vec;
+use core::{
     borrow::Borrow,
-    hash::{BuildHasher, Hash, RandomState},
+    hash::{BuildHasher, Hash},
+};
+use hashbrown::{
+    DefaultHashBuilder, HashTable,
+    hash_table::{AbsentEntry, Entry, OccupiedEntry},
 };
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct MapHashTable {
-    pub(super) state: RandomState,
+    pub(super) state: DefaultHashBuilder,
     pub(super) items: HashTable<usize>,
+}
+
+#[cfg(feature = "std")]
+fn new_hash_builder() -> DefaultHashBuilder {
+    DefaultHashBuilder::default()
+}
+
+#[cfg(not(feature = "std"))]
+fn new_hash_builder() -> DefaultHashBuilder {
+    // Use a default hash builder that doesn't require std.
+    DefaultHashBuilder::default()
 }
 
 impl MapHashTable {
     pub(crate) fn with_capacity(capacity: usize) -> Self {
         Self {
-            state: RandomState::new(),
+            state: new_hash_builder(),
             items: HashTable::with_capacity(capacity),
         }
     }
@@ -76,7 +88,7 @@ impl MapHashTable {
     }
 
     pub(crate) fn compute_hash<K: Hash + Eq>(&self, key: K) -> MapHash {
-        MapHash { state: self.state.clone(), hash: self.state.hash_one(key) }
+        MapHash { state: self.state, hash: self.state.hash_one(key) }
     }
 
     // Ensure that K has a consistent hash.

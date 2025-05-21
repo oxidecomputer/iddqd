@@ -2,7 +2,8 @@
 //!
 //! These types are shared across all map implementations in this crate.
 
-use std::fmt;
+use alloc::vec::Vec;
+use core::fmt;
 
 /// An item conflicts with existing items.
 #[derive(Debug)]
@@ -60,4 +61,4 @@ impl<T: fmt::Debug, D: fmt::Debug> fmt::Display for DuplicateItem<T, D> {
     }
 }
 
-impl<T: fmt::Debug, D: fmt::Debug> std::error::Error for DuplicateItem<T, D> {}
+impl<T: fmt::Debug, D: fmt::Debug> core::error::Error for DuplicateItem<T, D> {}

@@ -14,10 +14,10 @@ unexpected_cfgs = { level = "warn", check-cfg = ["cfg(doc_cfg)"] }
 debug-ignore = "1.0.5"
 derive-where = "1.2.7"
 hashbrown = "0.15.2"
-iddqd = { path = "crates/iddqd" }
+iddqd = { path = "crates/iddqd", default-features = false }
 iddqd-test-utils = { path = "crates/iddqd-test-utils" }
 proptest = "1.6.0"
-rustc-hash = "2.1.1"
+rustc-hash = { version = "2.1.1", default-features = false }
 serde = { version = "1.0.219", features = ["derive"] }
 serde_json = "1.0.140"
 test-strategy = "0.4.1"

@@ -1,7 +1,7 @@
 use super::{RefMut, tables::TriHashMapTables};
 use crate::{TriHashItem, support::item_set::ItemSet};
+use core::iter::FusedIterator;
 use hashbrown::hash_map;
-use std::iter::FusedIterator;
 
 /// An iterator over the elements of a [`TriHashMap`] by shared reference.
 ///

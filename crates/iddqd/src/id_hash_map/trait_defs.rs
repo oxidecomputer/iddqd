@@ -1,4 +1,4 @@
-use std::hash::Hash;
+use core::hash::Hash;
 
 /// An element stored in an [`IdHashMap`].
 ///

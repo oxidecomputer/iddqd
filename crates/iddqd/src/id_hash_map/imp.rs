@@ -7,9 +7,10 @@ use crate::{
     internal::{ValidateCompact, ValidationError},
     support::{borrow::DormantMutRef, item_set::ItemSet, map_hash::MapHash},
 };
+use alloc::collections::BTreeSet;
+use core::{borrow::Borrow, fmt, hash::Hash};
 use derive_where::derive_where;
 use hashbrown::hash_table;
-use std::{borrow::Borrow, collections::BTreeSet, fmt, hash::Hash};
 
 /// A hash map where the key is part of the value.
 #[derive_where(Default)]
@@ -75,7 +76,7 @@ impl<T: IdHashItem> IdHashMap<T> {
         compactness: ValidateCompact,
     ) -> Result<(), ValidationError>
     where
-        T: std::fmt::Debug,
+        T: core::fmt::Debug,
     {
         self.items.validate(compactness)?;
         self.tables.validate(self.len(), compactness)?;

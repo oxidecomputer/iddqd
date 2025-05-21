@@ -27,6 +27,8 @@ proptest.workspace = true
 test-strategy.workspace = true
 
 [features]
+default = ["std"]
+std = ["iddqd-test-utils/std", "rustc-hash/std"]
 serde = ["dep:serde", "iddqd-test-utils/serde"]
 
 [package.metadata.cargo-sync-rdme.badge.badges]
@@ -34,3 +36,7 @@ license = true
 crates-io = true
 docs-rs = true
 rust-version = true
+
+[[example]]
+name = "id-complex"
+required-features = ["std"]

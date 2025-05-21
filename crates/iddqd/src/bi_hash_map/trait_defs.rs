@@ -1,6 +1,7 @@
 //! Trait definitions for `BiHashMap`.
 
-use std::{hash::Hash, rc::Rc, sync::Arc};
+use alloc::{boxed::Box, rc::Rc, sync::Arc};
+use core::hash::Hash;
 
 /// An item in a [`BiHashMap`].
 ///

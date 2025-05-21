@@ -3,7 +3,7 @@ use crate::{
     internal::{ValidateCompact, ValidationError},
     support::{btree_table::MapBTreeTable, map_hash::MapHash},
 };
-use std::hash::Hash;
+use core::hash::Hash;
 
 #[derive(Clone, Debug, Default)]
 pub(super) struct IdOrdMapTables {

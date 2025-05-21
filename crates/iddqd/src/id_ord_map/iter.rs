@@ -1,6 +1,6 @@
 use super::{IdOrdItem, RefMut, tables::IdOrdMapTables};
 use crate::support::{btree_table, item_set::ItemSet};
-use std::{hash::Hash, iter::FusedIterator};
+use core::{hash::Hash, iter::FusedIterator};
 
 /// An iterator over the elements of an [`IdOrdMap`] by shared reference.
 ///
@@ -110,7 +110,7 @@ where
         //
         // [1]:
         //     https://doc.rust-lang.org/std/ptr/index.html#pointer-to-reference-conversion
-        let item = unsafe { std::mem::transmute::<&mut T, &'a mut T>(item) };
+        let item = unsafe { core::mem::transmute::<&mut T, &'a mut T>(item) };
         Some(RefMut::new(hash, item))
     }
 }

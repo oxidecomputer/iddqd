@@ -1,4 +1,5 @@
-use std::fmt;
+use alloc::string::String;
+use core::fmt;
 
 /// For validation, indicate whether we expect integer tables to be compact
 /// (have all values in the range 0..table.len()).
@@ -42,8 +43,8 @@ impl fmt::Display for ValidationError {
     }
 }
 
-impl std::error::Error for ValidationError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+impl core::error::Error for ValidationError {
+    fn source(&self) -> Option<&(dyn core::error::Error + 'static)> {
         match self {
             ValidationError::Table { error, .. } => Some(error),
             ValidationError::General(_) => None,
@@ -66,4 +67,4 @@ impl fmt::Display for TableValidationError {
     }
 }
 
-impl std::error::Error for TableValidationError {}
+impl core::error::Error for TableValidationError {}
