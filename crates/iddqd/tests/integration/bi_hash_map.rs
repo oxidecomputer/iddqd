@@ -424,9 +424,9 @@ fn entry_examples() {
         let mut item3_seen = false;
         let mut item5_seen = false;
         let entry = map.entry(item6.key1(), item6.key2()).and_modify(|item| {
-            if *item == &item3 {
+            if *item == item3 {
                 item3_seen = true;
-            } else if *item == &item5 {
+            } else if *item == item5 {
                 item5_seen = true;
             }
         });
