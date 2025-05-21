@@ -39,8 +39,8 @@
 //! * [`TriHashMap`] has three keys, and provides a trijection (1:1:1 relationship)
 //!   between the keys.
 //!
-//! Due to their general structure, maps can have arbitrary value data
-//! associated with them as well.
+//! As a consequence of the general API structure, maps can have arbitrary
+//! non-key data associated with them as well.
 //!
 //! ## Examples
 //!
@@ -145,6 +145,17 @@
 //!     b"data1",
 //! );
 //! ```
+//!
+//! # Testing
+//!
+//! This crate is validated through a combination of:
+//!
+//! * Unit tests
+//! * Property-based tests using a naive map as an oracle
+//! * Chaos tests for several kinds of buggy `Eq` and `Ord` implementations
+//! * Miri tests for unsafe code
+//!
+//! If you see a gap in testing, new tests are welcome. Thank you!
 //!
 //! # No-std compatibility
 //!
