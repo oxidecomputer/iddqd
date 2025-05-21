@@ -43,16 +43,16 @@ use core::hash::Hash;
 ///
 /// // Create a TriHashMap and insert items.
 /// let mut map = TriHashMap::new();
-/// map.insert_unique(Person { 
-///     id: 1, 
-///     name: "Alice".to_string(), 
-///     email: "alice@example.com".to_string() 
+/// map.insert_unique(Person {
+///     id: 1,
+///     name: "Alice".to_string(),
+///     email: "alice@example.com".to_string()
 /// })
 /// .unwrap();
-/// map.insert_unique(Person { 
-///     id: 2, 
-///     name: "Bob".to_string(), 
-///     email: "bob@example.com".to_string() 
+/// map.insert_unique(Person {
+///     id: 2,
+///     name: "Bob".to_string(),
+///     email: "bob@example.com".to_string()
 /// })
 /// .unwrap();
 /// ```
