@@ -7,6 +7,9 @@ edition = "2021"
 license = "MPL-2.0"
 rust-version = "1.86"
 
+[workspace.lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(doc_cfg)"] }
+
 [workspace.dependencies]
 debug-ignore = "1.0.5"
 derive-where = "1.2.7"

@@ -142,6 +142,7 @@
 //!
 //! - `serde`: Enables serde support for all ID map types. *Not enabled by default.*
 
+#![cfg_attr(doc_cfg, feature(doc_auto_cfg))]
 #![warn(missing_docs)]
 
 pub mod bi_hash_map;
