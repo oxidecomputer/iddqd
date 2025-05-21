@@ -5,7 +5,7 @@
 #[derive(Clone, Copy, Debug)]
 pub(super) enum EntryIndexes {
     Unique(usize),
-    Multiple {
+    NonUnique {
         // Invariant: at least one index is Some, and indexes are different from
         // each other.
         index1: Option<usize>,
@@ -23,7 +23,7 @@ impl EntryIndexes {
     pub(super) fn disjoint_keys(&self) -> DisjointKeys<'_> {
         match self {
             EntryIndexes::Unique(index) => DisjointKeys::Unique(*index),
-            EntryIndexes::Multiple {
+            EntryIndexes::NonUnique {
                 index1: Some(index1),
                 index2: Some(index2),
             } => {
@@ -33,13 +33,13 @@ impl EntryIndexes {
                 );
                 DisjointKeys::Key12([index1, index2])
             }
-            EntryIndexes::Multiple { index1: Some(index), index2: None } => {
+            EntryIndexes::NonUnique { index1: Some(index), index2: None } => {
                 DisjointKeys::Key1(*index)
             }
-            EntryIndexes::Multiple { index1: None, index2: Some(index) } => {
+            EntryIndexes::NonUnique { index1: None, index2: Some(index) } => {
                 DisjointKeys::Key2(*index)
             }
-            EntryIndexes::Multiple { index1: None, index2: None } => {
+            EntryIndexes::NonUnique { index1: None, index2: None } => {
                 unreachable!("At least one index must be Some")
             }
         }

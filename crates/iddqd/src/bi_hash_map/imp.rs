@@ -242,7 +242,7 @@ impl<T: BiHashItem> BiHashMap<T> {
             (index1, index2) => Entry::Occupied(unsafe {
                 OccupiedEntry::new(
                     dormant_map,
-                    EntryIndexes::Multiple { index1, index2 },
+                    EntryIndexes::NonUnique { index1, index2 },
                 )
             }),
         }
@@ -339,12 +339,12 @@ impl<T: BiHashItem> BiHashMap<T> {
             EntryIndexes::Unique(index) => OccupiedEntryRef::Unique(
                 self.items.get(index).expect("index is valid"),
             ),
-            EntryIndexes::Multiple { index1, index2 } => {
+            EntryIndexes::NonUnique { index1, index2 } => {
                 let by_key1 = index1
                     .map(|k| self.items.get(k).expect("key1 index is valid"));
                 let by_key2 = index2
                     .map(|k| self.items.get(k).expect("key2 index is valid"));
-                OccupiedEntryRef::Multiple { by_key1, by_key2 }
+                OccupiedEntryRef::NonUnique { by_key1, by_key2 }
             }
         }
     }
@@ -365,7 +365,7 @@ impl<T: BiHashItem> BiHashMap<T> {
                     self.items.get_mut(index1).expect("key1 index is valid");
                 let hashes =
                     self.tables.make_hashes::<T>(&item.key1(), &item.key2());
-                OccupiedEntryMut::Multiple {
+                OccupiedEntryMut::NonUnique {
                     by_key1: Some(RefMut::new(hashes, item)),
                     by_key2: None,
                 }
@@ -375,7 +375,7 @@ impl<T: BiHashItem> BiHashMap<T> {
                     self.items.get_mut(index2).expect("key2 index is valid");
                 let hashes =
                     self.tables.make_hashes::<T>(&item.key1(), &item.key2());
-                OccupiedEntryMut::Multiple {
+                OccupiedEntryMut::NonUnique {
                     by_key1: None,
                     by_key2: Some(RefMut::new(hashes, item)),
                 }
@@ -389,7 +389,7 @@ impl<T: BiHashItem> BiHashMap<T> {
                 let hashes2 =
                     self.tables.make_hashes::<T>(&item2.key1(), &item2.key2());
 
-                OccupiedEntryMut::Multiple {
+                OccupiedEntryMut::NonUnique {
                     by_key1: Some(RefMut::new(hashes1, item1)),
                     by_key2: Some(RefMut::new(hashes2, item2)),
                 }
@@ -463,7 +463,7 @@ impl<T: BiHashItem> BiHashMap<T> {
                     self.remove_by_index(index).expect("index is valid");
                 vec![old_item]
             }
-            EntryIndexes::Multiple { index1, index2 } => {
+            EntryIndexes::NonUnique { index1, index2 } => {
                 let mut old_items = Vec::new();
                 if let Some(index1) = index1 {
                     old_items.push(
@@ -535,7 +535,7 @@ impl<T: BiHashItem> BiHashMap<T> {
                 let old_item = self.items.replace(index, value);
                 (index, vec![old_item])
             }
-            EntryIndexes::Multiple { index1, index2 } => {
+            EntryIndexes::NonUnique { index1, index2 } => {
                 let mut old_items = Vec::new();
                 if let Some(index1) = index1 {
                     let old_item = &self.items[index1];

@@ -245,7 +245,7 @@ pub enum OccupiedEntryRef<'a, T: BiHashItem> {
     /// The keys point to different entries, or some keys are not present.
     ///
     /// At least one of `by_key1` and `by_key2` is `Some`.
-    Multiple {
+    NonUnique {
         /// The value fetched by the first key.
         by_key1: Option<&'a T>,
 
@@ -264,8 +264,8 @@ impl<'a, T: BiHashItem> OccupiedEntryRef<'a, T> {
     /// Returns true if the `OccupiedEntryRef` represents more than one item, or
     /// if some keys are not present.
     #[inline]
-    pub fn is_multiple(&self) -> bool {
-        matches!(self, Self::Multiple { .. })
+    pub fn is_non_unique(&self) -> bool {
+        matches!(self, Self::NonUnique { .. })
     }
 
     /// Returns a reference to the value fetched by the first key.
@@ -273,7 +273,7 @@ impl<'a, T: BiHashItem> OccupiedEntryRef<'a, T> {
     pub fn by_key1(&self) -> Option<&'a T> {
         match self {
             Self::Unique(v) => Some(v),
-            Self::Multiple { by_key1, .. } => *by_key1,
+            Self::NonUnique { by_key1, .. } => *by_key1,
         }
     }
 
@@ -282,7 +282,7 @@ impl<'a, T: BiHashItem> OccupiedEntryRef<'a, T> {
     pub fn by_key2(&self) -> Option<&'a T> {
         match self {
             Self::Unique(v) => Some(v),
-            Self::Multiple { by_key2, .. } => *by_key2,
+            Self::NonUnique { by_key2, .. } => *by_key2,
         }
     }
 }
@@ -296,7 +296,7 @@ pub enum OccupiedEntryMut<'a, T: BiHashItem> {
     Unique(RefMut<'a, T>),
 
     /// The keys point to different entries, or some keys are not present.
-    Multiple {
+    NonUnique {
         /// The value fetched by the first key.
         by_key1: Option<RefMut<'a, T>>,
 
@@ -315,8 +315,8 @@ impl<'a, T: BiHashItem> OccupiedEntryMut<'a, T> {
     /// Returns true if the `OccupiedEntryMut` represents more than one item, or
     /// if some keys are not present.
     #[inline]
-    pub fn is_multiple(&self) -> bool {
-        matches!(self, Self::Multiple { .. })
+    pub fn is_non_unique(&self) -> bool {
+        matches!(self, Self::NonUnique { .. })
     }
 
     /// Returns a mutable reference to the value fetched by the first key.
@@ -324,7 +324,7 @@ impl<'a, T: BiHashItem> OccupiedEntryMut<'a, T> {
     pub fn by_key1(&mut self) -> Option<RefMut<'_, T>> {
         match self {
             Self::Unique(v) => Some(v.reborrow()),
-            Self::Multiple { by_key1, .. } => {
+            Self::NonUnique { by_key1, .. } => {
                 by_key1.as_mut().map(|v| v.reborrow())
             }
         }
@@ -335,7 +335,7 @@ impl<'a, T: BiHashItem> OccupiedEntryMut<'a, T> {
     pub fn by_key2(&mut self) -> Option<RefMut<'_, T>> {
         match self {
             Self::Unique(v) => Some(v.reborrow()),
-            Self::Multiple { by_key2, .. } => {
+            Self::NonUnique { by_key2, .. } => {
                 by_key2.as_mut().map(|v| v.reborrow())
             }
         }
@@ -348,7 +348,7 @@ impl<'a, T: BiHashItem> OccupiedEntryMut<'a, T> {
     {
         match self {
             Self::Unique(v) => f(v.reborrow()),
-            Self::Multiple { by_key1, by_key2 } => {
+            Self::NonUnique { by_key1, by_key2 } => {
                 if let Some(v) = by_key1 {
                     f(v.reborrow());
                 }
