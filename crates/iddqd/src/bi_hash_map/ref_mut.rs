@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::{support::hash_table::MapHash, BiHashItem};
+use crate::{support::map_hash::MapHash, BiHashItem};
 use std::{
     fmt,
     ops::{Deref, DerefMut},
@@ -56,6 +56,8 @@ impl<'a, T: BiHashItem> RefMut<'a, T> {
     }
 
     /// Borrows self into a shorter-lived `RefMut`.
+    ///
+    /// This `RefMut` will also check hash equality on drop.
     pub fn reborrow(&mut self) -> RefMut<'_, T> {
         let inner = self.inner.take().unwrap();
         let borrowed = &mut *inner.borrowed;

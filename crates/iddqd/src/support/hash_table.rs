@@ -4,6 +4,7 @@
 
 //! A wrapper around a hash table with some random state.
 
+use super::map_hash::MapHash;
 use crate::internal::{TableValidationError, ValidateCompact};
 use hashbrown::{
     hash_table::{AbsentEntry, Entry, OccupiedEntry},
@@ -125,18 +126,5 @@ impl MapHashTable {
     {
         let hash = self.state.hash_one(key);
         self.items.find_entry(hash, |index| lookup(*index).borrow() == key)
-    }
-}
-
-/// Packages up a state and a hash for later validation.
-#[derive(Debug)]
-pub(crate) struct MapHash {
-    state: RandomState,
-    hash: u64,
-}
-
-impl MapHash {
-    pub(crate) fn is_same_hash<K: Hash + Eq>(&self, key: K) -> bool {
-        self.hash == self.state.hash_one(key)
     }
 }

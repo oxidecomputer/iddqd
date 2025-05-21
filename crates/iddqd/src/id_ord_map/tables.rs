@@ -2,10 +2,12 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use super::IdOrdItem;
 use crate::{
     internal::{ValidateCompact, ValidationError},
-    support::btree_table::MapBTreeTable,
+    support::{btree_table::MapBTreeTable, map_hash::MapHash},
 };
+use std::hash::Hash;
 
 #[derive(Clone, Debug, Default)]
 pub(super) struct IdOrdMapTables {
@@ -28,5 +30,12 @@ impl IdOrdMapTables {
         )?;
 
         Ok(())
+    }
+
+    pub(super) fn make_hash<T: IdOrdItem>(&self, item: &T) -> MapHash
+    where
+        for<'k> T::Key<'k>: Hash,
+    {
+        self.key_to_item.compute_hash(item.key())
     }
 }

@@ -8,7 +8,7 @@ use iddqd::{
     id_hash_map, id_ord_map, id_upcast,
     internal::{ValidateCompact, ValidationError},
     tri_hash_map, tri_upcasts, BiHashItem, BiHashMap, IdHashItem, IdHashMap,
-    IdOrdItem, IdOrdItemMut, IdOrdMap, TriHashItem, TriHashMap,
+    IdOrdItem, IdOrdMap, TriHashItem, TriHashMap,
 };
 use proptest::{prelude::*, sample::SizeRange};
 use test_strategy::Arbitrary;
@@ -59,14 +59,6 @@ impl IdOrdItem for TestItem {
     }
 
     id_upcast!();
-}
-
-impl IdOrdItemMut for TestItem {
-    type OwnedKey = u8;
-
-    fn owned_key(&self) -> Self::OwnedKey {
-        self.key1
-    }
 }
 
 impl BiHashItem for TestItem {

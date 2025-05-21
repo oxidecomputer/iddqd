@@ -35,24 +35,6 @@ pub trait IdOrdItem {
     ) -> Self::Key<'short>;
 }
 
-/// Required to be implemented for [`IdOrdMap::get_mut`] to be called.
-///
-/// The `get_mut` method returns a wrapper which ensures that the key doesn't
-/// change during mutation. This trait is used to return an owned form of the
-/// key for temporary storage.
-///
-/// [`IdOrdMap::get_mut`]: crate::IdOrdMap::get_mut
-pub trait IdOrdItemMut: IdOrdItem {
-    /// An owned key type corresponding to [`IdOrdItem::Key`].
-    ///
-    /// This can also be a digest, or some other kind of value which changes iff
-    /// the key changes.
-    type OwnedKey: Eq;
-
-    /// Retrieves the key as an owned value.
-    fn owned_key(&self) -> Self::OwnedKey;
-}
-
 macro_rules! impl_for_ref {
     ($type:ty) => {
         impl<'b, T: 'b + ?Sized + IdOrdItem> IdOrdItem for $type {
@@ -72,14 +54,6 @@ macro_rules! impl_for_ref {
                 Self: 'long,
             {
                 T::upcast_key(long)
-            }
-        }
-
-        impl<'b, T: 'b + ?Sized + IdOrdItemMut> IdOrdItemMut for $type {
-            type OwnedKey = T::OwnedKey;
-
-            fn owned_key(&self) -> Self::OwnedKey {
-                (**self).owned_key()
             }
         }
     };
@@ -104,14 +78,6 @@ macro_rules! impl_for_box {
                 long: Self::Key<'long>,
             ) -> Self::Key<'short> {
                 T::upcast_key(long)
-            }
-        }
-
-        impl<T: ?Sized + IdOrdItemMut> IdOrdItemMut for $type {
-            type OwnedKey = T::OwnedKey;
-
-            fn owned_key(&self) -> Self::OwnedKey {
-                (**self).owned_key()
             }
         }
     };

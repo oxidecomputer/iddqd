@@ -2,9 +2,9 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::{tables::IdOrdMapTables, IdOrdItem, IdOrdItemMut, RefMut};
+use super::{tables::IdOrdMapTables, IdOrdItem, RefMut};
 use crate::support::{btree_table, item_set::ItemSet};
-use std::iter::FusedIterator;
+use std::{hash::Hash, iter::FusedIterator};
 
 /// An iterator over the elements of an [`IdOrdMap`] by shared reference.
 ///
@@ -56,27 +56,38 @@ impl<T: IdOrdItem> FusedIterator for Iter<'_, T> {}
 /// [`IdOrdMap`]: crate::IdOrdMap
 /// [`IdOrdMap::iter_mut`]: crate::IdOrdMap::iter_mut
 #[derive(Debug)]
-pub struct IterMut<'a, T: IdOrdItemMut> {
+pub struct IterMut<'a, T: IdOrdItem>
+where
+    for<'k> T::Key<'k>: Hash,
+{
     items: &'a mut ItemSet<T>,
+    tables: &'a IdOrdMapTables,
     iter: btree_table::Iter<'a>,
 }
 
-impl<'a, T: IdOrdItemMut> IterMut<'a, T> {
+impl<'a, T: IdOrdItem> IterMut<'a, T>
+where
+    for<'k> T::Key<'k>: Hash,
+{
     pub(super) fn new(
         items: &'a mut ItemSet<T>,
         tables: &'a IdOrdMapTables,
     ) -> Self {
-        Self { items, iter: tables.key_to_item.iter() }
+        Self { items, tables, iter: tables.key_to_item.iter() }
     }
 }
 
-impl<'a, T: IdOrdItemMut + 'a> Iterator for IterMut<'a, T> {
+impl<'a, T: IdOrdItem + 'a> Iterator for IterMut<'a, T>
+where
+    for<'k> T::Key<'k>: Hash,
+{
     type Item = RefMut<'a, T>;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         let index = self.iter.next()?;
         let item = &mut self.items[index];
+        let hash = self.tables.make_hash(item);
 
         // SAFETY: This lifetime extension from self to 'a is safe based on two
         // things:
@@ -104,11 +115,14 @@ impl<'a, T: IdOrdItemMut + 'a> Iterator for IterMut<'a, T> {
         // [1]:
         //     https://doc.rust-lang.org/std/ptr/index.html#pointer-to-reference-conversion
         let item = unsafe { std::mem::transmute::<&mut T, &'a mut T>(item) };
-        Some(RefMut::new(item))
+        Some(RefMut::new(hash, item))
     }
 }
 
-impl<'a, T: IdOrdItemMut + 'a> ExactSizeIterator for IterMut<'a, T> {
+impl<'a, T: IdOrdItem + 'a> ExactSizeIterator for IterMut<'a, T>
+where
+    for<'k> T::Key<'k>: Hash,
+{
     #[inline]
     fn len(&self) -> usize {
         self.iter.len()
@@ -116,7 +130,10 @@ impl<'a, T: IdOrdItemMut + 'a> ExactSizeIterator for IterMut<'a, T> {
 }
 
 // hash_map::IterMut is a FusedIterator, so IterMut is as well.
-impl<'a, T: IdOrdItemMut + 'a> FusedIterator for IterMut<'a, T> {}
+impl<'a, T: IdOrdItem + 'a> FusedIterator for IterMut<'a, T> where
+    for<'k> T::Key<'k>: Hash
+{
+}
 
 /// An iterator over the elements of a [`IdOrdMap`] by ownership.
 ///

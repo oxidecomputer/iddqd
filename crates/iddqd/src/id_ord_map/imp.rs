@@ -3,8 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use super::{
-    tables::IdOrdMapTables, Entry, IdOrdItem, IdOrdItemMut, IntoIter, Iter,
-    IterMut, OccupiedEntry, RefMut, VacantEntry,
+    tables::IdOrdMapTables, Entry, IdOrdItem, IntoIter, Iter, IterMut,
+    OccupiedEntry, RefMut, VacantEntry,
 };
 use crate::{
     errors::DuplicateItem,
@@ -12,7 +12,7 @@ use crate::{
     support::{borrow::DormantMutRef, item_set::ItemSet},
 };
 use derive_where::derive_where;
-use std::{borrow::Borrow, collections::BTreeSet};
+use std::{borrow::Borrow, collections::BTreeSet, hash::Hash};
 
 /// An ordered map where the keys are part of the values, based on a B-Tree.
 ///
@@ -83,7 +83,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     #[inline]
     pub fn iter_mut(&mut self) -> IterMut<'_, T>
     where
-        T: IdOrdItemMut,
+        for<'k> T::Key<'k>: Hash,
     {
         IterMut::new(&mut self.items, &self.tables)
     }
@@ -176,11 +176,12 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     /// than a borrowed form of it.
     pub fn get_mut<'a>(&'a mut self, key: T::Key<'_>) -> Option<RefMut<'a, T>>
     where
-        T: IdOrdItemMut,
+        for<'k> T::Key<'k>: Hash,
     {
         let index = self.find_index(&T::upcast_key(key))?;
         let item = &mut self.items[index];
-        Some(RefMut::new(item))
+        let hash = self.tables.make_hash(item);
+        Some(RefMut::new(hash, item))
     }
 
     /// Removes an item from the map by its `key`.
@@ -248,9 +249,11 @@ impl<T: IdOrdItem> IdOrdMap<T> {
         index: usize,
     ) -> Option<RefMut<'_, T>>
     where
-        T: IdOrdItemMut,
+        for<'k> T::Key<'k>: Hash,
     {
-        self.items.get_mut(index).map(RefMut::new)
+        let item = self.items.get_mut(index)?;
+        let hash = self.tables.make_hash(item);
+        Some(RefMut::new(hash, item))
     }
 
     pub(super) fn insert_unique_impl(
@@ -351,7 +354,10 @@ impl<'a, T: IdOrdItem> IntoIterator for &'a IdOrdMap<T> {
     }
 }
 
-impl<'a, T: IdOrdItemMut> IntoIterator for &'a mut IdOrdMap<T> {
+impl<'a, T: IdOrdItem> IntoIterator for &'a mut IdOrdMap<T>
+where
+    for<'k> T::Key<'k>: Hash,
+{
     type Item = RefMut<'a, T>;
     type IntoIter = IterMut<'a, T>;
 
@@ -361,7 +367,7 @@ impl<'a, T: IdOrdItemMut> IntoIterator for &'a mut IdOrdMap<T> {
     }
 }
 
-impl<T: IdOrdItemMut> IntoIterator for IdOrdMap<T> {
+impl<T: IdOrdItem> IntoIterator for IdOrdMap<T> {
     type Item = T;
     type IntoIter = IntoIter<T>;
 

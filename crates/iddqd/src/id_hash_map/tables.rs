@@ -4,7 +4,7 @@
 
 use crate::{
     internal::{ValidateCompact, ValidationError},
-    support::hash_table::{MapHash, MapHashTable},
+    support::{hash_table::MapHashTable, map_hash::MapHash},
     IdHashItem,
 };
 

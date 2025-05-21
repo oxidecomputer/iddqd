@@ -3,7 +3,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use super::{entry_indexes::EntryIndexes, BiHashItem, BiHashMap, RefMut};
-use crate::support::{borrow::DormantMutRef, hash_table::MapHash};
+use crate::support::{borrow::DormantMutRef, map_hash::MapHash};
 use debug_ignore::DebugIgnore;
 use derive_where::derive_where;
 

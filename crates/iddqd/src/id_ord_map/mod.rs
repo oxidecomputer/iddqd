@@ -19,4 +19,4 @@ pub use entry::{Entry, OccupiedEntry, VacantEntry};
 pub use imp::IdOrdMap;
 pub use iter::{IntoIter, Iter, IterMut};
 pub use ref_mut::RefMut;
-pub use trait_defs::{IdOrdItem, IdOrdItemMut};
+pub use trait_defs::IdOrdItem;

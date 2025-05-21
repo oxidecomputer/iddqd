@@ -12,7 +12,7 @@ use crate::{
     bi_hash_map::entry::OccupiedEntryMut,
     errors::DuplicateItem,
     internal::ValidationError,
-    support::{borrow::DormantMutRef, hash_table::MapHash, item_set::ItemSet},
+    support::{borrow::DormantMutRef, item_set::ItemSet, map_hash::MapHash},
     BiHashItem,
 };
 use derive_where::derive_where;

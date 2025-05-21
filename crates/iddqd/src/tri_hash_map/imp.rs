@@ -6,7 +6,7 @@ use super::{tables::TriHashMapTables, IntoIter, Iter, IterMut, RefMut};
 use crate::{
     errors::DuplicateItem,
     internal::ValidationError,
-    support::{hash_table::MapHash, item_set::ItemSet},
+    support::{item_set::ItemSet, map_hash::MapHash},
     TriHashItem,
 };
 use derive_where::derive_where;

@@ -8,12 +8,14 @@
 //! integers (that are indexes corresponding to items), but use an external
 //! comparator.
 
+use super::map_hash::MapHash;
 use crate::internal::{TableValidationError, ValidateCompact};
 use std::{
     borrow::Borrow,
     cell::Cell,
     cmp::Ordering,
     collections::{btree_set, BTreeSet},
+    hash::{BuildHasher, Hash, RandomState},
     marker::PhantomData,
 };
 
@@ -26,6 +28,7 @@ thread_local! {
 #[derive(Clone, Debug, Default)]
 pub(crate) struct MapBTreeTable {
     items: BTreeSet<Index>,
+    hash_state: RandomState,
 }
 
 impl MapBTreeTable {
@@ -164,6 +167,13 @@ impl MapBTreeTable {
 
     pub(crate) fn into_iter(self) -> IntoIter {
         IntoIter::new(self.items.into_iter())
+    }
+
+    pub(crate) fn compute_hash<K: Hash>(&self, key: K) -> MapHash {
+        MapHash {
+            state: self.hash_state.clone(),
+            hash: self.hash_state.hash_one(key),
+        }
     }
 }
 

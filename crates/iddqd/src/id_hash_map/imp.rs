@@ -9,7 +9,7 @@ use super::{
 use crate::{
     errors::DuplicateItem,
     internal::{ValidateCompact, ValidationError},
-    support::{borrow::DormantMutRef, hash_table::MapHash, item_set::ItemSet},
+    support::{borrow::DormantMutRef, item_set::ItemSet, map_hash::MapHash},
 };
 use derive_where::derive_where;
 use hashbrown::hash_table;

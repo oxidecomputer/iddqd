@@ -156,8 +156,5 @@ pub mod tri_hash_map;
 
 pub use bi_hash_map::{imp::BiHashMap, trait_defs::BiHashItem};
 pub use id_hash_map::{imp::IdHashMap, trait_defs::IdHashItem};
-pub use id_ord_map::{
-    imp::IdOrdMap,
-    trait_defs::{IdOrdItem, IdOrdItemMut},
-};
+pub use id_ord_map::{imp::IdOrdMap, trait_defs::IdOrdItem};
 pub use tri_hash_map::{imp::TriHashMap, trait_defs::TriHashItem};

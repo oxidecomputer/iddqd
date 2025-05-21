@@ -2,10 +2,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::{IdOrdItem, IdOrdItemMut, IdOrdMap, RefMut};
+use super::{IdOrdItem, IdOrdMap, RefMut};
 use crate::support::borrow::DormantMutRef;
 use debug_ignore::DebugIgnore;
 use derive_where::derive_where;
+use std::hash::Hash;
 
 /// An implementation of the Entry API for [`IdOrdMap`].
 #[derive_where(Debug)]
@@ -44,7 +45,7 @@ impl<'a, T: IdOrdItem> Entry<'a, T> {
     #[inline]
     pub fn or_insert(self, default: T) -> RefMut<'a, T>
     where
-        T: IdOrdItemMut,
+        for<'k> T::Key<'k>: Hash,
     {
         match self {
             Entry::Occupied(entry) => entry.into_mut(),
@@ -81,7 +82,7 @@ impl<'a, T: IdOrdItem> Entry<'a, T> {
     #[inline]
     pub fn or_insert_with<F: FnOnce() -> T>(self, default: F) -> RefMut<'a, T>
     where
-        T: IdOrdItemMut,
+        for<'k> T::Key<'k>: Hash,
     {
         match self {
             Entry::Occupied(entry) => entry.into_mut(),
@@ -95,7 +96,7 @@ impl<'a, T: IdOrdItem> Entry<'a, T> {
     pub fn and_modify<F>(self, f: F) -> Self
     where
         F: FnOnce(RefMut<'_, T>),
-        T: IdOrdItemMut,
+        for<'k> T::Key<'k>: Hash,
     {
         match self {
             Entry::Occupied(mut entry) => {
@@ -140,7 +141,7 @@ impl<'a, T: IdOrdItem> VacantEntry<'a, T> {
     /// value.
     pub fn insert(self, value: T) -> RefMut<'a, T>
     where
-        T: IdOrdItemMut,
+        for<'k> T::Key<'k>: Hash,
     {
         // SAFETY: The safety assumption behind `Self::new` guarantees that the
         // original reference to the map is not used at this point.
@@ -209,7 +210,7 @@ impl<'a, T: IdOrdItem> OccupiedEntry<'a, T> {
     /// `Entry` value, see [`into_mut`](Self::into_mut).
     pub fn get_mut(&mut self) -> RefMut<'_, T>
     where
-        T: IdOrdItemMut,
+        for<'k> T::Key<'k>: Hash,
     {
         // SAFETY: The safety assumption behind `Self::new` guarantees that the
         // original reference to the map is not used at this point.
@@ -236,7 +237,7 @@ impl<'a, T: IdOrdItem> OccupiedEntry<'a, T> {
     /// [`get_mut`](Self::get_mut).
     pub fn into_mut(self) -> RefMut<'a, T>
     where
-        T: IdOrdItemMut,
+        for<'k> T::Key<'k>: Hash,
     {
         // SAFETY: The safety assumption behind `Self::new` guarantees that the
         // original reference to the map is not used at this point.

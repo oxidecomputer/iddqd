@@ -2,7 +2,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::{support::hash_table::MapHash, IdHashItem};
+use crate::{support::map_hash::MapHash, IdHashItem};
 use std::{
     fmt,
     ops::{Deref, DerefMut},

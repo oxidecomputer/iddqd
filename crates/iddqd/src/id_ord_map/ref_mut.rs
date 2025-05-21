@@ -2,9 +2,11 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use super::IdOrdItemMut;
+use super::IdOrdItem;
+use crate::support::map_hash::MapHash;
 use std::{
     fmt,
+    hash::Hash,
     ops::{Deref, DerefMut},
 };
 
@@ -20,14 +22,19 @@ use std::{
 ///
 /// [`IdOrdMap`]: crate::IdOrdMap
 #[derive(Debug)]
-pub struct RefMut<'a, T: IdOrdItemMut> {
+pub struct RefMut<'a, T: IdOrdItem>
+where
+    for<'k> T::Key<'k>: Hash,
+{
     inner: Option<RefMutInner<'a, T>>,
 }
 
-impl<'a, T: IdOrdItemMut> RefMut<'a, T> {
-    pub(super) fn new(borrowed: &'a mut T) -> Self {
-        let key = borrowed.owned_key();
-        let inner = RefMutInner { borrowed, key };
+impl<'a, T: IdOrdItem> RefMut<'a, T>
+where
+    for<'k> T::Key<'k>: Hash,
+{
+    pub(super) fn new(hash: MapHash, borrowed: &'a mut T) -> Self {
+        let inner = RefMutInner { hash, borrowed };
         Self { inner: Some(inner) }
     }
 
@@ -38,7 +45,10 @@ impl<'a, T: IdOrdItemMut> RefMut<'a, T> {
     }
 }
 
-impl<T: IdOrdItemMut> Drop for RefMut<'_, T> {
+impl<T: IdOrdItem> Drop for RefMut<'_, T>
+where
+    for<'k> T::Key<'k>: Hash,
+{
     fn drop(&mut self) {
         if let Some(inner) = self.inner.take() {
             inner.into_ref();
@@ -46,7 +56,10 @@ impl<T: IdOrdItemMut> Drop for RefMut<'_, T> {
     }
 }
 
-impl<T: IdOrdItemMut> Deref for RefMut<'_, T> {
+impl<T: IdOrdItem> Deref for RefMut<'_, T>
+where
+    for<'k> T::Key<'k>: Hash,
+{
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -54,21 +67,26 @@ impl<T: IdOrdItemMut> Deref for RefMut<'_, T> {
     }
 }
 
-impl<T: IdOrdItemMut> DerefMut for RefMut<'_, T> {
+impl<T: IdOrdItem> DerefMut for RefMut<'_, T>
+where
+    for<'k> T::Key<'k>: Hash,
+{
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.inner.as_mut().unwrap().borrowed
     }
 }
 
-struct RefMutInner<'a, T: IdOrdItemMut> {
-    key: T::OwnedKey,
+struct RefMutInner<'a, T: IdOrdItem> {
+    hash: MapHash,
     borrowed: &'a mut T,
 }
 
-impl<'a, T: IdOrdItemMut> RefMutInner<'a, T> {
+impl<'a, T: IdOrdItem> RefMutInner<'a, T>
+where
+    for<'k> T::Key<'k>: Hash,
+{
     fn into_ref(self) -> &'a T {
-        let new_key = self.borrowed.owned_key();
-        if new_key != self.key {
+        if !self.hash.is_same_hash(self.borrowed.key()) {
             panic!("key changed during RefMut borrow");
         }
 
@@ -76,7 +94,7 @@ impl<'a, T: IdOrdItemMut> RefMutInner<'a, T> {
     }
 }
 
-impl<T: IdOrdItemMut + fmt::Debug> fmt::Debug for RefMutInner<'_, T> {
+impl<T: IdOrdItem + fmt::Debug> fmt::Debug for RefMutInner<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("RefMutInner")
             .field("borrowed", self.borrowed)
