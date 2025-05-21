@@ -20,14 +20,14 @@ use core::{
 /// hash value stays the same[^collision-chance]. In that case, as long as the
 /// new key is not the same as another existing one, internal invariants are not
 /// violated and the [`IdHashMap`] will continue to work correctly. (But don't
-/// do this!)
+/// rely on this!)
 ///
 /// It is also possible to deliberately write pathological `Hash`
 /// implementations that collide more often. (Don't do this either.)
 ///
 /// Also, `RefMut`'s hash detection will not function if [`mem::forget`] is
 /// called on it. If the key is changed and `mem::forget` is then called on the
-/// `RefMut`, the `IdHashMap` will stop functioning correctly. This will not
+/// `RefMut`, the [`IdHashMap`] will stop functioning correctly. This will not
 /// introduce memory safety issues, however.
 ///
 /// The issues here are similar to using interior mutability (e.g. `RefCell` or

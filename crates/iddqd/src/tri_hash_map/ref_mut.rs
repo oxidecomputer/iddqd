@@ -19,7 +19,8 @@ use core::{
 /// key changes, there's a small but non-negligible chance that its hash value
 /// stays the same[^collision-chance]. In that case, as long as the new key is
 /// not the same as another existing one, internal invariants are not violated
-/// and the [`TriHashMap`] will continue to work correctly. (But don't do this!)
+/// and the [`TriHashMap`] will continue to work correctly. (But don't rely on
+/// this!)
 ///
 /// It is also possible to deliberately write pathological `Hash`
 /// implementations that collide more often. (Don't do this either.)
