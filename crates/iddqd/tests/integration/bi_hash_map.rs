@@ -1,6 +1,6 @@
 use iddqd::{
     bi_hash_map::{Entry, RefMut},
-    bi_upcasts,
+    bi_upcast,
     internal::ValidateCompact,
     BiHashItem, BiHashMap,
 };
@@ -33,7 +33,7 @@ impl BiHashItem for SimpleItem {
         self.key2
     }
 
-    bi_upcasts!();
+    bi_upcast!();
 }
 
 #[test]

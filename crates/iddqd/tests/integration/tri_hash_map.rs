@@ -1,5 +1,5 @@
 use iddqd::{
-    internal::ValidateCompact, tri_hash_map::RefMut, tri_upcasts, TriHashItem,
+    internal::ValidateCompact, tri_hash_map::RefMut, tri_upcast, TriHashItem,
     TriHashMap,
 };
 use iddqd_test_utils::{
@@ -37,7 +37,7 @@ impl TriHashItem for SimpleItem {
         self.key3
     }
 
-    tri_upcasts!();
+    tri_upcast!();
 }
 
 #[test]

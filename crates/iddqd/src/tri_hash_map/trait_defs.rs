@@ -39,9 +39,9 @@ pub trait TriHashItem {
     /// Upcasts the first key to a shorter lifetime, in effect asserting that
     /// the lifetime `'a` on [`TriHashItem::K1`] is covariant.
     ///
-    /// Typically implemented via the [`tri_upcasts`] macro.
+    /// Typically implemented via the [`tri_upcast`] macro.
     ///
-    /// [`tri_upcasts`]: crate::tri_upcasts
+    /// [`tri_upcast`]: crate::tri_upcast
     fn upcast_key1<'short, 'long: 'short>(
         long: Self::K1<'long>,
     ) -> Self::K1<'short>;
@@ -49,9 +49,9 @@ pub trait TriHashItem {
     /// Upcasts the second key to a shorter lifetime, in effect asserting that
     /// the lifetime `'a` on [`TriHashItem::K2`] is covariant.
     ///
-    /// Typically implemented via the [`tri_upcasts`] macro.
+    /// Typically implemented via the [`tri_upcast`] macro.
     ///
-    /// [`tri_upcasts`]: crate::tri_upcasts
+    /// [`tri_upcast`]: crate::tri_upcast
     fn upcast_key2<'short, 'long: 'short>(
         long: Self::K2<'long>,
     ) -> Self::K2<'short>;
@@ -59,9 +59,9 @@ pub trait TriHashItem {
     /// Upcasts the third key to a shorter lifetime, in effect asserting that
     /// the lifetime `'a` on [`TriHashItem::K3`] is covariant.
     ///
-    /// Typically implemented via the [`tri_upcasts`] macro.
+    /// Typically implemented via the [`tri_upcast`] macro.
     ///
-    /// [`tri_upcasts`]: crate::tri_upcasts
+    /// [`tri_upcast`]: crate::tri_upcast
     fn upcast_key3<'short, 'long: 'short>(
         long: Self::K3<'long>,
     ) -> Self::K3<'short>;

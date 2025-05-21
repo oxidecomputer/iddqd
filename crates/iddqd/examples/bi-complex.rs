@@ -1,6 +1,6 @@
 //! An example demonstrating `BiHashMap` use with complex borrowed keys.
 
-use iddqd::{bi_hash_map::Entry, bi_upcasts, BiHashItem, BiHashMap};
+use iddqd::{bi_hash_map::Entry, bi_upcast, BiHashItem, BiHashMap};
 use std::path::{Path, PathBuf};
 
 /// These are the items we'll store in the `BiHashMap`.
@@ -39,7 +39,7 @@ impl BiHashItem for MyStruct {
         MyKey2 { c: &self.c, d: &self.d }
     }
 
-    bi_upcasts!();
+    bi_upcast!();
 }
 
 fn main() {

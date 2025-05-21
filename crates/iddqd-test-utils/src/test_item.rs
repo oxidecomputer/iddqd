@@ -1,9 +1,9 @@
 use iddqd::{
-    bi_hash_map, bi_upcasts,
+    bi_hash_map, bi_upcast,
     errors::DuplicateItem,
     id_hash_map, id_ord_map, id_upcast,
     internal::{ValidateChaos, ValidateCompact, ValidationError},
-    tri_hash_map, tri_upcasts, BiHashItem, BiHashMap, IdHashItem, IdHashMap,
+    tri_hash_map, tri_upcast, BiHashItem, BiHashMap, IdHashItem, IdHashMap,
     IdOrdItem, IdOrdMap, TriHashItem, TriHashMap,
 };
 use proptest::{prelude::*, sample::SizeRange};
@@ -301,7 +301,7 @@ impl BiHashItem for TestItem {
         TestKey2::new(self.key2).with_chaos(self.chaos.key2_chaos.clone())
     }
 
-    bi_upcasts!();
+    bi_upcast!();
 }
 
 impl TriHashItem for TestItem {
@@ -321,7 +321,7 @@ impl TriHashItem for TestItem {
         TestKey3::new(&self.key3).with_chaos(self.chaos.key3_chaos.clone())
     }
 
-    tri_upcasts!();
+    tri_upcast!();
 }
 
 pub enum MapKind {

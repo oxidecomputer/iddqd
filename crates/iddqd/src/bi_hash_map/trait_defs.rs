@@ -31,9 +31,9 @@ pub trait BiHashItem {
     /// Upcasts the first key to a shorter lifetime, in effect asserting that
     /// the lifetime `'a` on [`BiHashItem::K1`] is covariant.
     ///
-    /// Typically implemented via the [`bi_upcasts`] macro.
+    /// Typically implemented via the [`bi_upcast`] macro.
     ///
-    /// [`bi_upcasts`]: crate::bi_upcasts
+    /// [`bi_upcast`]: crate::bi_upcast
     fn upcast_key1<'short, 'long: 'short>(
         long: Self::K1<'long>,
     ) -> Self::K1<'short>;
@@ -41,9 +41,9 @@ pub trait BiHashItem {
     /// Upcasts the second key to a shorter lifetime, in effect asserting that
     /// the lifetime `'a` on [`BiHashItem::K2`] is covariant.
     ///
-    /// Typically implemented via the [`bi_upcasts`] macro.
+    /// Typically implemented via the [`bi_upcast`] macro.
     ///
-    /// [`bi_upcasts`]: crate::bi_upcasts
+    /// [`bi_upcast`]: crate::bi_upcast
     fn upcast_key2<'short, 'long: 'short>(
         long: Self::K2<'long>,
     ) -> Self::K2<'short>;
