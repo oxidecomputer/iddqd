@@ -1,0 +1,7 @@
+exclude_re = [
+    "BiHashMapTables::with_capacity",
+    "MapHashTable::validate",
+    "Iter<'a>::len",
+    "<impl fmt::Display for ValidationError>::fmt",
+    "OccupiedEntryMut<'a, T>::is_non_unique",
+]

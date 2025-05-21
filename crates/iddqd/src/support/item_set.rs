@@ -9,6 +9,8 @@ use std::{
     ops::{Index, IndexMut},
 };
 
+use crate::internal::ValidationError;
+
 /// A map of items stored by integer index.
 #[derive(Clone, Debug)]
 #[derive_where(Default)]
@@ -31,6 +33,22 @@ impl<T> ItemSet<T> {
             ),
             next_index: 0,
         }
+    }
+
+    /// Validates the item set.
+    pub(crate) fn validate(&self) -> Result<(), ValidationError> {
+        // Ensure that next_index is always 1 + the highest index in the
+        // map.
+        let expected_next_index =
+            self.items.keys().copied().max().map_or(0, |n| n + 1);
+        if self.next_index != expected_next_index {
+            return Err(ValidationError::General(format!(
+                "ItemSet next_index ({}) does not match max index in map ({})",
+                self.next_index, expected_next_index
+            )));
+        }
+
+        Ok(())
     }
 
     pub(crate) fn capacity(&self) -> usize {
