@@ -12,12 +12,15 @@ use crate::{
     bi_hash_map::entry::OccupiedEntryMut,
     errors::DuplicateItem,
     internal::{ValidateCompact, ValidationError},
-    support::{borrow::DormantMutRef, item_set::ItemSet, map_hash::MapHash},
+    support::{
+        borrow::DormantMutRef, fmt_utils::StrDisplayAsDebug, item_set::ItemSet,
+        map_hash::MapHash,
+    },
     BiHashItem,
 };
 use derive_where::derive_where;
 use hashbrown::hash_table;
-use std::{borrow::Borrow, collections::BTreeSet, hash::Hash};
+use std::{borrow::Borrow, collections::BTreeSet, fmt, hash::Hash};
 
 /// A 1:1 (bijective) map for two keys and a value.
 ///
@@ -25,7 +28,7 @@ use std::{borrow::Borrow, collections::BTreeSet, hash::Hash};
 /// these indexes stored in two hashmaps. This allows for efficient lookups by
 /// either of the two keys, while preventing duplicates.
 #[derive_where(Default)]
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct BiHashMap<T: BiHashItem> {
     pub(super) items: ItemSet<T>,
     // Invariant: the values (usize) in these tables are valid indexes into
@@ -573,6 +576,42 @@ impl<T: BiHashItem> BiHashMap<T> {
 
     fn make_hashes(&self, item: &T) -> [MapHash; 2] {
         self.tables.make_hashes::<T>(&item.key1(), &item.key2())
+    }
+}
+
+impl<T> fmt::Debug for BiHashMap<T>
+where
+    T: BiHashItem + fmt::Debug,
+    for<'k> T::K1<'k>: fmt::Debug,
+    for<'k> T::K2<'k>: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        struct KeyMap<'a, T: BiHashItem + 'a> {
+            key1: T::K1<'a>,
+            key2: T::K2<'a>,
+        }
+
+        impl<'a, T: BiHashItem> fmt::Debug for KeyMap<'a, T>
+        where
+            for<'k> T::K1<'k>: fmt::Debug,
+            for<'k> T::K2<'k>: fmt::Debug,
+        {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                // We don't want to show key1 and key2 as a tuple since it's
+                // misleading (suggests maps of tuples). The best we can do
+                // instead is to show "{k1: "abc", k2: "xyz"}"
+                f.debug_map()
+                    .entry(&StrDisplayAsDebug("k1"), &self.key1)
+                    .entry(&StrDisplayAsDebug("k2"), &self.key2)
+                    .finish()
+            }
+        }
+
+        f.debug_map()
+            .entries(self.items.iter().map(|(_, item)| {
+                (KeyMap::<T> { key1: item.key1(), key2: item.key2() }, item)
+            }))
+            .finish()
     }
 }
 

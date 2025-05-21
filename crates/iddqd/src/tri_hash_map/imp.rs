@@ -6,12 +6,14 @@ use super::{tables::TriHashMapTables, IntoIter, Iter, IterMut, RefMut};
 use crate::{
     errors::DuplicateItem,
     internal::ValidationError,
-    support::{item_set::ItemSet, map_hash::MapHash},
+    support::{
+        fmt_utils::StrDisplayAsDebug, item_set::ItemSet, map_hash::MapHash,
+    },
     TriHashItem,
 };
 use derive_where::derive_where;
 use hashbrown::hash_table::{Entry, VacantEntry};
-use std::{borrow::Borrow, collections::BTreeSet, hash::Hash};
+use std::{borrow::Borrow, collections::BTreeSet, fmt, hash::Hash};
 
 /// A 1:1:1 (trijective) map for three keys and a value.
 ///
@@ -19,7 +21,7 @@ use std::{borrow::Borrow, collections::BTreeSet, hash::Hash};
 /// these indexes stored in three hashmaps. This allows for efficient lookups by
 /// any of the three keys, while preventing duplicates.
 #[derive_where(Default)]
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct TriHashMap<T: TriHashItem> {
     pub(super) items: ItemSet<T>,
     // Invariant: the values (usize) in these tables are valid indexes into
@@ -540,6 +542,53 @@ impl<T: TriHashItem> TriHashMap<T> {
 
     fn make_hashes(&self, item: &T) -> [MapHash; 3] {
         self.tables.make_hashes(item)
+    }
+}
+
+impl<T> fmt::Debug for TriHashMap<T>
+where
+    T: TriHashItem + fmt::Debug,
+    for<'k> T::K1<'k>: fmt::Debug,
+    for<'k> T::K2<'k>: fmt::Debug,
+    for<'k> T::K3<'k>: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        struct KeyMap<'a, T: TriHashItem + 'a> {
+            key1: T::K1<'a>,
+            key2: T::K2<'a>,
+            key3: T::K3<'a>,
+        }
+
+        impl<'a, T: TriHashItem> fmt::Debug for KeyMap<'a, T>
+        where
+            for<'k> T::K1<'k>: fmt::Debug,
+            for<'k> T::K2<'k>: fmt::Debug,
+            for<'k> T::K3<'k>: fmt::Debug,
+        {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                // We don't want to show key1 and key2 as a tuple since it's
+                // misleading (suggests maps of tuples). The best we can do
+                // instead is to show "{k1: abc, k2: xyz, k3: def}"
+                f.debug_map()
+                    .entry(&StrDisplayAsDebug("k1"), &self.key1)
+                    .entry(&StrDisplayAsDebug("k2"), &self.key2)
+                    .entry(&StrDisplayAsDebug("k3"), &self.key3)
+                    .finish()
+            }
+        }
+
+        f.debug_map()
+            .entries(self.items.iter().map(|(_, item)| {
+                (
+                    KeyMap::<T> {
+                        key1: item.key1(),
+                        key2: item.key2(),
+                        key3: item.key3(),
+                    },
+                    item,
+                )
+            }))
+            .finish()
     }
 }
 

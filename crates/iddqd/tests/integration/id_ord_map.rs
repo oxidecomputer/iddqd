@@ -4,6 +4,7 @@
 
 use iddqd::{
     id_ord_map::{Entry, RefMut},
+    id_upcast,
     internal::{ValidateChaos, ValidateCompact},
     IdOrdItem, IdOrdMap,
 };
@@ -23,6 +24,38 @@ use test_strategy::{proptest, Arbitrary};
 fn with_capacity() {
     let map = IdOrdMap::<TestItem>::with_capacity(1024);
     assert!(map.capacity() >= 1024);
+}
+
+#[derive(Debug)]
+struct SimpleItem {
+    key: u32,
+}
+
+impl IdOrdItem for SimpleItem {
+    type Key<'a> = u32;
+
+    fn key(&self) -> Self::Key<'_> {
+        self.key
+    }
+
+    id_upcast!();
+}
+
+#[test]
+fn debug_impls() {
+    let mut map = IdOrdMap::<SimpleItem>::new();
+    map.insert_unique(SimpleItem { key: 1 }).unwrap();
+    map.insert_unique(SimpleItem { key: 20 }).unwrap();
+    map.insert_unique(SimpleItem { key: 10 }).unwrap();
+
+    assert_eq!(
+        format!("{map:?}"),
+        r#"{1: SimpleItem { key: 1 }, 10: SimpleItem { key: 10 }, 20: SimpleItem { key: 20 }}"#
+    );
+    assert_eq!(
+        format!("{:?}", map.get_mut(1).unwrap()),
+        "SimpleItem { key: 1 }"
+    );
 }
 
 #[test]

@@ -4,6 +4,7 @@
 
 use iddqd::{
     bi_hash_map::{Entry, RefMut},
+    bi_upcasts,
     internal::ValidateCompact,
     BiHashItem, BiHashMap,
 };
@@ -17,6 +18,48 @@ use iddqd_test_utils::{
 };
 use proptest::prelude::*;
 use test_strategy::{proptest, Arbitrary};
+
+#[derive(Debug)]
+struct SimpleItem {
+    key1: u32,
+    key2: char,
+}
+
+impl BiHashItem for SimpleItem {
+    type K1<'a> = u32;
+    type K2<'a> = char;
+
+    fn key1(&self) -> Self::K1<'_> {
+        self.key1
+    }
+
+    fn key2(&self) -> Self::K2<'_> {
+        self.key2
+    }
+
+    bi_upcasts!();
+}
+
+#[test]
+fn debug_impls() {
+    let mut map = BiHashMap::<SimpleItem>::new();
+    map.insert_unique(SimpleItem { key1: 1, key2: 'a' }).unwrap();
+    map.insert_unique(SimpleItem { key1: 20, key2: 'b' }).unwrap();
+    map.insert_unique(SimpleItem { key1: 10, key2: 'c' }).unwrap();
+
+    assert_eq!(
+        format!("{map:?}"),
+        // This is a small-enough map that the order of iteration is
+        // deterministic.
+        "{{k1: 1, k2: 'a'}: SimpleItem { key1: 1, key2: 'a' }, \
+          {k1: 10, k2: 'c'}: SimpleItem { key1: 10, key2: 'c' }, \
+          {k1: 20, k2: 'b'}: SimpleItem { key1: 20, key2: 'b' }}",
+    );
+    assert_eq!(
+        format!("{:?}", map.get1_mut(1).unwrap()),
+        "SimpleItem { key1: 1, key2: 'a' }"
+    );
+}
 
 #[test]
 fn with_capacity() {

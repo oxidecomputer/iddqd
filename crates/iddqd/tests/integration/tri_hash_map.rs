@@ -3,7 +3,8 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 use iddqd::{
-    internal::ValidateCompact, tri_hash_map::RefMut, TriHashItem, TriHashMap,
+    internal::ValidateCompact, tri_hash_map::RefMut, tri_upcasts, TriHashItem,
+    TriHashMap,
 };
 use iddqd_test_utils::{
     eq_props::{assert_eq_props, assert_ne_props},
@@ -15,6 +16,54 @@ use iddqd_test_utils::{
 };
 use proptest::prelude::*;
 use test_strategy::{proptest, Arbitrary};
+
+#[derive(Debug)]
+struct SimpleItem {
+    key1: u32,
+    key2: char,
+    key3: u8,
+}
+
+impl TriHashItem for SimpleItem {
+    type K1<'a> = u32;
+    type K2<'a> = char;
+    type K3<'a> = u8;
+
+    fn key1(&self) -> Self::K1<'_> {
+        self.key1
+    }
+
+    fn key2(&self) -> Self::K2<'_> {
+        self.key2
+    }
+
+    fn key3(&self) -> Self::K3<'_> {
+        self.key3
+    }
+
+    tri_upcasts!();
+}
+
+#[test]
+fn debug_impls() {
+    let mut map = TriHashMap::<SimpleItem>::new();
+    map.insert_unique(SimpleItem { key1: 1, key2: 'a', key3: 0 }).unwrap();
+    map.insert_unique(SimpleItem { key1: 20, key2: 'b', key3: 1 }).unwrap();
+    map.insert_unique(SimpleItem { key1: 10, key2: 'c', key3: 2 }).unwrap();
+
+    assert_eq!(
+        format!("{map:?}"),
+        // This is a small-enough map that the order of iteration is
+        // deterministic.
+        "{{k1: 1, k2: 'a', k3: 0}: SimpleItem { key1: 1, key2: 'a', key3: 0 }, \
+          {k1: 10, k2: 'c', k3: 2}: SimpleItem { key1: 10, key2: 'c', key3: 2 }, \
+          {k1: 20, k2: 'b', k3: 1}: SimpleItem { key1: 20, key2: 'b', key3: 1 }}",
+    );
+    assert_eq!(
+        format!("{:?}", map.get1_mut(1).unwrap()),
+        "SimpleItem { key1: 1, key2: 'a', key3: 0 }"
+    );
+}
 
 #[test]
 fn with_capacity() {

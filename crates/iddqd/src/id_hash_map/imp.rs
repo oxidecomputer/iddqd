@@ -13,11 +13,11 @@ use crate::{
 };
 use derive_where::derive_where;
 use hashbrown::hash_table;
-use std::{borrow::Borrow, collections::BTreeSet, hash::Hash};
+use std::{borrow::Borrow, collections::BTreeSet, fmt, hash::Hash};
 
 /// A hash map where the key is part of the value.
 #[derive_where(Default)]
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct IdHashMap<T: IdHashItem> {
     pub(super) items: ItemSet<T>,
     tables: IdHashMapTables,
@@ -329,6 +329,18 @@ impl<T: IdHashItem> IdHashMap<T> {
         // Now that we know the key is the same, we can replace the value
         // directly without needing to tweak any tables.
         self.items.replace(index, value)
+    }
+}
+
+impl<T> fmt::Debug for IdHashMap<T>
+where
+    T: IdHashItem + fmt::Debug,
+    for<'k> T::Key<'k>: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_map()
+            .entries(self.iter().map(|item| (item.key(), item)))
+            .finish()
     }
 }
 

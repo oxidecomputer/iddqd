@@ -20,7 +20,7 @@ use std::{borrow::Borrow, collections::BTreeSet, fmt, hash::Hash};
 /// these indexes stored in three b-tree maps. This allows for efficient lookups
 /// by any of the three keys, while preventing duplicates.
 #[derive_where(Default)]
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct IdOrdMap<T: IdOrdItem> {
     pub(super) items: ItemSet<T>,
     // Invariant: the values (usize) in these tables are valid indexes into
@@ -366,6 +366,18 @@ impl<T: IdOrdItem> IdOrdMap<T> {
         // Now that we know the key is the same, we can replace the value
         // directly without needing to tweak any tables.
         self.items.replace(index, value)
+    }
+}
+
+impl<T: IdOrdItem> fmt::Debug for IdOrdMap<T>
+where
+    T: fmt::Debug,
+    for<'k> T::Key<'k>: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_map()
+            .entries(self.iter().map(|item| (item.key(), item)))
+            .finish()
     }
 }
 

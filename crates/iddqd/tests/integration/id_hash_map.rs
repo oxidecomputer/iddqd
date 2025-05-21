@@ -4,8 +4,9 @@
 
 use iddqd::{
     id_hash_map::{Entry, RefMut},
+    id_upcast,
     internal::ValidateCompact,
-    IdHashMap, IdOrdItem,
+    IdHashItem, IdHashMap,
 };
 use iddqd_test_utils::{
     eq_props::{assert_eq_props, assert_ne_props},
@@ -16,6 +17,40 @@ use iddqd_test_utils::{
 };
 use proptest::prelude::*;
 use test_strategy::{proptest, Arbitrary};
+
+#[derive(Debug)]
+struct SimpleItem {
+    key: u32,
+}
+
+impl IdHashItem for SimpleItem {
+    type Key<'a> = u32;
+
+    fn key(&self) -> Self::Key<'_> {
+        self.key
+    }
+
+    id_upcast!();
+}
+
+#[test]
+fn debug_impls() {
+    let mut map = IdHashMap::<SimpleItem>::new();
+    map.insert_unique(SimpleItem { key: 1 }).unwrap();
+    map.insert_unique(SimpleItem { key: 20 }).unwrap();
+    map.insert_unique(SimpleItem { key: 10 }).unwrap();
+
+    assert_eq!(
+        format!("{map:?}"),
+        // This is a small-enough map that the order of iteration is
+        // deterministic.
+        r#"{1: SimpleItem { key: 1 }, 10: SimpleItem { key: 10 }, 20: SimpleItem { key: 20 }}"#
+    );
+    assert_eq!(
+        format!("{:?}", map.get_mut(1).unwrap()),
+        "SimpleItem { key: 1 }"
+    );
+}
 
 #[test]
 fn with_capacity() {
