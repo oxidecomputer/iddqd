@@ -1,7 +1,15 @@
 # Changelog
 
+## [0.1.1] - 2025-05-21
+
+### Added
+
+- [Daft](https://docs.rs/daft) implementations with the new `daft` feature.
+- `BiHashItem` implementations for reference types like `&'a T` and `Box<T>`.
+
 ## [0.1.0] - 2025-05-21
 
 Initial release.
 
+[0.1.1]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.1.1
 [0.1.0]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.1.0
