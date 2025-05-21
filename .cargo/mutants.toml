@@ -1,7 +1,13 @@
 exclude_re = [
-    "BiHashMapTables::with_capacity",
-    "MapHashTable::validate",
-    "Iter<'a>::len",
+    "<impl ExactSizeIterator for IterMut<'a, T>>::len",
+    "<impl ExactSizeIterator for Iter<'_, T>>::len",
+    "<impl ExactSizeIterator for IntoIter<T>>::len",
     "<impl fmt::Display for ValidationError>::fmt",
+    "BiHashMapTables::with_capacity",
+    "IdHashMap<T>::is_empty",
+    "IdHashMapTables::with_capacity",
+    "Iter<'a>::len",
+    "MapHashTable::validate",
     "OccupiedEntryMut<'a, T>::is_non_unique",
+    "TriHashMapTables::with_capacity",
 ]
