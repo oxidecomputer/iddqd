@@ -35,6 +35,22 @@ impl<T: IdOrdItem> IdOrdMap<T> {
         Self { items: ItemSet::default(), tables: IdOrdMapTables::new() }
     }
 
+    /// Creates a new `IdOrdMap` with the given capacity.
+    ///
+    /// The capacity will be used to initialize the underlying hash table.
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            items: ItemSet::with_capacity(capacity),
+            tables: IdOrdMapTables::new(),
+        }
+    }
+
+    /// Returns the currently allocated capacity of the map.
+    pub fn capacity(&self) -> usize {
+        // There's no self.tables.capacity.
+        self.items.capacity()
+    }
+
     /// Constructs a new `IdOrdMap` from an iterator of values, rejecting
     /// duplicates.
     ///

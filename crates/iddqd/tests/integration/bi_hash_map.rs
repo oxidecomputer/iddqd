@@ -16,6 +16,12 @@ use proptest::prelude::*;
 use test_strategy::{proptest, Arbitrary};
 
 #[test]
+fn with_capacity() {
+    let map = BiHashMap::<TestItem>::with_capacity(1024);
+    assert_eq!(map.capacity(), 1024);
+}
+
+#[test]
 fn test_insert_unique() {
     let mut map = BiHashMap::<TestItem>::new();
 

@@ -33,6 +33,10 @@ impl<T> ItemSet<T> {
         }
     }
 
+    pub(crate) fn capacity(&self) -> usize {
+        self.items.capacity()
+    }
+
     #[inline]
     pub(crate) fn is_empty(&self) -> bool {
         self.items.is_empty()

@@ -42,6 +42,13 @@ impl<T: TriHashItem> TriHashMap<T> {
         }
     }
 
+    /// Returns the currently allocated capacity of the map.
+    pub fn capacity(&self) -> usize {
+        // items and tables.capacity might theoretically diverge: use
+        // items.capacity.
+        self.items.capacity()
+    }
+
     /// Returns true if the map is empty.
     #[inline]
     pub fn is_empty(&self) -> bool {
