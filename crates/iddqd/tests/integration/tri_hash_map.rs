@@ -16,7 +16,7 @@ use test_strategy::{proptest, Arbitrary};
 #[test]
 fn with_capacity() {
     let map = TriHashMap::<TestItem>::with_capacity(1024);
-    assert_eq!(map.capacity(), 1024);
+    assert!(map.capacity() >= 1024);
 }
 
 #[test]
