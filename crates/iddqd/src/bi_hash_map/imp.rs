@@ -11,7 +11,7 @@ use super::{
 use crate::{
     bi_hash_map::entry::OccupiedEntryMut,
     errors::DuplicateItem,
-    internal::ValidationError,
+    internal::{ValidateCompact, ValidationError},
     support::{borrow::DormantMutRef, item_set::ItemSet, map_hash::MapHash},
     BiHashItem,
 };
@@ -86,12 +86,12 @@ impl<T: BiHashItem> BiHashMap<T> {
     #[doc(hidden)]
     pub fn validate(
         &self,
-        compactness: crate::internal::ValidateCompact,
+        compactness: ValidateCompact,
     ) -> Result<(), ValidationError>
     where
         T: std::fmt::Debug,
     {
-        self.items.validate()?;
+        self.items.validate(compactness)?;
         self.tables.validate(self.len(), compactness)?;
 
         // Check that the indexes are all correct.

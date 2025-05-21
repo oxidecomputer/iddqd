@@ -2,13 +2,14 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-use crate::internal::ValidationError;
 use derive_where::derive_where;
 use rustc_hash::FxHashMap;
 use std::{
     collections::hash_map,
     ops::{Index, IndexMut},
 };
+
+use crate::internal::{ValidateCompact, ValidationError};
 
 /// A map of items stored by integer index.
 #[derive(Clone, Debug)]
@@ -35,16 +36,25 @@ impl<T> ItemSet<T> {
     }
 
     /// Validates the item set.
-    pub(crate) fn validate(&self) -> Result<(), ValidationError> {
-        // Ensure that next_index is always 1 + the highest index in the
-        // map.
-        let expected_next_index =
-            self.items.keys().copied().max().map_or(0, |n| n + 1);
-        if self.next_index != expected_next_index {
-            return Err(ValidationError::General(format!(
-                "ItemSet next_index ({}) does not match max index in map ({})",
-                self.next_index, expected_next_index
-            )));
+    pub(crate) fn validate(
+        &self,
+        compactness: ValidateCompact,
+    ) -> Result<(), ValidationError> {
+        // If the map is expected to be compact, then ensure that all keys
+        // between 0 and next_index are present.
+        match compactness {
+            ValidateCompact::Compact => {
+                for i in 0..self.next_index {
+                    if !self.items.contains_key(&i) {
+                        return Err(ValidationError::General(format!(
+                            "ItemSet is not compact: missing index {i}"
+                        )));
+                    }
+                }
+            }
+            ValidateCompact::NonCompact => {
+                // No real checks can be done in this case.
+            }
         }
 
         Ok(())

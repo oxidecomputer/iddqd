@@ -81,7 +81,7 @@ impl<T: IdHashItem> IdHashMap<T> {
     where
         T: std::fmt::Debug,
     {
-        self.items.validate()?;
+        self.items.validate(compactness)?;
         self.tables.validate(self.len(), compactness)?;
 
         // Check that the indexes are all correct.
