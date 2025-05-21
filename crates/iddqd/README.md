@@ -135,12 +135,14 @@ artifacts.insert_unique(Artifact {
     name: "artifact1".to_owned(),
     version: "1.0".to_owned(),
     data: b"data1".to_vec(),
-}).unwrap();
+})
+.unwrap();
 artifacts.insert_unique(Artifact {
     name: "artifact2".to_owned(),
     version: "1.0".to_owned(),
     data: b"data2".to_vec(),
-}).unwrap();
+})
+.unwrap();
 
 // Look up artifacts by name and version.
 assert_eq!(
