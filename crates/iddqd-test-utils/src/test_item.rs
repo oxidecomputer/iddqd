@@ -22,6 +22,17 @@ pub struct TestItem {
     pub value: String,
 }
 
+impl TestItem {
+    pub fn new(
+        key1: u8,
+        key2: char,
+        key3: impl Into<String>,
+        value: impl Into<String>,
+    ) -> Self {
+        Self { key1, key2, key3: key3.into(), value: value.into() }
+    }
+}
+
 impl PartialEq<&TestItem> for TestItem {
     fn eq(&self, other: &&TestItem) -> bool {
         self.key1 == other.key1

@@ -26,12 +26,7 @@ fn test_insert_unique() {
     let mut map = IdHashMap::<TestItem>::new();
 
     // Add an element.
-    let v1 = TestItem {
-        key1: 20,
-        key2: 'a',
-        key3: "x".to_string(),
-        value: "v".to_string(),
-    };
+    let v1 = TestItem::new(20, 'a', "x", "v");
     map.insert_unique(v1.clone()).unwrap();
 
     // Add an exact duplicate, which should error out.
@@ -40,33 +35,18 @@ fn test_insert_unique() {
     assert_eq!(error.duplicates(), vec![&v1]);
 
     // Add a duplicate against just key1, which should error out.
-    let v2 = TestItem {
-        key1: 20,
-        key2: 'b',
-        key3: "y".to_string(),
-        value: "v".to_string(),
-    };
+    let v2 = TestItem::new(20, 'b', "y", "v");
     let error = map.insert_unique(v2.clone()).unwrap_err();
     assert_eq!(error.new_item(), &v2);
     assert_eq!(error.duplicates(), vec![&v1]);
 
     // Add a duplicate against key2. IdHashMap only uses key1 here, so this
     // should be allowed.
-    let v3 = TestItem {
-        key1: 5,
-        key2: 'a',
-        key3: "y".to_string(),
-        value: "v".to_string(),
-    };
+    let v3 = TestItem::new(5, 'a', "y", "v");
     map.insert_unique(v3.clone()).unwrap();
 
     // Add a duplicate against key1, which should error out.
-    let v4 = TestItem {
-        key1: 5,
-        key2: 'b',
-        key3: "x".to_string(),
-        value: "v".to_string(),
-    };
+    let v4 = TestItem::new(5, 'b', "x", "v");
     let error = map.insert_unique(v4.clone()).unwrap_err();
     assert_eq!(error.new_item(), &v4);
 
@@ -215,12 +195,7 @@ fn test_permutation_eq_examples() {
     assert_eq!(map1, map2);
 
     // Insert a single item into one map.
-    let item = TestItem {
-        key1: 0,
-        key2: 'a',
-        key3: "x".to_string(),
-        value: "v".to_string(),
-    };
+    let item = TestItem::new(0, 'a', "x", "v");
     map1.insert_unique(item.clone()).unwrap();
 
     // The maps are not equal.
@@ -236,22 +211,12 @@ fn test_permutation_eq_examples() {
         // Insert an item with the same key2 and key3 but a different
         // key1.
         let mut map1 = map1.clone();
-        map1.insert_unique(TestItem {
-            key1: 1,
-            key2: 'b',
-            key3: "y".to_string(),
-            value: "v".to_string(),
-        })
+        map1.insert_unique(TestItem::new(1, 'b', "y", "v"))
         .unwrap();
         assert_ne_props(&map1, &map2);
 
         let mut map2 = map2.clone();
-        map2.insert_unique(TestItem {
-            key1: 2,
-            key2: 'b',
-            key3: "y".to_string(),
-            value: "v".to_string(),
-        })
+        map2.insert_unique(TestItem::new(2, 'b', "y", "v"))
         .unwrap();
         assert_ne_props(&map1, &map2);
     }
@@ -259,22 +224,12 @@ fn test_permutation_eq_examples() {
     {
         // Insert an item with the same key1 and key3 but a different key2.
         let mut map1 = map1.clone();
-        map1.insert_unique(TestItem {
-            key1: 1,
-            key2: 'b',
-            key3: "y".to_string(),
-            value: "v".to_string(),
-        })
+        map1.insert_unique(TestItem::new(1, 'b', "y", "v"))
         .unwrap();
         assert_ne_props(&map1, &map2);
 
         let mut map2 = map2.clone();
-        map2.insert_unique(TestItem {
-            key1: 1,
-            key2: 'c',
-            key3: "y".to_string(),
-            value: "v".to_string(),
-        })
+        map2.insert_unique(TestItem::new(1, 'c', "y", "v"))
         .unwrap();
         assert_ne_props(&map1, &map2);
     }
@@ -282,22 +237,12 @@ fn test_permutation_eq_examples() {
     {
         // Insert an item with the same key1 and key2 but a different key3.
         let mut map1 = map1.clone();
-        map1.insert_unique(TestItem {
-            key1: 1,
-            key2: 'b',
-            key3: "y".to_string(),
-            value: "v".to_string(),
-        })
+        map1.insert_unique(TestItem::new(1, 'b', "y", "v"))
         .unwrap();
         assert_ne_props(&map1, &map2);
 
         let mut map2 = map2.clone();
-        map2.insert_unique(TestItem {
-            key1: 1,
-            key2: 'b',
-            key3: "z".to_string(),
-            value: "v".to_string(),
-        })
+        map2.insert_unique(TestItem::new(1, 'b', "z", "v"))
         .unwrap();
         assert_ne_props(&map1, &map2);
     }
@@ -306,22 +251,12 @@ fn test_permutation_eq_examples() {
         // Insert an item where all the keys are the same, but the value is
         // different.
         let mut map1 = map1.clone();
-        map1.insert_unique(TestItem {
-            key1: 1,
-            key2: 'b',
-            key3: "y".to_string(),
-            value: "w".to_string(),
-        })
+        map1.insert_unique(TestItem::new(1, 'b', "y", "w"))
         .unwrap();
         assert_ne_props(&map1, &map2);
 
         let mut map2 = map2.clone();
-        map2.insert_unique(TestItem {
-            key1: 1,
-            key2: 'b',
-            key3: "y".to_string(),
-            value: "x".to_string(),
-        })
+        map2.insert_unique(TestItem::new(1, 'b', "y", "x"))
         .unwrap();
         assert_ne_props(&map1, &map2);
     }
@@ -331,12 +266,7 @@ fn test_permutation_eq_examples() {
 #[should_panic(expected = "key changed during RefMut borrow")]
 fn get_mut_panics_if_key_changes() {
     let mut map = IdHashMap::<TestItem>::new();
-    map.insert_unique(TestItem {
-        key1: 128,
-        key2: 'b',
-        key3: "y".to_owned(),
-        value: "x".to_owned(),
-    })
+    map.insert_unique(TestItem::new(128, 'b', "y", "x"))
     .unwrap();
     map.get_mut(&128).unwrap().key1 = 2;
 }
@@ -344,12 +274,7 @@ fn get_mut_panics_if_key_changes() {
 #[test]
 fn entry_examples() {
     let mut map = IdHashMap::<TestItem>::new();
-    let item1 = TestItem {
-        key1: 0,
-        key2: 'a',
-        key3: "x".to_string(),
-        value: "v".to_string(),
-    };
+    let item1 = TestItem::new(0, 'a', "x", "v");
 
     let Entry::Vacant(entry) = map.entry(item1.key()) else {
         panic!("expected VacantEntry")
@@ -361,12 +286,7 @@ fn entry_examples() {
     assert_eq!(entry.into_ref(), &item1);
 
     // Try looking up another item with the same key1.
-    let item2 = TestItem {
-        key1: 0,
-        key2: 'b',
-        key3: "y".to_string(),
-        value: "x".to_string(),
-    };
+    let item2 = TestItem::new(0, 'b', "y", "x");
 
     let Entry::Occupied(mut entry) = map.entry(item2.key()) else {
         panic!("expected OccupiedEntry");
@@ -380,22 +300,12 @@ fn entry_examples() {
     assert_eq!(item2_mut.into_ref(), &item2);
 
     // Add another item using or_insert_with.
-    let item3 = TestItem {
-        key1: 1,
-        key2: 'b',
-        key3: "y".to_string(),
-        value: "x".to_string(),
-    };
+    let item3 = TestItem::new(1, 'b', "y", "x");
     let item3_mut = map.entry(item3.key()).or_insert_with(|| item3.clone());
     assert_eq!(item3_mut.into_ref(), &item3);
 
     // item4 is similar to item3 except with a different value.
-    let item4 = TestItem {
-        key1: 1,
-        key2: 'b',
-        key3: "y".to_string(),
-        value: "some-other-value".to_string(),
-    };
+    let item4 = TestItem::new(1, 'b', "y", "some-other-value");
     // item4 should *not* be inserted via this path.
     let item3_mut = map.entry(item4.key()).or_insert(item4.clone());
     assert_eq!(item3_mut.into_ref(), &item3);
@@ -415,21 +325,11 @@ fn entry_examples() {
 #[test]
 #[should_panic = "key hashes do not match"]
 fn insert_panics_for_non_matching_key() {
-    let v1 = TestItem {
-        key1: 0,
-        key2: 'a',
-        key3: "foo".to_owned(),
-        value: "value".to_owned(),
-    };
+    let v1 = TestItem::new(0, 'a', "foo", "value");
     let mut map = IdHashMap::new();
     map.insert_unique(v1.clone()).expect("insert_unique succeeded");
 
-    let v2 = TestItem {
-        key1: 1,
-        key2: 'a',
-        key3: "bar".to_owned(),
-        value: "value".to_owned(),
-    };
+    let v2 = TestItem::new(1, 'a', "bar", "value");
     let entry = map.entry(v2.key());
     assert!(matches!(entry, Entry::Vacant(_)));
     // Try inserting v1, which is present in the map.

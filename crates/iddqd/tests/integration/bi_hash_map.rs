@@ -26,12 +26,7 @@ fn test_insert_unique() {
     let mut map = BiHashMap::<TestItem>::new();
 
     // Add an element.
-    let v1 = TestItem {
-        key1: 0,
-        key2: 'a',
-        key3: "x".to_string(),
-        value: "v".to_string(),
-    };
+    let v1 = TestItem::new(0, 'a', "x", "v");
     map.insert_unique(v1.clone()).unwrap();
 
     // Add an exact duplicate, which should error out.
@@ -40,34 +35,19 @@ fn test_insert_unique() {
     assert_eq!(error.duplicates(), vec![&v1]);
 
     // Add a duplicate against just key1, which should error out.
-    let v2 = TestItem {
-        key1: 0,
-        key2: 'b',
-        key3: "x".to_string(),
-        value: "v".to_string(),
-    };
+    let v2 = TestItem::new(0, 'b', "x", "v");
     let error = map.insert_unique(v2.clone()).unwrap_err();
     assert_eq!(error.new_item(), &v2);
     assert_eq!(error.duplicates(), vec![&v1]);
 
     // Add a duplicate against just key2, which should error out.
-    let v3 = TestItem {
-        key1: 1,
-        key2: 'a',
-        key3: "x".to_string(),
-        value: "v".to_string(),
-    };
+    let v3 = TestItem::new(1, 'a', "x", "v");
     let error = map.insert_unique(v3.clone()).unwrap_err();
     assert_eq!(error.new_item(), &v3);
 
     // Add an item that doesn't have any conflicts. (key3 is the same, but
     // BiHashMap doesn't index on it.)
-    let v4 = TestItem {
-        key1: 1,
-        key2: 'b',
-        key3: "x".to_string(),
-        value: "v".to_string(),
-    };
+    let v4 = TestItem::new(1, 'b', "x", "v");
     map.insert_unique(v4.clone()).unwrap();
 
     // Iterate over the items mutably. This ensures that miri detects UB if it
@@ -96,21 +76,11 @@ fn test_insert_overwrite() {
     let mut map = BiHashMap::<TestItem>::new();
 
     // Add an element.
-    let v1 = TestItem {
-        key1: 20,
-        key2: 'a',
-        key3: "x".to_string(),
-        value: "v".to_string(),
-    };
+    let v1 = TestItem::new(20, 'a', "x", "v");
     assert_eq!(map.insert_overwrite(v1.clone()), Vec::<TestItem>::new());
 
     // Add an element with the same keys but a different value.
-    let v2 = TestItem {
-        key1: 20,
-        key2: 'a',
-        key3: "y".to_string(),
-        value: "w".to_string(),
-    };
+    let v2 = TestItem::new(20, 'a', "y", "w");
     assert_eq!(map.insert_overwrite(v2.clone()), vec![v1]);
 
     map.validate(ValidateCompact::NonCompact).expect("validation failed");
@@ -259,12 +229,7 @@ fn test_permutation_eq_examples() {
     assert_eq!(map1, map2);
 
     // Insert a single item into one map.
-    let item = TestItem {
-        key1: 0,
-        key2: 'a',
-        key3: "x".to_string(),
-        value: "v".to_string(),
-    };
+    let item = TestItem::new(0, 'a', "x", "v");
     map1.insert_unique(item.clone()).unwrap();
 
     // The maps are not equal.
@@ -279,46 +244,22 @@ fn test_permutation_eq_examples() {
     {
         // Insert an item with a different key1.
         let mut map1 = map1.clone();
-        map1.insert_unique(TestItem {
-            key1: 1,
-            key2: 'b',
-            key3: "y".to_string(),
-            value: "v".to_string(),
-        })
-        .unwrap();
+        map1.insert_unique(TestItem::new(1, 'b', "y", "v")).unwrap();
         assert_ne_props(&map1, &map2);
 
         let mut map2 = map2.clone();
-        map2.insert_unique(TestItem {
-            key1: 2,
-            key2: 'b',
-            key3: "y".to_string(),
-            value: "v".to_string(),
-        })
-        .unwrap();
+        map2.insert_unique(TestItem::new(2, 'b', "y", "v")).unwrap();
         assert_ne_props(&map1, &map2);
     }
 
     {
         // Insert an item with a different key2.
         let mut map1 = map1.clone();
-        map1.insert_unique(TestItem {
-            key1: 1,
-            key2: 'b',
-            key3: "y".to_string(),
-            value: "v".to_string(),
-        })
-        .unwrap();
+        map1.insert_unique(TestItem::new(1, 'b', "y", "v")).unwrap();
         assert_ne_props(&map1, &map2);
 
         let mut map2 = map2.clone();
-        map2.insert_unique(TestItem {
-            key1: 1,
-            key2: 'c',
-            key3: "y".to_string(),
-            value: "v".to_string(),
-        })
-        .unwrap();
+        map2.insert_unique(TestItem::new(1, 'c', "y", "v")).unwrap();
         assert_ne_props(&map1, &map2);
     }
 
@@ -326,23 +267,11 @@ fn test_permutation_eq_examples() {
         // Insert an item where all the keys are the same, but the value is
         // different.
         let mut map1 = map1.clone();
-        map1.insert_unique(TestItem {
-            key1: 1,
-            key2: 'b',
-            key3: "y".to_string(),
-            value: "w".to_string(),
-        })
-        .unwrap();
+        map1.insert_unique(TestItem::new(1, 'b', "y", "w")).unwrap();
         assert_ne_props(&map1, &map2);
 
         let mut map2 = map2.clone();
-        map2.insert_unique(TestItem {
-            key1: 1,
-            key2: 'b',
-            key3: "y".to_string(),
-            value: "x".to_string(),
-        })
-        .unwrap();
+        map2.insert_unique(TestItem::new(1, 'b', "y", "x")).unwrap();
         assert_ne_props(&map1, &map2);
     }
 }
@@ -351,13 +280,7 @@ fn test_permutation_eq_examples() {
 #[should_panic(expected = "key1 changed during RefMut borrow")]
 fn get_mut_panics_if_key1_changes() {
     let mut map = BiHashMap::<TestItem>::new();
-    map.insert_unique(TestItem {
-        key1: 128,
-        key2: 'b',
-        key3: "y".to_string(),
-        value: "x".to_owned(),
-    })
-    .unwrap();
+    map.insert_unique(TestItem::new(128, 'b', "y", "x")).unwrap();
     map.get1_mut(128).unwrap().key1 = 2;
 }
 
@@ -365,34 +288,18 @@ fn get_mut_panics_if_key1_changes() {
 #[should_panic(expected = "key2 changed during RefMut borrow")]
 fn get_mut_panics_if_key2_changes() {
     let mut map = BiHashMap::<TestItem>::new();
-    map.insert_unique(TestItem {
-        key1: 128,
-        key2: 'b',
-        key3: "y".to_string(),
-        value: "x".to_owned(),
-    })
-    .unwrap();
+    map.insert_unique(TestItem::new(128, 'b', "y", "x")).unwrap();
     map.get1_mut(128).unwrap().key2 = 'c';
 }
 
 #[test]
 #[should_panic = "key1 hashes do not match"]
 fn insert_panics_for_non_matching_key1() {
-    let v1 = TestItem {
-        key1: 0,
-        key2: 'a',
-        key3: "foo".to_owned(),
-        value: "value".to_owned(),
-    };
+    let v1 = TestItem::new(0, 'a', "foo", "value");
     let mut map = BiHashMap::new();
     map.insert_unique(v1.clone()).expect("insert_unique succeeded");
 
-    let v2 = TestItem {
-        key1: 1,
-        key2: 'b',
-        key3: "bar".to_owned(),
-        value: "value".to_owned(),
-    };
+    let v2 = TestItem::new(1, 'b', "bar", "value");
     let entry = map.entry(2, 'b');
     assert!(matches!(entry, Entry::Vacant(_)));
     // Try inserting v2 which matches v1's key2 but not key1.
@@ -402,21 +309,11 @@ fn insert_panics_for_non_matching_key1() {
 #[test]
 #[should_panic = "key2 hashes do not match"]
 fn insert_panics_for_non_matching_key2() {
-    let v1 = TestItem {
-        key1: 0,
-        key2: 'a',
-        key3: "foo".to_owned(),
-        value: "value".to_owned(),
-    };
+    let v1 = TestItem::new(0, 'a', "foo", "value");
     let mut map = BiHashMap::new();
     map.insert_unique(v1.clone()).expect("insert_unique succeeded");
 
-    let v2 = TestItem {
-        key1: 1,
-        key2: 'b',
-        key3: "bar".to_owned(),
-        value: "value".to_owned(),
-    };
+    let v2 = TestItem::new(1, 'b', "bar", "value");
     let entry = map.entry(1, 'c');
     assert!(matches!(entry, Entry::Vacant(_)));
     // Try inserting v2 which matches v1's key1 but not key2.
@@ -425,22 +322,11 @@ fn insert_panics_for_non_matching_key2() {
 
 #[test]
 fn entry_insert_non_matching_key1() {
-    let v1 = TestItem {
-        key1: 0,
-        key2: 'a',
-        key3: "foo".to_owned(),
-        value: "value".to_owned(),
-    };
+    let v1 = TestItem::new(0, 'a', "foo", "value");
     let mut map = BiHashMap::new();
     map.insert_unique(v1.clone()).expect("insert_unique succeeded");
 
-    let v2 = TestItem {
-        // key1 is different, key2 is the same.
-        key1: 1,
-        key2: 'a',
-        key3: "bar".to_owned(),
-        value: "value".to_owned(),
-    };
+    let v2 = TestItem::new(1, 'a', "bar", "value");
     let entry = map.entry(v2.key1(), v2.key2());
     let Entry::Occupied(mut entry) = entry else {
         panic!("expected OccupiedEntry");
@@ -454,22 +340,11 @@ fn entry_insert_non_matching_key1() {
 
 #[test]
 fn entry_insert_non_matching_key2() {
-    let v1 = TestItem {
-        key1: 0,
-        key2: 'a',
-        key3: "foo".to_owned(),
-        value: "value".to_owned(),
-    };
+    let v1 = TestItem::new(0, 'a', "foo", "value");
     let mut map = BiHashMap::new();
     map.insert_unique(v1.clone()).expect("insert_unique succeeded");
 
-    let v2 = TestItem {
-        // key1 is the same, key2 is different.
-        key1: 0,
-        key2: 'b',
-        key3: "bar".to_owned(),
-        value: "value".to_owned(),
-    };
+    let v2 = TestItem::new(0, 'b', "bar", "value");
     let entry = map.entry(v2.key1(), v2.key2());
     let Entry::Occupied(mut entry) = entry else {
         panic!("expected OccupiedEntry");
@@ -484,22 +359,11 @@ fn entry_insert_non_matching_key2() {
 #[test]
 #[should_panic = "key1 hashes do not match"]
 fn insert_entry_panics_for_non_matching_keys() {
-    let v1 = TestItem {
-        key1: 0,
-        key2: 'a',
-        key3: "foo".to_owned(),
-        value: "value".to_owned(),
-    };
+    let v1 = TestItem::new(0, 'a', "foo", "value");
     let mut map = BiHashMap::new();
     map.insert_unique(v1.clone()).expect("insert_unique succeeded");
 
-    let v2 = TestItem {
-        // Both keys are different.
-        key1: 1,
-        key2: 'b',
-        key3: "bar".to_owned(),
-        value: "value".to_owned(),
-    };
+    let v2 = TestItem::new(1, 'b', "bar", "value");
     let entry = map.entry(v2.key1(), v2.key2());
     assert!(matches!(entry, Entry::Vacant(_)));
     // Try inserting v1, which is present in the map.
