@@ -3,8 +3,8 @@
 use super::map_hash::MapHash;
 use crate::internal::{TableValidationError, ValidateCompact};
 use hashbrown::{
-    hash_table::{AbsentEntry, Entry, OccupiedEntry},
     HashTable,
+    hash_table::{AbsentEntry, Entry, OccupiedEntry},
 };
 use std::{
     borrow::Borrow,

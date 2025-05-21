@@ -1,4 +1,4 @@
-use super::{tables::IdOrdMapTables, IdOrdItem, RefMut};
+use super::{IdOrdItem, RefMut, tables::IdOrdMapTables};
 use crate::support::{btree_table, item_set::ItemSet};
 use std::{hash::Hash, iter::FusedIterator};
 

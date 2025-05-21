@@ -1,6 +1,6 @@
 use super::{
-    tables::IdHashMapTables, Entry, IdHashItem, IntoIter, Iter, IterMut,
-    OccupiedEntry, RefMut, VacantEntry,
+    Entry, IdHashItem, IntoIter, Iter, IterMut, OccupiedEntry, RefMut,
+    VacantEntry, tables::IdHashMapTables,
 };
 use crate::{
     errors::DuplicateItem,

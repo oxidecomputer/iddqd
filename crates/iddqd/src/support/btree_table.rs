@@ -10,7 +10,7 @@ use std::{
     borrow::Borrow,
     cell::Cell,
     cmp::Ordering,
-    collections::{btree_set, BTreeSet},
+    collections::{BTreeSet, btree_set},
     hash::{BuildHasher, Hash, RandomState},
     marker::PhantomData,
 };

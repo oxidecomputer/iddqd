@@ -1,10 +1,11 @@
 use super::{
+    Entry, IntoIter, Iter, IterMut, OccupiedEntry, RefMut, VacantEntry,
     entry::OccupiedEntryRef,
     entry_indexes::{DisjointKeys, EntryIndexes},
     tables::BiHashMapTables,
-    Entry, IntoIter, Iter, IterMut, OccupiedEntry, RefMut, VacantEntry,
 };
 use crate::{
+    BiHashItem,
     bi_hash_map::entry::OccupiedEntryMut,
     errors::DuplicateItem,
     internal::{ValidateCompact, ValidationError},
@@ -12,7 +13,6 @@ use crate::{
         borrow::DormantMutRef, fmt_utils::StrDisplayAsDebug, item_set::ItemSet,
         map_hash::MapHash,
     },
-    BiHashItem,
 };
 use derive_where::derive_where;
 use hashbrown::hash_table;

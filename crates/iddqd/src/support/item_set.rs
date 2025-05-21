@@ -1,11 +1,10 @@
+use crate::internal::{ValidateCompact, ValidationError};
 use derive_where::derive_where;
 use rustc_hash::FxHashMap;
 use std::{
     collections::hash_map,
     ops::{Index, IndexMut},
 };
-
-use crate::internal::{ValidateCompact, ValidationError};
 
 /// A map of items stored by integer index.
 #[derive(Clone, Debug)]

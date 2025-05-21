@@ -1,4 +1,4 @@
-use crate::{support::map_hash::MapHash, BiHashItem};
+use crate::{BiHashItem, support::map_hash::MapHash};
 use std::{
     fmt,
     ops::{Deref, DerefMut},

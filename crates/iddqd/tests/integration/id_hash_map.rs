@@ -1,18 +1,18 @@
 use iddqd::{
+    IdHashItem, IdHashMap,
     id_hash_map::{Entry, RefMut},
     id_upcast,
     internal::ValidateCompact,
-    IdHashItem, IdHashMap,
 };
 use iddqd_test_utils::{
     eq_props::{assert_eq_props, assert_ne_props},
     naive_map::NaiveMap,
     test_item::{
-        assert_iter_eq, test_item_permutation_strategy, TestItem, TestKey1,
+        TestItem, TestKey1, assert_iter_eq, test_item_permutation_strategy,
     },
 };
 use proptest::prelude::*;
-use test_strategy::{proptest, Arbitrary};
+use test_strategy::{Arbitrary, proptest};
 
 #[derive(Debug)]
 struct SimpleItem {

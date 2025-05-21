@@ -1,10 +1,10 @@
 use iddqd::{
-    bi_hash_map, bi_upcast,
+    BiHashItem, BiHashMap, IdHashItem, IdHashMap, IdOrdItem, IdOrdMap,
+    TriHashItem, TriHashMap, bi_hash_map, bi_upcast,
     errors::DuplicateItem,
     id_hash_map, id_ord_map, id_upcast,
     internal::{ValidateChaos, ValidateCompact, ValidationError},
-    tri_hash_map, tri_upcast, BiHashItem, BiHashMap, IdHashItem, IdHashMap,
-    IdOrdItem, IdOrdMap, TriHashItem, TriHashMap,
+    tri_hash_map, tri_upcast,
 };
 use proptest::{prelude::*, sample::SizeRange};
 use std::cell::Cell;

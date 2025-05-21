@@ -1,6 +1,6 @@
 //! An example demonstrating `BiHashMap` use with complex borrowed keys.
 
-use iddqd::{bi_hash_map::Entry, bi_upcast, BiHashItem, BiHashMap};
+use iddqd::{BiHashItem, BiHashMap, bi_hash_map::Entry, bi_upcast};
 use std::path::{Path, PathBuf};
 
 /// These are the items we'll store in the `BiHashMap`.

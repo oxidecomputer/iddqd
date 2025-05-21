@@ -1,11 +1,11 @@
-use super::{tables::TriHashMapTables, IntoIter, Iter, IterMut, RefMut};
+use super::{IntoIter, Iter, IterMut, RefMut, tables::TriHashMapTables};
 use crate::{
+    TriHashItem,
     errors::DuplicateItem,
     internal::ValidationError,
     support::{
         fmt_utils::StrDisplayAsDebug, item_set::ItemSet, map_hash::MapHash,
     },
-    TriHashItem,
 };
 use derive_where::derive_where;
 use hashbrown::hash_table::{Entry, VacantEntry};

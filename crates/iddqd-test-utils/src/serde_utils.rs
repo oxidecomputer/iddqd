@@ -56,7 +56,9 @@ where
             )
         }
         (None, Err(error)) => {
-            panic!("unexpected error: {error}, deserialization should have succeeded")
+            panic!(
+                "unexpected error: {error}, deserialization should have succeeded"
+            )
         }
         (Some(first_error), Err(error)) => {
             // first_error is the error from the map, and error is the

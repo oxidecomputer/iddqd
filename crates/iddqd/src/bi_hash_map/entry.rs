@@ -1,4 +1,4 @@
-use super::{entry_indexes::EntryIndexes, BiHashItem, BiHashMap, RefMut};
+use super::{BiHashItem, BiHashMap, RefMut, entry_indexes::EntryIndexes};
 use crate::support::{borrow::DormantMutRef, map_hash::MapHash};
 use debug_ignore::DebugIgnore;
 use derive_where::derive_where;

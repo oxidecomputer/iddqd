@@ -1,6 +1,6 @@
 use super::{
-    tables::IdOrdMapTables, Entry, IdOrdItem, IntoIter, Iter, IterMut,
-    OccupiedEntry, RefMut, VacantEntry,
+    Entry, IdOrdItem, IntoIter, Iter, IterMut, OccupiedEntry, RefMut,
+    VacantEntry, tables::IdOrdMapTables,
 };
 use crate::{
     errors::DuplicateItem,

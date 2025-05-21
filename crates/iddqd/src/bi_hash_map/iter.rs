@@ -1,5 +1,5 @@
-use super::{tables::BiHashMapTables, RefMut};
-use crate::{support::item_set::ItemSet, BiHashItem};
+use super::{RefMut, tables::BiHashMapTables};
+use crate::{BiHashItem, support::item_set::ItemSet};
 use std::{collections::hash_map, iter::FusedIterator};
 
 /// An iterator over the elements of a [`BiHashMap`] by shared reference.

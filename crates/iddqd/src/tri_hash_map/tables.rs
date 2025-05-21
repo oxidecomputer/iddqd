@@ -1,7 +1,7 @@
 use crate::{
+    TriHashItem,
     internal::{ValidateCompact, ValidationError},
     support::{hash_table::MapHashTable, map_hash::MapHash},
-    TriHashItem,
 };
 
 #[derive(Clone, Debug, Default)]

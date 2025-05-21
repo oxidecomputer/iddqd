@@ -1,7 +1,7 @@
 use crate::{
+    IdHashItem,
     internal::{ValidateCompact, ValidationError},
     support::{hash_table::MapHashTable, map_hash::MapHash},
-    IdHashItem,
 };
 
 #[derive(Clone, Debug, Default)]

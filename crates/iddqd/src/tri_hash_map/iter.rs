@@ -1,5 +1,5 @@
-use super::{tables::TriHashMapTables, RefMut};
-use crate::{support::item_set::ItemSet, TriHashItem};
+use super::{RefMut, tables::TriHashMapTables};
+use crate::{TriHashItem, support::item_set::ItemSet};
 use std::{collections::hash_map, iter::FusedIterator};
 
 /// An iterator over the elements of a [`TriHashMap`] by shared reference.

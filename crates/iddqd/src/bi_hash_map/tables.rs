@@ -1,7 +1,7 @@
 use crate::{
+    BiHashItem,
     internal::{ValidateCompact, ValidationError},
     support::{hash_table::MapHashTable, map_hash::MapHash},
-    BiHashItem,
 };
 
 #[derive(Clone, Debug, Default)]

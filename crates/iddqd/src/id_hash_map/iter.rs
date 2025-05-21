@@ -1,5 +1,5 @@
-use super::{tables::IdHashMapTables, RefMut};
-use crate::{support::item_set::ItemSet, IdHashItem};
+use super::{RefMut, tables::IdHashMapTables};
+use crate::{IdHashItem, support::item_set::ItemSet};
 use std::{collections::hash_map, iter::FusedIterator};
 
 /// An iterator over the elements of a [`IdHashMap`] by shared reference.

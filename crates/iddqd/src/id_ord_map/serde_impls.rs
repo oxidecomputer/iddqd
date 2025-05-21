@@ -1,6 +1,6 @@
 use super::{IdOrdItem, IdOrdMap};
 use serde::{
-    ser::SerializeSeq, Deserialize, Deserializer, Serialize, Serializer,
+    Deserialize, Deserializer, Serialize, Serializer, ser::SerializeSeq,
 };
 use std::fmt;
 

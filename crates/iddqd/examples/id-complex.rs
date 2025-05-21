@@ -1,6 +1,6 @@
 //! An example demonstrating `IdOrdMap` use with complex borrowed keys.
 
-use iddqd::{id_ord_map::Entry, id_upcast, IdOrdItem, IdOrdMap};
+use iddqd::{IdOrdItem, IdOrdMap, id_ord_map::Entry, id_upcast};
 use std::path::{Path, PathBuf};
 
 /// These are the items we'll store in the `IdOrdMap`.

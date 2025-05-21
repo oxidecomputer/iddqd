@@ -1,20 +1,20 @@
 use iddqd::{
+    IdOrdItem, IdOrdMap,
     id_ord_map::{Entry, RefMut},
     id_upcast,
     internal::{ValidateChaos, ValidateCompact},
-    IdOrdItem, IdOrdMap,
 };
 use iddqd_test_utils::{
     eq_props::{assert_eq_props, assert_ne_props},
     naive_map::NaiveMap,
     test_item::{
-        assert_iter_eq, test_item_permutation_strategy, without_chaos, ChaosEq,
-        ChaosOrd, KeyChaos, TestItem, TestKey1,
+        ChaosEq, ChaosOrd, KeyChaos, TestItem, TestKey1, assert_iter_eq,
+        test_item_permutation_strategy, without_chaos,
     },
     unwind::catch_panic,
 };
 use proptest::prelude::*;
-use test_strategy::{proptest, Arbitrary};
+use test_strategy::{Arbitrary, proptest};
 
 #[test]
 fn with_capacity() {
