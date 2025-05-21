@@ -2,7 +2,7 @@
 # iddqd
 <!-- cargo-sync-rdme ]] -->
 <!-- cargo-sync-rdme badge [[ -->
-![License: MPL-2.0](https://img.shields.io/crates/l/iddqd.svg?)
+![License: MIT OR Apache-2.0](https://img.shields.io/crates/l/iddqd.svg?)
 [![crates.io](https://img.shields.io/crates/v/iddqd.svg?logo=rust)](https://crates.io/crates/iddqd)
 [![docs.rs](https://img.shields.io/docsrs/iddqd.svg?logo=docs.rs)](https://docs.rs/iddqd)
 [![Rust: ^1.86.0](https://img.shields.io/badge/rust-^1.86.0-93450a.svg?logo=rust)](https://doc.rust-lang.org/cargo/reference/manifest.html#the-rust-version-field)
@@ -153,3 +153,5 @@ This crate’s MSRV is **Rust 1.86**.
 
 This project is available under the terms of either the [Apache 2.0 license](LICENSE-APACHE) or the [MIT
 license](LICENSE-MIT).
+
+Portions adapted from [The Rust Programming Language](https://github.com/rust-lang/rust) and used under the MIT and Apache 2.0 licenses. The Rust Programming Language is (c) The Rust Project Contributors.
