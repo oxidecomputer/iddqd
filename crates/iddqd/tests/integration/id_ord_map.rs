@@ -10,7 +10,9 @@ use iddqd::{
 use iddqd_test_utils::{
     eq_props::{assert_eq_props, assert_ne_props},
     naive_map::NaiveMap,
-    test_item::{assert_iter_eq, test_item_permutation_strategy, TestItem},
+    test_item::{
+        assert_iter_eq, test_item_permutation_strategy, TestItem, TestKey1,
+    },
 };
 use proptest::prelude::*;
 use test_strategy::{proptest, Arbitrary};
@@ -143,13 +145,13 @@ fn proptest_ops(
             }
 
             Operation::Get(key) => {
-                let map_res = map.get(&key);
+                let map_res = map.get(&TestKey1::new(&key));
                 let naive_res = naive_map.get1(key);
 
                 assert_eq!(map_res, naive_res);
             }
             Operation::Remove(key) => {
-                let map_res = map.remove(&key);
+                let map_res = map.remove(TestKey1::new(&key));
                 let naive_res = naive_map.remove1(key);
 
                 assert_eq!(map_res, naive_res);
@@ -159,7 +161,7 @@ fn proptest_ops(
 
         // Check that the iterators work correctly.
         let mut naive_items = naive_map.iter().collect::<Vec<_>>();
-        naive_items.sort_by_key(|e| *e.key());
+        naive_items.sort_by(|a, b| a.key().cmp(&b.key()));
 
         assert_iter_eq(map.clone(), naive_items);
     }
@@ -216,39 +218,33 @@ fn test_permutation_eq_examples() {
         // Insert an item with the same key2 and key3 but a different
         // key1.
         let mut map1 = map1.clone();
-        map1.insert_unique(TestItem::new(1, 'b', "y", "v"))
-        .unwrap();
+        map1.insert_unique(TestItem::new(1, 'b', "y", "v")).unwrap();
         assert_ne_props(&map1, &map2);
 
         let mut map2 = map2.clone();
-        map2.insert_unique(TestItem::new(2, 'b', "y", "v"))
-        .unwrap();
+        map2.insert_unique(TestItem::new(2, 'b', "y", "v")).unwrap();
         assert_ne_props(&map1, &map2);
     }
 
     {
         // Insert an item with the same key1 and key3 but a different key2.
         let mut map1 = map1.clone();
-        map1.insert_unique(TestItem::new(1, 'b', "y", "v"))
-        .unwrap();
+        map1.insert_unique(TestItem::new(1, 'b', "y", "v")).unwrap();
         assert_ne_props(&map1, &map2);
 
         let mut map2 = map2.clone();
-        map2.insert_unique(TestItem::new(1, 'c', "y", "v"))
-        .unwrap();
+        map2.insert_unique(TestItem::new(1, 'c', "y", "v")).unwrap();
         assert_ne_props(&map1, &map2);
     }
 
     {
         // Insert an item with the same key1 and key2 but a different key3.
         let mut map1 = map1.clone();
-        map1.insert_unique(TestItem::new(1, 'b', "y", "v"))
-        .unwrap();
+        map1.insert_unique(TestItem::new(1, 'b', "y", "v")).unwrap();
         assert_ne_props(&map1, &map2);
 
         let mut map2 = map2.clone();
-        map2.insert_unique(TestItem::new(1, 'b', "z", "v"))
-        .unwrap();
+        map2.insert_unique(TestItem::new(1, 'b', "z", "v")).unwrap();
         assert_ne_props(&map1, &map2);
     }
 
@@ -256,13 +252,11 @@ fn test_permutation_eq_examples() {
         // Insert an item where all the keys are the same, but the value is
         // different.
         let mut map1 = map1.clone();
-        map1.insert_unique(TestItem::new(1, 'b', "y", "w"))
-        .unwrap();
+        map1.insert_unique(TestItem::new(1, 'b', "y", "w")).unwrap();
         assert_ne_props(&map1, &map2);
 
         let mut map2 = map2.clone();
-        map2.insert_unique(TestItem::new(1, 'b', "y", "x"))
-        .unwrap();
+        map2.insert_unique(TestItem::new(1, 'b', "y", "x")).unwrap();
         assert_ne_props(&map1, &map2);
     }
 }
@@ -271,9 +265,8 @@ fn test_permutation_eq_examples() {
 #[should_panic(expected = "key changed during RefMut borrow")]
 fn get_mut_panics_if_key_changes() {
     let mut map = IdOrdMap::<TestItem>::new();
-    map.insert_unique(TestItem::new(128, 'b', "y", "x"))
-    .unwrap();
-    map.get_mut(&128).unwrap().key1 = 2;
+    map.insert_unique(TestItem::new(128, 'b', "y", "x")).unwrap();
+    map.get_mut(TestKey1::new(&128)).unwrap().key1 = 2;
 }
 
 #[test]

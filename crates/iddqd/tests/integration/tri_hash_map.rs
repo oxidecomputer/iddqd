@@ -8,7 +8,10 @@ use iddqd::{
 use iddqd_test_utils::{
     eq_props::{assert_eq_props, assert_ne_props},
     naive_map::NaiveMap,
-    test_item::{assert_iter_eq, test_item_permutation_strategy, TestItem},
+    test_item::{
+        assert_iter_eq, test_item_permutation_strategy, TestItem, TestKey1,
+        TestKey2, TestKey3,
+    },
 };
 use proptest::prelude::*;
 use test_strategy::{proptest, Arbitrary};
@@ -55,7 +58,7 @@ fn test_insert_unique() {
     // Iterate over the items mutably. This ensures that miri detects UB if it
     // exists.
     let mut items: Vec<RefMut<_>> = map.iter_mut().collect();
-    items.sort_by_key(|e| e.key1());
+    items.sort_by(|a, b| a.key1().cmp(&b.key1()));
     let e1 = &items[0];
     assert_eq!(**e1, v1);
 
@@ -168,39 +171,39 @@ fn proptest_ops(
                 map.validate(compactness).expect("map should be valid");
             }
             Operation::Get1(key1) => {
-                let map_res = map.get1(&key1);
+                let map_res = map.get1(&TestKey1::new(&key1));
                 let naive_res = naive_map.get1(key1);
 
                 assert_eq!(map_res, naive_res);
             }
             Operation::Get2(key2) => {
-                let map_res = map.get2(&key2);
+                let map_res = map.get2(&TestKey2::new(key2));
                 let naive_res = naive_map.get2(key2);
 
                 assert_eq!(map_res, naive_res);
             }
             Operation::Get3(key3) => {
-                let map_res = map.get3(key3.as_str());
+                let map_res = map.get3(&TestKey3::new(&key3));
                 let naive_res = naive_map.get3(&key3);
 
                 assert_eq!(map_res, naive_res);
             }
             Operation::Remove1(key1) => {
-                let map_res = map.remove1(key1);
+                let map_res = map.remove1(TestKey1::new(&key1));
                 let naive_res = naive_map.remove1(key1);
 
                 assert_eq!(map_res, naive_res);
                 map.validate(compactness).expect("map should be valid");
             }
             Operation::Remove2(key2) => {
-                let map_res = map.remove2(key2);
+                let map_res = map.remove2(TestKey2::new(key2));
                 let naive_res = naive_map.remove2(key2);
 
                 assert_eq!(map_res, naive_res);
                 map.validate(compactness).expect("map should be valid");
             }
             Operation::Remove3(key3) => {
-                let map_res = map.remove3(key3.as_str());
+                let map_res = map.remove3(TestKey3::new(&key3));
                 let naive_res = naive_map.remove3(&key3);
 
                 assert_eq!(map_res, naive_res);
@@ -210,7 +213,7 @@ fn proptest_ops(
 
         // Check that the iterators work correctly.
         let mut naive_items = naive_map.iter().collect::<Vec<_>>();
-        naive_items.sort_by_key(|e| e.key1());
+        naive_items.sort_by(|a, b| a.key1().cmp(&b.key1()));
 
         assert_iter_eq(map.clone(), naive_items);
     }
@@ -264,13 +267,11 @@ fn test_permutation_eq_examples() {
         // Insert an item with the same key2 and key3 but a different
         // key1.
         let mut map1 = map1.clone();
-        map1.insert_unique(TestItem::new(1, 'b', "y", "v"))
-        .unwrap();
+        map1.insert_unique(TestItem::new(1, 'b', "y", "v")).unwrap();
         assert_ne_props(&map1, &map2);
 
         let mut map2 = map2.clone();
-        map2.insert_unique(TestItem::new(2, 'b', "y", "v"))
-        .unwrap();
+        map2.insert_unique(TestItem::new(2, 'b', "y", "v")).unwrap();
         assert_ne_props(&map1, &map2);
     }
 
@@ -278,13 +279,11 @@ fn test_permutation_eq_examples() {
         // Insert an item with the same key1 and key3 but a different
         // key2.
         let mut map1 = map1.clone();
-        map1.insert_unique(TestItem::new(1, 'b', "y", "v"))
-        .unwrap();
+        map1.insert_unique(TestItem::new(1, 'b', "y", "v")).unwrap();
         assert_ne_props(&map1, &map2);
 
         let mut map2 = map2.clone();
-        map2.insert_unique(TestItem::new(1, 'c', "y", "v"))
-        .unwrap();
+        map2.insert_unique(TestItem::new(1, 'c', "y", "v")).unwrap();
         assert_ne_props(&map1, &map2);
     }
 
@@ -316,13 +315,11 @@ fn test_permutation_eq_examples() {
         // Insert an item where all the keys are the same, but the value is
         // different.
         let mut map1 = map1.clone();
-        map1.insert_unique(TestItem::new(1, 'b', "y", "w"))
-        .unwrap();
+        map1.insert_unique(TestItem::new(1, 'b', "y", "w")).unwrap();
         assert_ne_props(&map1, &map2);
 
         let mut map2 = map2.clone();
-        map2.insert_unique(TestItem::new(1, 'b', "y", "x"))
-        .unwrap();
+        map2.insert_unique(TestItem::new(1, 'b', "y", "x")).unwrap();
         assert_ne_props(&map1, &map2);
     }
 }
@@ -331,27 +328,24 @@ fn test_permutation_eq_examples() {
 #[should_panic(expected = "key1 changed during RefMut borrow")]
 fn get_mut_panics_if_key1_changes() {
     let mut map = TriHashMap::<TestItem>::new();
-    map.insert_unique(TestItem::new(128, 'b', "y", "x"))
-    .unwrap();
-    map.get1_mut(128).unwrap().key1 = 2;
+    map.insert_unique(TestItem::new(128, 'b', "y", "x")).unwrap();
+    map.get1_mut(TestKey1::new(&128)).unwrap().key1 = 2;
 }
 
 #[test]
 #[should_panic(expected = "key2 changed during RefMut borrow")]
 fn get_mut_panics_if_key2_changes() {
     let mut map = TriHashMap::<TestItem>::new();
-    map.insert_unique(TestItem::new(128, 'b', "y", "x"))
-    .unwrap();
-    map.get1_mut(128).unwrap().key2 = 'c';
+    map.insert_unique(TestItem::new(128, 'b', "y", "x")).unwrap();
+    map.get1_mut(TestKey1::new(&128)).unwrap().key2 = 'c';
 }
 
 #[test]
 #[should_panic(expected = "key3 changed during RefMut borrow")]
 fn get_mut_panics_if_key3_changes() {
     let mut map = TriHashMap::<TestItem>::new();
-    map.insert_unique(TestItem::new(128, 'b', "y", "x"))
-    .unwrap();
-    map.get1_mut(128).unwrap().key3 = "z".to_owned();
+    map.insert_unique(TestItem::new(128, 'b', "y", "x")).unwrap();
+    map.get1_mut(TestKey1::new(&128)).unwrap().key3 = "z".to_owned();
 }
 
 #[cfg(feature = "serde")]

@@ -2,14 +2,13 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
+use crate::internal::ValidationError;
 use derive_where::derive_where;
 use rustc_hash::FxHashMap;
 use std::{
     collections::hash_map,
     ops::{Index, IndexMut},
 };
-
-use crate::internal::ValidationError;
 
 /// A map of items stored by integer index.
 #[derive(Clone, Debug)]

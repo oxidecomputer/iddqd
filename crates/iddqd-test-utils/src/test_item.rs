@@ -42,16 +42,53 @@ impl PartialEq<&TestItem> for TestItem {
     }
 }
 
-impl IdHashItem for TestItem {
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct TestKey1<'a> {
+    // We use u8 since there can only be 256 values, increasing the
+    // likelihood of collisions in proptests.
+    //
     // A bit weird to return a reference to a u8, but this makes sure
     // reference-based keys work properly.
-    type Key<'a>
-        = &'a u8
-    where
-        Self: 'a;
+    key: &'a u8,
+}
+
+impl<'a> TestKey1<'a> {
+    pub fn new(key: &'a u8) -> Self {
+        Self { key }
+    }
+}
+
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct TestKey2 {
+    // char is chosen because the Arbitrary impl for it is biased towards
+    // ASCII, increasing the likelihood of collisions.
+    key: char,
+}
+
+impl TestKey2 {
+    pub fn new(key: char) -> Self {
+        Self { key }
+    }
+}
+
+#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct TestKey3<'a> {
+    // &str is a generally open-ended type that probably won't have many
+    // collisions.
+    key: &'a str,
+}
+
+impl<'a> TestKey3<'a> {
+    pub fn new(key: &'a str) -> Self {
+        Self { key }
+    }
+}
+
+impl IdHashItem for TestItem {
+    type Key<'a> = TestKey1<'a>;
 
     fn key(&self) -> Self::Key<'_> {
-        &self.key1
+        TestKey1 { key: &self.key1 }
     }
 
     id_upcast!();
@@ -60,61 +97,45 @@ impl IdHashItem for TestItem {
 impl IdOrdItem for TestItem {
     // A bit weird to return a reference to a u8, but this makes sure
     // reference-based keys work properly.
-    type Key<'a>
-        = &'a u8
-    where
-        Self: 'a;
+    type Key<'a> = TestKey1<'a>;
 
     fn key(&self) -> Self::Key<'_> {
-        &self.key1
+        TestKey1 { key: &self.key1 }
     }
 
     id_upcast!();
 }
 
 impl BiHashItem for TestItem {
-    // We use u8 since there can only be 256 values, increasing the
-    // likelihood of collisions in the proptest below.
-    type K1<'a> = u8;
-    // char is chosen because the Arbitrary impl for it is biased towards
-    // ASCII, increasing the likelihood of collisions.
-    type K2<'a> = char;
+    type K1<'a> = TestKey1<'a>;
+    type K2<'a> = TestKey2;
 
     fn key1(&self) -> Self::K1<'_> {
-        self.key1
+        TestKey1 { key: &self.key1 }
     }
 
     fn key2(&self) -> Self::K2<'_> {
-        self.key2
+        TestKey2 { key: self.key2 }
     }
 
     bi_upcasts!();
 }
 
 impl TriHashItem for TestItem {
-    // These types are chosen to represent various kinds of keys in the
-    // proptest below.
-    //
-    // We use u8 since there can only be 256 values, increasing the
-    // likelihood of collisions in the proptest below.
-    type K1<'a> = u8;
-    // char is chosen because the Arbitrary impl for it is biased towards
-    // ASCII, increasing the likelihood of collisions.
-    type K2<'a> = char;
-    // &str is a generally open-ended type that probably won't have many
-    // collisions.
-    type K3<'a> = &'a str;
+    type K1<'a> = TestKey1<'a>;
+    type K2<'a> = TestKey2;
+    type K3<'a> = TestKey3<'a>;
 
     fn key1(&self) -> Self::K1<'_> {
-        self.key1
+        TestKey1 { key: &self.key1 }
     }
 
     fn key2(&self) -> Self::K2<'_> {
-        self.key2
+        TestKey2 { key: self.key2 }
     }
 
     fn key3(&self) -> Self::K3<'_> {
-        self.key3.as_str()
+        TestKey3 { key: self.key3.as_str() }
     }
 
     tri_upcasts!();

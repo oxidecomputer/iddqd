@@ -10,7 +10,10 @@ use iddqd::{
 use iddqd_test_utils::{
     eq_props::{assert_eq_props, assert_ne_props},
     naive_map::NaiveMap,
-    test_item::{assert_iter_eq, test_item_permutation_strategy, TestItem},
+    test_item::{
+        assert_iter_eq, test_item_permutation_strategy, TestItem, TestKey1,
+        TestKey2,
+    },
 };
 use proptest::prelude::*;
 use test_strategy::{proptest, Arbitrary};
@@ -53,7 +56,7 @@ fn test_insert_unique() {
     // Iterate over the items mutably. This ensures that miri detects UB if it
     // exists.
     let mut items: Vec<RefMut<_>> = map.iter_mut().collect();
-    items.sort_by_key(|e| e.key1());
+    items.sort_by(|a, b| a.key1().cmp(&b.key1()));
     let e1 = &items[0];
     assert_eq!(**e1, v1);
 
@@ -162,26 +165,26 @@ fn proptest_ops(
                 map.validate(compactness).expect("map should be valid");
             }
             Operation::Get1(key1) => {
-                let map_res = map.get1(&key1);
+                let map_res = map.get1(&TestKey1::new(&key1));
                 let naive_res = naive_map.get1(key1);
 
                 assert_eq!(map_res, naive_res);
             }
             Operation::Get2(key2) => {
-                let map_res = map.get2(&key2);
+                let map_res = map.get2(&TestKey2::new(key2));
                 let naive_res = naive_map.get2(key2);
 
                 assert_eq!(map_res, naive_res);
             }
             Operation::Remove1(key1) => {
-                let map_res = map.remove1(key1);
+                let map_res = map.remove1(TestKey1::new(&key1));
                 let naive_res = naive_map.remove1(key1);
 
                 assert_eq!(map_res, naive_res);
                 map.validate(compactness).expect("map should be valid");
             }
             Operation::Remove2(key2) => {
-                let map_res = map.remove2(key2);
+                let map_res = map.remove2(TestKey2::new(key2));
                 let naive_res = naive_map.remove2(key2);
 
                 assert_eq!(map_res, naive_res);
@@ -191,7 +194,7 @@ fn proptest_ops(
 
         // Check that the iterators work correctly.
         let mut naive_items = naive_map.iter().collect::<Vec<_>>();
-        naive_items.sort_by_key(|e| e.key1());
+        naive_items.sort_by(|a, b| a.key1().cmp(&b.key1()));
 
         assert_iter_eq(map.clone(), naive_items);
     }
@@ -281,7 +284,7 @@ fn test_permutation_eq_examples() {
 fn get_mut_panics_if_key1_changes() {
     let mut map = BiHashMap::<TestItem>::new();
     map.insert_unique(TestItem::new(128, 'b', "y", "x")).unwrap();
-    map.get1_mut(128).unwrap().key1 = 2;
+    map.get1_mut(TestKey1::new(&128)).unwrap().key1 = 2;
 }
 
 #[test]
@@ -289,7 +292,7 @@ fn get_mut_panics_if_key1_changes() {
 fn get_mut_panics_if_key2_changes() {
     let mut map = BiHashMap::<TestItem>::new();
     map.insert_unique(TestItem::new(128, 'b', "y", "x")).unwrap();
-    map.get1_mut(128).unwrap().key2 = 'c';
+    map.get1_mut(TestKey1::new(&128)).unwrap().key2 = 'c';
 }
 
 #[test]
@@ -300,7 +303,7 @@ fn insert_panics_for_non_matching_key1() {
     map.insert_unique(v1.clone()).expect("insert_unique succeeded");
 
     let v2 = TestItem::new(1, 'b', "bar", "value");
-    let entry = map.entry(2, 'b');
+    let entry = map.entry(TestKey1::new(&2), TestKey2::new('b'));
     assert!(matches!(entry, Entry::Vacant(_)));
     // Try inserting v2 which matches v1's key2 but not key1.
     entry.or_insert(v2);
@@ -314,7 +317,7 @@ fn insert_panics_for_non_matching_key2() {
     map.insert_unique(v1.clone()).expect("insert_unique succeeded");
 
     let v2 = TestItem::new(1, 'b', "bar", "value");
-    let entry = map.entry(1, 'c');
+    let entry = map.entry(TestKey1::new(&1), TestKey2::new('c'));
     assert!(matches!(entry, Entry::Vacant(_)));
     // Try inserting v2 which matches v1's key1 but not key2.
     entry.or_insert(v2);
