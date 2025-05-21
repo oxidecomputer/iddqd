@@ -51,6 +51,15 @@ impl<'a, T: IdHashItem> RefMut<'a, T> {
         Self { inner: Some(RefMutInner { hash, borrowed }) }
     }
 
+    /// Borrows self into a shorter-lived `RefMut`.
+    ///
+    /// This `RefMut` will also check hash equality on drop.
+    pub fn reborrow(&mut self) -> RefMut<'_, T> {
+        let inner = self.inner.as_mut().unwrap();
+        let borrowed = &mut *inner.borrowed;
+        RefMut::new(inner.hash.clone(), borrowed)
+    }
+
     /// Converts this `RefMut` into a `&'a T`.
     pub fn into_ref(mut self) -> &'a T {
         let inner = self.inner.take().unwrap();
