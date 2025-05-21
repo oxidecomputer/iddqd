@@ -1,17 +1,15 @@
 use crate::internal::{ValidateCompact, ValidationError};
 use derive_where::derive_where;
-use rustc_hash::FxHashMap;
-use std::{
-    collections::hash_map,
-    ops::{Index, IndexMut},
-};
+use hashbrown::{HashMap, hash_map};
+use rustc_hash::FxBuildHasher;
+use std::ops::{Index, IndexMut};
 
 /// A map of items stored by integer index.
 #[derive(Clone, Debug)]
 #[derive_where(Default)]
 pub(crate) struct ItemSet<T> {
     // rustc-hash's FxHashMap is custom-designed for compact-ish integer keys.
-    items: FxHashMap<usize, T>,
+    items: HashMap<usize, T, FxBuildHasher>,
     // The next index to use. This only ever goes up, not down.
     //
     // An alternative might be to use a free list of indexes, but that's
@@ -22,7 +20,7 @@ pub(crate) struct ItemSet<T> {
 impl<T> ItemSet<T> {
     pub(crate) fn with_capacity(capacity: usize) -> Self {
         Self {
-            items: FxHashMap::with_capacity_and_hasher(
+            items: HashMap::with_capacity_and_hasher(
                 capacity,
                 Default::default(),
             ),
@@ -110,7 +108,7 @@ impl<T> ItemSet<T> {
         &mut self,
         indexes: [&usize; N],
     ) -> [Option<&mut T>; N] {
-        self.items.get_disjoint_mut(indexes)
+        self.items.get_many_mut(indexes)
     }
 
     #[inline]
