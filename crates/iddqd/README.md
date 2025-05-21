@@ -142,7 +142,8 @@ assert_eq!(
 
 ## Minimum supported Rust version (MSRV)
 
-This crate’s MSRV is **Rust 1.86**.
+This crate’s MSRV is **Rust 1.86**. In general we aim for 6 months of Rust
+compatibility, but this crate requires a feature new to Rust 1.86.
 
 ## Optional features
 
