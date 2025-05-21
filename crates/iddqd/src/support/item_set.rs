@@ -1,8 +1,8 @@
 use crate::internal::{ValidateCompact, ValidationError};
+use core::ops::{Index, IndexMut};
 use derive_where::derive_where;
 use hashbrown::{HashMap, hash_map};
 use rustc_hash::FxBuildHasher;
-use std::ops::{Index, IndexMut};
 
 /// A map of items stored by integer index.
 #[derive(Clone, Debug)]
@@ -111,6 +111,8 @@ impl<T> ItemSet<T> {
         self.items.get_many_mut(indexes)
     }
 
+    // This is only used by IdOrdMap.
+    #[cfg_attr(not(feature = "std"), expect(dead_code))]
     #[inline]
     pub(crate) fn next_index(&self) -> usize {
         self.next_index

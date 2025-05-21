@@ -1,6 +1,6 @@
 //! Trait definitions for `IdOrdMap`.
 
-use std::{rc::Rc, sync::Arc};
+use alloc::{boxed::Box, rc::Rc, sync::Arc};
 
 /// An element stored in an [`IdOrdMap`].
 ///

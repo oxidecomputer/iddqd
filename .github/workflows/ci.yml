@@ -61,9 +61,30 @@ jobs:
         run: just powerset nextest run
       - name: Doctests
         run: just powerset test --doc
+        
+  build-no-std:
+    name: Build on no-std
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        # 1.81 is the MSRV
+        rust-version: ["1.81", "stable"]
+      fail-fast: false
+    env:
+      RUSTFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust-version }}
+      - uses: Swatinem/rust-cache@23bce251a8cd2ffc3c1075eaa2367cf899916d84 # v2
+      - uses: taiki-e/install-action@cross
+      - name: Check
+        run: cross check --target thumbv7em-none-eabi --no-default-features -p iddqd
 
   miri:
-    name: Run tests on miri
+    name: Run tests with miri
     runs-on: ubuntu-latest
     env:
       RUSTFLAGS: -D warnings

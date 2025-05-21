@@ -1,5 +1,5 @@
 use crate::{IdHashItem, support::map_hash::MapHash};
-use std::{
+use core::{
     fmt,
     ops::{Deref, DerefMut},
 };

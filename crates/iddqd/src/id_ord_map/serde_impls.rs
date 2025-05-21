@@ -1,8 +1,9 @@
 use super::{IdOrdItem, IdOrdMap};
+use alloc::vec::Vec;
+use core::fmt;
 use serde::{
     Deserialize, Deserializer, Serialize, Serializer, ser::SerializeSeq,
 };
-use std::fmt;
 
 /// An `IdOrdMap` serializes to the list of items. Items are serialized in
 /// order of their keys.

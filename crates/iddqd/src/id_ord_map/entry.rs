@@ -1,8 +1,8 @@
 use super::{IdOrdItem, IdOrdMap, RefMut};
 use crate::support::borrow::DormantMutRef;
+use core::hash::Hash;
 use debug_ignore::DebugIgnore;
 use derive_where::derive_where;
-use std::hash::Hash;
 
 /// An implementation of the Entry API for [`IdOrdMap`].
 #[derive_where(Debug)]

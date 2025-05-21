@@ -1,7 +1,7 @@
 use super::{RefMut, tables::IdHashMapTables};
 use crate::{IdHashItem, support::item_set::ItemSet};
+use core::iter::FusedIterator;
 use hashbrown::hash_map;
-use std::iter::FusedIterator;
 
 /// An iterator over the elements of a [`IdHashMap`] by shared reference.
 ///

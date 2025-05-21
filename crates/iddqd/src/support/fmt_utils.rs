@@ -1,4 +1,4 @@
-use std::fmt;
+use core::fmt;
 
 /// Debug impl for a static string without quotes.
 pub(crate) struct StrDisplayAsDebug(pub(crate) &'static str);
