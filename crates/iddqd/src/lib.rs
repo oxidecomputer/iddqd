@@ -4,8 +4,8 @@
 //!
 //! - [`IdOrdMap`]: A B-Tree based map where keys are borrowed from values.
 //! - [`IdHashMap`]: A hash map where keys are borrowed from values.
-//! - [`BiHashMap`]: A hash map with two keys, borrowed from values.
-//! - [`TriHashMap`]: A hash map with three keys, borrowed from values.
+//! - [`BiHashMap`]: A bijective (1:1) hash map with two keys, borrowed from values.
+//! - [`TriHashMap`]: A trijective (1:1:1) hash map with three keys, borrowed from values.
 //!
 //! # Usage
 //!
@@ -29,6 +29,18 @@
 //!   `insert_override` or `insert_unique`. You must pick an insertion
 //!   behavior.
 //! * The serde implementations reject duplicate keys.
+//!
+//! We've also sometimes needed to index a set of data by more than one key, or
+//! perhaps map one key to another. For that purpose, this crate provides
+//! [`BiHashMap`] and [`TriHashMap`].
+//!
+//! * [`BiHashMap`] has two keys, and provides a bijection (1:1 relationship)
+//!   between the keys.
+//! * [`TriHashMap`] has three keys, and provides a trijection (1:1:1 relationship)
+//!   between the keys.
+//!
+//! Due to their general structure, maps can have arbitrary value data
+//! associated with them as well.
 //!
 //! ## Examples
 //!
@@ -130,14 +142,20 @@
 //! );
 //! ```
 //!
+//! # Optional features
+//!
+//! - `serde`: Enables serde support for all ID map types. *Not enabled by default.*
+//!
+//! # Related work
+//!
+//! - [`bimap`](https://docs.rs/bimap) provides a bijective map, but does not
+//!   have a way to associate arbitrary values. However, it supports
+//!
 //! # Minimum supported Rust version (MSRV)
 //!
 //! This crate's MSRV is **Rust 1.86**. In general we aim for 6 months of Rust
 //! compatibility, but this crate requires a feature new to Rust 1.86.
 //!
-//! # Optional features
-//!
-//! - `serde`: Enables serde support for all ID map types. *Not enabled by default.*
 
 #![cfg_attr(doc_cfg, feature(doc_auto_cfg))]
 #![warn(missing_docs)]

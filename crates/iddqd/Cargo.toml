@@ -1,6 +1,8 @@
 [package]
 name = "iddqd"
 version = "0.1.0"
+description = "Maps where keys borrow from values, including bijective and trijective maps."
+readme = "README.md"
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
