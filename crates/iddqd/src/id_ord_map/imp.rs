@@ -8,11 +8,11 @@ use super::{
 };
 use crate::{
     errors::DuplicateItem,
-    internal::{ValidateCompact, ValidationError},
+    internal::{ValidateChaos, ValidateCompact, ValidationError},
     support::{borrow::DormantMutRef, item_set::ItemSet},
 };
 use derive_where::derive_where;
-use std::{borrow::Borrow, collections::BTreeSet, hash::Hash};
+use std::{borrow::Borrow, collections::BTreeSet, fmt, hash::Hash};
 
 /// An ordered map where the keys are part of the values, based on a B-Tree.
 ///
@@ -112,14 +112,29 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     pub fn validate(
         &self,
         compactness: ValidateCompact,
-    ) -> Result<(), ValidationError> {
+        chaos: ValidateChaos,
+    ) -> Result<(), ValidationError>
+    where
+        T: fmt::Debug,
+    {
         self.items.validate(compactness)?;
         self.tables.validate(self.len(), compactness)?;
 
         // Check that the indexes are all correct.
+
         for (&ix, item) in self.items.iter() {
             let key = item.key();
-            let Some(ix1) = self.find_index(&key) else {
+            let ix1 = match chaos {
+                ValidateChaos::Yes => {
+                    // Fall back to a linear search.
+                    self.linear_search_index(&key)
+                }
+                ValidateChaos::No => {
+                    // Use the B-Tree table to find the index.
+                    self.find_index(&key)
+                }
+            };
+            let Some(ix1) = ix1 else {
                 return Err(ValidationError::general(format!(
                     "item at index {ix} has no key1 index"
                 )));
@@ -246,6 +261,17 @@ impl<T: IdOrdItem> IdOrdMap<T> {
         Q: Ord + ?Sized,
     {
         self.find_index(k).map(|ix| &self.items[ix])
+    }
+
+    fn linear_search_index<'a, Q>(&'a self, k: &Q) -> Option<usize>
+    where
+        T::Key<'a>: Borrow<Q>,
+        T: 'a,
+        Q: Ord + ?Sized,
+    {
+        self.items.iter().find_map(|(index, item)| {
+            (item.key().borrow() == k).then_some(*index)
+        })
     }
 
     fn find_index<'a, Q>(&'a self, k: &Q) -> Option<usize>

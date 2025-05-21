@@ -61,9 +61,11 @@ fn test_insert_unique() {
     assert_eq!(**e1, v1);
 
     // Test that the RefMut Debug impl looks good.
-    assert_eq!(
-        format!("{:?}", e1),
-        r#"TestItem { key1: 0, key2: 'a', key3: "x", value: "v" }"#,
+    assert!(
+        format!("{:?}", e1).starts_with(
+            r#"TestItem { key1: 0, key2: 'a', key3: "x", value: "v""#,
+        ),
+        "RefMut Debug impl should forward to TestItem"
     );
 
     let e2 = &*items[1];

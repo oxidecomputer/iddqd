@@ -6,12 +6,43 @@ use iddqd::{
     bi_hash_map, bi_upcasts,
     errors::DuplicateItem,
     id_hash_map, id_ord_map, id_upcast,
-    internal::{ValidateCompact, ValidationError},
+    internal::{ValidateChaos, ValidateCompact, ValidationError},
     tri_hash_map, tri_upcasts, BiHashItem, BiHashMap, IdHashItem, IdHashMap,
     IdOrdItem, IdOrdMap, TriHashItem, TriHashMap,
 };
 use proptest::{prelude::*, sample::SizeRange};
+use std::cell::Cell;
 use test_strategy::Arbitrary;
+
+thread_local! {
+    static WITHOUT_CHAOS: Cell<bool> = const { Cell::new(false) };
+}
+
+/// Temporarily disable chaos testing.
+pub fn without_chaos<F, T>(f: F)
+where
+    F: FnOnce() -> T,
+{
+    let guard = ChaosGuard::new();
+    f();
+    // Explicitly drop the guard to ensure that the chaos flag is reset.
+    drop(guard);
+}
+
+struct ChaosGuard {}
+
+impl ChaosGuard {
+    fn new() -> Self {
+        WITHOUT_CHAOS.set(true);
+        Self {}
+    }
+}
+
+impl Drop for ChaosGuard {
+    fn drop(&mut self) {
+        WITHOUT_CHAOS.set(false);
+    }
+}
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd, Arbitrary)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -20,6 +51,8 @@ pub struct TestItem {
     pub key2: char,
     pub key3: String,
     pub value: String,
+    #[strategy(Just(TestChaos::default()))]
+    pub chaos: TestChaos,
 }
 
 impl TestItem {
@@ -29,7 +62,18 @@ impl TestItem {
         key3: impl Into<String>,
         value: impl Into<String>,
     ) -> Self {
-        Self { key1, key2, key3: key3.into(), value: value.into() }
+        Self {
+            key1,
+            key2,
+            key3: key3.into(),
+            value: value.into(),
+            chaos: TestChaos::default(),
+        }
+    }
+
+    pub fn with_key1_chaos(self, chaos: KeyChaos) -> Self {
+        let chaos = TestChaos { key1_chaos: chaos, ..self.chaos };
+        Self { chaos, ..self }
     }
 }
 
@@ -39,10 +83,132 @@ impl PartialEq<&TestItem> for TestItem {
             && self.key2 == other.key2
             && self.key3 == other.key3
             && self.value == other.value
+            && self.chaos == other.chaos
     }
 }
 
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct TestChaos {
+    pub key1_chaos: KeyChaos,
+    pub key2_chaos: KeyChaos,
+    pub key3_chaos: KeyChaos,
+}
+
+#[derive(Clone, Debug, Default, Eq, Ord, PartialEq, PartialOrd)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct KeyChaos {
+    pub eq: Option<ChaosEq>,
+    pub ord: Option<ChaosOrd>,
+}
+
+impl KeyChaos {
+    pub fn with_eq(self, chaos: ChaosEq) -> Self {
+        Self { eq: Some(chaos), ..self }
+    }
+
+    pub fn with_ord(self, chaos: ChaosOrd) -> Self {
+        Self { ord: Some(chaos), ..self }
+    }
+}
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum ChaosEq {
+    Always,
+    Never,
+    FlipFlop(Cell<bool>),
+}
+
+impl ChaosEq {
+    pub fn all_variants() -> [Self; 3] {
+        [Self::Always, Self::Never, Self::FlipFlop(Cell::new(false))]
+    }
+}
+
+#[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum ChaosOrd {
+    AlwaysLess,
+    AlwaysGreater,
+    AlwaysEq,
+    FlipFlop(Cell<bool>),
+}
+
+impl ChaosOrd {
+    pub fn all_variants() -> [Self; 4] {
+        [
+            Self::AlwaysLess,
+            Self::AlwaysGreater,
+            Self::AlwaysEq,
+            Self::FlipFlop(Cell::new(false)),
+        ]
+    }
+}
+
+macro_rules! impl_test_key_traits {
+    ($name:ty) => {
+        impl std::hash::Hash for $name {
+            fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+                // TODO: add chaos testing for hashes
+                self.key.hash(state);
+            }
+        }
+
+        impl PartialEq for $name {
+            fn eq(&self, other: &Self) -> bool {
+                if WITHOUT_CHAOS.get() {
+                    return self.key == other.key;
+                }
+                match self.chaos.eq {
+                    Some(ChaosEq::Always) => true,
+                    Some(ChaosEq::Never) => false,
+                    Some(ChaosEq::FlipFlop(ref cell)) => {
+                        let value = cell.get();
+                        cell.set(!value);
+                        value
+                    }
+                    None => self.key == other.key,
+                }
+            }
+        }
+
+        impl Eq for $name {}
+
+        impl PartialOrd for $name {
+            fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+                Some(self.cmp(other))
+            }
+        }
+
+        impl Ord for $name {
+            fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+                if WITHOUT_CHAOS.get() {
+                    return self.key.cmp(&other.key);
+                }
+                match self.chaos.ord {
+                    Some(ChaosOrd::AlwaysLess) => std::cmp::Ordering::Less,
+                    Some(ChaosOrd::AlwaysGreater) => {
+                        std::cmp::Ordering::Greater
+                    }
+                    Some(ChaosOrd::AlwaysEq) => std::cmp::Ordering::Equal,
+                    Some(ChaosOrd::FlipFlop(ref cell)) => {
+                        let value = cell.get();
+                        cell.set(!value);
+                        if value {
+                            std::cmp::Ordering::Less
+                        } else {
+                            std::cmp::Ordering::Greater
+                        }
+                    }
+                    None => self.key.cmp(&other.key),
+                }
+            }
+        }
+    };
+}
+
+#[derive(Clone, Debug)]
 pub struct TestKey1<'a> {
     // We use u8 since there can only be 256 values, increasing the
     // likelihood of collisions in proptests.
@@ -50,45 +216,66 @@ pub struct TestKey1<'a> {
     // A bit weird to return a reference to a u8, but this makes sure
     // reference-based keys work properly.
     key: &'a u8,
+    chaos: KeyChaos,
 }
 
 impl<'a> TestKey1<'a> {
     pub fn new(key: &'a u8) -> Self {
-        Self { key }
+        Self { key, chaos: KeyChaos::default() }
+    }
+
+    pub fn with_chaos(self, chaos: KeyChaos) -> Self {
+        Self { chaos, ..self }
     }
 }
 
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+impl_test_key_traits!(TestKey1<'_>);
+
+#[derive(Clone, Debug)]
 pub struct TestKey2 {
     // char is chosen because the Arbitrary impl for it is biased towards
     // ASCII, increasing the likelihood of collisions.
     key: char,
+    chaos: KeyChaos,
 }
 
 impl TestKey2 {
     pub fn new(key: char) -> Self {
-        Self { key }
+        Self { key, chaos: KeyChaos::default() }
+    }
+
+    pub fn with_chaos(self, chaos: KeyChaos) -> Self {
+        Self { chaos, ..self }
     }
 }
 
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+impl_test_key_traits!(TestKey2);
+
+#[derive(Clone, Debug)]
 pub struct TestKey3<'a> {
     // &str is a generally open-ended type that probably won't have many
     // collisions.
     key: &'a str,
+    chaos: KeyChaos,
 }
 
 impl<'a> TestKey3<'a> {
     pub fn new(key: &'a str) -> Self {
-        Self { key }
+        Self { key, chaos: KeyChaos::default() }
+    }
+
+    pub fn with_chaos(self, chaos: KeyChaos) -> Self {
+        Self { chaos, ..self }
     }
 }
+
+impl_test_key_traits!(TestKey3<'_>);
 
 impl IdHashItem for TestItem {
     type Key<'a> = TestKey1<'a>;
 
     fn key(&self) -> Self::Key<'_> {
-        TestKey1 { key: &self.key1 }
+        TestKey1::new(&self.key1)
     }
 
     id_upcast!();
@@ -100,7 +287,7 @@ impl IdOrdItem for TestItem {
     type Key<'a> = TestKey1<'a>;
 
     fn key(&self) -> Self::Key<'_> {
-        TestKey1 { key: &self.key1 }
+        TestKey1::new(&self.key1).with_chaos(self.chaos.key1_chaos.clone())
     }
 
     id_upcast!();
@@ -111,11 +298,11 @@ impl BiHashItem for TestItem {
     type K2<'a> = TestKey2;
 
     fn key1(&self) -> Self::K1<'_> {
-        TestKey1 { key: &self.key1 }
+        TestKey1::new(&self.key1).with_chaos(self.chaos.key1_chaos.clone())
     }
 
     fn key2(&self) -> Self::K2<'_> {
-        TestKey2 { key: self.key2 }
+        TestKey2::new(self.key2).with_chaos(self.chaos.key2_chaos.clone())
     }
 
     bi_upcasts!();
@@ -127,15 +314,15 @@ impl TriHashItem for TestItem {
     type K3<'a> = TestKey3<'a>;
 
     fn key1(&self) -> Self::K1<'_> {
-        TestKey1 { key: &self.key1 }
+        TestKey1::new(&self.key1).with_chaos(self.chaos.key1_chaos.clone())
     }
 
     fn key2(&self) -> Self::K2<'_> {
-        TestKey2 { key: self.key2 }
+        TestKey2::new(self.key2).with_chaos(self.chaos.key2_chaos.clone())
     }
 
     fn key3(&self) -> Self::K3<'_> {
-        TestKey3 { key: self.key3.as_str() }
+        TestKey3::new(&self.key3).with_chaos(self.chaos.key3_chaos.clone())
     }
 
     tri_upcasts!();
@@ -161,7 +348,7 @@ pub trait TestItemMap: Clone {
 
     fn map_kind() -> MapKind;
     fn new() -> Self;
-    fn validate(
+    fn validate_(
         &self,
         compactness: ValidateCompact,
     ) -> Result<(), ValidationError>;
@@ -188,7 +375,7 @@ impl TestItemMap for BiHashMap<TestItem> {
         BiHashMap::new()
     }
 
-    fn validate(
+    fn validate_(
         &self,
         compactness: ValidateCompact,
     ) -> Result<(), ValidationError> {
@@ -229,7 +416,7 @@ impl TestItemMap for IdHashMap<TestItem> {
         IdHashMap::new()
     }
 
-    fn validate(
+    fn validate_(
         &self,
         compactness: ValidateCompact,
     ) -> Result<(), ValidationError> {
@@ -270,11 +457,11 @@ impl TestItemMap for IdOrdMap<TestItem> {
         IdOrdMap::new()
     }
 
-    fn validate(
+    fn validate_(
         &self,
         compactness: ValidateCompact,
     ) -> Result<(), ValidationError> {
-        self.validate(compactness)
+        self.validate(compactness, ValidateChaos::No)
     }
 
     fn insert_unique(
@@ -311,7 +498,7 @@ impl TestItemMap for TriHashMap<TestItem> {
         TriHashMap::new()
     }
 
-    fn validate(
+    fn validate_(
         &self,
         compactness: ValidateCompact,
     ) -> Result<(), ValidationError> {

@@ -28,7 +28,7 @@ where
     let serialized = serde_json::to_string(&map).unwrap();
     let deserialized: M = serde_json::from_str(&serialized).unwrap();
     deserialized
-        .validate(ValidateCompact::Compact)
+        .validate_(ValidateCompact::Compact)
         .expect("deserialized map is valid");
 
     let mut map_items = map.iter().collect::<Vec<_>>();

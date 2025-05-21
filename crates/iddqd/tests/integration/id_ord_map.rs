@@ -4,15 +4,17 @@
 
 use iddqd::{
     id_ord_map::{Entry, RefMut},
-    internal::ValidateCompact,
+    internal::{ValidateChaos, ValidateCompact},
     IdOrdItem, IdOrdMap,
 };
 use iddqd_test_utils::{
     eq_props::{assert_eq_props, assert_ne_props},
     naive_map::NaiveMap,
     test_item::{
-        assert_iter_eq, test_item_permutation_strategy, TestItem, TestKey1,
+        assert_iter_eq, test_item_permutation_strategy, without_chaos, ChaosEq,
+        ChaosOrd, KeyChaos, TestItem, TestKey1,
     },
+    unwind::catch_panic,
 };
 use proptest::prelude::*;
 use test_strategy::{proptest, Arbitrary};
@@ -21,6 +23,46 @@ use test_strategy::{proptest, Arbitrary};
 fn with_capacity() {
     let map = IdOrdMap::<TestItem>::with_capacity(1024);
     assert!(map.capacity() >= 1024);
+}
+
+#[test]
+fn test_compact_chaos() {
+    let mut map = IdOrdMap::<TestItem>::new();
+    let mut chaos_eq = ChaosEq::all_variants().into_iter().cycle();
+    let mut chaos_ord = ChaosOrd::all_variants().into_iter().cycle();
+
+    for i in 0..64 {
+        eprintln!("iteration {i}");
+        let key1_chaos = KeyChaos::default()
+            .with_eq(chaos_eq.next().unwrap())
+            .with_ord(chaos_ord.next().unwrap());
+
+        let item = TestItem::new(i, 'a', "x", "v").with_key1_chaos(key1_chaos);
+        // This may or may not work, and may even panic; we care about two
+        // things:
+        //
+        // 1. The map shouldn't be left in an invalid state.
+        // 2. UB detection with Miri.
+        catch_panic(|| map.insert_unique(item.clone()));
+        // iter_mut can potentially cause mutable UB.
+        catch_panic(|| map.iter_mut().collect::<Vec<_>>());
+        catch_panic(|| match map.entry(item.key()) {
+            Entry::Vacant(_) => {}
+            Entry::Occupied(mut entry) => {
+                // This can trigger some unsafe code.
+                {
+                    let _mut1 = entry.get_mut();
+                }
+                let _mut2 = entry.into_mut();
+            }
+        });
+        without_chaos(|| {
+            map.validate(ValidateCompact::Compact, ValidateChaos::Yes)
+                .unwrap_or_else(|error| {
+                    panic!("iteration {i}: map invalid: {error}")
+                })
+        });
+    }
 }
 
 #[test]
@@ -59,9 +101,11 @@ fn test_insert_unique() {
     assert_eq!(**e1, v3);
 
     // Test that the RefMut Debug impl looks good.
-    assert_eq!(
-        format!("{:?}", e1),
-        r#"TestItem { key1: 5, key2: 'a', key3: "y", value: "v" }"#,
+    assert!(
+        format!("{:?}", e1).starts_with(
+            r#"TestItem { key1: 5, key2: 'a', key3: "y", value: "v""#,
+        ),
+        "RefMut Debug impl should forward to TestItem",
     );
 
     let e2 = &*items[1];
@@ -129,7 +173,8 @@ fn proptest_ops(
                     assert_eq!(map_err.duplicates(), naive_err.duplicates());
                 }
 
-                map.validate(compactness).expect("map should be valid");
+                map.validate(compactness, ValidateChaos::No)
+                    .expect("map should be valid");
             }
             Operation::InsertOverwrite(item) => {
                 let map_dups = map.insert_overwrite(item.clone());
@@ -141,7 +186,8 @@ fn proptest_ops(
                     map_dups, naive_dup,
                     "map and naive map should agree on insert_overwrite dup"
                 );
-                map.validate(compactness).expect("map should be valid");
+                map.validate(compactness, ValidateChaos::No)
+                    .expect("map should be valid");
             }
 
             Operation::Get(key) => {
@@ -155,7 +201,8 @@ fn proptest_ops(
                 let naive_res = naive_map.remove1(key);
 
                 assert_eq!(map_res, naive_res);
-                map.validate(compactness).expect("map should be valid");
+                map.validate(compactness, ValidateChaos::No)
+                    .expect("map should be valid");
             }
         }
 

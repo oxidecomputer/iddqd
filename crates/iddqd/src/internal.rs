@@ -14,6 +14,15 @@ pub enum ValidateCompact {
     NonCompact,
 }
 
+/// For validation, indicates whether chaos testing is in effect.
+///
+/// If it is, then we fall back to linear searches for table lookups.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ValidateChaos {
+    Yes,
+    No,
+}
+
 #[derive(Debug)]
 pub enum ValidationError {
     Table { name: &'static str, error: TableValidationError },
