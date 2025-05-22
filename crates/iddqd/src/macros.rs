@@ -84,3 +84,31 @@ macro_rules! tri_upcast {
         }
     };
 }
+
+// Internal macro to implement diffs.
+#[cfg(feature = "daft")]
+macro_rules! impl_diff_ref_cast {
+    ($self: ident, $diff_ty: ty, $key_method: ident, $get_method: ident, $contains_method: ident, $ref_cast_ty: ty) => {{
+        let mut diff = <$diff_ty>::new();
+        for before_item in $self.before {
+            if let Some(after_item) =
+                $self.after.$get_method(&before_item.$key_method())
+            {
+                diff.common.insert_overwrite(IdLeaf::new(
+                    <$ref_cast_ty>::ref_cast(before_item),
+                    <$ref_cast_ty>::ref_cast(after_item),
+                ));
+            } else {
+                diff.removed
+                    .insert_overwrite(<$ref_cast_ty>::ref_cast(before_item));
+            }
+        }
+        for after_item in $self.after {
+            if !$self.before.$contains_method(&after_item.$key_method()) {
+                diff.added
+                    .insert_overwrite(<$ref_cast_ty>::ref_cast(after_item));
+            }
+        }
+        diff
+    }};
+}

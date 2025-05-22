@@ -15,7 +15,7 @@ mod tables;
 pub(crate) mod trait_defs;
 
 #[cfg(feature = "daft")]
-pub use daft_impls::Diff;
+pub use daft_impls::{ByK1, ByK2, Diff, MapLeaf};
 pub use entry::{
     Entry, OccupiedEntry, OccupiedEntryMut, OccupiedEntryRef, VacantEntry,
 };

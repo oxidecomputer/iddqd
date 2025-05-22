@@ -1,29 +1,91 @@
 //! `Diffable` implementation.
 
 use super::{BiHashItem, BiHashMap};
-use crate::support::daft_utils::IdLeaf;
-use core::{borrow::Borrow, hash::Hash};
+use crate::{IdHashItem, id_hash_map, support::daft_utils::IdLeaf};
+use core::{borrow::Borrow, fmt, hash::Hash};
 use daft::Diffable;
+use derive_where::derive_where;
+use ref_cast::RefCast;
 
 impl<T: BiHashItem> Diffable for BiHashMap<T> {
     type Diff<'a>
-        = Diff<'a, T>
+        = MapLeaf<'a, T>
     where
         T: 'a;
 
     fn diff<'daft>(&'daft self, other: &'daft Self) -> Self::Diff<'daft> {
+        MapLeaf { before: self, after: other }
+    }
+}
+
+/// A leaf diff of two [`BiHashMap`]s.
+///
+/// This diff is lazy and has not been evaluated yet. To evaluate the diff,
+/// call:
+///
+/// * [`Self::by_key1`] to get a diff indexed by `key1`.
+/// * [`Self::by_key2`] to get a diff indexed by `key2`.
+/// * [`Self::by_unique`] to get a diff indexed by `key1` and `key2`.
+#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive_where(
+    Debug;
+    T: fmt::Debug,
+    for<'k> T::K1<'k>: fmt::Debug,
+    for<'k> T::K2<'k>: fmt::Debug
+)]
+pub struct MapLeaf<'daft, T: BiHashItem> {
+    /// The before map.
+    pub before: &'daft BiHashMap<T>,
+
+    /// The after map.
+    pub after: &'daft BiHashMap<T>,
+}
+
+impl<'daft, T: BiHashItem> MapLeaf<'daft, T> {
+    /// Returns a diff of two [`BiHashMap`]s, indexed by `key1`.
+    ///
+    /// Note that the return type is a [`id_hash_map::Diff`].
+    pub fn by_key1(self) -> id_hash_map::Diff<'daft, ByK1<T>> {
+        impl_diff_ref_cast!(
+            self,
+            id_hash_map::Diff::<'daft, ByK1<T>>,
+            key1,
+            get1,
+            contains_key1,
+            ByK1<T>
+        )
+    }
+
+    /// Returns a diff of two [`BiHashMap`]s, indexed by `key2`.
+    ///
+    /// Note that the return type is a [`id_hash_map::Diff`].
+    pub fn by_key2(self) -> id_hash_map::Diff<'daft, ByK2<T>> {
+        impl_diff_ref_cast!(
+            self,
+            id_hash_map::Diff::<'daft, ByK2<T>>,
+            key2,
+            get2,
+            contains_key2,
+            ByK2<T>
+        )
+    }
+
+    /// Returns a diff of two [`BiHashMap`]s, indexed by `key1` and `key2`.
+    ///
+    /// The return type is a [`Diff`].
+    pub fn by_unique(self) -> Diff<'daft, T> {
         let mut diff = Diff::new();
-        for item in self {
-            if let Some(other_item) =
-                other.get_unique(&item.key1(), &item.key2())
+        for item in self.before {
+            if let Some(after_item) =
+                self.after.get_unique(&item.key1(), &item.key2())
             {
-                diff.common.insert_overwrite(IdLeaf::new(item, other_item));
+                diff.common.insert_overwrite(IdLeaf::new(item, after_item));
             } else {
                 diff.removed.insert_overwrite(item);
             }
         }
-        for item in other {
-            if !self.contains_key_unique(&item.key1(), &item.key2()) {
+        for item in self.after {
+            if !self.before.contains_key_unique(&item.key1(), &item.key2()) {
                 diff.added.insert_overwrite(item);
             }
         }
@@ -31,7 +93,7 @@ impl<T: BiHashItem> Diffable for BiHashMap<T> {
     }
 }
 
-/// A diff of two [`BiHashMap`]s.
+/// A diff of two [`BiHashMap`]s, indexed by both `key1` and `key2`.
 pub struct Diff<'daft, T: ?Sized + BiHashItem> {
     /// Entries common to both maps.
     ///
@@ -179,6 +241,7 @@ impl<'daft, T: ?Sized + BiHashItem + Eq> Diff<'daft, T> {
 // Note: not deriving Default here because we don't want to require
 // T to be Default.
 impl<'daft, T: BiHashItem> Default for Diff<'daft, T> {
+    #[inline]
     fn default() -> Self {
         Self::new()
     }
@@ -221,6 +284,82 @@ impl<T: BiHashItem> BiHashItem for IdLeaf<T> {
     fn upcast_key2<'short, 'long: 'short>(
         long: Self::K2<'long>,
     ) -> Self::K2<'short> {
+        T::upcast_key2(long)
+    }
+}
+
+/// Maps a [`BiHashItem`] to an [`IdHashItem`], indexed by `key1`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, RefCast)]
+#[repr(transparent)]
+pub struct ByK1<T>(pub T);
+
+impl<T> ByK1<T> {
+    /// Converts a `&T` to a `&ByK1<T>`.
+    #[inline]
+    pub fn ref_cast(item: &T) -> &Self {
+        RefCast::ref_cast(item)
+    }
+
+    /// Converts a `&mut T` to a `&mut ByK1<T>`.
+    #[inline]
+    pub fn ref_cast_mut(item: &mut T) -> &mut Self {
+        RefCast::ref_cast_mut(item)
+    }
+}
+
+impl<T: BiHashItem> IdHashItem for ByK1<T> {
+    type Key<'a>
+        = T::K1<'a>
+    where
+        T: 'a;
+
+    #[inline]
+    fn key(&self) -> Self::Key<'_> {
+        self.0.key1()
+    }
+
+    #[inline]
+    fn upcast_key<'short, 'long: 'short>(
+        long: Self::Key<'long>,
+    ) -> Self::Key<'short> {
+        T::upcast_key1(long)
+    }
+}
+
+/// Maps a [`BiHashItem`] to an [`IdHashItem`], indexed by `key2`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, RefCast)]
+#[repr(transparent)]
+pub struct ByK2<T>(pub T);
+
+impl<T> ByK2<T> {
+    /// Converts a `&T` to a `&ByK1<T>`.
+    #[inline]
+    pub fn ref_cast(item: &T) -> &Self {
+        RefCast::ref_cast(item)
+    }
+
+    /// Converts a `&mut T` to a `&mut ByK1<T>`.
+    #[inline]
+    pub fn ref_cast_mut(item: &mut T) -> &mut Self {
+        RefCast::ref_cast_mut(item)
+    }
+}
+
+impl<T: BiHashItem> IdHashItem for ByK2<T> {
+    type Key<'a>
+        = T::K2<'a>
+    where
+        T: 'a;
+
+    #[inline]
+    fn key(&self) -> Self::Key<'_> {
+        self.0.key2()
+    }
+
+    #[inline]
+    fn upcast_key<'short, 'long: 'short>(
+        long: Self::Key<'long>,
+    ) -> Self::Key<'short> {
         T::upcast_key2(long)
     }
 }

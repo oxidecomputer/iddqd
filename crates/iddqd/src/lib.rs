@@ -194,6 +194,10 @@ extern crate alloc;
 #[macro_use]
 extern crate std;
 
+// This must go first so macros can be used in the rest of the crate.
+#[macro_use]
+mod macros;
+
 pub mod bi_hash_map;
 pub mod errors;
 pub mod id_hash_map;
@@ -201,7 +205,6 @@ pub mod id_hash_map;
 pub mod id_ord_map;
 #[doc(hidden)]
 pub mod internal;
-mod macros;
 mod support;
 pub mod tri_hash_map;
 
