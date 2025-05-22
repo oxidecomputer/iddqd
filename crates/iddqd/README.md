@@ -12,16 +12,16 @@ Maps where keys are borrowed from values.
 
 This crate consists of several map types, collectively called **ID maps**:
 
-* [`IdOrdMap`](https://docs.rs/iddqd/0.2.1/iddqd/id_ord_map/imp/struct.IdOrdMap.html): A B-Tree based map where keys are borrowed from values.
-* [`IdHashMap`](https://docs.rs/iddqd/0.2.1/iddqd/id_hash_map/imp/struct.IdHashMap.html): A hash map where keys are borrowed from values.
-* [`BiHashMap`](https://docs.rs/iddqd/0.2.1/iddqd/bi_hash_map/imp/struct.BiHashMap.html): A bijective (1:1) hash map with two keys, borrowed from values.
-* [`TriHashMap`](https://docs.rs/iddqd/0.2.1/iddqd/tri_hash_map/imp/struct.TriHashMap.html): A trijective (1:1:1) hash map with three keys, borrowed from values.
+* [`IdOrdMap`](https://docs.rs/iddqd/0.3.0/iddqd/id_ord_map/imp/struct.IdOrdMap.html): A B-Tree based map where keys are borrowed from values.
+* [`IdHashMap`](https://docs.rs/iddqd/0.3.0/iddqd/id_hash_map/imp/struct.IdHashMap.html): A hash map where keys are borrowed from values.
+* [`BiHashMap`](https://docs.rs/iddqd/0.3.0/iddqd/bi_hash_map/imp/struct.BiHashMap.html): A bijective (1:1) hash map with two keys, borrowed from values.
+* [`TriHashMap`](https://docs.rs/iddqd/0.3.0/iddqd/tri_hash_map/imp/struct.TriHashMap.html): A trijective (1:1:1) hash map with three keys, borrowed from values.
 
 ## Usage
 
 * Pick your ID map type.
-* Depending on the ID map type, implement [`IdOrdItem`](https://docs.rs/iddqd/0.2.1/iddqd/id_ord_map/trait_defs/trait.IdOrdItem.html), [`IdHashItem`](https://docs.rs/iddqd/0.2.1/iddqd/id_hash_map/trait_defs/trait.IdHashItem.html), [`BiHashItem`](https://docs.rs/iddqd/0.2.1/iddqd/bi_hash_map/trait_defs/trait.BiHashItem.html), or
-  [`TriHashItem`](https://docs.rs/iddqd/0.2.1/iddqd/tri_hash_map/trait_defs/trait.TriHashItem.html) for your value type.
+* Depending on the ID map type, implement [`IdOrdItem`](https://docs.rs/iddqd/0.3.0/iddqd/id_ord_map/trait_defs/trait.IdOrdItem.html), [`IdHashItem`](https://docs.rs/iddqd/0.3.0/iddqd/id_hash_map/trait_defs/trait.IdHashItem.html), [`BiHashItem`](https://docs.rs/iddqd/0.3.0/iddqd/bi_hash_map/trait_defs/trait.BiHashItem.html), or
+  [`TriHashItem`](https://docs.rs/iddqd/0.3.0/iddqd/tri_hash_map/trait_defs/trait.TriHashItem.html) for your value type.
 * Store values in the ID map type.
 
 ### Features
@@ -42,11 +42,11 @@ issues encountered using Rust’s default map types in practice at Oxide.
 
 We’ve also sometimes needed to index a set of data by more than one key, or
 perhaps map one key to another. For that purpose, this crate provides
-[`BiHashMap`](https://docs.rs/iddqd/0.2.1/iddqd/bi_hash_map/imp/struct.BiHashMap.html) and [`TriHashMap`](https://docs.rs/iddqd/0.2.1/iddqd/tri_hash_map/imp/struct.TriHashMap.html).
+[`BiHashMap`](https://docs.rs/iddqd/0.3.0/iddqd/bi_hash_map/imp/struct.BiHashMap.html) and [`TriHashMap`](https://docs.rs/iddqd/0.3.0/iddqd/tri_hash_map/imp/struct.TriHashMap.html).
 
-* [`BiHashMap`](https://docs.rs/iddqd/0.2.1/iddqd/bi_hash_map/imp/struct.BiHashMap.html) has two keys, and provides a bijection (1:1 relationship)
+* [`BiHashMap`](https://docs.rs/iddqd/0.3.0/iddqd/bi_hash_map/imp/struct.BiHashMap.html) has two keys, and provides a bijection (1:1 relationship)
   between the keys.
-* [`TriHashMap`](https://docs.rs/iddqd/0.2.1/iddqd/tri_hash_map/imp/struct.TriHashMap.html) has three keys, and provides a trijection (1:1:1 relationship)
+* [`TriHashMap`](https://docs.rs/iddqd/0.3.0/iddqd/tri_hash_map/imp/struct.TriHashMap.html) has three keys, and provides a trijection (1:1:1 relationship)
   between the keys.
 
 As a consequence of the general API structure, maps can have arbitrary
@@ -54,7 +54,7 @@ non-key data associated with them as well.
 
 ### Examples
 
-An example for [`IdOrdMap`](https://docs.rs/iddqd/0.2.1/iddqd/id_ord_map/imp/struct.IdOrdMap.html):
+An example for [`IdOrdMap`](https://docs.rs/iddqd/0.3.0/iddqd/id_ord_map/imp/struct.IdOrdMap.html):
 
 ````rust
 use iddqd::{IdOrdMap, IdOrdItem, id_upcast};
@@ -94,7 +94,7 @@ for user in &users {
 }
 ````
 
-An example for [`IdHashMap`](https://docs.rs/iddqd/0.2.1/iddqd/id_hash_map/imp/struct.IdHashMap.html), showing complex borrowed keys.
+An example for [`IdHashMap`](https://docs.rs/iddqd/0.3.0/iddqd/id_hash_map/imp/struct.IdHashMap.html), showing complex borrowed keys.
 
 ````rust
 use iddqd::{IdHashMap, IdHashItem, id_upcast};
@@ -169,11 +169,11 @@ If you see a gap in testing, new tests are welcome. Thank you!
 
 Most of this crate is no-std compatible, though [`alloc`](https://doc.rust-lang.org/nightly/alloc/index.html) is required.
 
-The [`IdOrdMap`](https://docs.rs/iddqd/0.2.1/iddqd/id_ord_map/imp/struct.IdOrdMap.html) type is not currently no-std compatible due to its use of a
+The [`IdOrdMap`](https://docs.rs/iddqd/0.3.0/iddqd/id_ord_map/imp/struct.IdOrdMap.html) type is not currently no-std compatible due to its use of a
 thread-local. This thread-local is just a way to work around a limitation in
 std’s `BTreeMap` API, though. Either a custom B-Tree implementation, or a
 platform-specific notion of thread locals, would suffice to make
-[`IdOrdMap`](https://docs.rs/iddqd/0.2.1/iddqd/id_ord_map/imp/struct.IdOrdMap.html) no-std compatible.
+[`IdOrdMap`](https://docs.rs/iddqd/0.3.0/iddqd/id_ord_map/imp/struct.IdOrdMap.html) no-std compatible.
 
 ## Optional features
 
@@ -188,9 +188,9 @@ platform-specific notion of thread locals, would suffice to make
   does support an ordered map type without the need for std.
 * [`multi_index_map`](https://crates.io/crates/multi_index_map) provides maps
   with arbitrary indexes on fields, and is more flexible than this crate. However,
-  it doesn’t expose generic traits for map types, so it’s a bit harder to write
-  generic code against it. In `iddqd` we pick a somewhat different point in
-  the design space, but we think `multi_index_map` is also great.
+  it doesn’t expose generic traits for map types, and it requires key types to be
+  `Clone`. In `iddqd`, we pick a somewhat different point in the design space, but
+  we think `multi_index_map` is also great.
 
 ## Minimum supported Rust version (MSRV)
 
