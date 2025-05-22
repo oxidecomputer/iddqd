@@ -199,6 +199,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
 
     /// Inserts a value into the map, removing and returning the conflicting
     /// item, if any.
+    #[doc(alias = "insert")]
     pub fn insert_overwrite(&mut self, value: T) -> Option<T> {
         // Trying to write this function for maximal efficiency can get very
         // tricky, requiring delicate handling of indexes. We follow a very

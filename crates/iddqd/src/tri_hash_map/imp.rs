@@ -180,6 +180,7 @@ impl<T: TriHashItem> TriHashMap<T> {
 
     /// Inserts a value into the map, removing any conflicting items and
     /// returning a list of those items.
+    #[doc(alias = "insert")]
     pub fn insert_overwrite(&mut self, value: T) -> Vec<T> {
         // Trying to write this function for maximal efficiency can get very
         // tricky, requiring delicate handling of indexes. We follow a very
