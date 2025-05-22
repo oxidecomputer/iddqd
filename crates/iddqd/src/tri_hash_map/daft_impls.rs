@@ -2,9 +2,10 @@
 
 use super::{TriHashItem, TriHashMap};
 use crate::{IdHashItem, id_hash_map, support::daft_utils::IdLeaf};
-use core::{borrow::Borrow, fmt, hash::Hash};
+use core::{fmt, hash::Hash};
 use daft::Diffable;
 use derive_where::derive_where;
+use equivalent::Equivalent;
 use ref_cast::RefCast;
 
 impl<T: TriHashItem> Diffable for TriHashMap<T> {
@@ -150,9 +151,7 @@ impl<'daft, T: ?Sized + TriHashItem + Eq> Diff<'daft, T> {
     /// Returns true if the item corresponding to `key1` is unchanged.
     pub fn is_unchanged1<'a, Q>(&'a self, key1: &Q) -> bool
     where
-        T::K1<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Hash + Eq + ?Sized,
+        Q: ?Sized + Hash + Equivalent<T::K1<'a>>,
     {
         self.common.get1(key1).is_some_and(|leaf| leaf.is_unchanged())
     }
@@ -160,9 +159,7 @@ impl<'daft, T: ?Sized + TriHashItem + Eq> Diff<'daft, T> {
     /// Returns true if the item corresponding to `key2` is unchanged.
     pub fn is_unchanged2<'a, Q>(&'a self, key2: &Q) -> bool
     where
-        T::K2<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Hash + Eq + ?Sized,
+        Q: ?Sized + Hash + Equivalent<T::K2<'a>>,
     {
         self.common.get2(key2).is_some_and(|leaf| leaf.is_unchanged())
     }
@@ -170,9 +167,7 @@ impl<'daft, T: ?Sized + TriHashItem + Eq> Diff<'daft, T> {
     /// Returns true if the item corresponding to `key3` is unchanged.
     pub fn is_unchanged3<'a, Q>(&'a self, key3: &Q) -> bool
     where
-        T::K3<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Hash + Eq + ?Sized,
+        Q: ?Sized + Hash + Equivalent<T::K3<'a>>,
     {
         self.common.get3(key3).is_some_and(|leaf| leaf.is_unchanged())
     }
@@ -181,9 +176,7 @@ impl<'daft, T: ?Sized + TriHashItem + Eq> Diff<'daft, T> {
     /// otherwise `None`.
     pub fn get_unchanged1<'a, Q>(&'a self, key: &Q) -> Option<&'daft T>
     where
-        T::K1<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Hash + Eq + ?Sized,
+        Q: ?Sized + Hash + Equivalent<T::K1<'a>>,
     {
         self.common
             .get1(key)
@@ -194,9 +187,7 @@ impl<'daft, T: ?Sized + TriHashItem + Eq> Diff<'daft, T> {
     /// otherwise `None`.
     pub fn get_unchanged2<'a, Q>(&'a self, key: &Q) -> Option<&'daft T>
     where
-        T::K2<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Hash + Eq + ?Sized,
+        Q: ?Sized + Hash + Equivalent<T::K2<'a>>,
     {
         self.common
             .get2(key)
@@ -207,9 +198,7 @@ impl<'daft, T: ?Sized + TriHashItem + Eq> Diff<'daft, T> {
     /// otherwise `None`.
     pub fn get_unchanged3<'a, Q>(&'a self, key: &Q) -> Option<&'daft T>
     where
-        T::K3<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Hash + Eq + ?Sized,
+        Q: ?Sized + Hash + Equivalent<T::K3<'a>>,
     {
         self.common
             .get3(key)
@@ -226,9 +215,7 @@ impl<'daft, T: ?Sized + TriHashItem + Eq> Diff<'daft, T> {
     /// Returns true if the value corresponding to `key1` is modified.
     pub fn is_modified1<'a, Q>(&'a self, key1: &Q) -> bool
     where
-        T::K1<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Hash + Eq + ?Sized,
+        Q: ?Sized + Hash + Equivalent<T::K1<'a>>,
     {
         self.common.get1(key1).is_some_and(|leaf| leaf.is_modified())
     }
@@ -236,9 +223,7 @@ impl<'daft, T: ?Sized + TriHashItem + Eq> Diff<'daft, T> {
     /// Returns true if the value corresponding to `key2` is modified.
     pub fn is_modified2<'a, Q>(&'a self, key2: &Q) -> bool
     where
-        T::K2<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Hash + Eq + ?Sized,
+        Q: ?Sized + Hash + Equivalent<T::K2<'a>>,
     {
         self.common.get2(key2).is_some_and(|leaf| leaf.is_modified())
     }
@@ -246,9 +231,7 @@ impl<'daft, T: ?Sized + TriHashItem + Eq> Diff<'daft, T> {
     /// Returns true if the value corresponding to `key3` is modified.
     pub fn is_modified3<'a, Q>(&'a self, key3: &Q) -> bool
     where
-        T::K3<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Hash + Eq + ?Sized,
+        Q: ?Sized + Hash + Equivalent<T::K3<'a>>,
     {
         self.common.get3(key3).is_some_and(|leaf| leaf.is_modified())
     }
@@ -257,9 +240,7 @@ impl<'daft, T: ?Sized + TriHashItem + Eq> Diff<'daft, T> {
     /// otherwise `None`.
     pub fn get_modified1<'a, Q>(&'a self, key: &Q) -> Option<IdLeaf<&'daft T>>
     where
-        T::K1<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Hash + Eq + ?Sized,
+        Q: ?Sized + Hash + Equivalent<T::K1<'a>>,
     {
         self.common
             .get1(key)
@@ -270,9 +251,7 @@ impl<'daft, T: ?Sized + TriHashItem + Eq> Diff<'daft, T> {
     /// otherwise `None`.
     pub fn get_modified2<'a, Q>(&'a self, key: &Q) -> Option<IdLeaf<&'daft T>>
     where
-        T::K2<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Hash + Eq + ?Sized,
+        Q: ?Sized + Hash + Equivalent<T::K2<'a>>,
     {
         self.common
             .get2(key)
@@ -283,9 +262,7 @@ impl<'daft, T: ?Sized + TriHashItem + Eq> Diff<'daft, T> {
     /// otherwise `None`.
     pub fn get_modified3<'a, Q>(&'a self, key: &Q) -> Option<IdLeaf<&'daft T>>
     where
-        T::K3<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Hash + Eq + ?Sized,
+        Q: ?Sized + Hash + Equivalent<T::K3<'a>>,
     {
         self.common
             .get3(key)

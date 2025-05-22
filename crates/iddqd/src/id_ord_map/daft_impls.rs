@@ -2,8 +2,8 @@
 
 use super::{IdOrdItem, IdOrdMap};
 use crate::support::daft_utils::IdLeaf;
-use core::borrow::Borrow;
 use daft::Diffable;
+use equivalent::Comparable;
 
 impl<T: IdOrdItem> Diffable for IdOrdMap<T> {
     type Diff<'a>
@@ -65,9 +65,7 @@ impl<'daft, T: ?Sized + IdOrdItem + Eq> Diff<'daft, T> {
     /// Returns true if the item corresponding to the key is unchanged.
     pub fn is_unchanged<'a, Q>(&'a self, key: &Q) -> bool
     where
-        T::Key<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Ord + ?Sized,
+        Q: ?Sized + Ord + Comparable<T::Key<'a>>,
     {
         self.common.get(key).is_some_and(|leaf| leaf.is_unchanged())
     }
@@ -76,9 +74,7 @@ impl<'daft, T: ?Sized + IdOrdItem + Eq> Diff<'daft, T> {
     /// otherwise `None`.
     pub fn get_unchanged<'a, Q>(&'a self, key: &Q) -> Option<&'daft T>
     where
-        T::Key<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Ord + ?Sized,
+        Q: ?Sized + Ord + Comparable<T::Key<'a>>,
     {
         self.common
             .get(key)
@@ -96,9 +92,7 @@ impl<'daft, T: ?Sized + IdOrdItem + Eq> Diff<'daft, T> {
     /// modified.
     pub fn is_modified<'a, Q>(&'a self, key: &Q) -> bool
     where
-        T::Key<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Ord + ?Sized,
+        Q: ?Sized + Ord + Comparable<T::Key<'a>>,
     {
         self.common.get(key).is_some_and(|leaf| leaf.is_modified())
     }
@@ -107,9 +101,7 @@ impl<'daft, T: ?Sized + IdOrdItem + Eq> Diff<'daft, T> {
     /// otherwise `None`.
     pub fn get_modified<'a, Q>(&'a self, key: &Q) -> Option<IdLeaf<&'daft T>>
     where
-        T::Key<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Ord + ?Sized,
+        Q: ?Sized + Ord + Comparable<T::Key<'a>>,
     {
         self.common
             .get(key)
