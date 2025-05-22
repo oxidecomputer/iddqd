@@ -137,7 +137,7 @@ dependencies = [
 
 [[package]]
 name = "iddqd"
-version = "0.2.0"
+version = "0.2.1"
 dependencies = [
  "daft",
  "debug-ignore",
