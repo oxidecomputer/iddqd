@@ -7,6 +7,7 @@ use core::{
     borrow::Borrow,
     hash::{BuildHasher, Hash},
 };
+use equivalent::Equivalent;
 use hashbrown::{
     DefaultHashBuilder, HashTable,
     hash_table::{AbsentEntry, Entry, OccupiedEntry},
@@ -99,11 +100,10 @@ impl MapHashTable {
     ) -> Option<usize>
     where
         F: Fn(usize) -> K,
-        K: Hash + Eq + Borrow<Q>,
-        Q: ?Sized + Hash + Eq,
+        Q: ?Sized + Hash + Equivalent<K>,
     {
         let hash = self.state.hash_one(key);
-        self.items.find(hash, |index| lookup(*index).borrow() == key).copied()
+        self.items.find(hash, |index| key.equivalent(&lookup(*index))).copied()
     }
 
     pub(crate) fn entry<K: Hash + Eq, F>(

@@ -8,8 +8,9 @@ use crate::{
     support::{borrow::DormantMutRef, item_set::ItemSet},
 };
 use alloc::collections::BTreeSet;
-use core::{borrow::Borrow, fmt, hash::Hash};
+use core::{fmt, hash::Hash};
 use derive_where::derive_where;
+use equivalent::{Comparable, Equivalent};
 
 /// An ordered map where the keys are part of the values, based on a B-Tree.
 ///
@@ -208,7 +209,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
         // 1. Remove the item corresponding to the key that is already in the map.
         // 2. Add the item to the map.
 
-        let duplicate = self.remove(value.key());
+        let duplicate = self.remove(&value.key());
 
         if self.insert_unique(value).is_err() {
             // We should never get here, because we just removed all the
@@ -222,9 +223,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     /// Returns true if the map contains the given `key`.
     pub fn contains_key<'a, Q>(&'a self, key: &Q) -> bool
     where
-        T::Key<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Ord + ?Sized,
+        Q: ?Sized + Ord + Comparable<T::Key<'a>>,
     {
         self.find_index(key).is_some()
     }
@@ -232,38 +231,44 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     /// Gets a reference to the value associated with the given `key`.
     pub fn get<'a, Q>(&'a self, key: &Q) -> Option<&'a T>
     where
-        T::Key<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Ord + ?Sized,
+        Q: ?Sized + Ord + Comparable<T::Key<'a>>,
     {
         self.find(key)
     }
 
     /// Gets a mutable reference to the item associated with the given `key`.
-    ///
-    /// Due to borrow checker limitations, this always accepts `T::Key` rather
-    /// than a borrowed form of it.
-    pub fn get_mut<'a>(&'a mut self, key: T::Key<'_>) -> Option<RefMut<'a, T>>
+    pub fn get_mut<'a, Q>(&'a mut self, key: &Q) -> Option<RefMut<'a, T>>
     where
+        Q: ?Sized + Ord + Comparable<T::Key<'a>>,
         for<'k> T::Key<'k>: Hash,
     {
-        let index = self.find_index(&T::upcast_key(key))?;
-        let item = &mut self.items[index];
-        let hash = self.tables.make_hash(item);
+        let (dormant_map, index) = {
+            let (map, dormant_map) = DormantMutRef::new(self);
+            let index = map.find_index(key)?;
+            (dormant_map, index)
+        };
+
+        // SAFETY: `map` is not used after this point.
+        let awakened_map = unsafe { dormant_map.awaken() };
+        let item = &mut awakened_map.items[index];
+        let hash = awakened_map.tables.make_hash(item);
         Some(RefMut::new(hash, item))
     }
 
     /// Removes an item from the map by its `key`.
-    ///
-    /// Due to borrow checker limitations, this always accepts `T::Key` rather
-    /// than a borrowed form of it.
-    pub fn remove(&mut self, key: T::Key<'_>) -> Option<T> {
-        let Some(remove_index) = self.find_index(&T::upcast_key(key)) else {
-            // The item was not found.
-            return None;
+    pub fn remove<'a, Q>(&'a mut self, key: &Q) -> Option<T>
+    where
+        Q: ?Sized + Ord + Comparable<T::Key<'a>>,
+    {
+        let (dormant_map, remove_index) = {
+            let (map, dormant_map) = DormantMutRef::new(self);
+            let remove_index = map.find_index(key)?;
+            (dormant_map, remove_index)
         };
 
-        self.remove_by_index(remove_index)
+        // SAFETY: `map` is not used after this point.
+        let awakened_map = unsafe { dormant_map.awaken() };
+        awakened_map.remove_by_index(remove_index)
     }
 
     /// Retrieves an entry by its `key`.
@@ -293,29 +298,23 @@ impl<T: IdOrdItem> IdOrdMap<T> {
 
     fn find<'a, Q>(&'a self, k: &Q) -> Option<&'a T>
     where
-        T::Key<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Ord + ?Sized,
+        Q: ?Sized + Ord + Comparable<T::Key<'a>>,
     {
         self.find_index(k).map(|ix| &self.items[ix])
     }
 
     fn linear_search_index<'a, Q>(&'a self, k: &Q) -> Option<usize>
     where
-        T::Key<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Ord + ?Sized,
+        Q: ?Sized + Ord + Equivalent<T::Key<'a>>,
     {
         self.items.iter().find_map(|(index, item)| {
-            (item.key().borrow() == k).then_some(*index)
+            (k.equivalent(&item.key())).then_some(*index)
         })
     }
 
     fn find_index<'a, Q>(&'a self, k: &Q) -> Option<usize>
     where
-        T::Key<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Ord + ?Sized,
+        Q: ?Sized + Ord + Comparable<T::Key<'a>>,
     {
         self.tables.key_to_item.find_index(k, |index| self.items[index].key())
     }

@@ -2,8 +2,9 @@
 
 use super::{IdHashItem, IdHashMap};
 use crate::support::daft_utils::IdLeaf;
-use core::{borrow::Borrow, hash::Hash};
+use core::hash::Hash;
 use daft::Diffable;
+use equivalent::Equivalent;
 
 impl<T: IdHashItem> Diffable for IdHashMap<T> {
     type Diff<'a>
@@ -65,9 +66,7 @@ impl<'daft, T: ?Sized + IdHashItem + Eq> Diff<'daft, T> {
     /// Returns true if the item corresponding to the key is unchanged.
     pub fn is_unchanged<'a, Q>(&'a self, key: &Q) -> bool
     where
-        T::Key<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Hash + Eq + ?Sized,
+        Q: ?Sized + Hash + Equivalent<T::Key<'a>>,
     {
         self.common.get(key).is_some_and(|leaf| leaf.is_unchanged())
     }
@@ -76,9 +75,7 @@ impl<'daft, T: ?Sized + IdHashItem + Eq> Diff<'daft, T> {
     /// otherwise `None`.
     pub fn get_unchanged<'a, Q>(&'a self, key: &Q) -> Option<&'daft T>
     where
-        T::Key<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Hash + Eq + ?Sized,
+        Q: ?Sized + Hash + Equivalent<T::Key<'a>>,
     {
         self.common
             .get(key)
@@ -96,9 +93,7 @@ impl<'daft, T: ?Sized + IdHashItem + Eq> Diff<'daft, T> {
     /// modified.
     pub fn is_modified<'a, Q>(&'a self, key: &Q) -> bool
     where
-        T::Key<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Hash + Eq + ?Sized,
+        Q: ?Sized + Hash + Equivalent<T::Key<'a>>,
     {
         self.common.get(key).is_some_and(|leaf| leaf.is_modified())
     }
@@ -107,9 +102,7 @@ impl<'daft, T: ?Sized + IdHashItem + Eq> Diff<'daft, T> {
     /// otherwise `None`.
     pub fn get_modified<'a, Q>(&'a self, key: &Q) -> Option<IdLeaf<&'daft T>>
     where
-        T::Key<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Hash + Eq + ?Sized,
+        Q: ?Sized + Hash + Equivalent<T::Key<'a>>,
     {
         self.common
             .get(key)
