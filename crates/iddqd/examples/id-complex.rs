@@ -75,7 +75,7 @@ fn main() {
     // `Hash`. For example:
     {
         let mut item =
-            map.get_mut(MyKey { b: 20, c: Path::new("/"), d: &[] }).unwrap();
+            map.get_mut(&MyKey { b: 20, c: Path::new("/"), d: &[] }).unwrap();
         item.a = "changed".to_owned();
 
         // Key changes will be checked when the item is dropped.

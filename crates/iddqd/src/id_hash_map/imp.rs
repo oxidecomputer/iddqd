@@ -8,8 +8,9 @@ use crate::{
     support::{borrow::DormantMutRef, item_set::ItemSet, map_hash::MapHash},
 };
 use alloc::collections::BTreeSet;
-use core::{borrow::Borrow, fmt, hash::Hash};
+use core::{fmt, hash::Hash};
 use derive_where::derive_where;
+use equivalent::Equivalent;
 use hashbrown::hash_table;
 
 /// A hash map where the key is part of the value.
@@ -151,7 +152,7 @@ impl<T: IdHashItem> IdHashMap<T> {
         // 1. Remove items corresponding to the key that is already in the map.
         // 2. Add the item to the map.
 
-        let duplicate = self.remove(value.key());
+        let duplicate = self.remove(&value.key());
 
         if self.insert_unique(value).is_err() {
             // We should never get here, because we just removed all the
@@ -175,9 +176,7 @@ impl<T: IdHashItem> IdHashMap<T> {
     /// Returns true if the map contains the given `key1`.
     pub fn contains_key<'a, Q>(&'a self, key1: &Q) -> bool
     where
-        T::Key<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Eq + Hash + ?Sized,
+        Q: ?Sized + Hash + Equivalent<T::Key<'a>>,
     {
         self.find_index(key1).is_some()
     }
@@ -185,46 +184,55 @@ impl<T: IdHashItem> IdHashMap<T> {
     /// Gets a reference to the value associated with the given key.
     pub fn get<'a, Q>(&'a self, key: &Q) -> Option<&'a T>
     where
-        T::Key<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Eq + Hash + ?Sized,
+        Q: ?Sized + Hash + Equivalent<T::Key<'a>>,
     {
         self.find_index(key).map(|ix| &self.items[ix])
     }
 
     /// Gets a mutable reference to the value associated with the given `key`.
-    ///
-    /// Due to borrow checker limitations, this always accepts `T::Key` rather
-    /// than a borrowed form of it.
-    pub fn get_mut<'a>(&'a mut self, key: T::Key<'_>) -> Option<RefMut<'a, T>> {
-        let index = self.find_index(&T::upcast_key(key))?;
-        let hashes = self.make_hash(&self.items[index]);
-        let item = &mut self.items[index];
+    pub fn get_mut<'a, Q>(&'a mut self, key: &Q) -> Option<RefMut<'a, T>>
+    where
+        Q: ?Sized + Hash + Equivalent<T::Key<'a>>,
+    {
+        let (dormant_map, index) = {
+            let (map, dormant_map) = DormantMutRef::new(self);
+            let index = map.find_index(key)?;
+            (dormant_map, index)
+        };
+
+        // SAFETY: `map` is not used after this point.
+        let awakened_map = unsafe { dormant_map.awaken() };
+        let item = &mut awakened_map.items[index];
+        let hashes = awakened_map.tables.make_hash(item);
         Some(RefMut::new(hashes, item))
     }
 
     /// Removes an item from the map by its `key`.
-    ///
-    /// Due to borrow checker limitations, this always accepts `T::Key` rather
-    /// than a borrowed form of it.
-    pub fn remove(&mut self, key: T::Key<'_>) -> Option<T> {
-        let Some(remove_index) = self.find_index(&T::upcast_key(key)) else {
-            // The item was not found.
-            return None;
+    pub fn remove<'a, Q>(&'a mut self, key: &Q) -> Option<T>
+    where
+        Q: ?Sized + Hash + Equivalent<T::Key<'a>>,
+    {
+        let (dormant_map, remove_index) = {
+            let (map, dormant_map) = DormantMutRef::new(self);
+            let remove_index = map.find_index(key)?;
+            (dormant_map, remove_index)
         };
 
-        let value = self
+        // SAFETY: `map` is not used after this point.
+        let awakened_map = unsafe { dormant_map.awaken() };
+
+        let value = awakened_map
             .items
             .remove(remove_index)
             .expect("items missing key1 that was just retrieved");
 
         // Remove the value from the tables.
         let Ok(item1) =
-            self.tables.key_to_item.find_entry(&value.key(), |index| {
+            awakened_map.tables.key_to_item.find_entry(&value.key(), |index| {
                 if index == remove_index {
                     value.key()
                 } else {
-                    self.items[index].key()
+                    awakened_map.items[index].key()
                 }
             })
         else {
@@ -265,9 +273,7 @@ impl<T: IdHashItem> IdHashMap<T> {
 
     fn find_index<'a, Q>(&'a self, k: &Q) -> Option<usize>
     where
-        T::Key<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Eq + Hash + ?Sized,
+        Q: Hash + Equivalent<T::Key<'a>> + ?Sized,
     {
         self.tables.key_to_item.find_index(k, |index| self.items[index].key())
     }
