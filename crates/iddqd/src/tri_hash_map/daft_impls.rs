@@ -27,7 +27,7 @@ impl<T: TriHashItem> Diffable for TriHashMap<T> {
 /// * [`Self::by_key2`] to get a diff indexed by `key2`.
 /// * [`Self::by_key3`] to get a diff indexed by `key3`.
 /// * [`Self::by_unique`] to get a diff indexed by `key1`, `key2`, and `key3`.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
 #[derive_where(
     Debug;
     T: fmt::Debug,
@@ -35,6 +35,7 @@ impl<T: TriHashItem> Diffable for TriHashMap<T> {
     for<'k> T::K2<'k>: fmt::Debug,
     for<'k> T::K3<'k>: fmt::Debug
 )]
+#[derive_where(Clone, Copy)]
 pub struct MapLeaf<'daft, T: TriHashItem> {
     /// The before map.
     pub before: &'daft TriHashMap<T>,

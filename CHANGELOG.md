@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.1] - 2025-05-22
+
+### Fixed
+
+* `MapLeaf<'a, T>`'s `Clone` and `Copy` no longer require `T` to be `Clone` or `Copy`. (`MapLeaf` is just a couple of references, so this is never necessary.)
+
 ## [0.2.0] - 2025-05-21
 
 ### Added
@@ -31,6 +37,7 @@
 
 Initial release.
 
+[0.2.1]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.2.1
 [0.2.0]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.2.0
 [0.1.2]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.1.2
 [0.1.1]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.1.1

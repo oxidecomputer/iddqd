@@ -26,13 +26,14 @@ impl<T: BiHashItem> Diffable for BiHashMap<T> {
 /// * [`Self::by_key1`] to get a diff indexed by `key1`.
 /// * [`Self::by_key2`] to get a diff indexed by `key2`.
 /// * [`Self::by_unique`] to get a diff indexed by `key1` and `key2`.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
 #[derive_where(
     Debug;
     T: fmt::Debug,
     for<'k> T::K1<'k>: fmt::Debug,
     for<'k> T::K2<'k>: fmt::Debug
 )]
+#[derive_where(Clone, Copy)]
 pub struct MapLeaf<'daft, T: BiHashItem> {
     /// The before map.
     pub before: &'daft BiHashMap<T>,
