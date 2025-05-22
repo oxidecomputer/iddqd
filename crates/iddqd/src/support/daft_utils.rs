@@ -2,7 +2,7 @@ use core::ops::{Deref, DerefMut};
 use daft::{Diffable, Leaf};
 
 /// A leaf type similar to [`daft::Leaf`], which statically guarantees that the
-/// left and right children have the same key or keys.
+/// before and after values have the same key or keys.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct IdLeaf<T> {
     before: T,
@@ -32,19 +32,19 @@ impl<T> IdLeaf<T> {
         Leaf { before: self.before, after: self.after }
     }
 
-    /// Converts from `&MapLeaf<T>` to `MapLeaf<&T>`.
+    /// Converts from `&IdLeaf<T>` to `IdLeaf<&T>`.
     #[inline]
     pub fn as_ref(&self) -> IdLeaf<&T> {
         IdLeaf { before: &self.before, after: &self.after }
     }
 
-    /// Converts from `&mut MapLeaf<T>` to `MapLeaf<&mut T>`.
+    /// Converts from `&mut IdLeaf<T>` to `IdLeaf<&mut T>`.
     #[inline]
     pub fn as_mut(&mut self) -> IdLeaf<&mut T> {
         IdLeaf { before: &mut self.before, after: &mut self.after }
     }
 
-    /// Converts from `MapLeaf<T>` or `&MapLeaf<T>` to `MapLeaf<&T::Target>`.
+    /// Converts from `IdLeaf<T>` or `&IdLeaf<T>` to `IdLeaf<&T::Target>`.
     #[inline]
     pub fn as_deref(&self) -> IdLeaf<&T::Target>
     where
@@ -53,7 +53,7 @@ impl<T> IdLeaf<T> {
         IdLeaf { before: &*self.before, after: &*self.after }
     }
 
-    /// Converts from `MapLeaf<T>` or `&mut MapLeaf<T>` to `MapLeaf<&mut
+    /// Converts from `IdLeaf<T>` or `&mut IdLeaf<T>` to `IdLeaf<&mut
     /// T::Target>`.
     #[inline]
     pub fn as_deref_mut(&mut self) -> IdLeaf<&mut T::Target>
@@ -100,7 +100,7 @@ impl<'daft, T: ?Sized + Diffable> IdLeaf<&'daft T> {
 }
 
 impl<T> IdLeaf<&T> {
-    /// Create a clone of the `MapLeaf` with owned values.
+    /// Create a clone of the `IdLeaf` with owned values.
     #[inline]
     pub fn cloned(self) -> IdLeaf<T>
     where

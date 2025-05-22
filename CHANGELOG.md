@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.0] - 2025-05-22
+
+### Changed
+
+- Lookups now use [`equivalent::Equivalent`] or [`equivalent::Comparable`], which are strictly more general than `Borrow`.
+- `get_mut` and `remove` methods no longer require the key type; the borrow checker limitation has been worked around.
+
+[`equivalent::Equivalent`]: https://docs.rs/equivalent/1.0.2/equivalent/trait.Equivalent.html
+[`equivalent::Comparable`]: https://docs.rs/equivalent/1.0.2/equivalent/trait.Comparable.html
+
 ## [0.2.1] - 2025-05-22
 
 ### Fixed
@@ -37,6 +47,7 @@
 
 Initial release.
 
+[0.3.0]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.0
 [0.2.1]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.2.1
 [0.2.0]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.2.0
 [0.1.2]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.1.2

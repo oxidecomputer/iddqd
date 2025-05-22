@@ -48,7 +48,7 @@ pub trait IdHashItem {
     /// Upcasts the key to a shorter lifetime, in effect asserting that the
     /// lifetime `'a` on [`IdHashItem::Key`] is covariant.
     ///
-    /// Typically implemented via a macro.
+    /// Typically implemented via the [`id_upcast`] macro.
     fn upcast_key<'short, 'long: 'short>(
         long: Self::Key<'long>,
     ) -> Self::Key<'short>;
