@@ -178,11 +178,22 @@
 //! - [`bimap`](https://docs.rs/bimap) provides a bijective map, but does not
 //!   have a way to associate arbitrary values with each pair of keys. However, it
 //!   does support an ordered map type without the need for std.
+//! - [`multi_index_map`](https://crates.io/crates/multi_index_map) provides maps
+//!   with arbitrary indexes on fields, and is more flexible than this crate. However,
+//!   it doesn't expose generic traits for map types, and it requires key types to be
+//!   `Clone`. In `iddqd`, we pick a somewhat different point in the design space, but
+//!   we think `multi_index_map` is also great.
 //!
 //! # Minimum supported Rust version (MSRV)
 //!
 //! This crate's MSRV is **Rust 1.81**. In general we aim for 6 months of Rust
 //! compatibility.
+//!
+//! # What does iddqd mean?
+//!
+//! The name `iddqd` is a reference to [a cheat
+//! code](https://doomwiki.org/wiki/Doom_cheat_codes) in the classic video game
+//! _Doom_. It has `id` in the name, and is short and memorable.
 
 #![no_std]
 #![cfg_attr(doc_cfg, feature(doc_auto_cfg))]
