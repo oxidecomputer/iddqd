@@ -4,12 +4,13 @@ use crate::{
     errors::DuplicateItem,
     internal::ValidationError,
     support::{
-        fmt_utils::StrDisplayAsDebug, item_set::ItemSet, map_hash::MapHash,
+        borrow::DormantMutRef, fmt_utils::StrDisplayAsDebug, item_set::ItemSet,
     },
 };
 use alloc::{collections::BTreeSet, vec::Vec};
-use core::{borrow::Borrow, fmt, hash::Hash};
+use core::{fmt, hash::Hash};
 use derive_where::derive_where;
+use equivalent::Equivalent;
 use hashbrown::hash_table::{Entry, VacantEntry};
 
 /// A 1:1:1 (trijective) map for three keys and a value.
@@ -190,9 +191,9 @@ impl<T: TriHashItem> TriHashMap<T> {
         // 2. Add the item to the map.
 
         let mut duplicates = Vec::new();
-        duplicates.extend(self.remove1(value.key1()));
-        duplicates.extend(self.remove2(value.key2()));
-        duplicates.extend(self.remove3(value.key3()));
+        duplicates.extend(self.remove1(&value.key1()));
+        duplicates.extend(self.remove2(&value.key2()));
+        duplicates.extend(self.remove3(&value.key3()));
 
         if self.insert_unique(value).is_err() {
             // We should never get here, because we just removed all the
@@ -266,13 +267,9 @@ impl<T: TriHashItem> TriHashMap<T> {
         key3: &Q3,
     ) -> bool
     where
-        T::K1<'a>: Borrow<Q1>,
-        T::K2<'a>: Borrow<Q2>,
-        T::K3<'a>: Borrow<Q3>,
-        T: 'a,
-        Q1: Eq + Hash + ?Sized,
-        Q2: Eq + Hash + ?Sized,
-        Q3: Eq + Hash + ?Sized,
+        Q1: Hash + Equivalent<T::K1<'a>> + ?Sized,
+        Q2: Hash + Equivalent<T::K2<'a>> + ?Sized,
+        Q3: Hash + Equivalent<T::K3<'a>> + ?Sized,
     {
         self.get_unique(key1, key2, key3).is_some()
     }
@@ -286,19 +283,13 @@ impl<T: TriHashItem> TriHashMap<T> {
         key3: &Q3,
     ) -> Option<&'a T>
     where
-        T::K1<'a>: Borrow<Q1>,
-        T::K2<'a>: Borrow<Q2>,
-        T::K3<'a>: Borrow<Q3>,
-        T: 'a,
-        Q1: Eq + Hash + ?Sized,
-        Q2: Eq + Hash + ?Sized,
-        Q3: Eq + Hash + ?Sized,
+        Q1: Hash + Equivalent<T::K1<'a>> + ?Sized,
+        Q2: Hash + Equivalent<T::K2<'a>> + ?Sized,
+        Q3: Hash + Equivalent<T::K3<'a>> + ?Sized,
     {
         let index = self.find1_index(key1)?;
         let item = &self.items[index];
-        if item.key2().borrow() == key2.borrow()
-            && item.key3().borrow() == key3.borrow()
-        {
+        if key2.equivalent(&item.key2()) && key3.equivalent(&item.key3()) {
             Some(item)
         } else {
             None
@@ -307,56 +298,69 @@ impl<T: TriHashItem> TriHashMap<T> {
 
     /// Gets a mutable reference to the unique item associated with the given
     /// `key1`, `key2`, and `key3`, if it exists.
-    ///
-    /// Due to borrow checker limitations, this always accepts `K1`, `K2`, and
-    /// `K3` rather than borrowed forms.
-    pub fn get_mut_unique<'a>(
+    pub fn get_mut_unique<'a, Q1, Q2, Q3>(
         &'a mut self,
-        key1: T::K1<'_>,
-        key2: T::K2<'_>,
-        key3: T::K3<'_>,
-    ) -> Option<RefMut<'a, T>> {
-        let index = self.find1_index(&T::upcast_key1(key1))?;
-        let item = &mut self.items[index];
+        key1: &Q1,
+        key2: &Q2,
+        key3: &Q3,
+    ) -> Option<RefMut<'a, T>>
+    where
+        Q1: Hash + Equivalent<T::K1<'a>> + ?Sized,
+        Q2: Hash + Equivalent<T::K2<'a>> + ?Sized,
+        Q3: Hash + Equivalent<T::K3<'a>> + ?Sized,
+    {
+        let (dormant_map, index) = {
+            let (map, dormant_map) = DormantMutRef::new(self);
+            let index = map.find1_index(key1)?;
+            let item = &map.items[index];
+            if !key2.equivalent(&item.key2()) || !key3.equivalent(&item.key3())
+            {
+                return None;
+            }
+            (dormant_map, index)
+        };
 
-        if item.key2() == T::upcast_key2(key2)
-            && item.key3() == T::upcast_key3(key3)
-        {
-            let hashes = self.tables.make_hashes(&item);
-            Some(RefMut::new(hashes, item))
-        } else {
-            None
-        }
+        // SAFETY: `map` is not used after this point.
+        let awakened_map = unsafe { dormant_map.awaken() };
+        let item = &mut awakened_map.items[index];
+        let hashes = awakened_map.tables.make_hashes(&item);
+        Some(RefMut::new(hashes, item))
     }
 
     /// Removes the item uniquely identified by `key1`, `key2`, and `key3`, if
     /// it exists.
-    ///
-    /// Due to borrow checker limitations, this always accepts `K1`, `K2`, and
-    /// `K3` rather than borrowed forms.
-    pub fn remove_unique(
-        &mut self,
-        key1: T::K1<'_>,
-        key2: T::K2<'_>,
-        key3: T::K3<'_>,
-    ) -> Option<T> {
-        let index = self.find1_index(&T::upcast_key1(key1))?;
-        let item = &self.items[index];
-        if item.key2() == T::upcast_key2(key2)
-            && item.key3() == T::upcast_key3(key3)
-        {
-            self.remove_by_index(index)
-        } else {
-            None
-        }
+    pub fn remove_unique<'a, Q1, Q2, Q3>(
+        &'a mut self,
+        key1: &Q1,
+        key2: &Q2,
+        key3: &Q3,
+    ) -> Option<T>
+    where
+        Q1: Hash + Equivalent<T::K1<'a>> + ?Sized,
+        Q2: Hash + Equivalent<T::K2<'a>> + ?Sized,
+        Q3: Hash + Equivalent<T::K3<'a>> + ?Sized,
+    {
+        let (dormant_map, remove_index) = {
+            let (map, dormant_map) = DormantMutRef::new(self);
+            let remove_index = map.find1_index(key1)?;
+            if !key2.equivalent(&map.items[remove_index].key2())
+                && !key3.equivalent(&map.items[remove_index].key3())
+            {
+                return None;
+            }
+            (dormant_map, remove_index)
+        };
+
+        // SAFETY: `map` is not used after this point.
+        let awakened_map = unsafe { dormant_map.awaken() };
+
+        awakened_map.remove_by_index(remove_index)
     }
 
     /// Returns true if the map contains the given `key1`.
     pub fn contains_key1<'a, Q>(&'a self, key1: &Q) -> bool
     where
-        T::K1<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Eq + Hash + ?Sized,
+        Q: Hash + Equivalent<T::K1<'a>> + ?Sized,
     {
         self.find1_index(key1).is_some()
     }
@@ -364,46 +368,50 @@ impl<T: TriHashItem> TriHashMap<T> {
     /// Gets a reference to the value associated with the given `key1`.
     pub fn get1<'a, Q>(&'a self, key1: &Q) -> Option<&'a T>
     where
-        T::K1<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Eq + Hash + ?Sized,
+        Q: Hash + Equivalent<T::K1<'a>> + ?Sized,
     {
         self.find1(key1)
     }
 
     /// Gets a mutable reference to the value associated with the given `key1`.
-    ///
-    /// Due to borrow checker limitations, this always accepts `K1` rather than
-    /// a borrowed form of it.
-    pub fn get1_mut<'a>(
-        &'a mut self,
-        key1: T::K1<'_>,
-    ) -> Option<RefMut<'a, T>> {
-        let index = self.find1_index(&T::upcast_key1(key1))?;
-        let hashes = self.make_hashes(&self.items[index]);
-        let item = &mut self.items[index];
+    pub fn get1_mut<'a, Q>(&'a mut self, key1: &Q) -> Option<RefMut<'a, T>>
+    where
+        Q: Hash + Equivalent<T::K1<'a>> + ?Sized,
+    {
+        let (dormant_map, index) = {
+            let (map, dormant_map) = DormantMutRef::new(self);
+            let index = map.find1_index(key1)?;
+            (dormant_map, index)
+        };
+
+        // SAFETY: `map` is not used after this point.
+        let awakened_map = unsafe { dormant_map.awaken() };
+        let item = &mut awakened_map.items[index];
+        let hashes = awakened_map.tables.make_hashes(&item);
         Some(RefMut::new(hashes, item))
     }
 
     /// Removes an item from the map by its `key1`.
-    ///
-    /// Due to borrow checker limitations, this always accepts `K1` rather than
-    /// a borrowed form of it.
-    pub fn remove1(&mut self, key1: T::K1<'_>) -> Option<T> {
-        let Some(remove_index) = self.find1_index(&T::upcast_key1(key1)) else {
-            // The item was not found.
-            return None;
+    pub fn remove1<'a, Q>(&'a mut self, key1: &Q) -> Option<T>
+    where
+        Q: Hash + Equivalent<T::K1<'a>> + ?Sized,
+    {
+        let (dormant_map, remove_index) = {
+            let (map, dormant_map) = DormantMutRef::new(self);
+            let remove_index = map.find1_index(key1)?;
+            (dormant_map, remove_index)
         };
 
-        self.remove_by_index(remove_index)
+        // SAFETY: `map` is not used after this point.
+        let awakened_map = unsafe { dormant_map.awaken() };
+
+        awakened_map.remove_by_index(remove_index)
     }
 
     /// Returns true if the map contains the given `key2`.
     pub fn contains_key2<'a, Q>(&'a self, key2: &Q) -> bool
     where
-        T::K2<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Eq + Hash + ?Sized,
+        Q: Hash + Equivalent<T::K2<'a>> + ?Sized,
     {
         self.find2_index(key2).is_some()
     }
@@ -411,46 +419,50 @@ impl<T: TriHashItem> TriHashMap<T> {
     /// Gets a reference to the value associated with the given `key2`.
     pub fn get2<'a, Q>(&'a self, key2: &Q) -> Option<&'a T>
     where
-        T::K2<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Eq + Hash + ?Sized,
+        Q: Hash + Equivalent<T::K2<'a>> + ?Sized,
     {
         self.find2(key2)
     }
 
     /// Gets a mutable reference to the value associated with the given `key2`.
-    ///
-    /// Due to borrow checker limitations, this always accepts `K2` rather than
-    /// a borrowed form of it.
-    pub fn get2_mut<'a>(
-        &'a mut self,
-        key2: T::K2<'_>,
-    ) -> Option<RefMut<'a, T>> {
-        let index = self.find2_index(&T::upcast_key2(key2))?;
-        let hashes = self.make_hashes(&self.items[index]);
-        let item = &mut self.items[index];
+    pub fn get2_mut<'a, Q>(&'a mut self, key2: &Q) -> Option<RefMut<'a, T>>
+    where
+        Q: Hash + Equivalent<T::K2<'a>> + ?Sized,
+    {
+        let (dormant_map, index) = {
+            let (map, dormant_map) = DormantMutRef::new(self);
+            let index = map.find2_index(key2)?;
+            (dormant_map, index)
+        };
+
+        // SAFETY: `map` is not used after this point.
+        let awakened_map = unsafe { dormant_map.awaken() };
+        let item = &mut awakened_map.items[index];
+        let hashes = awakened_map.tables.make_hashes(&item);
         Some(RefMut::new(hashes, item))
     }
 
     /// Removes an item from the map by its `key2`.
-    ///
-    /// Due to borrow checker limitations, this always accepts `K1` rather than
-    /// a borrowed form of it.
-    pub fn remove2(&mut self, key2: T::K2<'_>) -> Option<T> {
-        let Some(remove_index) = self.find2_index(&T::upcast_key2(key2)) else {
-            // The item was not found.
-            return None;
+    pub fn remove2<'a, Q>(&'a mut self, key2: &Q) -> Option<T>
+    where
+        Q: Hash + Equivalent<T::K2<'a>> + ?Sized,
+    {
+        let (dormant_map, remove_index) = {
+            let (map, dormant_map) = DormantMutRef::new(self);
+            let remove_index = map.find2_index(key2)?;
+            (dormant_map, remove_index)
         };
 
-        self.remove_by_index(remove_index)
+        // SAFETY: `map` is not used after this point.
+        let awakened_map = unsafe { dormant_map.awaken() };
+
+        awakened_map.remove_by_index(remove_index)
     }
 
     /// Returns true if the map contains the given `key3`.
     pub fn contains_key3<'a, Q>(&'a self, key3: &Q) -> bool
     where
-        T::K3<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Eq + Hash + ?Sized,
+        Q: Hash + Equivalent<T::K3<'a>> + ?Sized,
     {
         self.find3_index(key3).is_some()
     }
@@ -458,90 +470,84 @@ impl<T: TriHashItem> TriHashMap<T> {
     /// Gets a reference to the value associated with the given `key3`.
     pub fn get3<'a, Q>(&'a self, key3: &Q) -> Option<&'a T>
     where
-        T::K3<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Eq + Hash + ?Sized,
+        Q: Hash + Equivalent<T::K3<'a>> + ?Sized,
     {
         self.find3(key3)
     }
 
     /// Gets a mutable reference to the value associated with the given `key3`.
-    ///
-    /// Due to borrow checker limitations, this always accepts `K3` rather than
-    /// a borrowed form of it.
-    pub fn get3_mut<'a>(
-        &'a mut self,
-        key3: T::K3<'_>,
-    ) -> Option<RefMut<'a, T>> {
-        let index = self.find3_index(&T::upcast_key3(key3))?;
-        let hashes = self.make_hashes(&self.items[index]);
-        let item = &mut self.items[index];
+    pub fn get3_mut<'a, Q>(&'a mut self, key3: &Q) -> Option<RefMut<'a, T>>
+    where
+        Q: Hash + Equivalent<T::K3<'a>> + ?Sized,
+    {
+        let (dormant_map, index) = {
+            let (map, dormant_map) = DormantMutRef::new(self);
+            let index = map.find3_index(key3)?;
+            (dormant_map, index)
+        };
+
+        // SAFETY: `map` is not used after this point.
+        let awakened_map = unsafe { dormant_map.awaken() };
+        let item = &mut awakened_map.items[index];
+        let hashes = awakened_map.tables.make_hashes(&item);
         Some(RefMut::new(hashes, item))
     }
 
     /// Removes an item from the map by its `key3`.
-    ///
-    /// Due to borrow checker limitations, this always accepts `K1` rather than
-    /// a borrowed form of it.
-    pub fn remove3(&mut self, key3: T::K3<'_>) -> Option<T> {
-        let Some(remove_index) = self.find3_index(&T::upcast_key3(key3)) else {
-            // The item was not found.
-            return None;
+    pub fn remove3<'a, Q>(&'a mut self, key3: &Q) -> Option<T>
+    where
+        Q: Hash + Equivalent<T::K3<'a>> + ?Sized,
+    {
+        let (dormant_map, remove_index) = {
+            let (map, dormant_map) = DormantMutRef::new(self);
+            let remove_index = map.find3_index(key3)?;
+            (dormant_map, remove_index)
         };
 
-        self.remove_by_index(remove_index)
+        // SAFETY: `map` is not used after this point.
+        let awakened_map = unsafe { dormant_map.awaken() };
+
+        awakened_map.remove_by_index(remove_index)
     }
 
     fn find1<'a, Q>(&'a self, k: &Q) -> Option<&'a T>
     where
-        T::K1<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Eq + Hash + ?Sized,
+        Q: Hash + Equivalent<T::K1<'a>> + ?Sized,
     {
         self.find1_index(k).map(|ix| &self.items[ix])
     }
 
     fn find1_index<'a, Q>(&'a self, k: &Q) -> Option<usize>
     where
-        T::K1<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Eq + Hash + ?Sized,
+        Q: Hash + Equivalent<T::K1<'a>> + ?Sized,
     {
         self.tables.k1_to_item.find_index(k, |index| self.items[index].key1())
     }
 
     fn find2<'a, Q>(&'a self, k: &Q) -> Option<&'a T>
     where
-        T::K2<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Eq + Hash + ?Sized,
+        Q: Hash + Equivalent<T::K2<'a>> + ?Sized,
     {
         self.find2_index(k).map(|ix| &self.items[ix])
     }
 
     fn find2_index<'a, Q>(&'a self, k: &Q) -> Option<usize>
     where
-        T::K2<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Eq + Hash + ?Sized,
+        Q: Hash + Equivalent<T::K2<'a>> + ?Sized,
     {
         self.tables.k2_to_item.find_index(k, |index| self.items[index].key2())
     }
 
     fn find3<'a, Q>(&'a self, k: &Q) -> Option<&'a T>
     where
-        T::K3<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Eq + Hash + ?Sized,
+        Q: Hash + Equivalent<T::K3<'a>> + ?Sized,
     {
         self.find3_index(k).map(|ix| &self.items[ix])
     }
 
     fn find3_index<'a, Q>(&'a self, k: &Q) -> Option<usize>
     where
-        T::K3<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Eq + Hash + ?Sized,
+        Q: Hash + Equivalent<T::K3<'a>> + ?Sized,
     {
         self.tables.k3_to_item.find_index(k, |index| self.items[index].key3())
     }
@@ -592,10 +598,6 @@ impl<T: TriHashItem> TriHashMap<T> {
         item3.remove();
 
         Some(value)
-    }
-
-    fn make_hashes(&self, item: &T) -> [MapHash; 3] {
-        self.tables.make_hashes(item)
     }
 }
 
