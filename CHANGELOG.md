@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.2] - 2025-05-21
+
+### Added
+
+- `BiHashMap` and `TriHashMap` now have a `remove_unique` method which removes an item uniquely indexed by all keys.
+
+### Changed
+
+* `upcast` macros are now annotated with `#[inline]`, since they're trivial.
+
 ## [0.1.1] - 2025-05-21
 
 ### Added
@@ -11,5 +21,6 @@
 
 Initial release.
 
+[0.1.2]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.1.2
 [0.1.1]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.1.1
 [0.1.0]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.1.0
