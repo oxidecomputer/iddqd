@@ -177,19 +177,9 @@ impl Operation {
     }
 }
 
-// Miri is quite slow, so run fewer operations.
-#[cfg(miri)]
-const OP_LEN: usize = 64;
-#[cfg(miri)]
-const PERMUTATION_LEN: usize = 16;
-#[cfg(not(miri))]
-const OP_LEN: usize = 1024;
-#[cfg(not(miri))]
-const PERMUTATION_LEN: usize = 256;
-
 #[proptest(cases = 16)]
 fn proptest_ops(
-    #[strategy(prop::collection::vec(any::<Operation>(), 0..OP_LEN))] ops: Vec<
+    #[strategy(prop::collection::vec(any::<Operation>(), 0..1024))] ops: Vec<
         Operation,
     >,
 ) {
@@ -259,7 +249,7 @@ fn proptest_ops(
 
 #[proptest(cases = 64)]
 fn proptest_permutation_eq(
-    #[strategy(test_item_permutation_strategy::<IdOrdMap<TestItem>>(0..PERMUTATION_LEN))]
+    #[strategy(test_item_permutation_strategy::<IdOrdMap<TestItem>>(0..256))]
     items: (Vec<TestItem>, Vec<TestItem>),
 ) {
     let (items1, items2) = items;
