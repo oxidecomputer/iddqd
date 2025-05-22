@@ -343,8 +343,8 @@ impl<T: TriHashItem> TriHashMap<T> {
         let (dormant_map, remove_index) = {
             let (map, dormant_map) = DormantMutRef::new(self);
             let remove_index = map.find1_index(key1)?;
-            if !key2.equivalent(&map.items[remove_index].key2())
-                && !key3.equivalent(&map.items[remove_index].key3())
+            let item = &map.items[remove_index];
+            if !key2.equivalent(&item.key2()) && !key3.equivalent(&item.key3())
             {
                 return None;
             }
