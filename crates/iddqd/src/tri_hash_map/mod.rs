@@ -13,7 +13,7 @@ mod tables;
 pub(crate) mod trait_defs;
 
 #[cfg(feature = "daft")]
-pub use daft_impls::Diff;
+pub use daft_impls::{ByK1, ByK2, ByK3, Diff, MapLeaf};
 pub use imp::TriHashMap;
 pub use iter::{IntoIter, Iter, IterMut};
 pub use ref_mut::RefMut;

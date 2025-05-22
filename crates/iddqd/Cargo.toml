@@ -23,6 +23,7 @@ daft = { workspace = true, optional = true }
 debug-ignore.workspace = true
 derive-where.workspace = true
 hashbrown.workspace = true
+ref-cast = { workspace = true, optional = true }
 rustc-hash.workspace = true
 serde = { workspace = true, optional = true }
 
@@ -32,7 +33,7 @@ proptest.workspace = true
 test-strategy.workspace = true
 
 [features]
-daft = ["dep:daft"]
+daft = ["dep:daft", "dep:ref-cast"]
 default = ["std"]
 std = ["iddqd-test-utils/std", "rustc-hash/std"]
 serde = ["dep:serde", "iddqd-test-utils/serde"]
