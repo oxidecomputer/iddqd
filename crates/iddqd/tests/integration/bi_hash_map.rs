@@ -116,6 +116,7 @@ fn test_insert_unique() {
     assert!(map.contains_key_unique(&v4.key1(), &v4.key2()));
     assert_eq!(map.get_unique(&v4.key1(), &v4.key2()), Some(&v4));
     assert_eq!(*map.get_mut_unique(v4.key1(), v4.key2()).unwrap(), &v4);
+    assert_eq!(map.remove_unique(v4.key1(), v4.key2()), Some(v4));
 }
 
 // Example-based test for insert_overwrite.

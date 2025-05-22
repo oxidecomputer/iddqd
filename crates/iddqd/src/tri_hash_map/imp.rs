@@ -328,6 +328,28 @@ impl<T: TriHashItem> TriHashMap<T> {
         }
     }
 
+    /// Removes the item uniquely identified by `key1`, `key2`, and `key3`, if
+    /// it exists.
+    ///
+    /// Due to borrow checker limitations, this always accepts `K1`, `K2`, and
+    /// `K3` rather than borrowed forms.
+    pub fn remove_unique(
+        &mut self,
+        key1: T::K1<'_>,
+        key2: T::K2<'_>,
+        key3: T::K3<'_>,
+    ) -> Option<T> {
+        let index = self.find1_index(&T::upcast_key1(key1))?;
+        let item = &self.items[index];
+        if item.key2() == T::upcast_key2(key2)
+            && item.key3() == T::upcast_key3(key3)
+        {
+            self.remove_by_index(index)
+        } else {
+            None
+        }
+    }
+
     /// Returns true if the map contains the given `key1`.
     pub fn contains_key1<'a, Q>(&'a self, key1: &Q) -> bool
     where
@@ -372,54 +394,7 @@ impl<T: TriHashItem> TriHashMap<T> {
             return None;
         };
 
-        let value = self
-            .items
-            .remove(remove_index)
-            .expect("items missing key1 that was just retrieved");
-
-        // Remove the value from the tables.
-        let Ok(item1) =
-            self.tables.k1_to_item.find_entry(&value.key1(), |index| {
-                if index == remove_index {
-                    value.key1()
-                } else {
-                    self.items[index].key1()
-                }
-            })
-        else {
-            // The item was not found.
-            panic!("we just looked this item up");
-        };
-        let Ok(item2) =
-            self.tables.k2_to_item.find_entry(&value.key2(), |index| {
-                if index == remove_index {
-                    value.key2()
-                } else {
-                    self.items[index].key2()
-                }
-            })
-        else {
-            // The item was not found.
-            panic!("inconsistent indexes: key1 present, key2 absent");
-        };
-        let Ok(item3) =
-            self.tables.k3_to_item.find_entry(&value.key3(), |index| {
-                if index == remove_index {
-                    value.key3()
-                } else {
-                    self.items[index].key3()
-                }
-            })
-        else {
-            // The item was not found.
-            panic!("inconsistent indexes: key1 present, key3 absent");
-        };
-
-        item1.remove();
-        item2.remove();
-        item3.remove();
-
-        Some(value)
+        self.remove_by_index(remove_index)
     }
 
     /// Returns true if the map contains the given `key2`.
@@ -466,54 +441,7 @@ impl<T: TriHashItem> TriHashMap<T> {
             return None;
         };
 
-        let value = self
-            .items
-            .remove(remove_index)
-            .expect("items missing key2 that was just retrieved");
-
-        // Remove the value from the tables.
-        let Ok(item1) =
-            self.tables.k1_to_item.find_entry(&value.key1(), |index| {
-                if index == remove_index {
-                    value.key1()
-                } else {
-                    self.items[index].key1()
-                }
-            })
-        else {
-            // The item was not found.
-            panic!("inconsistent indexes: key2 present, key1 absent");
-        };
-        let Ok(item2) =
-            self.tables.k2_to_item.find_entry(&value.key2(), |index| {
-                if index == remove_index {
-                    value.key2()
-                } else {
-                    self.items[index].key2()
-                }
-            })
-        else {
-            // The item was not found.
-            panic!("we just looked this item up");
-        };
-        let Ok(item3) =
-            self.tables.k3_to_item.find_entry(&value.key3(), |index| {
-                if index == remove_index {
-                    value.key3()
-                } else {
-                    self.items[index].key3()
-                }
-            })
-        else {
-            // The item was not found.
-            panic!("inconsistent indexes: key2 present, key3 absent");
-        };
-
-        item1.remove();
-        item2.remove();
-        item3.remove();
-
-        Some(value)
+        self.remove_by_index(remove_index)
     }
 
     /// Returns true if the map contains the given `key3`.
@@ -560,54 +488,7 @@ impl<T: TriHashItem> TriHashMap<T> {
             return None;
         };
 
-        let value = self
-            .items
-            .remove(remove_index)
-            .expect("items missing key3 that was just retrieved");
-
-        // Remove the value from the tables.
-        let Ok(item1) =
-            self.tables.k1_to_item.find_entry(&value.key1(), |index| {
-                if index == remove_index {
-                    value.key1()
-                } else {
-                    self.items[index].key1()
-                }
-            })
-        else {
-            // The item was not found.
-            panic!("inconsistent indexes: key3 present, key1 absent");
-        };
-        let Ok(item2) =
-            self.tables.k2_to_item.find_entry(&value.key2(), |index| {
-                if index == remove_index {
-                    value.key2()
-                } else {
-                    self.items[index].key2()
-                }
-            })
-        else {
-            // The item was not found.
-            panic!("inconsistent indexes: key3 present, key2 absent");
-        };
-        let Ok(item3) =
-            self.tables.k3_to_item.find_entry(&value.key3(), |index| {
-                if index == remove_index {
-                    value.key3()
-                } else {
-                    self.items[index].key3()
-                }
-            })
-        else {
-            // The item was not found.
-            panic!("we just looked this item up");
-        };
-
-        item1.remove();
-        item2.remove();
-        item3.remove();
-
-        Some(value)
+        self.remove_by_index(remove_index)
     }
 
     fn find1<'a, Q>(&'a self, k: &Q) -> Option<&'a T>
@@ -662,6 +543,54 @@ impl<T: TriHashItem> TriHashMap<T> {
         Q: Eq + Hash + ?Sized,
     {
         self.tables.k3_to_item.find_index(k, |index| self.items[index].key3())
+    }
+
+    pub(super) fn remove_by_index(&mut self, remove_index: usize) -> Option<T> {
+        let value = self.items.remove(remove_index)?;
+
+        // Remove the value from the tables.
+        let Ok(item1) =
+            self.tables.k1_to_item.find_entry(&value.key1(), |index| {
+                if index == remove_index {
+                    value.key1()
+                } else {
+                    self.items[index].key1()
+                }
+            })
+        else {
+            // The item was not found.
+            panic!("remove_index {remove_index} not found in k1_to_item");
+        };
+        let Ok(item2) =
+            self.tables.k2_to_item.find_entry(&value.key2(), |index| {
+                if index == remove_index {
+                    value.key2()
+                } else {
+                    self.items[index].key2()
+                }
+            })
+        else {
+            // The item was not found.
+            panic!("remove_index {remove_index} not found in k2_to_item")
+        };
+        let Ok(item3) =
+            self.tables.k3_to_item.find_entry(&value.key3(), |index| {
+                if index == remove_index {
+                    value.key3()
+                } else {
+                    self.items[index].key3()
+                }
+            })
+        else {
+            // The item was not found.
+            panic!("remove_index {remove_index} not found in k3_to_item")
+        };
+
+        item1.remove();
+        item2.remove();
+        item3.remove();
+
+        Some(value)
     }
 
     fn make_hashes(&self, item: &T) -> [MapHash; 3] {

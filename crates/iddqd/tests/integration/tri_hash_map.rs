@@ -127,6 +127,7 @@ fn test_insert_unique() {
         *map.get_mut_unique(v5.key1(), v5.key2(), v5.key3()).unwrap(),
         &v5
     );
+    assert_eq!(map.remove_unique(v5.key1(), v5.key2(), v5.key3()), Some(v5));
 }
 
 // Example-based test for insert_overwrite.
