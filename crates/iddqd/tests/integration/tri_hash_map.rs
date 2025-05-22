@@ -62,6 +62,39 @@ fn debug_impls() {
 }
 
 #[test]
+fn test_extend() {
+    let mut map = TriHashMap::<TestItem>::new();
+    let items = vec![
+        TestItem::new(1, 'a', "x", "v"),
+        TestItem::new(2, 'b', "y", "w"),
+        TestItem::new(1, 'c', "z", "overwrote key1"),
+        TestItem::new(3, 'b', "q", "overwrote key2"),
+        TestItem::new(4, 'd', "x", "overwrote key3"),
+        TestItem::new(10, 'A', "X", ""),
+        TestItem::new(20, 'B', "Y", ""),
+        TestItem::new(30, 'A', "Y", "overwrote key2 and key3"),
+        TestItem::new(40, 'C', "Z", ""),
+        TestItem::new(50, 'D', "foo", "stays as is"),
+        TestItem::new(40, 'E', "Z", "overwrote key1 and key3"),
+    ];
+    map.extend(items.clone());
+    assert_eq!(map.len(), 6);
+    assert_eq!(map.get1(&TestKey1::new(&1)).unwrap().value, "overwrote key1");
+    assert_eq!(map.get1(&TestKey1::new(&2)), None);
+    assert_eq!(map.get1(&TestKey1::new(&3)).unwrap().value, "overwrote key2");
+    assert_eq!(map.get1(&TestKey1::new(&4)).unwrap().value, "overwrote key3");
+    assert_eq!(
+        map.get1(&TestKey1::new(&30)).unwrap().value,
+        "overwrote key2 and key3"
+    );
+    assert_eq!(
+        map.get1(&TestKey1::new(&40)).unwrap().value,
+        "overwrote key1 and key3"
+    );
+    assert_eq!(map.get1(&TestKey1::new(&50)).unwrap().value, "stays as is");
+}
+
+#[test]
 fn with_capacity() {
     let map = TriHashMap::<TestItem>::with_capacity(1024);
     assert!(map.capacity() >= 1024);

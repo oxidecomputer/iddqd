@@ -119,6 +119,28 @@ fn test_insert_unique() {
     assert_eq!(map.remove_unique(v4.key1(), v4.key2()), Some(v4));
 }
 
+#[test]
+fn test_extend() {
+    let mut map = BiHashMap::<TestItem>::new();
+    let items = vec![
+        TestItem::new(1, 'a', "x", "v"),
+        TestItem::new(2, 'b', "y", "w"),
+        TestItem::new(3, 'c', "a", "b"),
+        TestItem::new(1, 'c', "z", "overwrote key1"),
+        TestItem::new(3, 'b', "q", "overwrote key1 and key2"),
+        TestItem::new(4, 'x', "y", "z"),
+    ];
+    map.extend(items.clone());
+    assert_eq!(map.len(), 3);
+    assert_eq!(map.get1(&TestKey1::new(&1)).unwrap().value, "overwrote key1");
+    assert_eq!(map.get1(&TestKey1::new(&2)), None);
+    assert_eq!(
+        map.get1(&TestKey1::new(&3)).unwrap().value,
+        "overwrote key1 and key2"
+    );
+    assert_eq!(map.get1(&TestKey1::new(&4)).unwrap().value, "z");
+}
+
 // Example-based test for insert_overwrite.
 //
 // Can be used to write down examples seen from the property-based operation

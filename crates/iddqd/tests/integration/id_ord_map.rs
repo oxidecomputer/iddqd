@@ -22,6 +22,20 @@ fn with_capacity() {
     assert!(map.capacity() >= 1024);
 }
 
+#[test]
+fn test_extend() {
+    let mut map = IdOrdMap::<TestItem>::new();
+    let items = vec![
+        TestItem::new(1, 'a', "x", "v"),
+        TestItem::new(2, 'b', "y", "w"),
+        TestItem::new(1, 'c', "z", "overwritten"), // duplicate key, should overwrite
+    ];
+    map.extend(items.clone());
+    assert_eq!(map.len(), 2);
+    assert_eq!(map.get(&TestKey1::new(&1)).unwrap().value, "overwritten");
+    assert_eq!(map.get(&TestKey1::new(&2)).unwrap().value, "w");
+}
+
 #[derive(Debug)]
 struct SimpleItem {
     key: u32,

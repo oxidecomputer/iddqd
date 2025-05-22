@@ -102,6 +102,20 @@ fn test_insert_unique() {
     assert_eq!(*e2, v1);
 }
 
+#[test]
+fn test_extend() {
+    let mut map = IdHashMap::<TestItem>::new();
+    let items = vec![
+        TestItem::new(1, 'a', "x", "v"),
+        TestItem::new(2, 'b', "y", "w"),
+        TestItem::new(1, 'c', "z", "overwritten"), // duplicate key, should overwrite
+    ];
+    map.extend(items.clone());
+    assert_eq!(map.len(), 2);
+    assert_eq!(map.get(&TestKey1::new(&1)).unwrap().value, "overwritten");
+    assert_eq!(map.get(&TestKey1::new(&2)).unwrap().value, "w");
+}
+
 #[derive(Debug, Arbitrary)]
 enum Operation {
     // Make inserts a bit more common to try and fill up the map.

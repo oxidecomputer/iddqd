@@ -424,6 +424,16 @@ impl<T: IdHashItem + PartialEq> PartialEq for IdHashMap<T> {
 // The Eq bound on T ensures that the TriHashMap forms an equivalence class.
 impl<T: IdHashItem + Eq> Eq for IdHashMap<T> {}
 
+/// The `Extend` implementation overwrites duplicates. In the future, there will
+/// also be an `extend_unique` method that will return an error.
+impl<T: IdHashItem> Extend<T> for IdHashMap<T> {
+    fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
+        for item in iter {
+            self.insert_overwrite(item);
+        }
+    }
+}
+
 impl<'a, T: IdHashItem> IntoIterator for &'a IdHashMap<T> {
     type Item = &'a T;
     type IntoIter = Iter<'a, T>;

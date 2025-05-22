@@ -792,6 +792,16 @@ fn detect_dup_or_insert<'a>(
     }
 }
 
+/// The `Extend` implementation overwrites duplicates. In the future, there will
+/// also be an `extend_unique` method that will return an error.
+impl<T: BiHashItem> Extend<T> for BiHashMap<T> {
+    fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
+        for item in iter {
+            self.insert_overwrite(item);
+        }
+    }
+}
+
 impl<'a, T: BiHashItem> IntoIterator for &'a BiHashMap<T> {
     type Item = &'a T;
     type IntoIter = Iter<'a, T>;

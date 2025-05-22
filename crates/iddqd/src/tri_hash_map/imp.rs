@@ -703,6 +703,16 @@ impl<T: TriHashItem + PartialEq> PartialEq for TriHashMap<T> {
 // The Eq bound on T ensures that the TriHashMap forms an equivalence class.
 impl<T: TriHashItem + Eq> Eq for TriHashMap<T> {}
 
+/// The `Extend` implementation overwrites duplicates. In the future, there will
+/// also be an `extend_unique` method that will return an error.
+impl<T: TriHashItem> Extend<T> for TriHashMap<T> {
+    fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
+        for item in iter {
+            self.insert_overwrite(item);
+        }
+    }
+}
+
 fn detect_dup_or_insert<'a>(
     item: Entry<'a, usize>,
     duplicates: &mut BTreeSet<usize>,
