@@ -22,6 +22,7 @@ workspace = true
 daft = { workspace = true, optional = true }
 debug-ignore.workspace = true
 derive-where.workspace = true
+equivalent.workspace = true
 hashbrown.workspace = true
 ref-cast = { workspace = true, optional = true }
 rustc-hash.workspace = true

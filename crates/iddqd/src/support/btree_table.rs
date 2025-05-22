@@ -11,12 +11,12 @@ use alloc::{
     vec::Vec,
 };
 use core::{
-    borrow::Borrow,
     cell::Cell,
     cmp::Ordering,
     hash::{BuildHasher, Hash},
     marker::PhantomData,
 };
+use equivalent::Comparable;
 
 thread_local! {
     /// Stores an external comparator function to provide dynamic scoping.
@@ -121,9 +121,9 @@ impl MapBTreeTable {
         lookup: F,
     ) -> Option<usize>
     where
+        K: Ord,
+        Q: ?Sized + Ord + Comparable<K>,
         F: Fn(usize) -> K,
-        K: Ord + Borrow<Q>,
-        Q: ?Sized + Ord,
     {
         let f = find_cmp(key, lookup);
 
@@ -147,9 +147,9 @@ impl MapBTreeTable {
 
     pub(crate) fn insert<K, Q, F>(&mut self, index: usize, key: &Q, lookup: F)
     where
+        K: Ord,
+        Q: ?Sized + Ord + Comparable<K>,
         F: Fn(usize) -> K,
-        K: Ord + Borrow<Q>,
-        Q: ?Sized + Ord,
     {
         let f = insert_cmp(index, key, lookup);
         let guard = CmpDropGuard::new(&f);
@@ -234,9 +234,9 @@ fn find_cmp<'a, K, Q, F>(
     lookup: F,
 ) -> impl Fn(Index, Index) -> Ordering + 'a
 where
-    F: Fn(usize) -> K + 'a,
-    K: Ord + Borrow<Q> + 'a,
-    Q: ?Sized + Ord,
+    Q: ?Sized + Ord + Comparable<K>,
+    F: 'a + Fn(usize) -> K,
+    K: Ord,
 {
     move |a: Index, b: Index| {
         if a.0 == b.0 {
@@ -249,9 +249,9 @@ where
             return Ordering::Equal;
         }
         match (a.0, b.0) {
-            (Index::SENTINEL_VALUE, v) => key.borrow().cmp(lookup(v).borrow()),
-            (v, Index::SENTINEL_VALUE) => lookup(v).borrow().cmp(key.borrow()),
-            (a, b) => lookup(a).borrow().cmp(lookup(b).borrow()),
+            (Index::SENTINEL_VALUE, v) => key.compare(&lookup(v)),
+            (v, Index::SENTINEL_VALUE) => key.compare(&lookup(v)).reverse(),
+            (a, b) => lookup(a).cmp(&lookup(b)),
         }
     }
 }
@@ -262,9 +262,9 @@ fn insert_cmp<'a, K, Q, F>(
     lookup: F,
 ) -> impl Fn(Index, Index) -> Ordering + 'a
 where
-    F: Fn(usize) -> K + 'a,
-    K: Ord + Borrow<Q> + 'a,
-    Q: ?Sized + Ord,
+    Q: ?Sized + Ord + Comparable<K>,
+    F: 'a + Fn(usize) -> K,
+    K: Ord,
 {
     move |a: Index, b: Index| {
         if a.0 == b.0 {
@@ -282,9 +282,9 @@ where
             (Index::SENTINEL_VALUE, _) | (_, Index::SENTINEL_VALUE) => {
                 panic!("sentinel value should not be invoked in insert path")
             }
-            (a, b) if a == index => key.borrow().cmp(lookup(b).borrow()),
-            (a, b) if b == index => lookup(a).borrow().cmp(key.borrow()),
-            (a, b) => lookup(a).borrow().cmp(lookup(b).borrow()),
+            (a, b) if a == index => key.compare(&lookup(b)),
+            (a, b) if b == index => key.compare(&lookup(a)).reverse(),
+            (a, b) => lookup(a).cmp(&lookup(b)),
         }
     }
 }

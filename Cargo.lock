@@ -142,6 +142,7 @@ dependencies = [
  "daft",
  "debug-ignore",
  "derive-where",
+ "equivalent",
  "hashbrown",
  "iddqd-test-utils",
  "proptest",
