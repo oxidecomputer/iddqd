@@ -43,7 +43,7 @@ fn debug_impls() {
         r#"{1: SimpleItem { key: 1 }, 10: SimpleItem { key: 10 }, 20: SimpleItem { key: 20 }}"#
     );
     assert_eq!(
-        format!("{:?}", map.get_mut(1).unwrap()),
+        format!("{:?}", map.get_mut(&1).unwrap()),
         "SimpleItem { key: 1 }"
     );
 }
@@ -189,7 +189,7 @@ fn proptest_ops(
                 assert_eq!(map_res, naive_res);
             }
             Operation::Remove(key) => {
-                let map_res = map.remove(TestKey1::new(&key));
+                let map_res = map.remove(&TestKey1::new(&key));
                 let naive_res = naive_map.remove1(key);
 
                 assert_eq!(map_res, naive_res);
@@ -298,7 +298,7 @@ fn test_permutation_eq_examples() {
 fn get_mut_panics_if_key_changes() {
     let mut map = IdHashMap::<TestItem>::new();
     map.insert_unique(TestItem::new(128, 'b', "y", "x")).unwrap();
-    map.get_mut(TestKey1::new(&128)).unwrap().key1 = 2;
+    map.get_mut(&TestKey1::new(&128)).unwrap().key1 = 2;
 }
 
 #[test]

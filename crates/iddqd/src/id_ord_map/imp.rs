@@ -208,7 +208,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
         // 1. Remove the item corresponding to the key that is already in the map.
         // 2. Add the item to the map.
 
-        let duplicate = self.remove(value.key());
+        let duplicate = self.remove(&value.key());
 
         if self.insert_unique(value).is_err() {
             // We should never get here, because we just removed all the
@@ -240,30 +240,41 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     }
 
     /// Gets a mutable reference to the item associated with the given `key`.
-    ///
-    /// Due to borrow checker limitations, this always accepts `T::Key` rather
-    /// than a borrowed form of it.
-    pub fn get_mut<'a>(&'a mut self, key: T::Key<'_>) -> Option<RefMut<'a, T>>
+    pub fn get_mut<'a, Q>(&'a mut self, key: &Q) -> Option<RefMut<'a, T>>
     where
+        T::Key<'a>: Borrow<Q>,
         for<'k> T::Key<'k>: Hash,
+        Q: Ord + ?Sized,
     {
-        let index = self.find_index(&T::upcast_key(key))?;
-        let item = &mut self.items[index];
-        let hash = self.tables.make_hash(item);
+        let (dormant_map, index) = {
+            let (map, dormant_map) = DormantMutRef::new(self);
+            let index = map.find_index(key)?;
+            (dormant_map, index)
+        };
+
+        // SAFETY: `map` is not used after this point.
+        let awakened_map = unsafe { dormant_map.awaken() };
+        let item = &mut awakened_map.items[index];
+        let hash = awakened_map.tables.make_hash(item);
         Some(RefMut::new(hash, item))
     }
 
     /// Removes an item from the map by its `key`.
-    ///
-    /// Due to borrow checker limitations, this always accepts `T::Key` rather
-    /// than a borrowed form of it.
-    pub fn remove(&mut self, key: T::Key<'_>) -> Option<T> {
-        let Some(remove_index) = self.find_index(&T::upcast_key(key)) else {
-            // The item was not found.
-            return None;
+    pub fn remove<'a, Q>(&'a mut self, key: &Q) -> Option<T>
+    where
+        T::Key<'a>: Borrow<Q>,
+        T: 'a,
+        Q: Ord + ?Sized,
+    {
+        let (dormant_map, remove_index) = {
+            let (map, dormant_map) = DormantMutRef::new(self);
+            let remove_index = map.find_index(key)?;
+            (dormant_map, remove_index)
         };
 
-        self.remove_by_index(remove_index)
+        // SAFETY: `map` is not used after this point.
+        let awakened_map = unsafe { dormant_map.awaken() };
+        awakened_map.remove_by_index(remove_index)
     }
 
     /// Retrieves an entry by its `key`.
