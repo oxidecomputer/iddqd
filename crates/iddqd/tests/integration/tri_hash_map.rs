@@ -56,7 +56,7 @@ fn debug_impls() {
           {k1: 20, k2: 'b', k3: 1}: SimpleItem { key1: 20, key2: 'b', key3: 1 }}",
     );
     assert_eq!(
-        format!("{:?}", map.get1_mut(1).unwrap()),
+        format!("{:?}", map.get1_mut(&1).unwrap()),
         "SimpleItem { key1: 1, key2: 'a', key3: 0 }"
     );
 }
@@ -157,10 +157,10 @@ fn test_insert_unique() {
     assert!(map.contains_key_unique(&v5.key1(), &v5.key2(), &v5.key3()));
     assert_eq!(map.get_unique(&v5.key1(), &v5.key2(), &v5.key3()), Some(&v5));
     assert_eq!(
-        *map.get_mut_unique(v5.key1(), v5.key2(), v5.key3()).unwrap(),
+        *map.get_mut_unique(&v5.key1(), &v5.key2(), &v5.key3()).unwrap(),
         &v5
     );
-    assert_eq!(map.remove_unique(v5.key1(), v5.key2(), v5.key3()), Some(v5));
+    assert_eq!(map.remove_unique(&v5.key1(), &v5.key2(), &v5.key3()), Some(v5));
 }
 
 // Example-based test for insert_overwrite.
@@ -280,21 +280,21 @@ fn proptest_ops(
                 assert_eq!(map_res, naive_res);
             }
             Operation::Remove1(key1) => {
-                let map_res = map.remove1(TestKey1::new(&key1));
+                let map_res = map.remove1(&TestKey1::new(&key1));
                 let naive_res = naive_map.remove1(key1);
 
                 assert_eq!(map_res, naive_res);
                 map.validate(compactness).expect("map should be valid");
             }
             Operation::Remove2(key2) => {
-                let map_res = map.remove2(TestKey2::new(key2));
+                let map_res = map.remove2(&TestKey2::new(key2));
                 let naive_res = naive_map.remove2(key2);
 
                 assert_eq!(map_res, naive_res);
                 map.validate(compactness).expect("map should be valid");
             }
             Operation::Remove3(key3) => {
-                let map_res = map.remove3(TestKey3::new(&key3));
+                let map_res = map.remove3(&TestKey3::new(&key3));
                 let naive_res = naive_map.remove3(&key3);
 
                 assert_eq!(map_res, naive_res);
@@ -408,7 +408,7 @@ fn test_permutation_eq_examples() {
 fn get_mut_panics_if_key1_changes() {
     let mut map = TriHashMap::<TestItem>::new();
     map.insert_unique(TestItem::new(128, 'b', "y", "x")).unwrap();
-    map.get1_mut(TestKey1::new(&128)).unwrap().key1 = 2;
+    map.get1_mut(&TestKey1::new(&128)).unwrap().key1 = 2;
 }
 
 #[test]
@@ -416,7 +416,7 @@ fn get_mut_panics_if_key1_changes() {
 fn get_mut_panics_if_key2_changes() {
     let mut map = TriHashMap::<TestItem>::new();
     map.insert_unique(TestItem::new(128, 'b', "y", "x")).unwrap();
-    map.get1_mut(TestKey1::new(&128)).unwrap().key2 = 'c';
+    map.get1_mut(&TestKey1::new(&128)).unwrap().key2 = 'c';
 }
 
 #[test]
@@ -424,7 +424,7 @@ fn get_mut_panics_if_key2_changes() {
 fn get_mut_panics_if_key3_changes() {
     let mut map = TriHashMap::<TestItem>::new();
     map.insert_unique(TestItem::new(128, 'b', "y", "x")).unwrap();
-    map.get1_mut(TestKey1::new(&128)).unwrap().key3 = "z".to_owned();
+    map.get1_mut(&TestKey1::new(&128)).unwrap().key3 = "z".to_owned();
 }
 
 #[cfg(feature = "serde")]

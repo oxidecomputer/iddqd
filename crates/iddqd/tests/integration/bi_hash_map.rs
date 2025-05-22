@@ -52,7 +52,7 @@ fn debug_impls() {
           {k1: 20, k2: 'b'}: SimpleItem { key1: 20, key2: 'b' }}",
     );
     assert_eq!(
-        format!("{:?}", map.get1_mut(1).unwrap()),
+        format!("{:?}", map.get1_mut(&1).unwrap()),
         "SimpleItem { key1: 1, key2: 'a' }"
     );
 }
@@ -115,8 +115,8 @@ fn test_insert_unique() {
     // Check that the *unique methods work.
     assert!(map.contains_key_unique(&v4.key1(), &v4.key2()));
     assert_eq!(map.get_unique(&v4.key1(), &v4.key2()), Some(&v4));
-    assert_eq!(*map.get_mut_unique(v4.key1(), v4.key2()).unwrap(), &v4);
-    assert_eq!(map.remove_unique(v4.key1(), v4.key2()), Some(v4));
+    assert_eq!(*map.get_mut_unique(&v4.key1(), &v4.key2()).unwrap(), &v4);
+    assert_eq!(map.remove_unique(&v4.key1(), &v4.key2()), Some(v4));
 }
 
 #[test]
@@ -248,14 +248,14 @@ fn proptest_ops(
                 assert_eq!(map_res, naive_res);
             }
             Operation::Remove1(key1) => {
-                let map_res = map.remove1(TestKey1::new(&key1));
+                let map_res = map.remove1(&TestKey1::new(&key1));
                 let naive_res = naive_map.remove1(key1);
 
                 assert_eq!(map_res, naive_res);
                 map.validate(compactness).expect("map should be valid");
             }
             Operation::Remove2(key2) => {
-                let map_res = map.remove2(TestKey2::new(key2));
+                let map_res = map.remove2(&TestKey2::new(key2));
                 let naive_res = naive_map.remove2(key2);
 
                 assert_eq!(map_res, naive_res);
@@ -355,7 +355,7 @@ fn test_permutation_eq_examples() {
 fn get_mut_panics_if_key1_changes() {
     let mut map = BiHashMap::<TestItem>::new();
     map.insert_unique(TestItem::new(128, 'b', "y", "x")).unwrap();
-    map.get1_mut(TestKey1::new(&128)).unwrap().key1 = 2;
+    map.get1_mut(&TestKey1::new(&128)).unwrap().key1 = 2;
 }
 
 #[test]
@@ -363,7 +363,7 @@ fn get_mut_panics_if_key1_changes() {
 fn get_mut_panics_if_key2_changes() {
     let mut map = BiHashMap::<TestItem>::new();
     map.insert_unique(TestItem::new(128, 'b', "y", "x")).unwrap();
-    map.get1_mut(TestKey1::new(&128)).unwrap().key2 = 'c';
+    map.get1_mut(&TestKey1::new(&128)).unwrap().key2 = 'c';
 }
 
 #[test]

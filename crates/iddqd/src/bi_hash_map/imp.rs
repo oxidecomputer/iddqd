@@ -11,12 +11,12 @@ use crate::{
     internal::{ValidateCompact, ValidationError},
     support::{
         borrow::DormantMutRef, fmt_utils::StrDisplayAsDebug, item_set::ItemSet,
-        map_hash::MapHash,
     },
 };
 use alloc::{collections::BTreeSet, vec::Vec};
-use core::{borrow::Borrow, fmt, hash::Hash};
+use core::{fmt, hash::Hash};
 use derive_where::derive_where;
+use equivalent::Equivalent;
 use hashbrown::hash_table;
 
 /// A 1:1 (bijective) map for two keys and a value.
@@ -175,8 +175,8 @@ impl<T: BiHashItem> BiHashMap<T> {
         // 2. Add the item to the map.
 
         let mut duplicates = Vec::new();
-        duplicates.extend(self.remove1(value.key1()));
-        duplicates.extend(self.remove2(value.key2()));
+        duplicates.extend(self.remove1(&value.key1()));
+        duplicates.extend(self.remove2(&value.key2()));
 
         if self.insert_unique(value).is_err() {
             // We should never get here, because we just removed all the
@@ -204,11 +204,8 @@ impl<T: BiHashItem> BiHashMap<T> {
         key2: &Q2,
     ) -> bool
     where
-        T::K1<'a>: Borrow<Q1>,
-        T::K2<'a>: Borrow<Q2>,
-        T: 'a,
-        Q1: Eq + Hash + ?Sized,
-        Q2: Eq + Hash + ?Sized,
+        Q1: Hash + Equivalent<T::K1<'a>> + ?Sized,
+        Q2: Hash + Equivalent<T::K2<'a>> + ?Sized,
     {
         self.get_unique(key1, key2).is_some()
     }
@@ -221,61 +218,72 @@ impl<T: BiHashItem> BiHashMap<T> {
         key2: &Q2,
     ) -> Option<&'a T>
     where
-        T::K1<'a>: Borrow<Q1>,
-        T::K2<'a>: Borrow<Q2>,
-        T: 'a,
-        Q1: Eq + Hash + ?Sized,
-        Q2: Eq + Hash + ?Sized,
+        Q1: Hash + Equivalent<T::K1<'a>> + ?Sized,
+        Q2: Hash + Equivalent<T::K2<'a>> + ?Sized,
     {
         let index = self.find1_index(key1)?;
         let item = &self.items[index];
-        if item.key2().borrow() == key2.borrow() { Some(item) } else { None }
+        if key2.equivalent(&item.key2()) { Some(item) } else { None }
     }
 
     /// Gets a mutable reference to the unique item associated with the given
     /// `key1` and `key2`, if it exists.
-    //
-    /// Due to borrow checker limitations, this always accepts `K1` and `K2`
-    /// rather than borrowed forms.
-    pub fn get_mut_unique<'a>(
+    pub fn get_mut_unique<'a, Q1, Q2>(
         &'a mut self,
-        key1: T::K1<'_>,
-        key2: T::K2<'_>,
-    ) -> Option<RefMut<'a, T>> {
-        let index = self.find1_index(&T::upcast_key1(key1))?;
-        let item = &mut self.items[index];
-        if item.key2() == T::upcast_key2(key2) {
-            let hashes =
-                self.tables.make_hashes::<T>(&item.key1(), &item.key2());
-            Some(RefMut::new(hashes, item))
-        } else {
-            None
-        }
+        key1: &Q1,
+        key2: &Q2,
+    ) -> Option<RefMut<'a, T>>
+    where
+        Q1: Hash + Equivalent<T::K1<'a>> + ?Sized,
+        Q2: Hash + Equivalent<T::K2<'a>> + ?Sized,
+    {
+        let (dormant_map, index) = {
+            let (map, dormant_map) = DormantMutRef::new(self);
+            let index = map.find1_index(key1)?;
+            // Check key2 match before proceeding
+            if !key2.equivalent(&map.items[index].key2()) {
+                return None;
+            }
+            (dormant_map, index)
+        };
+
+        // SAFETY: `map` is not used after this point.
+        let awakened_map = unsafe { dormant_map.awaken() };
+        let item = &mut awakened_map.items[index];
+        let hashes =
+            awakened_map.tables.make_hashes::<T>(&item.key1(), &item.key2());
+        Some(RefMut::new(hashes, item))
     }
 
     /// Removes the item uniquely identified by `key1` and `key2`, if it exists.
-    ///
-    /// Due to borrow checker limitations, this always accepts `K1` and `K2`
-    /// rather than borrowed forms.
-    pub fn remove_unique(
-        &mut self,
-        key1: T::K1<'_>,
-        key2: T::K2<'_>,
-    ) -> Option<T> {
-        let index = self.find1_index(&T::upcast_key1(key1))?;
-        if self.items[index].key2().borrow() == T::upcast_key2(key2).borrow() {
-            self.remove_by_index(index)
-        } else {
-            None
-        }
+    pub fn remove_unique<'a, Q1, Q2>(
+        &'a mut self,
+        key1: &Q1,
+        key2: &Q2,
+    ) -> Option<T>
+    where
+        Q1: Hash + Equivalent<T::K1<'a>> + ?Sized,
+        Q2: Hash + Equivalent<T::K2<'a>> + ?Sized,
+    {
+        let (dormant_map, remove_index) = {
+            let (map, dormant_map) = DormantMutRef::new(self);
+            let remove_index = map.find1_index(key1)?;
+            if !key2.equivalent(&map.items[remove_index].key2()) {
+                return None;
+            }
+            (dormant_map, remove_index)
+        };
+
+        // SAFETY: `map` is not used after this point.
+        let awakened_map = unsafe { dormant_map.awaken() };
+
+        awakened_map.remove_by_index(remove_index)
     }
 
     /// Returns true if the map contains the given `key1`.
     pub fn contains_key1<'a, Q>(&'a self, key1: &Q) -> bool
     where
-        T::K1<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Eq + Hash + ?Sized,
+        Q: Hash + Equivalent<T::K1<'a>> + ?Sized,
     {
         self.find1_index(key1).is_some()
     }
@@ -283,46 +291,51 @@ impl<T: BiHashItem> BiHashMap<T> {
     /// Gets a reference to the value associated with the given `key1`.
     pub fn get1<'a, Q>(&'a self, key1: &Q) -> Option<&'a T>
     where
-        T::K1<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Eq + Hash + ?Sized,
+        Q: Hash + Equivalent<T::K1<'a>> + ?Sized,
     {
         self.find1(key1)
     }
 
     /// Gets a mutable reference to the value associated with the given `key1`.
-    ///
-    /// Due to borrow checker limitations, this always accepts `K1` rather than
-    /// a borrowed form of it.
-    pub fn get1_mut<'a>(
-        &'a mut self,
-        key1: T::K1<'_>,
-    ) -> Option<RefMut<'a, T>> {
-        let index = self.find1_index(&T::upcast_key1(key1))?;
-        let hashes = self.make_hashes(&self.items[index]);
-        let item = &mut self.items[index];
+    pub fn get1_mut<'a, Q>(&'a mut self, key1: &Q) -> Option<RefMut<'a, T>>
+    where
+        Q: Hash + Equivalent<T::K1<'a>> + ?Sized,
+    {
+        let (dormant_map, index) = {
+            let (map, dormant_map) = DormantMutRef::new(self);
+            let index = map.find1_index(key1)?;
+            (dormant_map, index)
+        };
+
+        // SAFETY: `map` is not used after this point.
+        let awakened_map = unsafe { dormant_map.awaken() };
+        let item = &mut awakened_map.items[index];
+        let hashes =
+            awakened_map.tables.make_hashes::<T>(&item.key1(), &item.key2());
         Some(RefMut::new(hashes, item))
     }
 
     /// Removes an item from the map by its `key1`.
-    ///
-    /// Due to borrow checker limitations, this always accepts `K1` rather than
-    /// a borrowed form of it.
-    pub fn remove1(&mut self, key1: T::K1<'_>) -> Option<T> {
-        let Some(remove_index) = self.find1_index(&T::upcast_key1(key1)) else {
-            // The item was not found.
-            return None;
+    pub fn remove1<'a, Q>(&'a mut self, key1: &Q) -> Option<T>
+    where
+        Q: Hash + Equivalent<T::K1<'a>> + ?Sized,
+    {
+        let (dormant_map, remove_index) = {
+            let (map, dormant_map) = DormantMutRef::new(self);
+            let remove_index = map.find1_index(key1)?;
+            (dormant_map, remove_index)
         };
 
-        self.remove_by_index(remove_index)
+        // SAFETY: `map` is not used after this point.
+        let awakened_map = unsafe { dormant_map.awaken() };
+
+        awakened_map.remove_by_index(remove_index)
     }
 
     /// Returns true if the map contains the given `key2`.
     pub fn contains_key2<'a, Q>(&'a self, key2: &Q) -> bool
     where
-        T::K2<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Eq + Hash + ?Sized,
+        Q: Hash + Equivalent<T::K2<'a>> + ?Sized,
     {
         self.find2_index(key2).is_some()
     }
@@ -330,38 +343,45 @@ impl<T: BiHashItem> BiHashMap<T> {
     /// Gets a reference to the value associated with the given `key2`.
     pub fn get2<'a, Q>(&'a self, key2: &Q) -> Option<&'a T>
     where
-        T::K2<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Eq + Hash + ?Sized,
+        Q: Hash + Equivalent<T::K2<'a>> + ?Sized,
     {
         self.find2(key2)
     }
 
     /// Gets a mutable reference to the value associated with the given `key2`.
-    ///
-    /// Due to borrow checker limitations, this always accepts `K2` rather than
-    /// a borrowed form of it.
-    pub fn get2_mut<'a>(
-        &'a mut self,
-        key2: T::K2<'_>,
-    ) -> Option<RefMut<'a, T>> {
-        let index = self.find2_index(&T::upcast_key2(key2))?;
-        let hashes = self.make_hashes(&self.items[index]);
-        let item = &mut self.items[index];
+    pub fn get2_mut<'a, Q>(&'a mut self, key2: &Q) -> Option<RefMut<'a, T>>
+    where
+        Q: Hash + Equivalent<T::K2<'a>> + ?Sized,
+    {
+        let (dormant_map, index) = {
+            let (map, dormant_map) = DormantMutRef::new(self);
+            let index = map.find2_index(key2)?;
+            (dormant_map, index)
+        };
+
+        // SAFETY: `map` is not used after this point.
+        let awakened_map = unsafe { dormant_map.awaken() };
+        let item = &mut awakened_map.items[index];
+        let hashes =
+            awakened_map.tables.make_hashes::<T>(&item.key1(), &item.key2());
         Some(RefMut::new(hashes, item))
     }
 
     /// Removes an item from the map by its `key2`.
-    ///
-    /// Due to borrow checker limitations, this always accepts `K1` rather than
-    /// a borrowed form of it.
-    pub fn remove2(&mut self, key2: T::K2<'_>) -> Option<T> {
-        let Some(remove_index) = self.find2_index(&T::upcast_key2(key2)) else {
-            // The item was not found.
-            return None;
+    pub fn remove2<'a, Q>(&'a mut self, key2: &Q) -> Option<T>
+    where
+        Q: Hash + Equivalent<T::K2<'a>> + ?Sized,
+    {
+        let (dormant_map, remove_index) = {
+            let (map, dormant_map) = DormantMutRef::new(self);
+            let remove_index = map.find2_index(key2)?;
+            (dormant_map, remove_index)
         };
 
-        self.remove_by_index(remove_index)
+        // SAFETY: `map` is not used after this point.
+        let awakened_map = unsafe { dormant_map.awaken() };
+
+        awakened_map.remove_by_index(remove_index)
     }
 
     /// Retrieves an entry by its keys.
@@ -419,36 +439,28 @@ impl<T: BiHashItem> BiHashMap<T> {
 
     fn find1<'a, Q>(&'a self, k: &Q) -> Option<&'a T>
     where
-        T::K1<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Eq + Hash + ?Sized,
+        Q: Hash + Equivalent<T::K1<'a>> + ?Sized,
     {
         self.find1_index(k).map(|ix| &self.items[ix])
     }
 
     fn find1_index<'a, Q>(&'a self, k: &Q) -> Option<usize>
     where
-        T::K1<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Eq + Hash + ?Sized,
+        Q: Hash + Equivalent<T::K1<'a>> + ?Sized,
     {
         self.tables.k1_to_item.find_index(k, |index| self.items[index].key1())
     }
 
     fn find2<'a, Q>(&'a self, k: &Q) -> Option<&'a T>
     where
-        T::K2<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Eq + Hash + ?Sized,
+        Q: Hash + Equivalent<T::K2<'a>> + ?Sized,
     {
         self.find2_index(k).map(|ix| &self.items[ix])
     }
 
     fn find2_index<'a, Q>(&'a self, k: &Q) -> Option<usize>
     where
-        T::K2<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Eq + Hash + ?Sized,
+        Q: Hash + Equivalent<T::K2<'a>> + ?Sized,
     {
         self.tables.k2_to_item.find_index(k, |index| self.items[index].key2())
     }
@@ -683,10 +695,6 @@ impl<T: BiHashItem> BiHashMap<T> {
                 (next_index, old_items)
             }
         }
-    }
-
-    fn make_hashes(&self, item: &T) -> [MapHash; 2] {
-        self.tables.make_hashes::<T>(&item.key1(), &item.key2())
     }
 }
 
