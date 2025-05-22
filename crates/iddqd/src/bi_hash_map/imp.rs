@@ -252,6 +252,23 @@ impl<T: BiHashItem> BiHashMap<T> {
         }
     }
 
+    /// Removes the item uniquely identified by `key1` and `key2`, if it exists.
+    ///
+    /// Due to borrow checker limitations, this always accepts `K1` and `K2`
+    /// rather than borrowed forms.
+    pub fn remove_unique(
+        &mut self,
+        key1: T::K1<'_>,
+        key2: T::K2<'_>,
+    ) -> Option<T> {
+        let index = self.find1_index(&T::upcast_key1(key1))?;
+        if self.items[index].key2().borrow() == T::upcast_key2(key2).borrow() {
+            self.remove_by_index(index)
+        } else {
+            None
+        }
+    }
+
     /// Returns true if the map contains the given `key1`.
     pub fn contains_key1<'a, Q>(&'a self, key1: &Q) -> bool
     where
@@ -292,6 +309,53 @@ impl<T: BiHashItem> BiHashMap<T> {
     /// a borrowed form of it.
     pub fn remove1(&mut self, key1: T::K1<'_>) -> Option<T> {
         let Some(remove_index) = self.find1_index(&T::upcast_key1(key1)) else {
+            // The item was not found.
+            return None;
+        };
+
+        self.remove_by_index(remove_index)
+    }
+
+    /// Returns true if the map contains the given `key2`.
+    pub fn contains_key2<'a, Q>(&'a self, key2: &Q) -> bool
+    where
+        T::K2<'a>: Borrow<Q>,
+        T: 'a,
+        Q: Eq + Hash + ?Sized,
+    {
+        self.find2_index(key2).is_some()
+    }
+
+    /// Gets a reference to the value associated with the given `key2`.
+    pub fn get2<'a, Q>(&'a self, key2: &Q) -> Option<&'a T>
+    where
+        T::K2<'a>: Borrow<Q>,
+        T: 'a,
+        Q: Eq + Hash + ?Sized,
+    {
+        self.find2(key2)
+    }
+
+    /// Gets a mutable reference to the value associated with the given `key2`.
+    ///
+    /// Due to borrow checker limitations, this always accepts `K2` rather than
+    /// a borrowed form of it.
+    pub fn get2_mut<'a>(
+        &'a mut self,
+        key2: T::K2<'_>,
+    ) -> Option<RefMut<'a, T>> {
+        let index = self.find2_index(&T::upcast_key2(key2))?;
+        let hashes = self.make_hashes(&self.items[index]);
+        let item = &mut self.items[index];
+        Some(RefMut::new(hashes, item))
+    }
+
+    /// Removes an item from the map by its `key2`.
+    ///
+    /// Due to borrow checker limitations, this always accepts `K1` rather than
+    /// a borrowed form of it.
+    pub fn remove2(&mut self, key2: T::K2<'_>) -> Option<T> {
+        let Some(remove_index) = self.find2_index(&T::upcast_key2(key2)) else {
             // The item was not found.
             return None;
         };
@@ -350,53 +414,6 @@ impl<T: BiHashItem> BiHashMap<T> {
                 )
             }),
         }
-    }
-
-    /// Returns true if the map contains the given `key2`.
-    pub fn contains_key2<'a, Q>(&'a self, key2: &Q) -> bool
-    where
-        T::K2<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Eq + Hash + ?Sized,
-    {
-        self.find2_index(key2).is_some()
-    }
-
-    /// Gets a reference to the value associated with the given `key2`.
-    pub fn get2<'a, Q>(&'a self, key2: &Q) -> Option<&'a T>
-    where
-        T::K2<'a>: Borrow<Q>,
-        T: 'a,
-        Q: Eq + Hash + ?Sized,
-    {
-        self.find2(key2)
-    }
-
-    /// Gets a mutable reference to the value associated with the given `key2`.
-    ///
-    /// Due to borrow checker limitations, this always accepts `K2` rather than
-    /// a borrowed form of it.
-    pub fn get2_mut<'a>(
-        &'a mut self,
-        key2: T::K2<'_>,
-    ) -> Option<RefMut<'a, T>> {
-        let index = self.find2_index(&T::upcast_key2(key2))?;
-        let hashes = self.make_hashes(&self.items[index]);
-        let item = &mut self.items[index];
-        Some(RefMut::new(hashes, item))
-    }
-
-    /// Removes an item from the map by its `key2`.
-    ///
-    /// Due to borrow checker limitations, this always accepts `K1` rather than
-    /// a borrowed form of it.
-    pub fn remove2(&mut self, key2: T::K2<'_>) -> Option<T> {
-        let Some(remove_index) = self.find2_index(&T::upcast_key2(key2)) else {
-            // The item was not found.
-            return None;
-        };
-
-        self.remove_by_index(remove_index)
     }
 
     fn find1<'a, Q>(&'a self, k: &Q) -> Option<&'a T>
