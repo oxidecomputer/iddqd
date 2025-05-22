@@ -220,13 +220,6 @@ mod support;
 pub mod tri_hash_map;
 
 pub use bi_hash_map::{imp::BiHashMap, trait_defs::BiHashItem};
-pub use id_hash_map::{imp::IdHashMap, trait_defs::IdHashItem};
-#[cfg(feature = "std")]
-pub use id_ord_map::{imp::IdOrdMap, trait_defs::IdOrdItem};
-#[cfg(feature = "daft")]
-pub use support::daft_utils::IdLeaf;
-pub use tri_hash_map::{imp::TriHashMap, trait_defs::TriHashItem};
-
 // Re-exports of equivalent traits. Comparable is only used by IdOrdMap, hence
 // is restricted to std.
 #[cfg(feature = "std")]
@@ -234,3 +227,9 @@ pub use tri_hash_map::{imp::TriHashMap, trait_defs::TriHashItem};
 pub use equivalent::Comparable;
 #[doc(no_inline)]
 pub use equivalent::Equivalent;
+pub use id_hash_map::{imp::IdHashMap, trait_defs::IdHashItem};
+#[cfg(feature = "std")]
+pub use id_ord_map::{imp::IdOrdMap, trait_defs::IdOrdItem};
+#[cfg(feature = "daft")]
+pub use support::daft_utils::IdLeaf;
+pub use tri_hash_map::{imp::TriHashMap, trait_defs::TriHashItem};
