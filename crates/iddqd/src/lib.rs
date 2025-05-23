@@ -90,7 +90,7 @@
 //!
 //! Keys don't have to be borrowed from the value. For smaller `Copy` types,
 //! it's recommended that you use owned keys. Here's an example of using
-//! [`IdHashMap`] with a small integer key:
+//! [`IdOrdMap`] with a small integer key:
 //!
 //! ```
 //! # #[cfg(feature = "std")] {
