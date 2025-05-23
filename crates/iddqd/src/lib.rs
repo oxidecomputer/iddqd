@@ -4,14 +4,16 @@
 //!
 //! - [`IdOrdMap`]: A B-Tree based map where keys are borrowed from values.
 //! - [`IdHashMap`]: A hash map where keys are borrowed from values.
-//! - [`BiHashMap`]: A bijective (1:1) hash map with two keys, borrowed from values.
-//! - [`TriHashMap`]: A trijective (1:1:1) hash map with three keys, borrowed from values.
+//! - [`BiHashMap`]: A bijective (1:1) hash map with two keys, borrowed from
+//!       values.
+//! - [`TriHashMap`]: A trijective (1:1:1) hash map with three keys, borrowed
+//!       from values.
 //!
 //! # Usage
 //!
 //! * Pick your ID map type.
-//! * Depending on the ID map type, implement [`IdOrdItem`], [`IdHashItem`], [`BiHashItem`], or
-//!   [`TriHashItem`] for your value type.
+//! * Depending on the ID map type, implement [`IdOrdItem`], [`IdHashItem`],
+//!   [`BiHashItem`], or [`TriHashItem`] for your value type.
 //! * Store values in the ID map type.
 //!
 //! ## Features
@@ -36,8 +38,8 @@
 //!
 //! * [`BiHashMap`] has two keys, and provides a bijection (1:1 relationship)
 //!   between the keys.
-//! * [`TriHashMap`] has three keys, and provides a trijection (1:1:1 relationship)
-//!   between the keys.
+//! * [`TriHashMap`] has three keys, and provides a trijection (1:1:1
+//!   relationship) between the keys.
 //!
 //! As a consequence of the general API structure, maps can have arbitrary
 //! non-key data associated with them as well.
@@ -83,6 +85,31 @@
 //! for user in &users {
 //!     println!("User {}: {}", user.name, user.age);
 //! }
+//! # }
+//! ```
+//!
+//! Keys don't have to be borrowed from the value. For smaller `Copy` types,
+//! it's recommended that you use owned keys. Here's an example of using
+//! [`IdHashMap`] with a small integer key:
+//!
+//! ```
+//! # #[cfg(feature = "std")] {
+//! # use iddqd::{IdOrdMap, IdOrdItem, id_upcast};
+//! struct Record {
+//!     id: u32,
+//!     data: String,
+//! }
+//!
+//! impl IdOrdItem for Record {
+//!     // The key type is small, so an owned key is preferred.
+//!     type Key<'a> = u32;
+//!
+//!     fn key(&self) -> Self::Key<'_> { self.id }
+//!
+//!     id_upcast!();
+//! }
+//!
+//! // ...
 //! # }
 //! ```
 //!
@@ -169,20 +196,22 @@
 //!
 //! # Optional features
 //!
-//! - `serde`: Enables serde support for all ID map types. *Not enabled by default.*
-//! - `daft`: Enables [`daft`] support for all ID map types. *Not enabled by default.*
+//! - `serde`: Enables serde support for all ID map types. *Not enabled by
+//!   default.*
+//! - `daft`: Enables [`daft`] support for all ID map types. *Not enabled by
+//!   default.*
 //! - `std`: Enables std support. *Enabled by default.*
 //!
 //! # Related work
 //!
 //! - [`bimap`](https://docs.rs/bimap) provides a bijective map, but does not
-//!   have a way to associate arbitrary values with each pair of keys. However, it
-//!   does support an ordered map type without the need for std.
-//! - [`multi_index_map`](https://crates.io/crates/multi_index_map) provides maps
-//!   with arbitrary indexes on fields, and is more flexible than this crate. However,
-//!   it doesn't expose generic traits for map types, and it requires key types to be
-//!   `Clone`. In `iddqd`, we pick a somewhat different point in the design space, but
-//!   we think `multi_index_map` is also great.
+//!   have a way to associate arbitrary values with each pair of keys. However,
+//!   it does support an ordered map type without the need for std.
+//! - [`multi_index_map`](https://crates.io/crates/multi_index_map) provides
+//!   maps with arbitrary indexes on fields, and is more flexible than this
+//!   crate. However, it doesn't expose generic traits for map types, and it
+//!   requires key types to be `Clone`. In `iddqd`, we pick a somewhat different
+//!   point in the design space, but we think `multi_index_map` is also great.
 //!
 //! # Minimum supported Rust version (MSRV)
 //!
