@@ -98,7 +98,7 @@ for user in &users {
 
 Keys don’t have to be borrowed from the value. For smaller `Copy` types,
 it’s recommended that you use owned keys. Here’s an example of using
-[`IdHashMap`](https://docs.rs/iddqd/0.3.1/iddqd/id_hash_map/imp/struct.IdHashMap.html) with a small integer key:
+[`IdOrdMap`](https://docs.rs/iddqd/0.3.1/iddqd/id_ord_map/imp/struct.IdOrdMap.html) with a small integer key:
 
 ````rust
 struct Record {
