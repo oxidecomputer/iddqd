@@ -5,9 +5,9 @@
 //! - [`IdOrdMap`]: A B-Tree based map where keys are borrowed from values.
 //! - [`IdHashMap`]: A hash map where keys are borrowed from values.
 //! - [`BiHashMap`]: A bijective (1:1) hash map with two keys, borrowed from
-//!       values.
+//!   values.
 //! - [`TriHashMap`]: A trijective (1:1:1) hash map with three keys, borrowed
-//!       from values.
+//!   from values.
 //!
 //! # Usage
 //!
