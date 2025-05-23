@@ -113,7 +113,9 @@
 //! # }
 //! ```
 //!
-//! An example for [`IdHashMap`], showing complex borrowed keys.
+//! An example for [`IdHashMap`], showing a complex borrowed key. Here,
+//! "complex" means that the key is not a reference itself, but a struct that
+//! returns references to more than one field from the value.
 //!
 //! ```
 //! use iddqd::{IdHashMap, IdHashItem, id_upcast};
@@ -126,8 +128,8 @@
 //! }
 //!
 //! // The key type is a borrowed form of the name and version. It needs to
-//! // implement `Hash + Eq`.
-//! #[derive(Hash, PartialEq, Eq)]
+//! // implement `Eq + Hash`.
+//! #[derive(Eq, Hash, PartialEq)]
 //! struct ArtifactKey<'a> {
 //!     name: &'a str,
 //!     version: &'a str,
@@ -172,6 +174,103 @@
 //!     b"data1",
 //! );
 //! ```
+//!
+//! ### `Equivalent` and `Comparable`
+//!
+//! An important feature of the standard library's maps is that they allow any
+//! borrowed form of the key type to be used for lookups; for example, a
+//! `HashMap<String, T>` type can be looked up with a `&str` key. This is done
+//! through the [`Borrow`] trait.
+//!
+//! But the [`Borrow`] trait is a bit too restrictive for complex keys such as
+//! `ArtifactKey` above, requiring workarounds such as [dynamic
+//! dispatch](https://github.com/sunshowers-code/borrow-complex-key-example). To
+//! address this, the crates.io ecosystem has standardized on the [`Equivalent`]
+//! and [`Comparable`] traits as generalizations of `Borrow`. The map types in
+//! this crate require these traits.
+//!
+//! For a key type `T::Key<'_>` and a lookup type `L`:
+//!
+//! * The hash map types require `L: Hash + Equivalent<T::Key<'_>>`. Also, `L`
+//!   must hash in the same way as `T::Key<'_>`. Typically, this is done by
+//!   ensuring that enum variants and struct fields are in the same
+//!   order[^proptest].
+//! * [`IdOrdMap`] requires `L: Comparable<T::Key<'_>>`, which in turn requires
+//!   `Equivalent<T::Key<'_>>`. (There's no need for `L` to implement `Ord` or
+//!   `Eq` itself.)
+//!
+//! [^proptest]: We recommend that you test this with e.g. a property-based
+//!   test: see [this
+//!   example](https://github.com/sunshowers-code/borrow-complex-key-example/blob/a6f17699/src/lib.rs#L233).
+//!
+//! Continuing the `ArtifactKey` example from above, we can perform a lookup
+//! using a key of this owned form:
+//!
+//! ```
+//! use equivalent::Equivalent;
+//! # use iddqd::{IdHashMap, IdHashItem, id_upcast};
+//! # #[derive(Debug)]
+//! # struct Artifact {
+//! #     name: String,
+//! #     version: String,
+//! #     data: Vec<u8>,
+//! # }
+//! # #[derive(Eq, Hash, PartialEq)]
+//! # struct ArtifactKey<'a> {
+//! #     name: &'a str,
+//! #     version: &'a str,
+//! # }
+//! # impl IdHashItem for Artifact {
+//! #     type Key<'a> = ArtifactKey<'a>;
+//! #     fn key(&self) -> Self::Key<'_> {
+//! #         ArtifactKey {
+//! #             name: &self.name,
+//! #             version: &self.version,
+//! #         }
+//! #     }
+//! #     id_upcast!();
+//! # }
+//! # let mut artifacts = IdHashMap::<Artifact>::new();
+//! #
+//! # // Add artifacts to the map.
+//! # artifacts.insert_unique(Artifact {
+//! #     name: "artifact1".to_owned(),
+//! #     version: "1.0".to_owned(),
+//! #     data: b"data1".to_vec(),
+//! # })
+//! # .unwrap();
+//!
+//! // This is an owned form of ArtifactKey. The fields are in the same
+//! // order as ArtifactKey's fields, so it hashes the same way.
+//! #[derive(Hash)]
+//! struct OwnedArtifactKey {
+//!     name: String,
+//!     version: String,
+//! }
+//!
+//! impl Equivalent<ArtifactKey<'_>> for OwnedArtifactKey {
+//!     fn equivalent(&self, other: &ArtifactKey<'_>) -> bool {
+//!         self.name == other.name && self.version == other.version
+//!     }
+//! }
+//!
+//! // Now you can use OwnedArtifactKey to look up the artifact.
+//! let owned_key = OwnedArtifactKey {
+//!     name: "artifact1".to_owned(),
+//!     version: "1.0".to_owned(),
+//! };
+//! assert_eq!(
+//!     artifacts
+//!         .get(&owned_key)
+//!         .unwrap()
+//!         .data,
+//!     b"data1",
+//! );
+//! ```
+//!
+//! There's a blanket implementation of [`Equivalent`] and [`Comparable`] for
+//! [`Borrow`], so if your type already implements [`Borrow`], there aren't any
+//! extra steps to take.
 //!
 //! # Testing
 //!
@@ -223,6 +322,8 @@
 //! The name `iddqd` is a reference to [a cheat
 //! code](https://doomwiki.org/wiki/Doom_cheat_codes) in the classic video game
 //! _Doom_. It has `id` in the name, and is short and memorable.
+//!
+//! [`Borrow`]: core::borrow::Borrow
 
 #![no_std]
 #![cfg_attr(doc_cfg, feature(doc_auto_cfg))]
