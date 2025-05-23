@@ -1,6 +1,8 @@
 //! An example demonstrating `IdOrdMap` use with complex borrowed keys.
 
-use iddqd::{IdOrdItem, IdOrdMap, id_ord_map::Entry, id_upcast};
+use iddqd::{
+    Comparable, Equivalent, IdOrdItem, IdOrdMap, id_ord_map::Entry, id_upcast,
+};
 use std::path::{Path, PathBuf};
 
 /// These are the items we'll store in the `IdOrdMap`.
@@ -93,7 +95,7 @@ fn main() {
         d: vec![1, 2, 3],
     };
 
-    for item in [item, item2, item3] {
+    for item in [item, item2, item3.clone()] {
         let entry = map.entry(item.key());
         match entry {
             Entry::Occupied(entry) => {
@@ -108,4 +110,32 @@ fn main() {
             }
         }
     }
+
+    // Lookups can be done with any key type that implements `Comparable`. This
+    // is strictly more general than the Borrow you might be used to. For
+    // example, lookups against an owned key:
+    #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    struct MyKeyOwned {
+        b: usize,
+        c: PathBuf,
+        d: Vec<usize>,
+    }
+
+    impl Equivalent<MyKey<'_>> for MyKeyOwned {
+        fn equivalent(&self, other: &MyKey<'_>) -> bool {
+            self.b == other.b && self.c == other.c && self.d == other.d
+        }
+    }
+
+    impl Comparable<MyKey<'_>> for MyKeyOwned {
+        fn compare(&self, other: &MyKey<'_>) -> std::cmp::Ordering {
+            self.b
+                .cmp(&other.b)
+                .then_with(|| self.c.as_path().cmp(other.c))
+                .then_with(|| self.d.as_slice().cmp(other.d))
+        }
+    }
+
+    let key = MyKeyOwned { b: 20, c: PathBuf::from("/"), d: vec![1, 2, 3] };
+    assert_eq!(map.get(&key), Some(&item3));
 }
