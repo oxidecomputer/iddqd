@@ -122,7 +122,7 @@ impl MapBTreeTable {
     ) -> Option<usize>
     where
         K: Ord,
-        Q: ?Sized + Ord + Comparable<K>,
+        Q: ?Sized + Comparable<K>,
         F: Fn(usize) -> K,
     {
         let f = find_cmp(key, lookup);
@@ -148,7 +148,7 @@ impl MapBTreeTable {
     pub(crate) fn insert<K, Q, F>(&mut self, index: usize, key: &Q, lookup: F)
     where
         K: Ord,
-        Q: ?Sized + Ord + Comparable<K>,
+        Q: ?Sized + Comparable<K>,
         F: Fn(usize) -> K,
     {
         let f = insert_cmp(index, key, lookup);
@@ -234,7 +234,7 @@ fn find_cmp<'a, K, Q, F>(
     lookup: F,
 ) -> impl Fn(Index, Index) -> Ordering + 'a
 where
-    Q: ?Sized + Ord + Comparable<K>,
+    Q: ?Sized + Comparable<K>,
     F: 'a + Fn(usize) -> K,
     K: Ord,
 {
@@ -262,7 +262,7 @@ fn insert_cmp<'a, K, Q, F>(
     lookup: F,
 ) -> impl Fn(Index, Index) -> Ordering + 'a
 where
-    Q: ?Sized + Ord + Comparable<K>,
+    Q: ?Sized + Comparable<K>,
     F: 'a + Fn(usize) -> K,
     K: Ord,
 {

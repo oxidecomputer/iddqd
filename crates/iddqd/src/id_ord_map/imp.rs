@@ -223,7 +223,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     /// Returns true if the map contains the given `key`.
     pub fn contains_key<'a, Q>(&'a self, key: &Q) -> bool
     where
-        Q: ?Sized + Ord + Comparable<T::Key<'a>>,
+        Q: ?Sized + Comparable<T::Key<'a>>,
     {
         self.find_index(key).is_some()
     }
@@ -231,7 +231,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     /// Gets a reference to the value associated with the given `key`.
     pub fn get<'a, Q>(&'a self, key: &Q) -> Option<&'a T>
     where
-        Q: ?Sized + Ord + Comparable<T::Key<'a>>,
+        Q: ?Sized + Comparable<T::Key<'a>>,
     {
         self.find(key)
     }
@@ -239,7 +239,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     /// Gets a mutable reference to the item associated with the given `key`.
     pub fn get_mut<'a, Q>(&'a mut self, key: &Q) -> Option<RefMut<'a, T>>
     where
-        Q: ?Sized + Ord + Comparable<T::Key<'a>>,
+        Q: ?Sized + Comparable<T::Key<'a>>,
         for<'k> T::Key<'k>: Hash,
     {
         let (dormant_map, index) = {
@@ -258,7 +258,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     /// Removes an item from the map by its `key`.
     pub fn remove<'a, Q>(&'a mut self, key: &Q) -> Option<T>
     where
-        Q: ?Sized + Ord + Comparable<T::Key<'a>>,
+        Q: ?Sized + Comparable<T::Key<'a>>,
     {
         let (dormant_map, remove_index) = {
             let (map, dormant_map) = DormantMutRef::new(self);
@@ -298,7 +298,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
 
     fn find<'a, Q>(&'a self, k: &Q) -> Option<&'a T>
     where
-        Q: ?Sized + Ord + Comparable<T::Key<'a>>,
+        Q: ?Sized + Comparable<T::Key<'a>>,
     {
         self.find_index(k).map(|ix| &self.items[ix])
     }
@@ -314,7 +314,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
 
     fn find_index<'a, Q>(&'a self, k: &Q) -> Option<usize>
     where
-        Q: ?Sized + Ord + Comparable<T::Key<'a>>,
+        Q: ?Sized + Comparable<T::Key<'a>>,
     {
         self.tables.key_to_item.find_index(k, |index| self.items[index].key())
     }

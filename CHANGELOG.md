@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.2] - 2025-05-23
+
+### Added
+
+- Added a note in the README and `lib.rs` that small copyable keys like integers are best returned as owned ones.
+
+### Changed
+
+Dropped the `Ord` requirement for `Comparable` keys. (The `Hash` requirement for `Equivalent` has to remain.)
+
 ## [0.3.1] - 2025-05-22
 
 ### Added
@@ -53,6 +63,7 @@
 
 Initial release.
 
+[0.3.2]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.2
 [0.3.1]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.1
 [0.3.0]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.0
 [0.2.1]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.2.1

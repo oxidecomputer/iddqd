@@ -114,7 +114,6 @@ fn main() {
     // Lookups can be done with any key type that implements `Comparable`. This
     // is strictly more general than the Borrow you might be used to. For
     // example, lookups against an owned key:
-    #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
     struct MyKeyOwned {
         b: usize,
         c: PathBuf,

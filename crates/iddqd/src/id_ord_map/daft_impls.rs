@@ -65,7 +65,7 @@ impl<'daft, T: ?Sized + IdOrdItem + Eq> Diff<'daft, T> {
     /// Returns true if the item corresponding to the key is unchanged.
     pub fn is_unchanged<'a, Q>(&'a self, key: &Q) -> bool
     where
-        Q: ?Sized + Ord + Comparable<T::Key<'a>>,
+        Q: ?Sized + Comparable<T::Key<'a>>,
     {
         self.common.get(key).is_some_and(|leaf| leaf.is_unchanged())
     }
@@ -74,7 +74,7 @@ impl<'daft, T: ?Sized + IdOrdItem + Eq> Diff<'daft, T> {
     /// otherwise `None`.
     pub fn get_unchanged<'a, Q>(&'a self, key: &Q) -> Option<&'daft T>
     where
-        Q: ?Sized + Ord + Comparable<T::Key<'a>>,
+        Q: ?Sized + Comparable<T::Key<'a>>,
     {
         self.common
             .get(key)
@@ -92,7 +92,7 @@ impl<'daft, T: ?Sized + IdOrdItem + Eq> Diff<'daft, T> {
     /// modified.
     pub fn is_modified<'a, Q>(&'a self, key: &Q) -> bool
     where
-        Q: ?Sized + Ord + Comparable<T::Key<'a>>,
+        Q: ?Sized + Comparable<T::Key<'a>>,
     {
         self.common.get(key).is_some_and(|leaf| leaf.is_modified())
     }
@@ -101,7 +101,7 @@ impl<'daft, T: ?Sized + IdOrdItem + Eq> Diff<'daft, T> {
     /// otherwise `None`.
     pub fn get_modified<'a, Q>(&'a self, key: &Q) -> Option<IdLeaf<&'daft T>>
     where
-        Q: ?Sized + Ord + Comparable<T::Key<'a>>,
+        Q: ?Sized + Comparable<T::Key<'a>>,
     {
         self.common
             .get(key)
