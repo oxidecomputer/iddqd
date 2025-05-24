@@ -6,7 +6,7 @@ use iddqd_test_utils::{
     eq_props::{assert_eq_props, assert_ne_props},
     naive_map::NaiveMap,
     test_item::{
-        TestItem, TestKey1, TestKey2, TestKey3, assert_iter_eq,
+        HashBuilder, TestItem, TestKey1, TestKey2, TestKey3, assert_iter_eq,
         test_item_permutation_strategy,
     },
 };
@@ -42,7 +42,7 @@ impl TriHashItem for SimpleItem {
 
 #[test]
 fn debug_impls() {
-    let mut map = TriHashMap::<SimpleItem>::new();
+    let mut map = TriHashMap::<SimpleItem, HashBuilder>::default();
     map.insert_unique(SimpleItem { key1: 1, key2: 'a', key3: 0 }).unwrap();
     map.insert_unique(SimpleItem { key1: 20, key2: 'b', key3: 1 }).unwrap();
     map.insert_unique(SimpleItem { key1: 10, key2: 'c', key3: 2 }).unwrap();
@@ -63,7 +63,7 @@ fn debug_impls() {
 
 #[test]
 fn test_extend() {
-    let mut map = TriHashMap::<TestItem>::new();
+    let mut map = TriHashMap::<TestItem, HashBuilder>::default();
     let items = vec![
         TestItem::new(1, 'a', "x", "v"),
         TestItem::new(2, 'b', "y", "w"),
@@ -96,13 +96,16 @@ fn test_extend() {
 
 #[test]
 fn with_capacity() {
-    let map = TriHashMap::<TestItem>::with_capacity(1024);
+    let map = TriHashMap::<TestItem, HashBuilder>::with_capacity_and_hasher(
+        1024,
+        HashBuilder::default(),
+    );
     assert!(map.capacity() >= 1024);
 }
 
 #[test]
 fn test_insert_unique() {
-    let mut map = TriHashMap::<TestItem>::new();
+    let mut map = TriHashMap::<TestItem, HashBuilder>::default();
 
     // Add an element.
     let v1 = TestItem::new(0, 'a', "x", "v");
@@ -136,7 +139,7 @@ fn test_insert_unique() {
     // Iterate over the items mutably. This ensures that miri detects UB if it
     // exists.
     {
-        let mut items: Vec<RefMut<_>> = map.iter_mut().collect();
+        let mut items: Vec<RefMut<_, HashBuilder>> = map.iter_mut().collect();
         items.sort_by(|a, b| a.key1().cmp(&b.key1()));
         let e1 = &items[0];
         assert_eq!(**e1, v1);
@@ -169,7 +172,7 @@ fn test_insert_unique() {
 // test, for easier debugging.
 #[test]
 fn test_insert_overwrite() {
-    let mut map = TriHashMap::<TestItem>::new();
+    let mut map = TriHashMap::<TestItem, HashBuilder>::default();
 
     // Add an element.
     let v1 = TestItem::new(20, 'a', "x", "v");
@@ -220,7 +223,7 @@ fn proptest_ops(
         Operation,
     >,
 ) {
-    let mut map = TriHashMap::<TestItem>::new();
+    let mut map = TriHashMap::<TestItem, HashBuilder>::default();
     let mut naive_map = NaiveMap::new_key123();
 
     let mut compactness = ValidateCompact::Compact;
@@ -312,12 +315,12 @@ fn proptest_ops(
 
 #[proptest(cases = 64)]
 fn proptest_permutation_eq(
-    #[strategy(test_item_permutation_strategy::<TriHashMap<TestItem>>(0..256))]
+    #[strategy(test_item_permutation_strategy::<TriHashMap<TestItem, HashBuilder>>(0..256))]
     items: (Vec<TestItem>, Vec<TestItem>),
 ) {
     let (items1, items2) = items;
-    let mut map1 = TriHashMap::<TestItem>::new();
-    let mut map2 = TriHashMap::<TestItem>::new();
+    let mut map1 = TriHashMap::<TestItem, HashBuilder>::default();
+    let mut map2 = TriHashMap::<TestItem, HashBuilder>::default();
 
     for item in items1 {
         map1.insert_unique(item.clone()).unwrap();
@@ -335,8 +338,8 @@ fn proptest_permutation_eq(
 // example-based test.
 #[test]
 fn test_permutation_eq_examples() {
-    let mut map1 = TriHashMap::<TestItem>::new();
-    let mut map2 = TriHashMap::<TestItem>::new();
+    let mut map1 = TriHashMap::<TestItem, HashBuilder>::default();
+    let mut map2 = TriHashMap::<TestItem, HashBuilder>::default();
 
     // Two empty maps are equal.
     assert_eq!(map1, map2);
@@ -406,7 +409,7 @@ fn test_permutation_eq_examples() {
 #[test]
 #[should_panic(expected = "key1 changed during RefMut borrow")]
 fn get_mut_panics_if_key1_changes() {
-    let mut map = TriHashMap::<TestItem>::new();
+    let mut map = TriHashMap::<TestItem, HashBuilder>::default();
     map.insert_unique(TestItem::new(128, 'b', "y", "x")).unwrap();
     map.get1_mut(&TestKey1::new(&128)).unwrap().key1 = 2;
 }
@@ -414,7 +417,7 @@ fn get_mut_panics_if_key1_changes() {
 #[test]
 #[should_panic(expected = "key2 changed during RefMut borrow")]
 fn get_mut_panics_if_key2_changes() {
-    let mut map = TriHashMap::<TestItem>::new();
+    let mut map = TriHashMap::<TestItem, HashBuilder>::default();
     map.insert_unique(TestItem::new(128, 'b', "y", "x")).unwrap();
     map.get1_mut(&TestKey1::new(&128)).unwrap().key2 = 'c';
 }
@@ -422,7 +425,7 @@ fn get_mut_panics_if_key2_changes() {
 #[test]
 #[should_panic(expected = "key3 changed during RefMut borrow")]
 fn get_mut_panics_if_key3_changes() {
-    let mut map = TriHashMap::<TestItem>::new();
+    let mut map = TriHashMap::<TestItem, HashBuilder>::default();
     map.insert_unique(TestItem::new(128, 'b', "y", "x")).unwrap();
     map.get1_mut(&TestKey1::new(&128)).unwrap().key3 = "z".to_owned();
 }
@@ -431,12 +434,13 @@ fn get_mut_panics_if_key3_changes() {
 mod serde_tests {
     use iddqd::TriHashMap;
     use iddqd_test_utils::{
-        serde_utils::assert_serialize_roundtrip, test_item::TestItem,
+        serde_utils::assert_serialize_roundtrip,
+        test_item::{HashBuilder, TestItem},
     };
     use test_strategy::proptest;
 
     #[proptest]
     fn proptest_serialize_roundtrip(values: Vec<TestItem>) {
-        assert_serialize_roundtrip::<TriHashMap<TestItem>>(values);
+        assert_serialize_roundtrip::<TriHashMap<TestItem, HashBuilder>>(values);
     }
 }

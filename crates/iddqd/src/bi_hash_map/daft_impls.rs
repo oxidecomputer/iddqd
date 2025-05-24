@@ -1,8 +1,13 @@
 //! `Diffable` implementation.
 
 use super::{BiHashItem, BiHashMap};
-use crate::{IdHashItem, id_hash_map, support::daft_utils::IdLeaf};
-use core::{fmt, hash::Hash};
+use crate::{
+    DefaultHashBuilder, IdHashItem, id_hash_map, support::daft_utils::IdLeaf,
+};
+use core::{
+    fmt,
+    hash::{BuildHasher, Hash},
+};
 use daft::Diffable;
 use derive_where::derive_where;
 use equivalent::Equivalent;
@@ -27,7 +32,6 @@ impl<T: BiHashItem> Diffable for BiHashMap<T> {
 /// * [`Self::by_key1`] to get a diff indexed by `key1`.
 /// * [`Self::by_key2`] to get a diff indexed by `key2`.
 /// * [`Self::by_unique`] to get a diff indexed by `key1` and `key2`.
-#[derive(PartialEq, Eq)]
 #[derive_where(
     Debug;
     T: fmt::Debug,
@@ -35,22 +39,26 @@ impl<T: BiHashItem> Diffable for BiHashMap<T> {
     for<'k> T::K2<'k>: fmt::Debug
 )]
 #[derive_where(Clone, Copy)]
-pub struct MapLeaf<'daft, T: BiHashItem> {
+#[derive_where(PartialEq; T: PartialEq, S: Clone + BuildHasher)]
+#[derive_where(Eq; T: Eq, S: Clone + BuildHasher)]
+pub struct MapLeaf<'daft, T: BiHashItem, S = DefaultHashBuilder> {
     /// The before map.
-    pub before: &'daft BiHashMap<T>,
+    pub before: &'daft BiHashMap<T, S>,
 
     /// The after map.
-    pub after: &'daft BiHashMap<T>,
+    pub after: &'daft BiHashMap<T, S>,
 }
 
-impl<'daft, T: BiHashItem> MapLeaf<'daft, T> {
+impl<'daft, T: BiHashItem, S: Default + Clone + BuildHasher>
+    MapLeaf<'daft, T, S>
+{
     /// Returns a diff of two [`BiHashMap`]s, indexed by `key1`.
     ///
     /// Note that the return type is a [`id_hash_map::Diff`].
-    pub fn by_key1(self) -> id_hash_map::Diff<'daft, ByK1<T>> {
+    pub fn by_key1(self) -> id_hash_map::Diff<'daft, ByK1<T>, S> {
         impl_diff_ref_cast!(
             self,
-            id_hash_map::Diff::<'daft, ByK1<T>>,
+            id_hash_map::Diff::<'daft, ByK1<T>, S>,
             key1,
             get1,
             contains_key1,
@@ -61,10 +69,10 @@ impl<'daft, T: BiHashItem> MapLeaf<'daft, T> {
     /// Returns a diff of two [`BiHashMap`]s, indexed by `key2`.
     ///
     /// Note that the return type is a [`id_hash_map::Diff`].
-    pub fn by_key2(self) -> id_hash_map::Diff<'daft, ByK2<T>> {
+    pub fn by_key2(self) -> id_hash_map::Diff<'daft, ByK2<T>, S> {
         impl_diff_ref_cast!(
             self,
-            id_hash_map::Diff::<'daft, ByK2<T>>,
+            id_hash_map::Diff::<'daft, ByK2<T>, S>,
             key2,
             get2,
             contains_key2,
@@ -75,8 +83,8 @@ impl<'daft, T: BiHashItem> MapLeaf<'daft, T> {
     /// Returns a diff of two [`BiHashMap`]s, indexed by `key1` and `key2`.
     ///
     /// The return type is a [`Diff`].
-    pub fn by_unique(self) -> Diff<'daft, T> {
-        let mut diff = Diff::new();
+    pub fn by_unique(self) -> Diff<'daft, T, S> {
+        let mut diff = Diff::default();
         for item in self.before {
             if let Some(after_item) =
                 self.after.get_unique(&item.key1(), &item.key2())
@@ -96,19 +104,20 @@ impl<'daft, T: BiHashItem> MapLeaf<'daft, T> {
 }
 
 /// A diff of two [`BiHashMap`]s, indexed by both `key1` and `key2`.
-pub struct Diff<'daft, T: ?Sized + BiHashItem> {
+pub struct Diff<'daft, T: ?Sized + BiHashItem, S = DefaultHashBuilder> {
     /// Entries common to both maps.
     ///
     /// Items are stored as [`IdLeaf`]s to references.
-    pub common: BiHashMap<IdLeaf<&'daft T>>,
+    pub common: BiHashMap<IdLeaf<&'daft T>, S>,
 
     /// Added entries.
-    pub added: BiHashMap<&'daft T>,
+    pub added: BiHashMap<&'daft T, S>,
 
     /// Removed entries.
-    pub removed: BiHashMap<&'daft T>,
+    pub removed: BiHashMap<&'daft T, S>,
 }
 
+#[cfg(feature = "default-hasher")]
 impl<'daft, T: ?Sized + BiHashItem> Diff<'daft, T> {
     /// Creates a new `BiHashMapDiff` from two maps.
     pub fn new() -> Self {
@@ -120,7 +129,20 @@ impl<'daft, T: ?Sized + BiHashItem> Diff<'daft, T> {
     }
 }
 
-impl<'daft, T: ?Sized + BiHashItem + Eq> Diff<'daft, T> {
+impl<'daft, T: ?Sized + BiHashItem, S: Clone + BuildHasher> Diff<'daft, T, S> {
+    /// Creates a new `BiHashMapDiff` with the given hasher.
+    pub fn with_hasher(hasher: S) -> Self {
+        Self {
+            common: BiHashMap::with_hasher(hasher.clone()),
+            added: BiHashMap::with_hasher(hasher.clone()),
+            removed: BiHashMap::with_hasher(hasher),
+        }
+    }
+}
+
+impl<'daft, T: ?Sized + BiHashItem + Eq, S: Clone + BuildHasher>
+    Diff<'daft, T, S>
+{
     /// Returns an iterator over unchanged keys and values.
     pub fn unchanged(&self) -> impl Iterator<Item = &'daft T> + '_ {
         self.common
@@ -226,10 +248,14 @@ impl<'daft, T: ?Sized + BiHashItem + Eq> Diff<'daft, T> {
 
 // Note: not deriving Default here because we don't want to require
 // T to be Default.
-impl<'daft, T: BiHashItem> Default for Diff<'daft, T> {
+impl<'daft, T: BiHashItem, S: Default> Default for Diff<'daft, T, S> {
     #[inline]
     fn default() -> Self {
-        Self::new()
+        Self {
+            common: BiHashMap::default(),
+            added: BiHashMap::default(),
+            removed: BiHashMap::default(),
+        }
     }
 }
 

@@ -3,22 +3,25 @@ use crate::{
     internal::{ValidateCompact, ValidationError},
     support::{hash_table::MapHashTable, map_hash::MapHash},
 };
+use core::hash::BuildHasher;
 
 #[derive(Clone, Debug, Default)]
-pub(super) struct BiHashMapTables {
-    pub(super) k1_to_item: MapHashTable,
-    pub(super) k2_to_item: MapHashTable,
+pub(super) struct BiHashMapTables<S> {
+    pub(super) k1_to_item: MapHashTable<S>,
+    pub(super) k2_to_item: MapHashTable<S>,
 }
 
-impl BiHashMapTables {
-    pub(super) fn new() -> Self {
-        Self::default()
-    }
-
-    pub(super) fn with_capacity(capacity: usize) -> Self {
+impl<S: Clone + BuildHasher> BiHashMapTables<S> {
+    pub(super) fn with_capacity_and_hasher(capacity: usize, hasher: S) -> Self {
         Self {
-            k1_to_item: MapHashTable::with_capacity(capacity),
-            k2_to_item: MapHashTable::with_capacity(capacity),
+            k1_to_item: MapHashTable::with_capacity_and_hasher(
+                capacity,
+                hasher.clone(),
+            ),
+            k2_to_item: MapHashTable::with_capacity_and_hasher(
+                capacity,
+                hasher.clone(),
+            ),
         }
     }
 
@@ -42,7 +45,7 @@ impl BiHashMapTables {
         &self,
         k1: &T::K1<'_>,
         k2: &T::K2<'_>,
-    ) -> [MapHash; 2] {
+    ) -> [MapHash<S>; 2] {
         let h1 = self.k1_to_item.compute_hash(k1);
         let h2 = self.k2_to_item.compute_hash(k2);
 

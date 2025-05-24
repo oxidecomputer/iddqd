@@ -1,6 +1,6 @@
 use super::{IntoIter, Iter, IterMut, RefMut, tables::TriHashMapTables};
 use crate::{
-    TriHashItem,
+    DefaultHashBuilder, TriHashItem,
     errors::DuplicateItem,
     internal::ValidationError,
     support::{
@@ -8,7 +8,10 @@ use crate::{
     },
 };
 use alloc::{collections::BTreeSet, vec::Vec};
-use core::{fmt, hash::Hash};
+use core::{
+    fmt,
+    hash::{BuildHasher, Hash},
+};
 use derive_where::derive_where;
 use equivalent::Equivalent;
 use hashbrown::hash_table::{Entry, VacantEntry};
@@ -73,27 +76,54 @@ use hashbrown::hash_table::{Entry, VacantEntry};
 /// let person = people.get3("555-1234").unwrap();
 /// assert_eq!(person.email, "alice@example.com");
 /// ```
-#[derive_where(Default)]
+#[derive_where(Default; S: Default)]
 #[derive(Clone)]
-pub struct TriHashMap<T: TriHashItem> {
+pub struct TriHashMap<T: TriHashItem, S = DefaultHashBuilder> {
     pub(super) items: ItemSet<T>,
     // Invariant: the values (usize) in these tables are valid indexes into
     // `items`, and are a 1:1 mapping.
-    tables: TriHashMapTables,
+    tables: TriHashMapTables<S>,
 }
 
+#[cfg(feature = "default-hasher")]
 impl<T: TriHashItem> TriHashMap<T> {
     /// Creates a new, empty `TriHashMap`.
     #[inline]
     pub fn new() -> Self {
-        Self { items: ItemSet::default(), tables: TriHashMapTables::new() }
+        Self { items: ItemSet::default(), tables: TriHashMapTables::default() }
     }
 
     /// Creates a new `TriHashMap` with the given capacity.
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             items: ItemSet::with_capacity(capacity),
-            tables: TriHashMapTables::with_capacity(capacity),
+            tables: TriHashMapTables::with_capacity_and_hasher(
+                capacity,
+                DefaultHashBuilder::default(),
+            ),
+        }
+    }
+}
+
+impl<T: TriHashItem, S: Clone + BuildHasher> TriHashMap<T, S> {
+    /// Creates a new, empty `TriHashMap` with the given hasher.
+    pub fn with_hasher(hasher: S) -> Self {
+        Self {
+            items: ItemSet::default(),
+            tables: TriHashMapTables::with_capacity_and_hasher(
+                0,
+                hasher.clone(),
+            ),
+        }
+    }
+
+    /// Creates a new `TriHashMap` with the given capacity and hasher.
+    pub fn with_capacity_and_hasher(capacity: usize, hasher: S) -> Self {
+        Self {
+            items: ItemSet::with_capacity(capacity),
+            tables: TriHashMapTables::with_capacity_and_hasher(
+                capacity, hasher,
+            ),
         }
     }
 
@@ -134,7 +164,7 @@ impl<T: TriHashItem> TriHashMap<T> {
     ///
     /// [`HashMap`]: std::collections::HashMap
     #[inline]
-    pub fn iter_mut(&mut self) -> IterMut<'_, T> {
+    pub fn iter_mut(&mut self) -> IterMut<'_, T, S> {
         IterMut::new(&self.tables, &mut self.items)
     }
 
@@ -313,7 +343,7 @@ impl<T: TriHashItem> TriHashMap<T> {
         key1: &Q1,
         key2: &Q2,
         key3: &Q3,
-    ) -> Option<RefMut<'a, T>>
+    ) -> Option<RefMut<'a, T, S>>
     where
         Q1: Hash + Equivalent<T::K1<'a>> + ?Sized,
         Q2: Hash + Equivalent<T::K2<'a>> + ?Sized,
@@ -384,7 +414,7 @@ impl<T: TriHashItem> TriHashMap<T> {
     }
 
     /// Gets a mutable reference to the value associated with the given `key1`.
-    pub fn get1_mut<'a, Q>(&'a mut self, key1: &Q) -> Option<RefMut<'a, T>>
+    pub fn get1_mut<'a, Q>(&'a mut self, key1: &Q) -> Option<RefMut<'a, T, S>>
     where
         Q: Hash + Equivalent<T::K1<'a>> + ?Sized,
     {
@@ -435,7 +465,7 @@ impl<T: TriHashItem> TriHashMap<T> {
     }
 
     /// Gets a mutable reference to the value associated with the given `key2`.
-    pub fn get2_mut<'a, Q>(&'a mut self, key2: &Q) -> Option<RefMut<'a, T>>
+    pub fn get2_mut<'a, Q>(&'a mut self, key2: &Q) -> Option<RefMut<'a, T, S>>
     where
         Q: Hash + Equivalent<T::K2<'a>> + ?Sized,
     {
@@ -486,7 +516,7 @@ impl<T: TriHashItem> TriHashMap<T> {
     }
 
     /// Gets a mutable reference to the value associated with the given `key3`.
-    pub fn get3_mut<'a, Q>(&'a mut self, key3: &Q) -> Option<RefMut<'a, T>>
+    pub fn get3_mut<'a, Q>(&'a mut self, key3: &Q) -> Option<RefMut<'a, T, S>>
     where
         Q: Hash + Equivalent<T::K3<'a>> + ?Sized,
     {
@@ -611,7 +641,7 @@ impl<T: TriHashItem> TriHashMap<T> {
     }
 }
 
-impl<T> fmt::Debug for TriHashMap<T>
+impl<T, S> fmt::Debug for TriHashMap<T, S>
 where
     T: TriHashItem + fmt::Debug,
     for<'k> T::K1<'k>: fmt::Debug,
@@ -658,7 +688,9 @@ where
     }
 }
 
-impl<T: TriHashItem + PartialEq> PartialEq for TriHashMap<T> {
+impl<T: TriHashItem + PartialEq, S: Clone + BuildHasher> PartialEq
+    for TriHashMap<T, S>
+{
     fn eq(&self, other: &Self) -> bool {
         // Implementing PartialEq for TriHashMap is tricky because TriHashMap is
         // not semantically like an IndexMap: two maps are equivalent even if
@@ -714,11 +746,11 @@ impl<T: TriHashItem + PartialEq> PartialEq for TriHashMap<T> {
 }
 
 // The Eq bound on T ensures that the TriHashMap forms an equivalence class.
-impl<T: TriHashItem + Eq> Eq for TriHashMap<T> {}
+impl<T: TriHashItem + Eq, S: Clone + BuildHasher> Eq for TriHashMap<T, S> {}
 
 /// The `Extend` implementation overwrites duplicates. In the future, there will
 /// also be an `extend_unique` method that will return an error.
-impl<T: TriHashItem> Extend<T> for TriHashMap<T> {
+impl<T: TriHashItem, S: Clone + BuildHasher> Extend<T> for TriHashMap<T, S> {
     fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
         for item in iter {
             self.insert_overwrite(item);
@@ -739,7 +771,9 @@ fn detect_dup_or_insert<'a>(
     }
 }
 
-impl<'a, T: TriHashItem> IntoIterator for &'a TriHashMap<T> {
+impl<'a, T: TriHashItem, S: Clone + BuildHasher> IntoIterator
+    for &'a TriHashMap<T, S>
+{
     type Item = &'a T;
     type IntoIter = Iter<'a, T>;
 
@@ -749,9 +783,11 @@ impl<'a, T: TriHashItem> IntoIterator for &'a TriHashMap<T> {
     }
 }
 
-impl<'a, T: TriHashItem> IntoIterator for &'a mut TriHashMap<T> {
-    type Item = RefMut<'a, T>;
-    type IntoIter = IterMut<'a, T>;
+impl<'a, T: TriHashItem, S: Clone + BuildHasher> IntoIterator
+    for &'a mut TriHashMap<T, S>
+{
+    type Item = RefMut<'a, T, S>;
+    type IntoIter = IterMut<'a, T, S>;
 
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
@@ -759,7 +795,7 @@ impl<'a, T: TriHashItem> IntoIterator for &'a mut TriHashMap<T> {
     }
 }
 
-impl<T: TriHashItem> IntoIterator for TriHashMap<T> {
+impl<T: TriHashItem, S: Clone + BuildHasher> IntoIterator for TriHashMap<T, S> {
     type Item = T;
     type IntoIter = IntoIter<T>;
 
@@ -771,9 +807,11 @@ impl<T: TriHashItem> IntoIterator for TriHashMap<T> {
 
 /// The `FromIterator` implementation for `TriHashMap` overwrites duplicate
 /// items.
-impl<T: TriHashItem> FromIterator<T> for TriHashMap<T> {
+impl<T: TriHashItem, S: Default + Clone + BuildHasher> FromIterator<T>
+    for TriHashMap<T, S>
+{
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        let mut map = TriHashMap::new();
+        let mut map = TriHashMap::default();
         for item in iter {
             map.insert_overwrite(item);
         }

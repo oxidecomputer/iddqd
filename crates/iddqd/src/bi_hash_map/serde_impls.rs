@@ -1,18 +1,18 @@
 use crate::{BiHashItem, BiHashMap};
 use alloc::vec::Vec;
-use core::fmt;
+use core::{fmt, hash::BuildHasher};
 use serde::{Deserialize, Serialize, Serializer};
 
 /// A `BiHashMap` serializes to the list of items. Items are serialized in
 /// arbitrary order.
-impl<T: BiHashItem> Serialize for BiHashMap<T>
+impl<T: BiHashItem, S: Clone + BuildHasher> Serialize for BiHashMap<T, S>
 where
     T: Serialize,
 {
-    fn serialize<S: Serializer>(
+    fn serialize<Ser: Serializer>(
         &self,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error> {
+        serializer: Ser,
+    ) -> Result<Ser::Ok, Ser::Error> {
         // Serialize just the items -- don't serialize the indexes. We'll
         // rebuild the indexes on deserialization.
         self.items.serialize(serializer)
@@ -23,7 +23,8 @@ where
 /// then rebuilds the indexes, producing an error if there are any duplicates.
 ///
 /// The `fmt::Debug` bound on `T` ensures better error reporting.
-impl<'de, T: BiHashItem + fmt::Debug> Deserialize<'de> for BiHashMap<T>
+impl<'de, T: BiHashItem + fmt::Debug, S: Clone + BuildHasher + Default>
+    Deserialize<'de> for BiHashMap<T, S>
 where
     T: Deserialize<'de>,
 {
@@ -35,7 +36,7 @@ where
 
         // Now build a map from scratch, inserting the items sequentially.
         // This will catch issues with duplicates.
-        let mut map = BiHashMap::new();
+        let mut map = BiHashMap::default();
         for item in items {
             map.insert_unique(item).map_err(serde::de::Error::custom)?;
         }

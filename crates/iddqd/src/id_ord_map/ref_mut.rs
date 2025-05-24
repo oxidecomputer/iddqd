@@ -55,7 +55,10 @@ impl<'a, T: IdOrdItem> RefMut<'a, T>
 where
     for<'k> T::Key<'k>: Hash,
 {
-    pub(super) fn new(hash: MapHash, borrowed: &'a mut T) -> Self {
+    pub(super) fn new(
+        hash: MapHash<foldhash::fast::RandomState>,
+        borrowed: &'a mut T,
+    ) -> Self {
         let inner = RefMutInner { hash, borrowed };
         Self { inner: Some(inner) }
     }
@@ -122,7 +125,7 @@ where
 }
 
 struct RefMutInner<'a, T: IdOrdItem> {
-    hash: MapHash,
+    hash: MapHash<foldhash::fast::RandomState>,
     borrowed: &'a mut T,
 }
 

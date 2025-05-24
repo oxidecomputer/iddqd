@@ -1,6 +1,6 @@
 use super::{RefMut, tables::BiHashMapTables};
-use crate::{BiHashItem, support::item_set::ItemSet};
-use core::iter::FusedIterator;
+use crate::{BiHashItem, DefaultHashBuilder, support::item_set::ItemSet};
+use core::{hash::BuildHasher, iter::FusedIterator};
 use hashbrown::hash_map;
 
 /// An iterator over the elements of a [`BiHashMap`] by shared reference.
@@ -54,22 +54,22 @@ impl<T: BiHashItem> FusedIterator for Iter<'_, T> {}
 /// [`BiHashMap::iter_mut`]: crate::BiHashMap::iter_mut
 /// [`HashMap`]: std::collections::HashMap
 #[derive(Debug)]
-pub struct IterMut<'a, T: BiHashItem> {
-    tables: &'a BiHashMapTables,
+pub struct IterMut<'a, T: BiHashItem, S = DefaultHashBuilder> {
+    tables: &'a BiHashMapTables<S>,
     inner: hash_map::ValuesMut<'a, usize, T>,
 }
 
-impl<'a, T: BiHashItem> IterMut<'a, T> {
+impl<'a, T: BiHashItem, S: Clone + BuildHasher> IterMut<'a, T, S> {
     pub(super) fn new(
-        tables: &'a BiHashMapTables,
+        tables: &'a BiHashMapTables<S>,
         items: &'a mut ItemSet<T>,
     ) -> Self {
         Self { tables, inner: items.values_mut() }
     }
 }
 
-impl<'a, T: BiHashItem> Iterator for IterMut<'a, T> {
-    type Item = RefMut<'a, T>;
+impl<'a, T: BiHashItem, S: Clone + BuildHasher> Iterator for IterMut<'a, T, S> {
+    type Item = RefMut<'a, T, S>;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -79,7 +79,9 @@ impl<'a, T: BiHashItem> Iterator for IterMut<'a, T> {
     }
 }
 
-impl<T: BiHashItem> ExactSizeIterator for IterMut<'_, T> {
+impl<T: BiHashItem, S: Clone + BuildHasher> ExactSizeIterator
+    for IterMut<'_, T, S>
+{
     #[inline]
     fn len(&self) -> usize {
         self.inner.len()
@@ -87,7 +89,10 @@ impl<T: BiHashItem> ExactSizeIterator for IterMut<'_, T> {
 }
 
 // hash_map::IterMut is a FusedIterator, so IterMut is as well.
-impl<T: BiHashItem> FusedIterator for IterMut<'_, T> {}
+impl<T: BiHashItem, S: Clone + BuildHasher> FusedIterator
+    for IterMut<'_, T, S>
+{
+}
 
 /// An iterator over the elements of a [`BiHashMap`] by ownership. Created by
 /// [`BiHashMap::into_iter`].

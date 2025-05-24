@@ -300,6 +300,9 @@
 //! - `daft`: Enables [`daft`] support for all ID map types. *Not enabled by
 //!   default.*
 //! - `std`: Enables std support. *Enabled by default.*
+//! - `default-hasher`: Enables the `DefaultHashBuilder` type. Disable this
+//!   feature to require a hash builder type parameter to be passed into
+//!   [`IdHashMap`], [`BiHashMap`], and [`TriHashMap`]. *Enabled by default.*
 //!
 //! # Related work
 //!
@@ -362,4 +365,5 @@ pub use id_hash_map::{imp::IdHashMap, trait_defs::IdHashItem};
 pub use id_ord_map::{imp::IdOrdMap, trait_defs::IdOrdItem};
 #[cfg(feature = "daft")]
 pub use support::daft_utils::IdLeaf;
+pub use support::hash_builder::DefaultHashBuilder;
 pub use tri_hash_map::{imp::TriHashMap, trait_defs::TriHashItem};

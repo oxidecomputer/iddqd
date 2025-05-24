@@ -5,7 +5,7 @@ use super::{
     tables::BiHashMapTables,
 };
 use crate::{
-    BiHashItem,
+    BiHashItem, DefaultHashBuilder,
     bi_hash_map::entry::OccupiedEntryMut,
     errors::DuplicateItem,
     internal::{ValidateCompact, ValidationError},
@@ -14,7 +14,10 @@ use crate::{
     },
 };
 use alloc::{collections::BTreeSet, vec::Vec};
-use core::{fmt, hash::Hash};
+use core::{
+    fmt,
+    hash::{BuildHasher, Hash},
+};
 use derive_where::derive_where;
 use equivalent::Equivalent;
 use hashbrown::hash_table;
@@ -64,27 +67,49 @@ use hashbrown::hash_table;
 /// assert_eq!(map.get2(&"bar").unwrap().value, 99);
 /// assert!(map.get2(&"baz").is_none());
 /// ```
-#[derive_where(Default)]
+#[derive_where(Default; S: Default)]
 #[derive(Clone)]
-pub struct BiHashMap<T: BiHashItem> {
+pub struct BiHashMap<T: BiHashItem, S = DefaultHashBuilder> {
     pub(super) items: ItemSet<T>,
     // Invariant: the values (usize) in these tables are valid indexes into
     // `items`, and are a 1:1 mapping.
-    tables: BiHashMapTables,
+    tables: BiHashMapTables<S>,
 }
 
+#[cfg(feature = "default-hasher")]
 impl<T: BiHashItem> BiHashMap<T> {
     /// Creates a new, empty `BiHashMap`.
     #[inline]
     pub fn new() -> Self {
-        Self { items: ItemSet::default(), tables: BiHashMapTables::new() }
+        Self { items: ItemSet::default(), tables: BiHashMapTables::default() }
     }
 
     /// Creates a new `BiHashMap` with the given capacity.
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             items: ItemSet::with_capacity(capacity),
-            tables: BiHashMapTables::with_capacity(capacity),
+            tables: BiHashMapTables::with_capacity_and_hasher(
+                capacity,
+                DefaultHashBuilder::default(),
+            ),
+        }
+    }
+}
+
+impl<T: BiHashItem, S: Clone + BuildHasher> BiHashMap<T, S> {
+    /// Creates a new `BiHashMap` with the given hasher.
+    pub fn with_hasher(hasher: S) -> Self {
+        Self {
+            items: ItemSet::default(),
+            tables: BiHashMapTables::with_capacity_and_hasher(0, hasher),
+        }
+    }
+
+    /// Creates a new `BiHashMap` with the given capacity and hasher.
+    pub fn with_capacity_and_hasher(capacity: usize, hasher: S) -> Self {
+        Self {
+            items: ItemSet::with_capacity(capacity),
+            tables: BiHashMapTables::with_capacity_and_hasher(capacity, hasher),
         }
     }
 
@@ -121,18 +146,18 @@ impl<T: BiHashItem> BiHashMap<T> {
     /// Iterates over the items in the map, allowing for mutation.
     ///
     /// Similar to [`HashMap`], the iteration order is arbitrary and not
-    /// guaranteed to be stable.s useful to have
-    /// an explicit check for tests.
+    /// guaranteed to be stable.
     ///
     /// [`HashMap`]: std::collections::HashMap
     #[inline]
-    pub fn iter_mut(&mut self) -> IterMut<'_, T> {
+    pub fn iter_mut(&mut self) -> IterMut<'_, T, S> {
         IterMut::new(&self.tables, &mut self.items)
     }
 
     /// Checks general invariants of the map.
     ///
-    /// The code below always upholds these invariants, but it'
+    /// The code below always upholds these invariants, but it's useful to have
+    /// an explicit check for tests.
     #[doc(hidden)]
     pub fn validate(
         &self,
@@ -242,7 +267,7 @@ impl<T: BiHashItem> BiHashMap<T> {
         &'a mut self,
         key1: &Q1,
         key2: &Q2,
-    ) -> Option<RefMut<'a, T>>
+    ) -> Option<RefMut<'a, T, S>>
     where
         Q1: Hash + Equivalent<T::K1<'a>> + ?Sized,
         Q2: Hash + Equivalent<T::K2<'a>> + ?Sized,
@@ -307,7 +332,7 @@ impl<T: BiHashItem> BiHashMap<T> {
     }
 
     /// Gets a mutable reference to the value associated with the given `key1`.
-    pub fn get1_mut<'a, Q>(&'a mut self, key1: &Q) -> Option<RefMut<'a, T>>
+    pub fn get1_mut<'a, Q>(&'a mut self, key1: &Q) -> Option<RefMut<'a, T, S>>
     where
         Q: Hash + Equivalent<T::K1<'a>> + ?Sized,
     {
@@ -359,7 +384,7 @@ impl<T: BiHashItem> BiHashMap<T> {
     }
 
     /// Gets a mutable reference to the value associated with the given `key2`.
-    pub fn get2_mut<'a, Q>(&'a mut self, key2: &Q) -> Option<RefMut<'a, T>>
+    pub fn get2_mut<'a, Q>(&'a mut self, key2: &Q) -> Option<RefMut<'a, T, S>>
     where
         Q: Hash + Equivalent<T::K2<'a>> + ?Sized,
     {
@@ -399,7 +424,7 @@ impl<T: BiHashItem> BiHashMap<T> {
         &'a mut self,
         key1: T::K1<'_>,
         key2: T::K2<'_>,
-    ) -> Entry<'a, T> {
+    ) -> Entry<'a, T, S> {
         let (map, dormant_map) = DormantMutRef::new(self);
         let key1 = T::upcast_key1(key1);
         let key2 = T::upcast_key2(key2);
@@ -496,7 +521,7 @@ impl<T: BiHashItem> BiHashMap<T> {
     pub(super) fn get_by_entry_index_mut(
         &mut self,
         indexes: EntryIndexes,
-    ) -> OccupiedEntryMut<'_, T> {
+    ) -> OccupiedEntryMut<'_, T, S> {
         match indexes.disjoint_keys() {
             DisjointKeys::Unique(index) => {
                 let item = self.items.get_mut(index).expect("index is valid");
@@ -544,7 +569,7 @@ impl<T: BiHashItem> BiHashMap<T> {
     pub(super) fn get_by_index_mut(
         &mut self,
         index: usize,
-    ) -> Option<RefMut<'_, T>> {
+    ) -> Option<RefMut<'_, T, S>> {
         let borrowed = self.items.get_mut(index)?;
         let hashes =
             self.tables.make_hashes::<T>(&borrowed.key1(), &borrowed.key2());
@@ -708,7 +733,7 @@ impl<T: BiHashItem> BiHashMap<T> {
     }
 }
 
-impl<T> fmt::Debug for BiHashMap<T>
+impl<T, S> fmt::Debug for BiHashMap<T, S>
 where
     T: BiHashItem + fmt::Debug,
     for<'k> T::K1<'k>: fmt::Debug,
@@ -744,7 +769,9 @@ where
     }
 }
 
-impl<T: BiHashItem + PartialEq> PartialEq for BiHashMap<T> {
+impl<T: BiHashItem + PartialEq, S: Clone + BuildHasher> PartialEq
+    for BiHashMap<T, S>
+{
     fn eq(&self, other: &Self) -> bool {
         // Implementing PartialEq for BiHashMap is tricky because BiHashMap is
         // not semantically like an IndexMap: two maps are equivalent even if
@@ -796,7 +823,7 @@ impl<T: BiHashItem + PartialEq> PartialEq for BiHashMap<T> {
 }
 
 // The Eq bound on T ensures that the BiHashMap forms an equivalence class.
-impl<T: BiHashItem + Eq> Eq for BiHashMap<T> {}
+impl<T: BiHashItem + Eq, S: Clone + BuildHasher> Eq for BiHashMap<T, S> {}
 
 fn detect_dup_or_insert<'a>(
     item: hash_table::Entry<'a, usize>,
@@ -813,7 +840,7 @@ fn detect_dup_or_insert<'a>(
 
 /// The `Extend` implementation overwrites duplicates. In the future, there will
 /// also be an `extend_unique` method that will return an error.
-impl<T: BiHashItem> Extend<T> for BiHashMap<T> {
+impl<T: BiHashItem, S: Clone + BuildHasher> Extend<T> for BiHashMap<T, S> {
     fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
         for item in iter {
             self.insert_overwrite(item);
@@ -821,7 +848,9 @@ impl<T: BiHashItem> Extend<T> for BiHashMap<T> {
     }
 }
 
-impl<'a, T: BiHashItem> IntoIterator for &'a BiHashMap<T> {
+impl<'a, T: BiHashItem, S: Clone + BuildHasher> IntoIterator
+    for &'a BiHashMap<T, S>
+{
     type Item = &'a T;
     type IntoIter = Iter<'a, T>;
 
@@ -831,9 +860,11 @@ impl<'a, T: BiHashItem> IntoIterator for &'a BiHashMap<T> {
     }
 }
 
-impl<'a, T: BiHashItem> IntoIterator for &'a mut BiHashMap<T> {
-    type Item = RefMut<'a, T>;
-    type IntoIter = IterMut<'a, T>;
+impl<'a, T: BiHashItem, S: Clone + BuildHasher> IntoIterator
+    for &'a mut BiHashMap<T, S>
+{
+    type Item = RefMut<'a, T, S>;
+    type IntoIter = IterMut<'a, T, S>;
 
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
@@ -841,7 +872,7 @@ impl<'a, T: BiHashItem> IntoIterator for &'a mut BiHashMap<T> {
     }
 }
 
-impl<T: BiHashItem> IntoIterator for BiHashMap<T> {
+impl<T: BiHashItem, S: Clone + BuildHasher> IntoIterator for BiHashMap<T, S> {
     type Item = T;
     type IntoIter = IntoIter<T>;
 
@@ -853,9 +884,11 @@ impl<T: BiHashItem> IntoIterator for BiHashMap<T> {
 
 /// The `FromIterator` implementation for `BiHashMap` overwrites duplicate
 /// items.
-impl<T: BiHashItem> FromIterator<T> for BiHashMap<T> {
+impl<T: BiHashItem, S: Clone + BuildHasher + Default> FromIterator<T>
+    for BiHashMap<T, S>
+{
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        let mut map = BiHashMap::new();
+        let mut map = BiHashMap::default();
         for item in iter {
             map.insert_overwrite(item);
         }
