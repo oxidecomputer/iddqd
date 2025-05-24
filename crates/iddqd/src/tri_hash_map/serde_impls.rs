@@ -1,18 +1,18 @@
 use crate::{TriHashItem, TriHashMap};
 use alloc::vec::Vec;
-use core::fmt;
+use core::{fmt, hash::BuildHasher};
 use serde::{Deserialize, Serialize, Serializer};
 
 /// A `TriHashMap` serializes to the list of items. Items are serialized in
 /// arbitrary order.
-impl<T: TriHashItem> Serialize for TriHashMap<T>
+impl<T: TriHashItem, S: Clone + BuildHasher> Serialize for TriHashMap<T, S>
 where
     T: Serialize,
 {
-    fn serialize<S: Serializer>(
+    fn serialize<Ser: Serializer>(
         &self,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error> {
+        serializer: Ser,
+    ) -> Result<Ser::Ok, Ser::Error> {
         // Serialize just the items -- don't serialize the indexes. We'll
         // rebuild the indexes on deserialization.
         self.items.serialize(serializer)
@@ -23,7 +23,8 @@ where
 /// then rebuilds the indexes, producing an error if there are any duplicates.
 ///
 /// The `fmt::Debug` bound on `T` ensures better error reporting.
-impl<'de, T: TriHashItem + fmt::Debug> Deserialize<'de> for TriHashMap<T>
+impl<'de, T: TriHashItem + fmt::Debug, S: Default + Clone + BuildHasher>
+    Deserialize<'de> for TriHashMap<T, S>
 where
     T: Deserialize<'de>,
 {
@@ -35,7 +36,7 @@ where
 
         // Now build a map from scratch, inserting the items sequentially.
         // This will catch issues with duplicates.
-        let mut map = TriHashMap::new();
+        let mut map = TriHashMap::default();
         for item in items {
             map.insert_unique(item).map_err(serde::de::Error::custom)?;
         }

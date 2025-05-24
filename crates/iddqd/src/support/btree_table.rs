@@ -4,7 +4,7 @@
 //! integers (that are indexes corresponding to items), but use an external
 //! comparator.
 
-use super::map_hash::{HashState, MapHash};
+use super::map_hash::MapHash;
 use crate::internal::{TableValidationError, ValidateCompact};
 use alloc::{
     collections::{BTreeSet, btree_set},
@@ -69,7 +69,10 @@ thread_local! {
 #[derive(Clone, Debug, Default)]
 pub(crate) struct MapBTreeTable {
     items: BTreeSet<Index>,
-    hash_state: HashState,
+    // We use foldhash directly here because we allow compiling with std but
+    // without the default-hasher. std turns on foldhash but not the default
+    // hasher.
+    hash_state: foldhash::fast::RandomState,
 }
 
 impl MapBTreeTable {
@@ -210,8 +213,14 @@ impl MapBTreeTable {
         IntoIter::new(self.items.into_iter())
     }
 
-    pub(crate) fn compute_hash<K: Hash>(&self, key: K) -> MapHash {
-        MapHash { state: self.hash_state, hash: self.hash_state.hash_one(key) }
+    pub(crate) fn compute_hash<K: Hash>(
+        &self,
+        key: K,
+    ) -> MapHash<foldhash::fast::RandomState> {
+        MapHash {
+            state: self.hash_state.into(),
+            hash: self.hash_state.hash_one(key),
+        }
     }
 }
 

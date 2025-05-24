@@ -16,6 +16,12 @@ thread_local! {
     static WITHOUT_CHAOS: Cell<bool> = const { Cell::new(false) };
 }
 
+#[cfg(feature = "default-hasher")]
+pub type HashBuilder = iddqd::DefaultHashBuilder;
+
+#[cfg(not(feature = "default-hasher"))]
+pub type HashBuilder = std::hash::RandomState;
+
 /// Temporarily disable chaos testing.
 pub fn without_chaos<F, T>(f: F)
 where
@@ -360,10 +366,10 @@ pub trait TestItemMap: Clone {
     fn into_iter(self) -> Self::IntoIter;
 }
 
-impl TestItemMap for BiHashMap<TestItem> {
-    type RefMut<'a> = bi_hash_map::RefMut<'a, TestItem>;
+impl TestItemMap for BiHashMap<TestItem, HashBuilder> {
+    type RefMut<'a> = bi_hash_map::RefMut<'a, TestItem, HashBuilder>;
     type Iter<'a> = bi_hash_map::Iter<'a, TestItem>;
-    type IterMut<'a> = bi_hash_map::IterMut<'a, TestItem>;
+    type IterMut<'a> = bi_hash_map::IterMut<'a, TestItem, HashBuilder>;
     type IntoIter = bi_hash_map::IntoIter<TestItem>;
 
     fn map_kind() -> MapKind {
@@ -371,7 +377,7 @@ impl TestItemMap for BiHashMap<TestItem> {
     }
 
     fn new() -> Self {
-        BiHashMap::new()
+        BiHashMap::default()
     }
 
     fn validate_(
@@ -401,10 +407,10 @@ impl TestItemMap for BiHashMap<TestItem> {
     }
 }
 
-impl TestItemMap for IdHashMap<TestItem> {
-    type RefMut<'a> = id_hash_map::RefMut<'a, TestItem>;
+impl TestItemMap for IdHashMap<TestItem, HashBuilder> {
+    type RefMut<'a> = id_hash_map::RefMut<'a, TestItem, HashBuilder>;
     type Iter<'a> = id_hash_map::Iter<'a, TestItem>;
-    type IterMut<'a> = id_hash_map::IterMut<'a, TestItem>;
+    type IterMut<'a> = id_hash_map::IterMut<'a, TestItem, HashBuilder>;
     type IntoIter = id_hash_map::IntoIter<TestItem>;
 
     fn map_kind() -> MapKind {
@@ -412,7 +418,7 @@ impl TestItemMap for IdHashMap<TestItem> {
     }
 
     fn new() -> Self {
-        IdHashMap::new()
+        IdHashMap::default()
     }
 
     fn validate_(
@@ -484,10 +490,10 @@ impl TestItemMap for IdOrdMap<TestItem> {
     }
 }
 
-impl TestItemMap for TriHashMap<TestItem> {
-    type RefMut<'a> = tri_hash_map::RefMut<'a, TestItem>;
+impl TestItemMap for TriHashMap<TestItem, HashBuilder> {
+    type RefMut<'a> = tri_hash_map::RefMut<'a, TestItem, HashBuilder>;
     type Iter<'a> = tri_hash_map::Iter<'a, TestItem>;
-    type IterMut<'a> = tri_hash_map::IterMut<'a, TestItem>;
+    type IterMut<'a> = tri_hash_map::IterMut<'a, TestItem, HashBuilder>;
     type IntoIter = tri_hash_map::IntoIter<TestItem>;
 
     fn map_kind() -> MapKind {
@@ -495,7 +501,7 @@ impl TestItemMap for TriHashMap<TestItem> {
     }
 
     fn new() -> Self {
-        TriHashMap::new()
+        TriHashMap::default()
     }
 
     fn validate_(
@@ -529,13 +535,13 @@ pub trait IntoRef<'a> {
     fn into_ref(self) -> &'a TestItem;
 }
 
-impl<'a> IntoRef<'a> for bi_hash_map::RefMut<'a, TestItem> {
+impl<'a> IntoRef<'a> for bi_hash_map::RefMut<'a, TestItem, HashBuilder> {
     fn into_ref(self) -> &'a TestItem {
         self.into_ref()
     }
 }
 
-impl<'a> IntoRef<'a> for id_hash_map::RefMut<'a, TestItem> {
+impl<'a> IntoRef<'a> for id_hash_map::RefMut<'a, TestItem, HashBuilder> {
     fn into_ref(self) -> &'a TestItem {
         self.into_ref()
     }
@@ -548,7 +554,7 @@ impl<'a> IntoRef<'a> for id_ord_map::RefMut<'a, TestItem> {
     }
 }
 
-impl<'a> IntoRef<'a> for tri_hash_map::RefMut<'a, TestItem> {
+impl<'a> IntoRef<'a> for tri_hash_map::RefMut<'a, TestItem, HashBuilder> {
     fn into_ref(self) -> &'a TestItem {
         self.into_ref()
     }

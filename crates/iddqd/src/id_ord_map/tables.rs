@@ -28,7 +28,10 @@ impl IdOrdMapTables {
         Ok(())
     }
 
-    pub(super) fn make_hash<T: IdOrdItem>(&self, item: &T) -> MapHash
+    pub(super) fn make_hash<T: IdOrdItem>(
+        &self,
+        item: &T,
+    ) -> MapHash<foldhash::fast::RandomState>
     where
         for<'k> T::Key<'k>: Hash,
     {

@@ -1,19 +1,21 @@
 //! `Diffable` implementation.
 
 use super::{IdHashItem, IdHashMap};
-use crate::support::daft_utils::IdLeaf;
-use core::hash::Hash;
+use crate::{DefaultHashBuilder, support::daft_utils::IdLeaf};
+use core::hash::{BuildHasher, Hash};
 use daft::Diffable;
+use derive_where::derive_where;
 use equivalent::Equivalent;
 
-impl<T: IdHashItem> Diffable for IdHashMap<T> {
+impl<T: IdHashItem, S: Clone + BuildHasher> Diffable for IdHashMap<T, S> {
     type Diff<'a>
-        = Diff<'a, T>
+        = Diff<'a, T, S>
     where
-        T: 'a;
+        T: 'a,
+        S: 'a;
 
     fn diff<'daft>(&'daft self, other: &'daft Self) -> Self::Diff<'daft> {
-        let mut diff = Diff::new();
+        let mut diff = Diff::with_hasher(self.hasher().clone());
         for item in self {
             if let Some(other_item) = other.get(&item.key()) {
                 diff.common.insert_overwrite(IdLeaf::new(item, other_item));
@@ -31,21 +33,23 @@ impl<T: IdHashItem> Diffable for IdHashMap<T> {
 }
 
 /// A diff of two [`IdHashMap`]s.
-pub struct Diff<'daft, T: ?Sized + IdHashItem> {
+#[derive_where(Default; S: Default)]
+pub struct Diff<'daft, T: ?Sized + IdHashItem, S = DefaultHashBuilder> {
     /// Entries common to both maps.
     ///
     /// Items are stored as [`IdLeaf`]s to references.
-    pub common: IdHashMap<IdLeaf<&'daft T>>,
+    pub common: IdHashMap<IdLeaf<&'daft T>, S>,
 
     /// Added entries.
-    pub added: IdHashMap<&'daft T>,
+    pub added: IdHashMap<&'daft T, S>,
 
     /// Removed entries.
-    pub removed: IdHashMap<&'daft T>,
+    pub removed: IdHashMap<&'daft T, S>,
 }
 
+#[cfg(feature = "default-hasher")]
 impl<'daft, T: ?Sized + IdHashItem> Diff<'daft, T> {
-    /// Creates a new `IdHashMapDiff` from two maps.
+    /// Creates a new, empty `IdHashMapDiff`
     pub fn new() -> Self {
         Self {
             common: IdHashMap::new(),
@@ -55,7 +59,20 @@ impl<'daft, T: ?Sized + IdHashItem> Diff<'daft, T> {
     }
 }
 
-impl<'daft, T: ?Sized + IdHashItem + Eq> Diff<'daft, T> {
+impl<'daft, T: ?Sized + IdHashItem, S: Clone + BuildHasher> Diff<'daft, T, S> {
+    /// Creates a new `IdHashMapDiff` with the given hasher.
+    pub fn with_hasher(hasher: S) -> Self {
+        Self {
+            common: IdHashMap::with_hasher(hasher.clone()),
+            added: IdHashMap::with_hasher(hasher.clone()),
+            removed: IdHashMap::with_hasher(hasher),
+        }
+    }
+}
+
+impl<'daft, T: ?Sized + IdHashItem + Eq, S: Clone + BuildHasher>
+    Diff<'daft, T, S>
+{
     /// Returns an iterator over unchanged keys and values.
     pub fn unchanged(&self) -> impl Iterator<Item = &'daft T> + '_ {
         self.common
@@ -119,14 +136,6 @@ impl<'daft, T: ?Sized + IdHashItem + Eq> Diff<'daft, T> {
         T: Diffable,
     {
         self.modified().map(|leaf| leaf.diff_pair())
-    }
-}
-
-// Note: not deriving Default here because we don't want to require
-// T to be Default.
-impl<'daft, T: IdHashItem> Default for Diff<'daft, T> {
-    fn default() -> Self {
-        Self::new()
     }
 }
 

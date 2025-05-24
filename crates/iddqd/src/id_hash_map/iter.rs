@@ -1,6 +1,6 @@
 use super::{RefMut, tables::IdHashMapTables};
-use crate::{IdHashItem, support::item_set::ItemSet};
-use core::iter::FusedIterator;
+use crate::{DefaultHashBuilder, IdHashItem, support::item_set::ItemSet};
+use core::{hash::BuildHasher, iter::FusedIterator};
 use hashbrown::hash_map;
 
 /// An iterator over the elements of a [`IdHashMap`] by shared reference.
@@ -54,22 +54,22 @@ impl<T: IdHashItem> FusedIterator for Iter<'_, T> {}
 /// [`IdHashMap::iter_mut`]: crate::IdHashMap::iter_mut
 /// [`HashMap`]: std::collections::HashMap
 #[derive(Debug)]
-pub struct IterMut<'a, T: IdHashItem> {
-    tables: &'a IdHashMapTables,
+pub struct IterMut<'a, T: IdHashItem, S = DefaultHashBuilder> {
+    tables: &'a IdHashMapTables<S>,
     inner: hash_map::ValuesMut<'a, usize, T>,
 }
 
-impl<'a, T: IdHashItem> IterMut<'a, T> {
+impl<'a, T: IdHashItem, S: Clone + BuildHasher> IterMut<'a, T, S> {
     pub(super) fn new(
-        tables: &'a IdHashMapTables,
+        tables: &'a IdHashMapTables<S>,
         items: &'a mut ItemSet<T>,
     ) -> Self {
         Self { tables, inner: items.values_mut() }
     }
 }
 
-impl<'a, T: IdHashItem> Iterator for IterMut<'a, T> {
-    type Item = RefMut<'a, T>;
+impl<'a, T: IdHashItem, S: Clone + BuildHasher> Iterator for IterMut<'a, T, S> {
+    type Item = RefMut<'a, T, S>;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -79,7 +79,9 @@ impl<'a, T: IdHashItem> Iterator for IterMut<'a, T> {
     }
 }
 
-impl<T: IdHashItem> ExactSizeIterator for IterMut<'_, T> {
+impl<T: IdHashItem, S: Clone + BuildHasher> ExactSizeIterator
+    for IterMut<'_, T, S>
+{
     #[inline]
     fn len(&self) -> usize {
         self.inner.len()
@@ -87,7 +89,10 @@ impl<T: IdHashItem> ExactSizeIterator for IterMut<'_, T> {
 }
 
 // hash_map::IterMut is a FusedIterator, so IterMut is as well.
-impl<T: IdHashItem> FusedIterator for IterMut<'_, T> {}
+impl<T: IdHashItem, S: Clone + BuildHasher> FusedIterator
+    for IterMut<'_, T, S>
+{
+}
 
 /// An iterator over the elements of a [`IdHashMap`] by ownership. Created by
 /// [`IdHashMap::into_iter`].

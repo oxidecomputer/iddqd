@@ -3,24 +3,30 @@ use crate::{
     internal::{ValidateCompact, ValidationError},
     support::{hash_table::MapHashTable, map_hash::MapHash},
 };
+use core::hash::BuildHasher;
 
 #[derive(Clone, Debug, Default)]
-pub(super) struct TriHashMapTables {
-    pub(super) k1_to_item: MapHashTable,
-    pub(super) k2_to_item: MapHashTable,
-    pub(super) k3_to_item: MapHashTable,
+pub(super) struct TriHashMapTables<S> {
+    pub(super) k1_to_item: MapHashTable<S>,
+    pub(super) k2_to_item: MapHashTable<S>,
+    pub(super) k3_to_item: MapHashTable<S>,
 }
 
-impl TriHashMapTables {
-    pub(super) fn new() -> Self {
-        Self::default()
-    }
-
-    pub(super) fn with_capacity(capacity: usize) -> Self {
+impl<S: Clone + BuildHasher> TriHashMapTables<S> {
+    pub(super) fn with_capacity_and_hasher(capacity: usize, hasher: S) -> Self {
         Self {
-            k1_to_item: MapHashTable::with_capacity(capacity),
-            k2_to_item: MapHashTable::with_capacity(capacity),
-            k3_to_item: MapHashTable::with_capacity(capacity),
+            k1_to_item: MapHashTable::with_capacity_and_hasher(
+                capacity,
+                hasher.clone(),
+            ),
+            k2_to_item: MapHashTable::with_capacity_and_hasher(
+                capacity,
+                hasher.clone(),
+            ),
+            k3_to_item: MapHashTable::with_capacity_and_hasher(
+                capacity,
+                hasher.clone(),
+            ),
         }
     }
 
@@ -43,7 +49,10 @@ impl TriHashMapTables {
         Ok(())
     }
 
-    pub(super) fn make_hashes<T: TriHashItem>(&self, item: &T) -> [MapHash; 3] {
+    pub(super) fn make_hashes<T: TriHashItem>(
+        &self,
+        item: &T,
+    ) -> [MapHash<S>; 3] {
         let k1 = item.key1();
         let k2 = item.key2();
         let k3 = item.key3();

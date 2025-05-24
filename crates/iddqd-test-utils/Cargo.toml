@@ -16,6 +16,8 @@ serde_json = { workspace = true, optional = true }
 test-strategy.workspace = true
 
 [features]
+# We test once with the default hasher, and once with std's RandomState.
+default-hasher = ["iddqd/default-hasher"]
 std = ["iddqd/std"]
 serde = ["dep:serde", "dep:serde_json", "iddqd/serde"]
 

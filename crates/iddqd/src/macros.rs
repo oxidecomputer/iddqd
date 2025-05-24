@@ -89,7 +89,7 @@ macro_rules! tri_upcast {
 #[cfg(feature = "daft")]
 macro_rules! impl_diff_ref_cast {
     ($self: ident, $diff_ty: ty, $key_method: ident, $get_method: ident, $contains_method: ident, $ref_cast_ty: ty) => {{
-        let mut diff = <$diff_ty>::new();
+        let mut diff = <$diff_ty>::default();
         for before_item in $self.before {
             if let Some(after_item) =
                 $self.after.$get_method(&before_item.$key_method())

@@ -3,12 +3,16 @@ use super::{
     VacantEntry, tables::IdHashMapTables,
 };
 use crate::{
+    DefaultHashBuilder,
     errors::DuplicateItem,
     internal::{ValidateCompact, ValidationError},
     support::{borrow::DormantMutRef, item_set::ItemSet, map_hash::MapHash},
 };
 use alloc::collections::BTreeSet;
-use core::{fmt, hash::Hash};
+use core::{
+    fmt,
+    hash::{BuildHasher, Hash},
+};
 use derive_where::derive_where;
 use equivalent::Equivalent;
 use hashbrown::hash_table;
@@ -22,6 +26,7 @@ use hashbrown::hash_table;
 /// # Examples
 ///
 /// ```
+/// # #[cfg(feature = "default-hasher")] {
 /// use iddqd::{IdHashMap, IdHashItem, id_upcast};
 ///
 /// // Define a struct with a key.
@@ -52,27 +57,55 @@ use hashbrown::hash_table;
 /// assert_eq!(map.get("foo").unwrap().value, 42);
 /// assert_eq!(map.get("bar").unwrap().value, 20);
 /// assert!(map.get("baz").is_none());
+/// # }
 /// ```
-#[derive_where(Default)]
+#[derive_where(Default; S: Default)]
 #[derive(Clone)]
-pub struct IdHashMap<T: IdHashItem> {
+pub struct IdHashMap<T: IdHashItem, S = DefaultHashBuilder> {
     pub(super) items: ItemSet<T>,
-    tables: IdHashMapTables,
+    tables: IdHashMapTables<S>,
 }
 
+#[cfg(feature = "default-hasher")]
 impl<T: IdHashItem> IdHashMap<T> {
     /// Creates a new, empty `IdHashMap`.
     #[inline]
     pub fn new() -> Self {
-        Self { items: ItemSet::default(), tables: IdHashMapTables::new() }
+        Self { items: ItemSet::default(), tables: IdHashMapTables::default() }
     }
 
     /// Creates a new `IdHashMap` with the given capacity.
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             items: ItemSet::with_capacity(capacity),
-            tables: IdHashMapTables::with_capacity(capacity),
+            tables: IdHashMapTables::with_capacity_and_hasher(
+                capacity,
+                DefaultHashBuilder::default(),
+            ),
         }
+    }
+}
+
+impl<T: IdHashItem, S: Clone + BuildHasher> IdHashMap<T, S> {
+    /// Creates a new, empty `IdHashMap` with the given hasher.
+    pub fn with_hasher(hasher: S) -> Self {
+        Self {
+            items: ItemSet::default(),
+            tables: IdHashMapTables::with_capacity_and_hasher(0, hasher),
+        }
+    }
+
+    /// Creates a new `IdHashMap` with the given capacity and hasher.
+    pub fn with_capacity_and_hasher(capacity: usize, hasher: S) -> Self {
+        Self {
+            items: ItemSet::with_capacity(capacity),
+            tables: IdHashMapTables::with_capacity_and_hasher(capacity, hasher),
+        }
+    }
+
+    #[cfg(feature = "daft")]
+    pub(crate) fn hasher(&self) -> &S {
+        self.tables.hasher()
     }
 
     /// Returns the currently allocated capacity of the map.
@@ -112,7 +145,7 @@ impl<T: IdHashItem> IdHashMap<T> {
     ///
     /// [`HashMap`]: std::collections::HashMap
     #[inline]
-    pub fn iter_mut(&mut self) -> IterMut<'_, T> {
+    pub fn iter_mut(&mut self) -> IterMut<'_, T, S> {
         IterMut::new(&self.tables, &mut self.items)
     }
 
@@ -200,7 +233,7 @@ impl<T: IdHashItem> IdHashMap<T> {
     }
 
     /// Gets a mutable reference to the value associated with the given `key`.
-    pub fn get_mut<'a, Q>(&'a mut self, key: &Q) -> Option<RefMut<'a, T>>
+    pub fn get_mut<'a, Q>(&'a mut self, key: &Q) -> Option<RefMut<'a, T, S>>
     where
         Q: ?Sized + Hash + Equivalent<T::Key<'a>>,
     {
@@ -256,7 +289,7 @@ impl<T: IdHashItem> IdHashMap<T> {
     }
 
     /// Retrieves an entry by its `key`.
-    pub fn entry<'a>(&'a mut self, key: T::Key<'_>) -> Entry<'a, T> {
+    pub fn entry<'a>(&'a mut self, key: T::Key<'_>) -> Entry<'a, T, S> {
         let (map, dormant_map) = DormantMutRef::new(self);
         let key = T::upcast_key(key);
         {
@@ -288,11 +321,11 @@ impl<T: IdHashItem> IdHashMap<T> {
         self.tables.key_to_item.find_index(k, |index| self.items[index].key())
     }
 
-    fn make_hash(&self, item: &T) -> MapHash {
+    fn make_hash(&self, item: &T) -> MapHash<S> {
         self.tables.make_hash(item)
     }
 
-    fn make_key_hash(&self, key: &T::Key<'_>) -> MapHash {
+    fn make_key_hash(&self, key: &T::Key<'_>) -> MapHash<S> {
         self.tables.make_key_hash::<T>(key)
     }
 
@@ -303,7 +336,7 @@ impl<T: IdHashItem> IdHashMap<T> {
     pub(super) fn get_by_index_mut(
         &mut self,
         index: usize,
-    ) -> Option<RefMut<'_, T>> {
+    ) -> Option<RefMut<'_, T, S>> {
         let hashes = self.make_hash(&self.items[index]);
         let item = &mut self.items[index];
         Some(RefMut::new(hashes, item))
@@ -385,7 +418,7 @@ impl<T: IdHashItem> IdHashMap<T> {
     }
 }
 
-impl<T> fmt::Debug for IdHashMap<T>
+impl<T, S: Clone + BuildHasher> fmt::Debug for IdHashMap<T, S>
 where
     T: IdHashItem + fmt::Debug,
     for<'k> T::Key<'k>: fmt::Debug,
@@ -397,7 +430,9 @@ where
     }
 }
 
-impl<T: IdHashItem + PartialEq> PartialEq for IdHashMap<T> {
+impl<T: IdHashItem + PartialEq, S: Clone + BuildHasher> PartialEq
+    for IdHashMap<T, S>
+{
     fn eq(&self, other: &Self) -> bool {
         // Implementing PartialEq for IdHashMap is tricky because IdHashMap is
         // not semantically like an IndexMap: two maps are equivalent even if
@@ -439,11 +474,11 @@ impl<T: IdHashItem + PartialEq> PartialEq for IdHashMap<T> {
 }
 
 // The Eq bound on T ensures that the TriHashMap forms an equivalence class.
-impl<T: IdHashItem + Eq> Eq for IdHashMap<T> {}
+impl<T: IdHashItem + Eq, S: Clone + BuildHasher> Eq for IdHashMap<T, S> {}
 
 /// The `Extend` implementation overwrites duplicates. In the future, there will
 /// also be an `extend_unique` method that will return an error.
-impl<T: IdHashItem> Extend<T> for IdHashMap<T> {
+impl<T: IdHashItem, S: Clone + BuildHasher> Extend<T> for IdHashMap<T, S> {
     fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
         for item in iter {
             self.insert_overwrite(item);
@@ -451,7 +486,9 @@ impl<T: IdHashItem> Extend<T> for IdHashMap<T> {
     }
 }
 
-impl<'a, T: IdHashItem> IntoIterator for &'a IdHashMap<T> {
+impl<'a, T: IdHashItem, S: Clone + BuildHasher> IntoIterator
+    for &'a IdHashMap<T, S>
+{
     type Item = &'a T;
     type IntoIter = Iter<'a, T>;
 
@@ -461,9 +498,11 @@ impl<'a, T: IdHashItem> IntoIterator for &'a IdHashMap<T> {
     }
 }
 
-impl<'a, T: IdHashItem> IntoIterator for &'a mut IdHashMap<T> {
-    type Item = RefMut<'a, T>;
-    type IntoIter = IterMut<'a, T>;
+impl<'a, T: IdHashItem, S: Clone + BuildHasher> IntoIterator
+    for &'a mut IdHashMap<T, S>
+{
+    type Item = RefMut<'a, T, S>;
+    type IntoIter = IterMut<'a, T, S>;
 
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
@@ -471,7 +510,7 @@ impl<'a, T: IdHashItem> IntoIterator for &'a mut IdHashMap<T> {
     }
 }
 
-impl<T: IdHashItem> IntoIterator for IdHashMap<T> {
+impl<T: IdHashItem, S: Clone + BuildHasher> IntoIterator for IdHashMap<T, S> {
     type Item = T;
     type IntoIter = IntoIter<T>;
 
@@ -483,9 +522,11 @@ impl<T: IdHashItem> IntoIterator for IdHashMap<T> {
 
 /// The `FromIterator` implementation for `IdHashMap` overwrites duplicate
 /// items.
-impl<T: IdHashItem> FromIterator<T> for IdHashMap<T> {
+impl<T: IdHashItem, S: Default + Clone + BuildHasher> FromIterator<T>
+    for IdHashMap<T, S>
+{
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        let mut map = IdHashMap::new();
+        let mut map = IdHashMap::default();
         for item in iter {
             map.insert_overwrite(item);
         }

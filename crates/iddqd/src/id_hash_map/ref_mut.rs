@@ -1,6 +1,7 @@
-use crate::{IdHashItem, support::map_hash::MapHash};
+use crate::{DefaultHashBuilder, IdHashItem, support::map_hash::MapHash};
 use core::{
     fmt,
+    hash::BuildHasher,
     ops::{Deref, DerefMut},
 };
 
@@ -42,19 +43,23 @@ use core::{
 ///
 /// [`IdHashMap`]: crate::IdHashMap
 /// [birthday problem]: https://en.wikipedia.org/wiki/Birthday_problem#Probability_table
-pub struct RefMut<'a, T: IdHashItem> {
-    inner: Option<RefMutInner<'a, T>>,
+pub struct RefMut<
+    'a,
+    T: IdHashItem,
+    S: Clone + BuildHasher = DefaultHashBuilder,
+> {
+    inner: Option<RefMutInner<'a, T, S>>,
 }
 
-impl<'a, T: IdHashItem> RefMut<'a, T> {
-    pub(super) fn new(hash: MapHash, borrowed: &'a mut T) -> Self {
+impl<'a, T: IdHashItem, S: Clone + BuildHasher> RefMut<'a, T, S> {
+    pub(super) fn new(hash: MapHash<S>, borrowed: &'a mut T) -> Self {
         Self { inner: Some(RefMutInner { hash, borrowed }) }
     }
 
     /// Borrows self into a shorter-lived `RefMut`.
     ///
     /// This `RefMut` will also check hash equality on drop.
-    pub fn reborrow(&mut self) -> RefMut<'_, T> {
+    pub fn reborrow(&mut self) -> RefMut<'_, T, S> {
         let inner = self.inner.as_mut().unwrap();
         let borrowed = &mut *inner.borrowed;
         RefMut::new(inner.hash.clone(), borrowed)
@@ -67,7 +72,7 @@ impl<'a, T: IdHashItem> RefMut<'a, T> {
     }
 }
 
-impl<T: IdHashItem> Drop for RefMut<'_, T> {
+impl<T: IdHashItem, S: Clone + BuildHasher> Drop for RefMut<'_, T, S> {
     fn drop(&mut self) {
         if let Some(inner) = self.inner.take() {
             inner.into_ref();
@@ -75,7 +80,7 @@ impl<T: IdHashItem> Drop for RefMut<'_, T> {
     }
 }
 
-impl<T: IdHashItem> Deref for RefMut<'_, T> {
+impl<T: IdHashItem, S: Clone + BuildHasher> Deref for RefMut<'_, T, S> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -83,13 +88,15 @@ impl<T: IdHashItem> Deref for RefMut<'_, T> {
     }
 }
 
-impl<T: IdHashItem> DerefMut for RefMut<'_, T> {
+impl<T: IdHashItem, S: Clone + BuildHasher> DerefMut for RefMut<'_, T, S> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.inner.as_mut().unwrap().borrowed
     }
 }
 
-impl<T: IdHashItem + fmt::Debug> fmt::Debug for RefMut<'_, T> {
+impl<T: IdHashItem + fmt::Debug, S: Clone + BuildHasher> fmt::Debug
+    for RefMut<'_, T, S>
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.inner {
             Some(ref inner) => inner.fmt(f),
@@ -100,12 +107,12 @@ impl<T: IdHashItem + fmt::Debug> fmt::Debug for RefMut<'_, T> {
     }
 }
 
-struct RefMutInner<'a, T: IdHashItem> {
-    hash: MapHash,
+struct RefMutInner<'a, T: IdHashItem, S> {
+    hash: MapHash<S>,
     borrowed: &'a mut T,
 }
 
-impl<'a, T: IdHashItem> RefMutInner<'a, T> {
+impl<'a, T: IdHashItem, S: BuildHasher> RefMutInner<'a, T, S> {
     fn into_ref(self) -> &'a T {
         if !self.hash.is_same_hash(self.borrowed.key()) {
             panic!("key changed during RefMut borrow");
@@ -115,7 +122,7 @@ impl<'a, T: IdHashItem> RefMutInner<'a, T> {
     }
 }
 
-impl<T: IdHashItem + fmt::Debug> fmt::Debug for RefMutInner<'_, T> {
+impl<T: IdHashItem + fmt::Debug, S> fmt::Debug for RefMutInner<'_, T, S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.borrowed.fmt(f)
     }

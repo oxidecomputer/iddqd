@@ -23,6 +23,7 @@ daft = { workspace = true, optional = true }
 debug-ignore.workspace = true
 derive-where.workspace = true
 equivalent.workspace = true
+foldhash = { workspace = true, optional = true }
 hashbrown.workspace = true
 ref-cast = { workspace = true, optional = true }
 rustc-hash.workspace = true
@@ -35,8 +36,9 @@ test-strategy.workspace = true
 
 [features]
 daft = ["dep:daft", "dep:ref-cast"]
-default = ["std"]
-std = ["iddqd-test-utils/std", "rustc-hash/std"]
+default = ["std", "default-hasher"]
+default-hasher = ["dep:foldhash", "iddqd-test-utils/default-hasher"]
+std = ["dep:foldhash", "iddqd-test-utils/std", "rustc-hash/std"]
 serde = ["dep:serde", "iddqd-test-utils/serde"]
 
 [package.metadata.cargo-sync-rdme.badge.badges]
@@ -47,4 +49,12 @@ rust-version = true
 
 [[example]]
 name = "id-complex"
-required-features = ["std"]
+required-features = ["default-hasher", "std"]
+
+[[example]]
+name = "bi-complex"
+required-features = ["default-hasher"]
+
+[[example]]
+name = "tri-complex"
+required-features = ["default-hasher"]

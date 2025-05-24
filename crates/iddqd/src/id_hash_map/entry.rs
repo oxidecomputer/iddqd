@@ -1,18 +1,22 @@
 use super::{IdHashItem, IdHashMap, RefMut};
-use crate::support::{borrow::DormantMutRef, map_hash::MapHash};
+use crate::{
+    DefaultHashBuilder,
+    support::{borrow::DormantMutRef, map_hash::MapHash},
+};
+use core::hash::BuildHasher;
 use debug_ignore::DebugIgnore;
 use derive_where::derive_where;
 
 /// An implementation of the Entry API for [`IdHashMap`].
 #[derive_where(Debug)]
-pub enum Entry<'a, T: IdHashItem> {
+pub enum Entry<'a, T: IdHashItem, S = DefaultHashBuilder> {
     /// A vacant entry.
-    Vacant(VacantEntry<'a, T>),
+    Vacant(VacantEntry<'a, T, S>),
     /// An occupied entry.
-    Occupied(OccupiedEntry<'a, T>),
+    Occupied(OccupiedEntry<'a, T, S>),
 }
 
-impl<'a, T: IdHashItem> Entry<'a, T> {
+impl<'a, T: IdHashItem, S: Clone + BuildHasher> Entry<'a, T, S> {
     /// Ensures a value is in the entry by inserting the default if empty, and
     /// returns a mutable reference to the value in the entry.
     ///
@@ -21,7 +25,7 @@ impl<'a, T: IdHashItem> Entry<'a, T> {
     /// Panics if the key hashes to a different value than the one passed
     /// into [`IdHashMap::entry`].
     #[inline]
-    pub fn or_insert(self, default: T) -> RefMut<'a, T> {
+    pub fn or_insert(self, default: T) -> RefMut<'a, T, S> {
         match self {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => entry.insert(default),
@@ -37,7 +41,10 @@ impl<'a, T: IdHashItem> Entry<'a, T> {
     /// Panics if the key hashes to a different value than the one passed
     /// into [`IdHashMap::entry`].
     #[inline]
-    pub fn or_insert_with<F: FnOnce() -> T>(self, default: F) -> RefMut<'a, T> {
+    pub fn or_insert_with<F: FnOnce() -> T>(
+        self,
+        default: F,
+    ) -> RefMut<'a, T, S> {
         match self {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => entry.insert(default()),
@@ -49,7 +56,7 @@ impl<'a, T: IdHashItem> Entry<'a, T> {
     #[inline]
     pub fn and_modify<F>(self, f: F) -> Self
     where
-        F: FnOnce(RefMut<'_, T>),
+        F: FnOnce(RefMut<'_, T, S>),
     {
         match self {
             Entry::Occupied(mut entry) => {
@@ -63,22 +70,22 @@ impl<'a, T: IdHashItem> Entry<'a, T> {
 
 /// A vacant entry.
 #[derive_where(Debug)]
-pub struct VacantEntry<'a, T: IdHashItem> {
-    map: DebugIgnore<DormantMutRef<'a, IdHashMap<T>>>,
-    hash: MapHash,
+pub struct VacantEntry<'a, T: IdHashItem, S = DefaultHashBuilder> {
+    map: DebugIgnore<DormantMutRef<'a, IdHashMap<T, S>>>,
+    hash: MapHash<S>,
 }
 
-impl<'a, T: IdHashItem> VacantEntry<'a, T> {
+impl<'a, T: IdHashItem, S: Clone + BuildHasher> VacantEntry<'a, T, S> {
     pub(super) unsafe fn new(
-        map: DormantMutRef<'a, IdHashMap<T>>,
-        hash: MapHash,
+        map: DormantMutRef<'a, IdHashMap<T, S>>,
+        hash: MapHash<S>,
     ) -> Self {
         VacantEntry { map: map.into(), hash }
     }
 
     /// Sets the entry to a new value, returning a mutable reference to the
     /// value.
-    pub fn insert(self, value: T) -> RefMut<'a, T> {
+    pub fn insert(self, value: T) -> RefMut<'a, T, S> {
         if !self.hash.is_same_hash(value.key()) {
             panic!("key hashes do not match");
         }
@@ -94,7 +101,7 @@ impl<'a, T: IdHashItem> VacantEntry<'a, T> {
 
     /// Sets the value of the entry, and returns an `OccupiedEntry`.
     #[inline]
-    pub fn insert_entry(mut self, value: T) -> OccupiedEntry<'a, T> {
+    pub fn insert_entry(mut self, value: T) -> OccupiedEntry<'a, T, S> {
         if !self.hash.is_same_hash(value.key()) {
             panic!("key hashes do not match");
         }
@@ -118,19 +125,19 @@ impl<'a, T: IdHashItem> VacantEntry<'a, T> {
 /// A view into an occupied entry in an [`IdHashMap`]. Part of the [`Entry`]
 /// enum.
 #[derive_where(Debug)]
-pub struct OccupiedEntry<'a, T: IdHashItem> {
-    map: DebugIgnore<DormantMutRef<'a, IdHashMap<T>>>,
+pub struct OccupiedEntry<'a, T: IdHashItem, S = DefaultHashBuilder> {
+    map: DebugIgnore<DormantMutRef<'a, IdHashMap<T, S>>>,
     // index is a valid index into the map's internal hash table.
     index: usize,
 }
 
-impl<'a, T: IdHashItem> OccupiedEntry<'a, T> {
+impl<'a, T: IdHashItem, S: Clone + BuildHasher> OccupiedEntry<'a, T, S> {
     /// # Safety
     ///
     /// After self is created, the original reference created by
     /// `DormantMutRef::new` must not be used.
     pub(super) unsafe fn new(
-        map: DormantMutRef<'a, IdHashMap<T>>,
+        map: DormantMutRef<'a, IdHashMap<T, S>>,
         index: usize,
     ) -> Self {
         OccupiedEntry { map: map.into(), index }
@@ -152,7 +159,7 @@ impl<'a, T: IdHashItem> OccupiedEntry<'a, T> {
     ///
     /// If you need a reference to `T` that may outlive the destruction of the
     /// `Entry` value, see [`into_mut`](Self::into_mut).
-    pub fn get_mut(&mut self) -> RefMut<'_, T> {
+    pub fn get_mut(&mut self) -> RefMut<'_, T, S> {
         // SAFETY: The safety assumption behind `Self::new` guarantees that the
         // original reference to the map is not used at this point.
         unsafe { self.map.reborrow() }
@@ -176,7 +183,7 @@ impl<'a, T: IdHashItem> OccupiedEntry<'a, T> {
     ///
     /// If you need multiple references to the `OccupiedEntry`, see
     /// [`get_mut`](Self::get_mut).
-    pub fn into_mut(self) -> RefMut<'a, T> {
+    pub fn into_mut(self) -> RefMut<'a, T, S> {
         // SAFETY: The safety assumption behind `Self::new` guarantees that the
         // original reference to the map is not used at this point.
         unsafe { self.map.0.awaken() }

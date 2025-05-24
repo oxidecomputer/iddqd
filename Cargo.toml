@@ -15,7 +15,8 @@ daft = { version = "0.1.3", default-features = false }
 debug-ignore = "1.0.5"
 derive-where = "1.2.7"
 equivalent = "1.0.2"
-hashbrown = "0.15.2"
+foldhash = "0.1.5"
+hashbrown = { version = "0.15.2", default-features = false, features = ["inline-more"] }
 iddqd = { path = "crates/iddqd", default-features = false }
 iddqd-test-utils = { path = "crates/iddqd-test-utils" }
 proptest = "1.6.0"

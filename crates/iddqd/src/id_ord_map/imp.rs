@@ -21,6 +21,7 @@ use equivalent::{Comparable, Equivalent};
 /// # Examples
 ///
 /// ```
+/// # #[cfg(feature = "default-hasher")] {
 /// use iddqd::{IdOrdMap, IdOrdItem, id_upcast};
 ///
 /// // Define a struct with a key.
@@ -51,6 +52,7 @@ use equivalent::{Comparable, Equivalent};
 /// assert_eq!(map.get("foo").unwrap().value, 42);
 /// assert_eq!(map.get("bar").unwrap().value, 20);
 /// assert!(map.get("baz").is_none());
+/// # }
 /// ```
 #[derive_where(Default)]
 #[derive(Clone)]

@@ -1,6 +1,6 @@
 use super::{RefMut, tables::TriHashMapTables};
-use crate::{TriHashItem, support::item_set::ItemSet};
-use core::iter::FusedIterator;
+use crate::{DefaultHashBuilder, TriHashItem, support::item_set::ItemSet};
+use core::{hash::BuildHasher, iter::FusedIterator};
 use hashbrown::hash_map;
 
 /// An iterator over the elements of a [`TriHashMap`] by shared reference.
@@ -54,22 +54,28 @@ impl<T: TriHashItem> FusedIterator for Iter<'_, T> {}
 /// [`TriHashMap::iter_mut`]: crate::TriHashMap::iter_mut
 /// [`HashMap`]: std::collections::HashMap
 #[derive(Debug)]
-pub struct IterMut<'a, T: TriHashItem> {
-    tables: &'a TriHashMapTables,
+pub struct IterMut<
+    'a,
+    T: TriHashItem,
+    S: Clone + BuildHasher = DefaultHashBuilder,
+> {
+    tables: &'a TriHashMapTables<S>,
     inner: hash_map::ValuesMut<'a, usize, T>,
 }
 
-impl<'a, T: TriHashItem> IterMut<'a, T> {
+impl<'a, T: TriHashItem, S: Clone + BuildHasher> IterMut<'a, T, S> {
     pub(super) fn new(
-        tables: &'a TriHashMapTables,
+        tables: &'a TriHashMapTables<S>,
         items: &'a mut ItemSet<T>,
     ) -> Self {
         Self { tables, inner: items.values_mut() }
     }
 }
 
-impl<'a, T: TriHashItem> Iterator for IterMut<'a, T> {
-    type Item = RefMut<'a, T>;
+impl<'a, T: TriHashItem, S: Clone + BuildHasher> Iterator
+    for IterMut<'a, T, S>
+{
+    type Item = RefMut<'a, T, S>;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
@@ -79,7 +85,9 @@ impl<'a, T: TriHashItem> Iterator for IterMut<'a, T> {
     }
 }
 
-impl<T: TriHashItem> ExactSizeIterator for IterMut<'_, T> {
+impl<T: TriHashItem, S: Clone + BuildHasher> ExactSizeIterator
+    for IterMut<'_, T, S>
+{
     #[inline]
     fn len(&self) -> usize {
         self.inner.len()
@@ -87,7 +95,10 @@ impl<T: TriHashItem> ExactSizeIterator for IterMut<'_, T> {
 }
 
 // hash_map::IterMut is a FusedIterator, so IterMut is as well.
-impl<T: TriHashItem> FusedIterator for IterMut<'_, T> {}
+impl<T: TriHashItem, S: Clone + BuildHasher> FusedIterator
+    for IterMut<'_, T, S>
+{
+}
 
 /// An iterator over the elements of a [`TriHashMap`] by ownership. Created by
 /// [`TriHashMap::into_iter`].

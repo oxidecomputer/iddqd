@@ -2,40 +2,31 @@
 
 use super::map_hash::MapHash;
 use crate::internal::{TableValidationError, ValidateCompact};
-use alloc::vec::Vec;
+use alloc::{collections::BTreeSet, vec::Vec};
 use core::{
     borrow::Borrow,
     hash::{BuildHasher, Hash},
 };
 use equivalent::Equivalent;
 use hashbrown::{
-    DefaultHashBuilder, HashTable,
+    HashTable,
     hash_table::{AbsentEntry, Entry, OccupiedEntry},
 };
 
 #[derive(Clone, Debug, Default)]
-pub(crate) struct MapHashTable {
-    pub(super) state: DefaultHashBuilder,
+pub(crate) struct MapHashTable<S> {
+    pub(super) state: S,
     pub(super) items: HashTable<usize>,
 }
 
-#[cfg(feature = "std")]
-fn new_hash_builder() -> DefaultHashBuilder {
-    DefaultHashBuilder::default()
-}
+impl<S: Clone + BuildHasher> MapHashTable<S> {
+    pub(crate) fn with_capacity_and_hasher(capacity: usize, hasher: S) -> Self {
+        Self { state: hasher, items: HashTable::with_capacity(capacity) }
+    }
 
-#[cfg(not(feature = "std"))]
-fn new_hash_builder() -> DefaultHashBuilder {
-    // Use a default hash builder that doesn't require std.
-    DefaultHashBuilder::default()
-}
-
-impl MapHashTable {
-    pub(crate) fn with_capacity(capacity: usize) -> Self {
-        Self {
-            state: new_hash_builder(),
-            items: HashTable::with_capacity(capacity),
-        }
+    #[cfg(feature = "daft")]
+    pub(crate) fn state(&self) -> &S {
+        &self.state
     }
 
     pub(crate) fn len(&self) -> usize {
@@ -47,8 +38,6 @@ impl MapHashTable {
         expected_len: usize,
         compactness: ValidateCompact,
     ) -> Result<(), TableValidationError> {
-        use hashbrown::HashSet;
-
         if self.len() != expected_len {
             return Err(TableValidationError::new(format!(
                 "expected length {expected_len}, was {}",
@@ -73,7 +62,7 @@ impl MapHashTable {
             ValidateCompact::NonCompact => {
                 // There should be no duplicates.
                 let values: Vec<_> = self.items.iter().copied().collect();
-                let value_set: HashSet<_> = values.iter().copied().collect();
+                let value_set: BTreeSet<_> = values.iter().copied().collect();
                 if value_set.len() != values.len() {
                     return Err(TableValidationError::new(format!(
                         "expected no duplicates, but found {} duplicates \
@@ -88,8 +77,11 @@ impl MapHashTable {
         Ok(())
     }
 
-    pub(crate) fn compute_hash<K: Hash + Eq>(&self, key: K) -> MapHash {
-        MapHash { state: self.state, hash: self.state.hash_one(key) }
+    pub(crate) fn compute_hash<K: Hash + Eq>(&self, key: K) -> MapHash<S> {
+        MapHash {
+            state: self.state.clone().into(),
+            hash: self.state.hash_one(key),
+        }
     }
 
     // Ensure that K has a consistent hash.

@@ -10,6 +10,7 @@ use core::hash::Hash;
 /// # Examples
 ///
 /// ```
+/// # #[cfg(feature = "default-hasher")] {
 /// use iddqd::{BiHashMap, BiHashItem, bi_upcast};
 ///
 /// // Define a struct with two keys.
@@ -39,6 +40,7 @@ use core::hash::Hash;
 /// let mut map = BiHashMap::new();
 /// map.insert_unique(MyPair { id: 1, name: "Alice".to_string() }).unwrap();
 /// map.insert_unique(MyPair { id: 2, name: "Bob".to_string() }).unwrap();
+/// # }
 /// ```
 ///
 /// [`BiHashMap`]: crate::BiHashMap

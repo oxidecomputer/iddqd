@@ -1,19 +1,23 @@
 use super::{BiHashItem, BiHashMap, RefMut, entry_indexes::EntryIndexes};
-use crate::support::{borrow::DormantMutRef, map_hash::MapHash};
+use crate::{
+    DefaultHashBuilder,
+    support::{borrow::DormantMutRef, map_hash::MapHash},
+};
 use alloc::vec::Vec;
+use core::{fmt, hash::BuildHasher};
 use debug_ignore::DebugIgnore;
 use derive_where::derive_where;
 
 /// An implementation of the Entry API for [`BiHashMap`].
 #[derive_where(Debug)]
-pub enum Entry<'a, T: BiHashItem> {
+pub enum Entry<'a, T: BiHashItem, S = DefaultHashBuilder> {
     /// A vacant entry: none of the provided keys are present.
-    Vacant(VacantEntry<'a, T>),
+    Vacant(VacantEntry<'a, T, S>),
     /// An occupied entry where at least one of the keys is present in the map.
-    Occupied(OccupiedEntry<'a, T>),
+    Occupied(OccupiedEntry<'a, T, S>),
 }
 
-impl<'a, T: BiHashItem> Entry<'a, T> {
+impl<'a, T: BiHashItem, S: Clone + BuildHasher> Entry<'a, T, S> {
     /// Ensures a value is in the entry by inserting the default if empty, and
     /// returns a mutable reference to the value in the entry.
     ///
@@ -22,7 +26,7 @@ impl<'a, T: BiHashItem> Entry<'a, T> {
     /// Panics if the key hashes to a different value than the one passed
     /// into [`BiHashMap::entry`].
     #[inline]
-    pub fn or_insert(self, default: T) -> OccupiedEntryMut<'a, T> {
+    pub fn or_insert(self, default: T) -> OccupiedEntryMut<'a, T, S> {
         match self {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => {
@@ -43,7 +47,7 @@ impl<'a, T: BiHashItem> Entry<'a, T> {
     pub fn or_insert_with<F: FnOnce() -> T>(
         self,
         default: F,
-    ) -> OccupiedEntryMut<'a, T> {
+    ) -> OccupiedEntryMut<'a, T, S> {
         match self {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => {
@@ -59,7 +63,7 @@ impl<'a, T: BiHashItem> Entry<'a, T> {
     #[inline]
     pub fn and_modify<F>(self, f: F) -> Self
     where
-        F: FnMut(RefMut<'_, T>),
+        F: FnMut(RefMut<'_, T, S>),
     {
         match self {
             Entry::Occupied(mut entry) => {
@@ -73,22 +77,22 @@ impl<'a, T: BiHashItem> Entry<'a, T> {
 
 /// A vacant entry.
 #[derive_where(Debug)]
-pub struct VacantEntry<'a, T: BiHashItem> {
-    map: DebugIgnore<DormantMutRef<'a, BiHashMap<T>>>,
-    hashes: [MapHash; 2],
+pub struct VacantEntry<'a, T: BiHashItem, S = DefaultHashBuilder> {
+    map: DebugIgnore<DormantMutRef<'a, BiHashMap<T, S>>>,
+    hashes: [MapHash<S>; 2],
 }
 
-impl<'a, T: BiHashItem> VacantEntry<'a, T> {
+impl<'a, T: BiHashItem, S: Clone + BuildHasher> VacantEntry<'a, T, S> {
     pub(super) unsafe fn new(
-        map: DormantMutRef<'a, BiHashMap<T>>,
-        hashes: [MapHash; 2],
+        map: DormantMutRef<'a, BiHashMap<T, S>>,
+        hashes: [MapHash<S>; 2],
     ) -> Self {
         VacantEntry { map: map.into(), hashes }
     }
 
     /// Sets the entry to a new value, returning a mutable reference to the
     /// value.
-    pub fn insert(self, value: T) -> RefMut<'a, T> {
+    pub fn insert(self, value: T) -> RefMut<'a, T, S> {
         if !self.hashes[0].is_same_hash(value.key1()) {
             panic!("key1 hashes do not match");
         }
@@ -107,7 +111,7 @@ impl<'a, T: BiHashItem> VacantEntry<'a, T> {
 
     /// Sets the value of the entry, and returns an `OccupiedEntry`.
     #[inline]
-    pub fn insert_entry(mut self, value: T) -> OccupiedEntry<'a, T> {
+    pub fn insert_entry(mut self, value: T) -> OccupiedEntry<'a, T, S> {
         if !self.hashes[0].is_same_hash(value.key1()) {
             panic!("key1 hashes do not match");
         }
@@ -134,18 +138,18 @@ impl<'a, T: BiHashItem> VacantEntry<'a, T> {
 /// A view into an occupied entry in a [`BiHashMap`]. Part of the [`Entry`]
 /// enum.
 #[derive_where(Debug)]
-pub struct OccupiedEntry<'a, T: BiHashItem> {
-    map: DebugIgnore<DormantMutRef<'a, BiHashMap<T>>>,
+pub struct OccupiedEntry<'a, T: BiHashItem, S = DefaultHashBuilder> {
+    map: DebugIgnore<DormantMutRef<'a, BiHashMap<T, S>>>,
     indexes: EntryIndexes,
 }
 
-impl<'a, T: BiHashItem> OccupiedEntry<'a, T> {
+impl<'a, T: BiHashItem, S: Clone + BuildHasher> OccupiedEntry<'a, T, S> {
     /// # Safety
     ///
     /// After self is created, the original reference created by
     /// `DormantMutRef::new` must not be used.
     pub(super) unsafe fn new(
-        map: DormantMutRef<'a, BiHashMap<T>>,
+        map: DormantMutRef<'a, BiHashMap<T, S>>,
         indexes: EntryIndexes,
     ) -> Self {
         OccupiedEntry { map: map.into(), indexes }
@@ -182,7 +186,7 @@ impl<'a, T: BiHashItem> OccupiedEntry<'a, T> {
     ///
     /// If you need a reference to `T` that may outlive the destruction of the
     /// `Entry` value, see [`into_mut`](Self::into_mut).
-    pub fn get_mut(&mut self) -> OccupiedEntryMut<'_, T> {
+    pub fn get_mut(&mut self) -> OccupiedEntryMut<'_, T, S> {
         // SAFETY: The safety assumption behind `Self::new` guarantees that the
         // original reference to the map is not used at this point.
         let map = unsafe { self.map.reborrow() };
@@ -206,7 +210,7 @@ impl<'a, T: BiHashItem> OccupiedEntry<'a, T> {
     ///
     /// If you need multiple references to the `OccupiedEntry`, see
     /// [`get_mut`](Self::get_mut).
-    pub fn into_mut(self) -> OccupiedEntryMut<'a, T> {
+    pub fn into_mut(self) -> OccupiedEntryMut<'a, T, S> {
         // SAFETY: The safety assumption behind `Self::new` guarantees that the
         // original reference to the map is not used at this point.
         let map = unsafe { self.map.0.awaken() };
@@ -307,22 +311,26 @@ impl<'a, T: BiHashItem> OccupiedEntryRef<'a, T> {
 /// A mutable view into an occupied entry in a [`BiHashMap`].
 ///
 /// Returned by [`OccupiedEntry::get_mut`].
-#[derive(Debug)]
-pub enum OccupiedEntryMut<'a, T: BiHashItem> {
+#[derive_where(Debug; T: fmt::Debug)]
+pub enum OccupiedEntryMut<
+    'a,
+    T: BiHashItem,
+    S: Clone + BuildHasher = DefaultHashBuilder,
+> {
     /// All keys point to the same entry.
-    Unique(RefMut<'a, T>),
+    Unique(RefMut<'a, T, S>),
 
     /// The keys point to different entries, or some keys are not present.
     NonUnique {
         /// The value fetched by the first key.
-        by_key1: Option<RefMut<'a, T>>,
+        by_key1: Option<RefMut<'a, T, S>>,
 
         /// The value fetched by the second key.
-        by_key2: Option<RefMut<'a, T>>,
+        by_key2: Option<RefMut<'a, T, S>>,
     },
 }
 
-impl<'a, T: BiHashItem> OccupiedEntryMut<'a, T> {
+impl<'a, T: BiHashItem, S: Clone + BuildHasher> OccupiedEntryMut<'a, T, S> {
     /// Returns true if the entry is unique.
     #[inline]
     pub fn is_unique(&self) -> bool {
@@ -338,7 +346,7 @@ impl<'a, T: BiHashItem> OccupiedEntryMut<'a, T> {
 
     /// Returns a reference to the value if it is unique.
     #[inline]
-    pub fn as_unique(&mut self) -> Option<RefMut<'_, T>> {
+    pub fn as_unique(&mut self) -> Option<RefMut<'_, T, S>> {
         match self {
             Self::Unique(v) => Some(v.reborrow()),
             Self::NonUnique { .. } => None,
@@ -347,7 +355,7 @@ impl<'a, T: BiHashItem> OccupiedEntryMut<'a, T> {
 
     /// Returns a mutable reference to the value fetched by the first key.
     #[inline]
-    pub fn by_key1(&mut self) -> Option<RefMut<'_, T>> {
+    pub fn by_key1(&mut self) -> Option<RefMut<'_, T, S>> {
         match self {
             Self::Unique(v) => Some(v.reborrow()),
             Self::NonUnique { by_key1, .. } => {
@@ -358,7 +366,7 @@ impl<'a, T: BiHashItem> OccupiedEntryMut<'a, T> {
 
     /// Returns a mutable reference to the value fetched by the second key.
     #[inline]
-    pub fn by_key2(&mut self) -> Option<RefMut<'_, T>> {
+    pub fn by_key2(&mut self) -> Option<RefMut<'_, T, S>> {
         match self {
             Self::Unique(v) => Some(v.reborrow()),
             Self::NonUnique { by_key2, .. } => {
@@ -370,7 +378,7 @@ impl<'a, T: BiHashItem> OccupiedEntryMut<'a, T> {
     /// Calls a callback for each value.
     pub fn for_each<F>(&mut self, mut f: F)
     where
-        F: FnMut(RefMut<'_, T>),
+        F: FnMut(RefMut<'_, T, S>),
     {
         match self {
             Self::Unique(v) => f(v.reborrow()),

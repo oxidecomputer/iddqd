@@ -10,6 +10,9 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        partition: ["1", "2"]
     env:
       RUSTFLAGS: -D warnings
     steps:
@@ -18,12 +21,14 @@ jobs:
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
+        with:
+          key: partition-${{ matrix.partition }}
       - name: Install just, cargo-hack, and cargo-sync-rdme
         uses: taiki-e/install-action@v2
         with:
           tool: just,cargo-hack,cargo-sync-rdme
       - name: Lint (clippy)
-        run: just powerset clippy --all-targets
+        run: just powerset --partition ${{ matrix.partition }}/2 clippy --all-targets
       - name: Lint (rustfmt)
         run: cargo xfmt --check
       - name: Run rustdoc
@@ -43,6 +48,7 @@ jobs:
         os: [ubuntu-latest]
         # 1.81 is the MSRV
         rust-version: ["1.81", "stable"]
+        partition: ["1", "2"]
       fail-fast: false
     env:
       RUSTFLAGS: -D warnings
@@ -52,15 +58,17 @@ jobs:
         with:
           toolchain: ${{ matrix.rust-version }}
       - uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
+        with:
+          key: partition-${{ matrix.partition }}
       - uses: taiki-e/install-action@cargo-hack
       - uses: taiki-e/install-action@just
       - uses: taiki-e/install-action@nextest
       - name: Build
-        run: just powerset build
+        run: just powerset --partition ${{ matrix.partition }}/2 build
       - name: Run tests
-        run: just powerset nextest run
+        run: just powerset --partition ${{ matrix.partition }}/2 nextest run
       - name: Doctests
-        run: just powerset test --doc
+        run: just powerset --partition ${{ matrix.partition }}/2 test --doc
         
   build-no-std:
     name: Build on no-std
