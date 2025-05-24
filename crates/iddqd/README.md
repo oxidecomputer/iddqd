@@ -274,6 +274,9 @@ platform-specific notion of thread locals, would suffice to make
 * `daft`: Enables [`daft`](https://docs.rs/daft/0.1.3/daft/index.html) support for all ID map types. *Not enabled by
   default.*
 * `std`: Enables std support. *Enabled by default.*
+* `default-hasher`: Enables the `DefaultHashBuilder` type. Disable this
+  feature to require a hash builder type parameter to be passed into
+  [`IdHashMap`](https://docs.rs/iddqd/0.3.1/iddqd/id_hash_map/imp/struct.IdHashMap.html), [`BiHashMap`](https://docs.rs/iddqd/0.3.1/iddqd/bi_hash_map/imp/struct.BiHashMap.html), and [`TriHashMap`](https://docs.rs/iddqd/0.3.1/iddqd/tri_hash_map/imp/struct.TriHashMap.html). *Enabled by default.*
 
 ## Related work
 
