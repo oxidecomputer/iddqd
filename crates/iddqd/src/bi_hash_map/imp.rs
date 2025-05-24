@@ -108,12 +108,23 @@ impl<T: BiHashItem> BiHashMap<T> {
     }
 
     /// Iterates over the items in the map.
+    ///
+    /// Similar to [`HashMap`], the iteration order is arbitrary and not
+    /// guaranteed to be stable.
+    ///
+    /// [`HashMap`]: std::collections::HashMap
     #[inline]
     pub fn iter(&self) -> Iter<'_, T> {
         Iter::new(&self.items)
     }
 
     /// Iterates over the items in the map, allowing for mutation.
+    ///
+    /// Similar to [`HashMap`], the iteration order is arbitrary and not
+    /// guaranteed to be stable.s useful to have
+    /// an explicit check for tests.
+    ///
+    /// [`HashMap`]: std::collections::HashMap
     #[inline]
     pub fn iter_mut(&mut self) -> IterMut<'_, T> {
         IterMut::new(&self.tables, &mut self.items)
@@ -121,8 +132,7 @@ impl<T: BiHashItem> BiHashMap<T> {
 
     /// Checks general invariants of the map.
     ///
-    /// The code below always upholds these invariants, but it's useful to have
-    /// an explicit check for tests.
+    /// The code below always upholds these invariants, but it'
     #[doc(hidden)]
     pub fn validate(
         &self,

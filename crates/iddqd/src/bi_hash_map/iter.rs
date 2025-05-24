@@ -4,11 +4,14 @@ use core::iter::FusedIterator;
 use hashbrown::hash_map;
 
 /// An iterator over the elements of a [`BiHashMap`] by shared reference.
-///
 /// Created by [`BiHashMap::iter`].
+///
+/// Similar to [`HashMap`], the iteration order is arbitrary and not guaranteed
+/// to be stable.
 ///
 /// [`BiHashMap`]: crate::BiHashMap
 /// [`BiHashMap::iter`]: crate::BiHashMap::iter
+/// [`HashMap`]: std::collections::HashMap
 #[derive(Clone, Debug, Default)]
 pub struct Iter<'a, T: BiHashItem> {
     inner: hash_map::Values<'a, usize, T>,
@@ -40,13 +43,16 @@ impl<T: BiHashItem> ExactSizeIterator for Iter<'_, T> {
 impl<T: BiHashItem> FusedIterator for Iter<'_, T> {}
 
 /// An iterator over the elements of a [`BiHashMap`] by mutable reference.
+/// Created by [`BiHashMap::iter_mut`].
 ///
 /// This iterator returns [`RefMut`] instances.
 ///
-/// Created by [`BiHashMap::iter_mut`].
+/// Similar to [`HashMap`], the iteration order is arbitrary and not guaranteed
+/// to be stable.
 ///
 /// [`BiHashMap`]: crate::BiHashMap
 /// [`BiHashMap::iter_mut`]: crate::BiHashMap::iter_mut
+/// [`HashMap`]: std::collections::HashMap
 #[derive(Debug)]
 pub struct IterMut<'a, T: BiHashItem> {
     tables: &'a BiHashMapTables,
@@ -83,12 +89,15 @@ impl<T: BiHashItem> ExactSizeIterator for IterMut<'_, T> {
 // hash_map::IterMut is a FusedIterator, so IterMut is as well.
 impl<T: BiHashItem> FusedIterator for IterMut<'_, T> {}
 
-/// An iterator over the elements of a [`BiHashMap`] by ownership.
+/// An iterator over the elements of a [`BiHashMap`] by ownership. Created by
+/// [`BiHashMap::into_iter`].
 ///
-/// Created by [`BiHashMap::into_iter`].
+/// Similar to [`HashMap`], the iteration order is arbitrary and not guaranteed
+/// to be stable.
 ///
 /// [`BiHashMap`]: crate::BiHashMap
 /// [`BiHashMap::into_iter`]: crate::BiHashMap::into_iter
+/// [`HashMap`]: std::collections::HashMap
 #[derive(Debug)]
 pub struct IntoIter<T: BiHashItem> {
     inner: hash_map::IntoValues<usize, T>,

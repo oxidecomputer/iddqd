@@ -4,11 +4,14 @@ use core::iter::FusedIterator;
 use hashbrown::hash_map;
 
 /// An iterator over the elements of a [`TriHashMap`] by shared reference.
-///
 /// Created by [`TriHashMap::iter`].
+///
+/// Similar to [`HashMap`], the iteration order is arbitrary and not guaranteed
+/// to be stable.
 ///
 /// [`TriHashMap`]: crate::TriHashMap
 /// [`TriHashMap::iter`]: crate::TriHashMap::iter
+/// [`HashMap`]: std::collections::HashMap
 #[derive(Clone, Debug, Default)]
 pub struct Iter<'a, T: TriHashItem> {
     inner: hash_map::Values<'a, usize, T>,
@@ -40,13 +43,16 @@ impl<T: TriHashItem> ExactSizeIterator for Iter<'_, T> {
 impl<T: TriHashItem> FusedIterator for Iter<'_, T> {}
 
 /// An iterator over the elements of a [`TriHashMap`] by mutable reference.
+/// Created by [`TriHashMap::iter_mut`].
 ///
 /// This iterator returns [`RefMut`] instances.
 ///
-/// Created by [`TriHashMap::iter_mut`].
+/// Similar to [`HashMap`], the iteration order is arbitrary and not guaranteed
+/// to be stable.
 ///
 /// [`TriHashMap`]: crate::TriHashMap
 /// [`TriHashMap::iter_mut`]: crate::TriHashMap::iter_mut
+/// [`HashMap`]: std::collections::HashMap
 #[derive(Debug)]
 pub struct IterMut<'a, T: TriHashItem> {
     tables: &'a TriHashMapTables,
@@ -83,12 +89,15 @@ impl<T: TriHashItem> ExactSizeIterator for IterMut<'_, T> {
 // hash_map::IterMut is a FusedIterator, so IterMut is as well.
 impl<T: TriHashItem> FusedIterator for IterMut<'_, T> {}
 
-/// An iterator over the elements of a [`TriHashMap`] by ownership.
+/// An iterator over the elements of a [`TriHashMap`] by ownership. Created by
+/// [`TriHashMap::into_iter`].
 ///
-/// Created by [`TriHashMap::into_iter`].
+/// Similar to [`HashMap`], the iteration order is arbitrary and not guaranteed
+/// to be stable.
 ///
 /// [`TriHashMap`]: crate::TriHashMap
 /// [`TriHashMap::into_iter`]: crate::TriHashMap::into_iter
+/// [`HashMap`]: std::collections::HashMap
 #[derive(Debug)]
 pub struct IntoIter<T: TriHashItem> {
     inner: hash_map::IntoValues<usize, T>,
