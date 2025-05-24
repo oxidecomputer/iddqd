@@ -118,6 +118,7 @@
 //! returns references to more than one field from the value.
 //!
 //! ```
+//! # #[cfg(feature = "default-hasher")] {
 //! use iddqd::{IdHashMap, IdHashItem, id_upcast};
 //!
 //! #[derive(Debug)]
@@ -173,6 +174,7 @@
 //!         .data,
 //!     b"data1",
 //! );
+//! # }
 //! ```
 //!
 //! ### `Equivalent` and `Comparable`
@@ -207,6 +209,7 @@
 //! using a key of this owned form:
 //!
 //! ```
+//! # #[cfg(feature = "default-hasher")] {
 //! use equivalent::Equivalent;
 //! # use iddqd::{IdHashMap, IdHashItem, id_upcast};
 //! # #[derive(Debug)]
@@ -266,6 +269,7 @@
 //!         .data,
 //!     b"data1",
 //! );
+//! # }
 //! ```
 //!
 //! There's a blanket implementation of [`Equivalent`] and [`Comparable`] for

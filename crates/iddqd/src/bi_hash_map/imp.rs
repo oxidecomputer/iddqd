@@ -31,6 +31,7 @@ use hashbrown::hash_table;
 /// # Examples
 ///
 /// ```
+/// # #[cfg(feature = "default-hasher")] {
 /// use iddqd::{BiHashMap, BiHashItem, bi_upcast};
 ///
 /// // Define a struct with two keys and a value.
@@ -66,6 +67,7 @@ use hashbrown::hash_table;
 /// assert_eq!(map.get2(&"foo").unwrap().value, 42);
 /// assert_eq!(map.get2(&"bar").unwrap().value, 99);
 /// assert!(map.get2(&"baz").is_none());
+/// # }
 /// ```
 #[derive_where(Default; S: Default)]
 #[derive(Clone)]

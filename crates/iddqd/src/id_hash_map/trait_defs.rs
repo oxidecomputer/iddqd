@@ -8,6 +8,7 @@ use core::hash::Hash;
 /// # Examples
 ///
 /// ```
+/// # #[cfg(feature = "default-hasher")] {
 /// use iddqd::{IdHashMap, IdHashItem, id_upcast};
 ///
 /// // Define a struct with a key.
@@ -33,6 +34,7 @@ use core::hash::Hash;
 /// let mut map = IdHashMap::new();
 /// map.insert_unique(MyItem { id: "foo".to_string(), value: 42 }).unwrap();
 /// map.insert_unique(MyItem { id: "bar".to_string(), value: 20 }).unwrap();
+/// # }
 /// ```
 ///
 /// [`IdHashMap`]: crate::IdHashMap

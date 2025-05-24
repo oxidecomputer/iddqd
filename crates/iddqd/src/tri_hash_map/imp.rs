@@ -25,6 +25,7 @@ use hashbrown::hash_table::{Entry, VacantEntry};
 /// # Examples
 ///
 /// ```
+/// # #[cfg(feature = "default-hasher")] {
 /// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
 ///
 /// #[derive(Debug, PartialEq, Eq)]
@@ -75,6 +76,7 @@ use hashbrown::hash_table::{Entry, VacantEntry};
 ///
 /// let person = people.get3("555-1234").unwrap();
 /// assert_eq!(person.email, "alice@example.com");
+/// # }
 /// ```
 #[derive_where(Default; S: Default)]
 #[derive(Clone)]

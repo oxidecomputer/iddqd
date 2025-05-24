@@ -10,6 +10,7 @@ use core::hash::Hash;
 /// # Examples
 ///
 /// ```
+/// # #[cfg(feature = "default-hasher")] {
 /// use iddqd::{TriHashMap, TriHashItem, tri_upcast};
 ///
 /// // Define a struct with three keys.
@@ -55,6 +56,7 @@ use core::hash::Hash;
 ///     email: "bob@example.com".to_string()
 /// })
 /// .unwrap();
+/// # }
 /// ```
 ///
 /// [`TriHashMap`]: crate::TriHashMap

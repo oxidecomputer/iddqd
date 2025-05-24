@@ -26,6 +26,7 @@ use hashbrown::hash_table;
 /// # Examples
 ///
 /// ```
+/// # #[cfg(feature = "default-hasher")] {
 /// use iddqd::{IdHashMap, IdHashItem, id_upcast};
 ///
 /// // Define a struct with a key.
@@ -56,6 +57,7 @@ use hashbrown::hash_table;
 /// assert_eq!(map.get("foo").unwrap().value, 42);
 /// assert_eq!(map.get("bar").unwrap().value, 20);
 /// assert!(map.get("baz").is_none());
+/// # }
 /// ```
 #[derive_where(Default; S: Default)]
 #[derive(Clone)]
