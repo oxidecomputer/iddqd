@@ -126,13 +126,23 @@ impl<T: IdOrdItem> IdOrdMap<T> {
         self.items.len()
     }
 
-    /// Iterates over the items in the map.
+    /// Iterates over the items in the map, allowing for mutation.
+    ///
+    /// Similar to [`BTreeMap`], the iteration is ordered by [`T::Key`].
+    ///
+    /// [`BTreeMap`]: std::collections::BTreeMap
+    /// [`T::Key`]: crate::IdOrdItem::Key
     #[inline]
     pub fn iter(&self) -> Iter<'_, T> {
         Iter::new(&self.items, &self.tables)
     }
 
     /// Iterates over the items in the map, allowing for mutation.
+    ///
+    /// Similar to [`BTreeMap`], the iteration is ordered by [`T::Key`].
+    ///
+    /// [`BTreeMap`]: std::collections::BTreeMap
+    /// [`T::Key`]: crate::IdOrdItem::Key
     #[inline]
     pub fn iter_mut(&mut self) -> IterMut<'_, T>
     where
