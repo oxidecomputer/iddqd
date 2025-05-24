@@ -28,11 +28,39 @@ thread_local! {
     ///
     /// * We store an `Index` in the BTreeSet which knows how to call this
     ///   dynamic comparator.
-    /// * When we need to compare two `Index` values, we create a
-    ///   CmpDropGuard. This struct is responsible for managing the lifetime of
-    ///   the comparator.
+    /// * When we need to compare two `Index` values, we create a CmpDropGuard.
+    ///   This struct is responsible for managing the lifetime of the
+    ///   comparator.
     /// * When the CmpDropGuard is dropped (including due to a panic), we reset
     ///   the comparator to None.
+    ///
+    /// This is not great! (For one, thread-locals and no-std don't really mix.)
+    /// Some alternatives:
+    ///
+    /// * Using `Borrow` as described in
+    ///   https://github.com/sunshowers-code/borrow-complex-key-example. While
+    ///   hacky, this actually works for the find operation. But the insert
+    ///   operation currently requires a concrete `Index`.
+    ///
+    ///   If and when https://github.com/rust-lang/rust/issues/133549 lands,
+    ///   this should become a viable option. Worth looking out for!
+    ///
+    /// * Using a third-party BTreeSet implementation that allows passing in
+    ///   external comparators. As of 2025-05, there appear to be two options:
+    ///
+    ///   1. copse (https://docs.rs/copse), which doesn't seem like a good fit
+    ///      here.
+    ///   2. btree_monstrousity (https://crates.io/crates/btree_monstrousity),
+    ///      which has an API perfect for this but is, uhh, not really
+    ///      production-ready.
+    ///
+    ///   Third-party implementations also run the risk of being relatively
+    ///   untested.
+    ///
+    /// * Using some other kind of sorted set. We've picked B-trees here as the
+    ///   default choice to balance cache locality, but other options are worth
+    ///   benchmarking. We do need to provide a comparator, though, so radix
+    ///   trees and such are out of the question.
     static CMP: Cell<Option<&'static dyn Fn(Index, Index) -> Ordering>>
         = const { Cell::new(None) };
 }
