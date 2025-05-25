@@ -1,12 +1,13 @@
+// Adapted from the hashbrown crate, which is licensed under MIT OR Apache-2.0.
+// Copyright (c) 2016-2025 Amanieu d'Antras and others
+// SPDX-License-Identifier: MIT OR Apache-2.0
+
 pub use self::inner::Global;
 pub(crate) use self::inner::{AllocWrapper, Allocator, global_alloc};
 
+// TODO: support nightly.
+
 // Basic non-nightly case.
-// This uses `allocator-api2` enabled by default.
-// If any crate enables "nightly" in `allocator-api2`,
-// this will be equivalent to the nightly case,
-// since `allocator_api2::alloc::Allocator` would be re-export of
-// `core::alloc::Allocator`.
 #[cfg(feature = "allocator-api2")]
 mod inner {
     use allocator_api2::alloc::AllocError;
@@ -38,13 +39,6 @@ mod inner {
 }
 
 // No-defaults case.
-// When building with default-features turned off and
-// neither `nightly` nor `allocator-api2` is enabled,
-// this will be used.
-// Making it impossible to use any custom allocator with collections defined
-// in this crate.
-// Any crate in build-tree can enable `allocator-api2`,
-// or `nightly` without disturbing users that don't want to use it.
 #[cfg(not(feature = "allocator-api2"))]
 mod inner {
     use crate::alloc::alloc::Layout;

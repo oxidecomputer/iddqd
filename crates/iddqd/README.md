@@ -180,6 +180,12 @@ assert_eq!(
 );
 ````
 
+For more examples, see the
+[examples](https://github.com/oxidecomputer/iddqd/tree/main/crates/iddqd/examples)
+and [extended
+examples](https://github.com/oxidecomputer/iddqd/tree/main/crates/iddqd-extended-examples/examples)
+directories.
+
 #### `Equivalent` and `Comparable`
 
 An important feature of the standard library’s maps is that they allow any
@@ -309,3 +315,5 @@ This project is available under the terms of either the [Apache 2.0 license](LIC
 license](LICENSE-MIT).
 
 Portions adapted from [The Rust Programming Language](https://github.com/rust-lang/rust) and used under the MIT and Apache 2.0 licenses. The Rust Programming Language is (c) The Rust Project Contributors.
+
+Portions adapted from [hashbrown](https://github.com/rust-lang/hashbrown) and used under the MIT and Apache 2.0 licenses. hashbrown is (c) 2016-2025 Amanieu d'Antras and others.
