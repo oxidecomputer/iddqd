@@ -370,7 +370,24 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
     }
 
     /// Retrieves an entry by its `key`.
+    ///
+    /// Due to borrow checker limitations, this always accepts an owned key
+    /// rather than a borrowed form of it.
     pub fn entry<'a>(&'a mut self, key: T::Key<'_>) -> Entry<'a, T, S, A> {
+        // Why does this always take an owned key? Well, it would seem like we
+        // should be able to pass in any Q that is equivalent. That results in
+        // *this* code compiling fine, but callers have trouble using it because
+        // the borrow checker believes the keys are borrowed for the full 'a
+        // rather than a shorter lifetime.
+        //
+        // By accepting owned keys, we can use the upcast functions to convert
+        // them to a shorter lifetime (so this function accepts T::Key<'_>
+        // rather than T::Key<'a>).
+        //
+        // Really, the solution here is to allow GATs to require covariant
+        // parameters. If that were allowed, the borrow checker should be able
+        // to figure out that keys don't need to be borrowed for the full 'a,
+        // just for some shorter lifetime.
         let (map, dormant_map) = DormantMutRef::new(self);
         let key = T::upcast_key(key);
         {

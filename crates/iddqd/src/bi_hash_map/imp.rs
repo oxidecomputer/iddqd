@@ -510,11 +510,28 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
     }
 
     /// Retrieves an entry by its keys.
+    ///
+    /// Due to borrow checker limitations, this always accepts owned keys rather
+    /// than a borrowed form of them.
     pub fn entry<'a>(
         &'a mut self,
         key1: T::K1<'_>,
         key2: T::K2<'_>,
     ) -> Entry<'a, T, S, A> {
+        // Why does this always take owned keys? Well, it would seem like we
+        // should be able to pass in any Q1 and Q2 that are equivalent. That
+        // results in *this* code compiling fine, but callers have trouble using
+        // it because the borrow checker believes the keys are borrowed for the
+        // full 'a rather than a shorter lifetime.
+        //
+        // By accepting owned keys, we can use the upcast functions to convert
+        // them to a shorter lifetime (so this function accepts T::K1<'_> rather
+        // than T::K1<'a>).
+        //
+        // Really, the solution here is to allow GATs to require covariant
+        // parameters. If that were allowed, the borrow checker should be able
+        // to figure out that keys don't need to be borrowed for the full 'a,
+        // just for some shorter lifetime.
         let (map, dormant_map) = DormantMutRef::new(self);
         let key1 = T::upcast_key1(key1);
         let key2 = T::upcast_key2(key2);
