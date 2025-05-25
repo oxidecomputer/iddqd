@@ -982,8 +982,8 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> IntoIterator
 
 /// The `FromIterator` implementation for `BiHashMap` overwrites duplicate
 /// items.
-impl<T: BiHashItem, S: Clone + BuildHasher + Default> FromIterator<T>
-    for BiHashMap<T, S>
+impl<T: BiHashItem, S: Clone + BuildHasher + Default, A: Default + Allocator>
+    FromIterator<T> for BiHashMap<T, S, A>
 {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let mut map = BiHashMap::default();
