@@ -1,5 +1,11 @@
 use super::{RefMut, tables::BiHashMapTables};
-use crate::{BiHashItem, DefaultHashBuilder, support::item_set::ItemSet};
+use crate::{
+    BiHashItem, DefaultHashBuilder,
+    support::{
+        alloc::{AllocWrapper, Allocator, Global},
+        item_set::ItemSet,
+    },
+};
 use core::{hash::BuildHasher, iter::FusedIterator};
 use hashbrown::hash_map;
 
@@ -18,7 +24,7 @@ pub struct Iter<'a, T: BiHashItem> {
 }
 
 impl<'a, T: BiHashItem> Iter<'a, T> {
-    pub(crate) fn new(items: &'a ItemSet<T>) -> Self {
+    pub(crate) fn new<A: Allocator>(items: &'a ItemSet<T, A>) -> Self {
         Self { inner: items.values() }
     }
 }
@@ -54,21 +60,30 @@ impl<T: BiHashItem> FusedIterator for Iter<'_, T> {}
 /// [`BiHashMap::iter_mut`]: crate::BiHashMap::iter_mut
 /// [`HashMap`]: std::collections::HashMap
 #[derive(Debug)]
-pub struct IterMut<'a, T: BiHashItem, S = DefaultHashBuilder> {
-    tables: &'a BiHashMapTables<S>,
+pub struct IterMut<
+    'a,
+    T: BiHashItem,
+    S = DefaultHashBuilder,
+    A: Allocator = Global,
+> {
+    tables: &'a BiHashMapTables<S, A>,
     inner: hash_map::ValuesMut<'a, usize, T>,
 }
 
-impl<'a, T: BiHashItem, S: Clone + BuildHasher> IterMut<'a, T, S> {
+impl<'a, T: BiHashItem, S: Clone + BuildHasher, A: Allocator>
+    IterMut<'a, T, S, A>
+{
     pub(super) fn new(
-        tables: &'a BiHashMapTables<S>,
-        items: &'a mut ItemSet<T>,
+        tables: &'a BiHashMapTables<S, A>,
+        items: &'a mut ItemSet<T, A>,
     ) -> Self {
         Self { tables, inner: items.values_mut() }
     }
 }
 
-impl<'a, T: BiHashItem, S: Clone + BuildHasher> Iterator for IterMut<'a, T, S> {
+impl<'a, T: BiHashItem, S: Clone + BuildHasher, A: Allocator> Iterator
+    for IterMut<'a, T, S, A>
+{
     type Item = RefMut<'a, T, S>;
 
     #[inline]
@@ -79,8 +94,8 @@ impl<'a, T: BiHashItem, S: Clone + BuildHasher> Iterator for IterMut<'a, T, S> {
     }
 }
 
-impl<T: BiHashItem, S: Clone + BuildHasher> ExactSizeIterator
-    for IterMut<'_, T, S>
+impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> ExactSizeIterator
+    for IterMut<'_, T, S, A>
 {
     #[inline]
     fn len(&self) -> usize {
@@ -89,8 +104,8 @@ impl<T: BiHashItem, S: Clone + BuildHasher> ExactSizeIterator
 }
 
 // hash_map::IterMut is a FusedIterator, so IterMut is as well.
-impl<T: BiHashItem, S: Clone + BuildHasher> FusedIterator
-    for IterMut<'_, T, S>
+impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> FusedIterator
+    for IterMut<'_, T, S, A>
 {
 }
 
@@ -104,17 +119,17 @@ impl<T: BiHashItem, S: Clone + BuildHasher> FusedIterator
 /// [`BiHashMap::into_iter`]: crate::BiHashMap::into_iter
 /// [`HashMap`]: std::collections::HashMap
 #[derive(Debug)]
-pub struct IntoIter<T: BiHashItem> {
-    inner: hash_map::IntoValues<usize, T>,
+pub struct IntoIter<T: BiHashItem, A: Allocator = Global> {
+    inner: hash_map::IntoValues<usize, T, AllocWrapper<A>>,
 }
 
-impl<T: BiHashItem> IntoIter<T> {
-    pub(crate) fn new(items: ItemSet<T>) -> Self {
+impl<T: BiHashItem, A: Allocator> IntoIter<T, A> {
+    pub(crate) fn new(items: ItemSet<T, A>) -> Self {
         Self { inner: items.into_values() }
     }
 }
 
-impl<T: BiHashItem> Iterator for IntoIter<T> {
+impl<T: BiHashItem, A: Allocator> Iterator for IntoIter<T, A> {
     type Item = T;
 
     #[inline]
@@ -123,7 +138,7 @@ impl<T: BiHashItem> Iterator for IntoIter<T> {
     }
 }
 
-impl<T: BiHashItem> ExactSizeIterator for IntoIter<T> {
+impl<T: BiHashItem, A: Allocator> ExactSizeIterator for IntoIter<T, A> {
     #[inline]
     fn len(&self) -> usize {
         self.inner.len()
@@ -131,4 +146,4 @@ impl<T: BiHashItem> ExactSizeIterator for IntoIter<T> {
 }
 
 // hash_map::IterMut is a FusedIterator, so IterMut is as well.
-impl<T: BiHashItem> FusedIterator for IntoIter<T> {}
+impl<T: BiHashItem, A: Allocator> FusedIterator for IntoIter<T, A> {}

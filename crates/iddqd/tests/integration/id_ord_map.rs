@@ -8,8 +8,8 @@ use iddqd_test_utils::{
     eq_props::{assert_eq_props, assert_ne_props},
     naive_map::NaiveMap,
     test_item::{
-        ChaosEq, ChaosOrd, KeyChaos, TestItem, TestKey1, assert_iter_eq,
-        test_item_permutation_strategy, without_chaos,
+        ChaosEq, ChaosOrd, ItemMap, KeyChaos, TestItem, TestKey1,
+        assert_iter_eq, test_item_permutation_strategy, without_chaos,
     },
     unwind::catch_panic,
 };
@@ -24,7 +24,7 @@ fn with_capacity() {
 
 #[test]
 fn test_extend() {
-    let mut map = IdOrdMap::<TestItem>::new();
+    let mut map = IdOrdMap::<TestItem>::make_new();
     let items = vec![
         TestItem::new(1, 'a', "x", "v"),
         TestItem::new(2, 'b', "y", "w"),
@@ -36,7 +36,7 @@ fn test_extend() {
     assert_eq!(map.get(&TestKey1::new(&2)).unwrap().value, "w");
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct SimpleItem {
     key: u32,
 }
@@ -53,7 +53,7 @@ impl IdOrdItem for SimpleItem {
 
 #[test]
 fn debug_impls() {
-    let mut map = IdOrdMap::<SimpleItem>::new();
+    let mut map = IdOrdMap::<SimpleItem>::make_new();
     map.insert_unique(SimpleItem { key: 1 }).unwrap();
     map.insert_unique(SimpleItem { key: 20 }).unwrap();
     map.insert_unique(SimpleItem { key: 10 }).unwrap();
@@ -70,7 +70,7 @@ fn debug_impls() {
 
 #[test]
 fn test_compact_chaos() {
-    let mut map = IdOrdMap::<TestItem>::new();
+    let mut map = IdOrdMap::<TestItem>::make_new();
     let mut chaos_eq = ChaosEq::all_variants().into_iter().cycle();
     let mut chaos_ord = ChaosOrd::all_variants().into_iter().cycle();
 
@@ -110,7 +110,7 @@ fn test_compact_chaos() {
 
 #[test]
 fn test_insert_unique() {
-    let mut map = IdOrdMap::<TestItem>::new();
+    let mut map = IdOrdMap::<TestItem>::make_new();
 
     // Add an element.
     let v1 = TestItem::new(20, 'a', "x", "v");
@@ -183,7 +183,7 @@ fn proptest_ops(
         Operation,
     >,
 ) {
-    let mut map = IdOrdMap::<TestItem>::new();
+    let mut map = IdOrdMap::<TestItem>::make_new();
     let mut naive_map = NaiveMap::new_key1();
 
     let mut compactness = ValidateCompact::Compact;
@@ -253,8 +253,8 @@ fn proptest_permutation_eq(
     items: (Vec<TestItem>, Vec<TestItem>),
 ) {
     let (items1, items2) = items;
-    let mut map1 = IdOrdMap::<TestItem>::new();
-    let mut map2 = IdOrdMap::<TestItem>::new();
+    let mut map1 = IdOrdMap::<TestItem>::make_new();
+    let mut map2 = IdOrdMap::<TestItem>::make_new();
 
     for item in items1.clone() {
         map1.insert_unique(item.clone()).unwrap();
@@ -275,8 +275,8 @@ fn proptest_permutation_eq(
 // Test various conditions for non-equality.
 #[test]
 fn test_permutation_eq_examples() {
-    let mut map1 = IdOrdMap::<TestItem>::new();
-    let mut map2 = IdOrdMap::<TestItem>::new();
+    let mut map1 = IdOrdMap::<TestItem>::make_new();
+    let mut map2 = IdOrdMap::<TestItem>::make_new();
 
     // Two empty maps are equal.
     assert_eq!(map1, map2);
@@ -344,14 +344,14 @@ fn test_permutation_eq_examples() {
 #[test]
 #[should_panic(expected = "key changed during RefMut borrow")]
 fn get_mut_panics_if_key_changes() {
-    let mut map = IdOrdMap::<TestItem>::new();
+    let mut map = IdOrdMap::<TestItem>::make_new();
     map.insert_unique(TestItem::new(128, 'b', "y", "x")).unwrap();
     map.get_mut(&TestKey1::new(&128)).unwrap().key1 = 2;
 }
 
 #[test]
 fn entry_examples() {
-    let mut map = IdOrdMap::<TestItem>::new();
+    let mut map = IdOrdMap::<TestItem>::make_new();
     let item1 = TestItem::new(0, 'a', "x", "v");
 
     let Entry::Vacant(entry) = map.entry(item1.key()) else {
@@ -427,7 +427,7 @@ fn entry_examples() {
 #[should_panic = "key already present in map"]
 fn or_insert_ref_panics_for_present_key() {
     let v1 = TestItem::new(0, 'a', "foo", "value");
-    let mut map = IdOrdMap::new();
+    let mut map = IdOrdMap::make_new();
     map.insert_unique(v1.clone()).expect("insert_unique succeeded");
 
     let v2 = TestItem::new(1, 'a', "bar", "value");
@@ -441,7 +441,7 @@ fn or_insert_ref_panics_for_present_key() {
 #[should_panic = "key already present in map"]
 fn or_insert_panics_for_present_key() {
     let v1 = TestItem::new(0, 'a', "foo", "value");
-    let mut map = IdOrdMap::new();
+    let mut map = IdOrdMap::make_new();
     map.insert_unique(v1.clone()).expect("insert_unique succeeded");
 
     let v2 = TestItem::new(1, 'a', "bar", "value");
@@ -455,7 +455,7 @@ fn or_insert_panics_for_present_key() {
 #[should_panic = "key already present in map"]
 fn insert_entry_panics_for_present_key() {
     let v1 = TestItem::new(0, 'a', "foo", "value");
-    let mut map = IdOrdMap::new();
+    let mut map = IdOrdMap::make_new();
     map.insert_unique(v1.clone()).expect("insert_unique succeeded");
 
     let v2 = TestItem::new(1, 'a', "bar", "value");

@@ -1,15 +1,23 @@
-use crate::internal::{ValidateCompact, ValidationError};
-use core::ops::{Index, IndexMut};
+use super::alloc::AllocWrapper;
+use crate::{
+    internal::{ValidateCompact, ValidationError},
+    support::alloc::Allocator,
+};
+use core::{
+    fmt,
+    ops::{Index, IndexMut},
+};
 use derive_where::derive_where;
 use hashbrown::{HashMap, hash_map};
 use rustc_hash::FxBuildHasher;
 
 /// A map of items stored by integer index.
-#[derive(Clone, Debug)]
-#[derive_where(Default)]
-pub(crate) struct ItemSet<T> {
+#[derive(Clone)]
+#[derive_where(Default; A: Default)]
+#[derive_where(Debug; T: fmt::Debug)]
+pub(crate) struct ItemSet<T, A: Allocator> {
     // rustc-hash's FxHashMap is custom-designed for compact-ish integer keys.
-    items: HashMap<usize, T, FxBuildHasher>,
+    items: HashMap<usize, T, FxBuildHasher, AllocWrapper<A>>,
     // The next index to use. This only ever goes up, not down.
     //
     // An alternative might be to use a free list of indexes, but that's
@@ -17,15 +25,20 @@ pub(crate) struct ItemSet<T> {
     next_index: usize,
 }
 
-impl<T> ItemSet<T> {
-    pub(crate) fn with_capacity(capacity: usize) -> Self {
+impl<T, A: Allocator> ItemSet<T, A> {
+    pub(crate) fn with_capacity_in(capacity: usize, alloc: A) -> Self {
         Self {
-            items: HashMap::with_capacity_and_hasher(
+            items: HashMap::with_capacity_and_hasher_in(
                 capacity,
                 Default::default(),
+                AllocWrapper(alloc),
             ),
             next_index: 0,
         }
+    }
+
+    pub(crate) fn allocator(&self) -> &A {
+        &self.items.allocator().0
     }
 
     /// Validates the item set.
@@ -89,7 +102,9 @@ impl<T> ItemSet<T> {
     }
 
     #[inline]
-    pub(crate) fn into_values(self) -> hash_map::IntoValues<usize, T> {
+    pub(crate) fn into_values(
+        self,
+    ) -> hash_map::IntoValues<usize, T, AllocWrapper<A>> {
         self.items.into_values()
     }
 
@@ -162,9 +177,10 @@ impl<T> ItemSet<T> {
 #[cfg(feature = "serde")]
 mod serde_impls {
     use super::ItemSet;
+    use crate::support::alloc::Allocator;
     use serde::Serialize;
 
-    impl<T: Serialize> Serialize for ItemSet<T> {
+    impl<T: Serialize, A: Allocator> Serialize for ItemSet<T, A> {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where
             S: serde::Serializer,
@@ -176,7 +192,7 @@ mod serde_impls {
     }
 }
 
-impl<T> Index<usize> for ItemSet<T> {
+impl<T, A: Allocator> Index<usize> for ItemSet<T, A> {
     type Output = T;
 
     #[inline]
@@ -187,7 +203,7 @@ impl<T> Index<usize> for ItemSet<T> {
     }
 }
 
-impl<T> IndexMut<usize> for ItemSet<T> {
+impl<T, A: Allocator> IndexMut<usize> for ItemSet<T, A> {
     #[inline]
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         self.items

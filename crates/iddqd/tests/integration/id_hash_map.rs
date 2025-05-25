@@ -8,14 +8,14 @@ use iddqd_test_utils::{
     eq_props::{assert_eq_props, assert_ne_props},
     naive_map::NaiveMap,
     test_item::{
-        HashBuilder, TestItem, TestKey1, assert_iter_eq,
+        Alloc, HashBuilder, ItemMap, TestItem, TestKey1, assert_iter_eq,
         test_item_permutation_strategy,
     },
 };
 use proptest::prelude::*;
 use test_strategy::{Arbitrary, proptest};
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct SimpleItem {
     key: u32,
 }
@@ -32,7 +32,7 @@ impl IdHashItem for SimpleItem {
 
 #[test]
 fn debug_impls() {
-    let mut map = IdHashMap::<SimpleItem, HashBuilder>::default();
+    let mut map = IdHashMap::<SimpleItem, HashBuilder, Alloc>::make_new();
     map.insert_unique(SimpleItem { key: 1 }).unwrap();
     map.insert_unique(SimpleItem { key: 20 }).unwrap();
     map.insert_unique(SimpleItem { key: 10 }).unwrap();
@@ -60,7 +60,7 @@ fn with_capacity() {
 
 #[test]
 fn test_insert_unique() {
-    let mut map = IdHashMap::<TestItem, HashBuilder>::default();
+    let mut map = IdHashMap::<TestItem, HashBuilder, Alloc>::make_new();
 
     // Add an element.
     let v1 = TestItem::new(20, 'a', "x", "v");
@@ -108,7 +108,7 @@ fn test_insert_unique() {
 
 #[test]
 fn test_extend() {
-    let mut map = IdHashMap::<TestItem, HashBuilder>::default();
+    let mut map = IdHashMap::<TestItem, HashBuilder, Alloc>::make_new();
     let items = vec![
         TestItem::new(1, 'a', "x", "v"),
         TestItem::new(2, 'b', "y", "w"),
@@ -148,7 +148,7 @@ fn proptest_ops(
         Operation,
     >,
 ) {
-    let mut map = IdHashMap::<TestItem, HashBuilder>::default();
+    let mut map = IdHashMap::<TestItem, HashBuilder, Alloc>::make_new();
     let mut naive_map = NaiveMap::new_key1();
 
     let mut compactness = ValidateCompact::Compact;
@@ -211,12 +211,12 @@ fn proptest_ops(
 
 #[proptest(cases = 64)]
 fn proptest_permutation_eq(
-    #[strategy(test_item_permutation_strategy::<IdHashMap<TestItem, HashBuilder>>(0..256))]
+    #[strategy(test_item_permutation_strategy::<IdHashMap<TestItem, HashBuilder, Alloc>>(0..256))]
     items: (Vec<TestItem>, Vec<TestItem>),
 ) {
     let (items1, items2) = items;
-    let mut map1 = IdHashMap::<TestItem, HashBuilder>::default();
-    let mut map2 = IdHashMap::<TestItem, HashBuilder>::default();
+    let mut map1 = IdHashMap::<TestItem, HashBuilder, Alloc>::make_new();
+    let mut map2 = IdHashMap::<TestItem, HashBuilder, Alloc>::make_new();
 
     for item in items1.clone() {
         map1.insert_unique(item.clone()).unwrap();
@@ -231,8 +231,8 @@ fn proptest_permutation_eq(
 // Test various conditions for non-equality.
 #[test]
 fn test_permutation_eq_examples() {
-    let mut map1 = IdHashMap::<TestItem, HashBuilder>::default();
-    let mut map2 = IdHashMap::<TestItem, HashBuilder>::default();
+    let mut map1 = IdHashMap::<TestItem, HashBuilder, Alloc>::make_new();
+    let mut map2 = IdHashMap::<TestItem, HashBuilder, Alloc>::make_new();
 
     // Two empty maps are equal.
     assert_eq!(map1, map2);
@@ -300,14 +300,14 @@ fn test_permutation_eq_examples() {
 #[test]
 #[should_panic(expected = "key changed during RefMut borrow")]
 fn get_mut_panics_if_key_changes() {
-    let mut map = IdHashMap::<TestItem, HashBuilder>::default();
+    let mut map = IdHashMap::<TestItem, HashBuilder, Alloc>::make_new();
     map.insert_unique(TestItem::new(128, 'b', "y", "x")).unwrap();
     map.get_mut(&TestKey1::new(&128)).unwrap().key1 = 2;
 }
 
 #[test]
 fn entry_examples() {
-    let mut map = IdHashMap::<TestItem, HashBuilder>::default();
+    let mut map = IdHashMap::<TestItem, HashBuilder, Alloc>::make_new();
     let item1 = TestItem::new(0, 'a', "x", "v");
 
     let Entry::Vacant(entry) = map.entry(item1.key()) else {
@@ -360,7 +360,7 @@ fn entry_examples() {
 #[should_panic = "key hashes do not match"]
 fn insert_panics_for_non_matching_key() {
     let v1 = TestItem::new(0, 'a', "foo", "value");
-    let mut map = IdHashMap::<_, HashBuilder>::default();
+    let mut map = IdHashMap::<_, HashBuilder, Alloc>::make_new();
     map.insert_unique(v1.clone()).expect("insert_unique succeeded");
 
     let v2 = TestItem::new(1, 'a', "bar", "value");
@@ -374,7 +374,7 @@ fn insert_panics_for_non_matching_key() {
 #[should_panic = "key hashes do not match"]
 fn insert_entry_panics_for_non_matching_key() {
     let v1 = TestItem::new(0, 'a', "foo", "value");
-    let mut map = IdHashMap::<_, HashBuilder>::default();
+    let mut map = IdHashMap::<_, HashBuilder, Alloc>::make_new();
     map.insert_unique(v1.clone()).expect("insert_unique succeeded");
 
     let v2 = TestItem::new(1, 'a', "bar", "value");
@@ -393,12 +393,14 @@ mod serde_tests {
     use iddqd::IdHashMap;
     use iddqd_test_utils::{
         serde_utils::assert_serialize_roundtrip,
-        test_item::{HashBuilder, TestItem},
+        test_item::{Alloc, HashBuilder, TestItem},
     };
     use test_strategy::proptest;
 
     #[proptest]
     fn proptest_serialize_roundtrip(values: Vec<TestItem>) {
-        assert_serialize_roundtrip::<IdHashMap<TestItem, HashBuilder>>(values);
+        assert_serialize_roundtrip::<IdHashMap<TestItem, HashBuilder, Alloc>>(
+            values,
+        );
     }
 }

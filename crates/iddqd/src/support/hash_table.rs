@@ -1,27 +1,40 @@
 //! A wrapper around a hash table with some random state.
 
-use super::map_hash::MapHash;
+use super::{
+    alloc::{AllocWrapper, Allocator},
+    map_hash::MapHash,
+};
 use crate::internal::{TableValidationError, ValidateCompact};
 use alloc::{collections::BTreeSet, vec::Vec};
 use core::{
     borrow::Borrow,
+    fmt,
     hash::{BuildHasher, Hash},
 };
+use derive_where::derive_where;
 use equivalent::Equivalent;
 use hashbrown::{
     HashTable,
     hash_table::{AbsentEntry, Entry, OccupiedEntry},
 };
 
-#[derive(Clone, Debug, Default)]
-pub(crate) struct MapHashTable<S> {
+#[derive_where(Debug; S: fmt::Debug)]
+#[derive(Clone, Default)]
+pub(crate) struct MapHashTable<S, A: Allocator> {
     pub(super) state: S,
-    pub(super) items: HashTable<usize>,
+    pub(super) items: HashTable<usize, AllocWrapper<A>>,
 }
 
-impl<S: Clone + BuildHasher> MapHashTable<S> {
-    pub(crate) fn with_capacity_and_hasher(capacity: usize, hasher: S) -> Self {
-        Self { state: hasher, items: HashTable::with_capacity(capacity) }
+impl<S: Clone + BuildHasher, A: Allocator> MapHashTable<S, A> {
+    pub(crate) fn with_capacity_and_hasher_in(
+        capacity: usize,
+        hasher: S,
+        alloc: A,
+    ) -> Self {
+        Self {
+            state: hasher,
+            items: HashTable::with_capacity_in(capacity, AllocWrapper(alloc)),
+        }
     }
 
     #[cfg(feature = "daft")]
@@ -102,7 +115,7 @@ impl<S: Clone + BuildHasher> MapHashTable<S> {
         &mut self,
         key: K,
         lookup: F,
-    ) -> Entry<'_, usize>
+    ) -> Entry<'_, usize, AllocWrapper<A>>
     where
         F: Fn(usize) -> K,
     {
@@ -118,7 +131,10 @@ impl<S: Clone + BuildHasher> MapHashTable<S> {
         &mut self,
         key: &Q,
         lookup: F,
-    ) -> Result<OccupiedEntry<'_, usize>, AbsentEntry<'_, usize>>
+    ) -> Result<
+        OccupiedEntry<'_, usize, AllocWrapper<A>>,
+        AbsentEntry<'_, usize, AllocWrapper<A>>,
+    >
     where
         F: Fn(usize) -> K,
         K: Hash + Eq + Borrow<Q>,

@@ -9,7 +9,7 @@ use iddqd::{
 #[cfg(feature = "std")]
 use iddqd::{IdOrdItem, IdOrdMap, id_ord_map};
 use proptest::{prelude::*, sample::SizeRange};
-use std::cell::Cell;
+use std::{cell::Cell, fmt};
 use test_strategy::Arbitrary;
 
 thread_local! {
@@ -21,6 +21,13 @@ pub type HashBuilder = iddqd::DefaultHashBuilder;
 
 #[cfg(not(feature = "default-hasher"))]
 pub type HashBuilder = std::hash::RandomState;
+
+#[cfg(feature = "allocator-api2")]
+// Use bumpalo for allocation if this feature is enabled.
+pub type Alloc = &'static bumpalo::Bump;
+
+#[cfg(not(feature = "allocator-api2"))]
+pub type Alloc = iddqd::internal::Global;
 
 /// Temporarily disable chaos testing.
 pub fn without_chaos<F, T>(f: F)
@@ -339,58 +346,118 @@ pub enum MapKind {
 }
 
 /// Represents a map of `TestEntry` values. Used for generic tests and assertions.
-pub trait TestItemMap: Clone {
-    type RefMut<'a>: IntoRef<'a>
+pub trait ItemMap<T>: Clone {
+    type RefMut<'a>: IntoRef<'a, T>
     where
         Self: 'a;
-    type Iter<'a>: Iterator<Item = &'a TestItem>
+    type Iter<'a>: Iterator<Item = &'a T>
     where
-        Self: 'a;
+        Self: 'a,
+        T: 'a;
     type IterMut<'a>: Iterator<Item = Self::RefMut<'a>>
     where
         Self: 'a;
-    type IntoIter: Iterator<Item = TestItem>;
+    type IntoIter: Iterator<Item = T>;
 
     fn map_kind() -> MapKind;
-    fn new() -> Self;
+    fn make_new() -> Self;
+    fn make_with_capacity(capacity: usize) -> Self;
+
+    #[cfg(feature = "serde")]
+    fn make_deserialize_in<'a, D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'a>,
+        T: fmt::Debug + serde::de::Deserialize<'a>;
+
     fn validate_(
         &self,
         compactness: ValidateCompact,
-    ) -> Result<(), ValidationError>;
-    fn insert_unique(
-        &mut self,
-        value: TestItem,
-    ) -> Result<(), DuplicateItem<TestItem, &TestItem>>;
+    ) -> Result<(), ValidationError>
+    where
+        T: fmt::Debug;
+    fn insert_unique(&mut self, value: T) -> Result<(), DuplicateItem<T, &T>>;
     fn iter(&self) -> Self::Iter<'_>;
     fn iter_mut(&mut self) -> Self::IterMut<'_>;
     fn into_iter(self) -> Self::IntoIter;
 }
 
-impl TestItemMap for BiHashMap<TestItem, HashBuilder> {
-    type RefMut<'a> = bi_hash_map::RefMut<'a, TestItem, HashBuilder>;
-    type Iter<'a> = bi_hash_map::Iter<'a, TestItem>;
-    type IterMut<'a> = bi_hash_map::IterMut<'a, TestItem, HashBuilder>;
-    type IntoIter = bi_hash_map::IntoIter<TestItem>;
+impl<T: Clone + BiHashItem> ItemMap<T> for BiHashMap<T, HashBuilder, Alloc> {
+    type RefMut<'a>
+        = bi_hash_map::RefMut<'a, T, HashBuilder>
+    where
+        T: 'a;
+    type Iter<'a>
+        = bi_hash_map::Iter<'a, T>
+    where
+        T: 'a;
+    type IterMut<'a>
+        = bi_hash_map::IterMut<'a, T, HashBuilder, Alloc>
+    where
+        T: 'a;
+    type IntoIter = bi_hash_map::IntoIter<T, Alloc>;
 
     fn map_kind() -> MapKind {
         MapKind::Hash
     }
 
-    fn new() -> Self {
+    #[cfg(feature = "allocator-api2")]
+    fn make_new() -> Self {
+        let bump = Box::leak(Box::new(bumpalo::Bump::new()));
+        BiHashMap::with_hasher_in(HashBuilder::default(), bump)
+    }
+
+    #[cfg(not(feature = "allocator-api2"))]
+    fn make_new() -> Self {
         BiHashMap::default()
+    }
+
+    #[cfg(feature = "allocator-api2")]
+    fn make_with_capacity(capacity: usize) -> Self {
+        let bump = Box::leak(Box::new(bumpalo::Bump::new()));
+        BiHashMap::with_capacity_and_hasher_in(
+            capacity,
+            HashBuilder::default(),
+            bump,
+        )
+    }
+
+    #[cfg(not(feature = "allocator-api2"))]
+    fn make_with_capacity(capacity: usize) -> Self {
+        BiHashMap::with_capacity_and_hasher(capacity, HashBuilder::default())
+    }
+
+    #[cfg(all(feature = "serde", feature = "allocator-api2"))]
+    fn make_deserialize_in<'a, D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'a>,
+        T: fmt::Debug + serde::de::Deserialize<'a>,
+    {
+        let bump = Box::leak(Box::new(bumpalo::Bump::new()));
+        BiHashMap::deserialize_in(deserializer, bump)
+    }
+
+    #[cfg(all(feature = "serde", not(feature = "allocator-api2")))]
+    fn make_deserialize_in<'a, D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'a>,
+        T: fmt::Debug + serde::de::Deserialize<'a>,
+    {
+        use serde::Deserialize;
+
+        BiHashMap::deserialize(deserializer)
     }
 
     fn validate_(
         &self,
         compactness: ValidateCompact,
-    ) -> Result<(), ValidationError> {
+    ) -> Result<(), ValidationError>
+    where
+        T: fmt::Debug,
+    {
         self.validate(compactness)
     }
 
-    fn insert_unique(
-        &mut self,
-        value: TestItem,
-    ) -> Result<(), DuplicateItem<TestItem, &TestItem>> {
+    fn insert_unique(&mut self, value: T) -> Result<(), DuplicateItem<T, &T>> {
         self.insert_unique(value)
     }
 
@@ -407,31 +474,86 @@ impl TestItemMap for BiHashMap<TestItem, HashBuilder> {
     }
 }
 
-impl TestItemMap for IdHashMap<TestItem, HashBuilder> {
-    type RefMut<'a> = id_hash_map::RefMut<'a, TestItem, HashBuilder>;
-    type Iter<'a> = id_hash_map::Iter<'a, TestItem>;
-    type IterMut<'a> = id_hash_map::IterMut<'a, TestItem, HashBuilder>;
-    type IntoIter = id_hash_map::IntoIter<TestItem>;
+impl<T> ItemMap<T> for IdHashMap<T, HashBuilder, Alloc>
+where
+    T: IdHashItem + Clone,
+{
+    type RefMut<'a>
+        = id_hash_map::RefMut<'a, T, HashBuilder>
+    where
+        T: 'a;
+    type Iter<'a>
+        = id_hash_map::Iter<'a, T>
+    where
+        T: 'a;
+    type IterMut<'a>
+        = id_hash_map::IterMut<'a, T, HashBuilder, Alloc>
+    where
+        T: 'a;
+    type IntoIter = id_hash_map::IntoIter<T, Alloc>;
 
     fn map_kind() -> MapKind {
         MapKind::Hash
     }
 
-    fn new() -> Self {
+    #[cfg(feature = "allocator-api2")]
+    fn make_new() -> Self {
+        let bump = Box::leak(Box::new(bumpalo::Bump::new()));
+        IdHashMap::with_hasher_in(HashBuilder::default(), bump)
+    }
+
+    #[cfg(not(feature = "allocator-api2"))]
+    fn make_new() -> Self {
         IdHashMap::default()
+    }
+
+    #[cfg(feature = "allocator-api2")]
+    fn make_with_capacity(capacity: usize) -> Self {
+        let bump = Box::leak(Box::new(bumpalo::Bump::new()));
+        IdHashMap::with_capacity_and_hasher_in(
+            capacity,
+            HashBuilder::default(),
+            bump,
+        )
+    }
+
+    #[cfg(not(feature = "allocator-api2"))]
+    fn make_with_capacity(capacity: usize) -> Self {
+        IdHashMap::with_capacity_and_hasher(capacity, HashBuilder::default())
+    }
+
+    #[cfg(all(feature = "serde", feature = "allocator-api2"))]
+    fn make_deserialize_in<'a, D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'a>,
+        T: fmt::Debug + serde::de::Deserialize<'a>,
+    {
+        let bump = Box::leak(Box::new(bumpalo::Bump::new()));
+        IdHashMap::deserialize_in(deserializer, bump)
+    }
+
+    #[cfg(all(feature = "serde", not(feature = "allocator-api2")))]
+    fn make_deserialize_in<'a, D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'a>,
+        T: fmt::Debug + serde::de::Deserialize<'a>,
+    {
+        use serde::Deserialize;
+
+        IdHashMap::deserialize(deserializer)
     }
 
     fn validate_(
         &self,
         compactness: ValidateCompact,
-    ) -> Result<(), ValidationError> {
+    ) -> Result<(), ValidationError>
+    where
+        T: fmt::Debug,
+    {
         self.validate(compactness)
     }
 
-    fn insert_unique(
-        &mut self,
-        value: TestItem,
-    ) -> Result<(), DuplicateItem<TestItem, &TestItem>> {
+    fn insert_unique(&mut self, value: T) -> Result<(), DuplicateItem<T, &T>> {
         self.insert_unique(value)
     }
 
@@ -449,31 +571,59 @@ impl TestItemMap for IdHashMap<TestItem, HashBuilder> {
 }
 
 #[cfg(feature = "std")]
-impl TestItemMap for IdOrdMap<TestItem> {
-    type RefMut<'a> = id_ord_map::RefMut<'a, TestItem>;
-    type Iter<'a> = id_ord_map::Iter<'a, TestItem>;
-    type IterMut<'a> = id_ord_map::IterMut<'a, TestItem>;
-    type IntoIter = id_ord_map::IntoIter<TestItem>;
+impl<T> ItemMap<T> for IdOrdMap<T>
+where
+    T: IdOrdItem + Clone,
+    for<'k> <T as IdOrdItem>::Key<'k>: std::hash::Hash,
+{
+    type RefMut<'a>
+        = id_ord_map::RefMut<'a, T>
+    where
+        T: 'a;
+    type Iter<'a>
+        = id_ord_map::Iter<'a, T>
+    where
+        T: 'a;
+    type IterMut<'a>
+        = id_ord_map::IterMut<'a, T>
+    where
+        T: 'a;
+    type IntoIter = id_ord_map::IntoIter<T>;
 
     fn map_kind() -> MapKind {
         MapKind::Ord
     }
 
-    fn new() -> Self {
+    fn make_new() -> Self {
         IdOrdMap::new()
+    }
+
+    fn make_with_capacity(capacity: usize) -> Self {
+        IdOrdMap::with_capacity(capacity)
+    }
+
+    #[cfg(feature = "serde")]
+    fn make_deserialize_in<'a, D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'a>,
+        T: fmt::Debug + serde::de::Deserialize<'a>,
+    {
+        use serde::Deserialize;
+
+        IdOrdMap::deserialize(deserializer)
     }
 
     fn validate_(
         &self,
         compactness: ValidateCompact,
-    ) -> Result<(), ValidationError> {
+    ) -> Result<(), ValidationError>
+    where
+        T: fmt::Debug,
+    {
         self.validate(compactness, iddqd::internal::ValidateChaos::No)
     }
 
-    fn insert_unique(
-        &mut self,
-        value: TestItem,
-    ) -> Result<(), DuplicateItem<TestItem, &TestItem>> {
+    fn insert_unique(&mut self, value: T) -> Result<(), DuplicateItem<T, &T>> {
         self.insert_unique(value)
     }
 
@@ -490,31 +640,86 @@ impl TestItemMap for IdOrdMap<TestItem> {
     }
 }
 
-impl TestItemMap for TriHashMap<TestItem, HashBuilder> {
-    type RefMut<'a> = tri_hash_map::RefMut<'a, TestItem, HashBuilder>;
-    type Iter<'a> = tri_hash_map::Iter<'a, TestItem>;
-    type IterMut<'a> = tri_hash_map::IterMut<'a, TestItem, HashBuilder>;
-    type IntoIter = tri_hash_map::IntoIter<TestItem>;
+impl<T> ItemMap<T> for TriHashMap<T, HashBuilder, Alloc>
+where
+    T: TriHashItem + Clone,
+{
+    type RefMut<'a>
+        = tri_hash_map::RefMut<'a, T, HashBuilder>
+    where
+        T: 'a;
+    type Iter<'a>
+        = tri_hash_map::Iter<'a, T>
+    where
+        T: 'a;
+    type IterMut<'a>
+        = tri_hash_map::IterMut<'a, T, HashBuilder, Alloc>
+    where
+        T: 'a;
+    type IntoIter = tri_hash_map::IntoIter<T, Alloc>;
 
     fn map_kind() -> MapKind {
         MapKind::Hash
     }
 
-    fn new() -> Self {
+    #[cfg(feature = "allocator-api2")]
+    fn make_new() -> Self {
+        let bump = Box::leak(Box::new(bumpalo::Bump::new()));
+        TriHashMap::with_hasher_in(HashBuilder::default(), bump)
+    }
+
+    #[cfg(not(feature = "allocator-api2"))]
+    fn make_new() -> Self {
         TriHashMap::default()
+    }
+
+    #[cfg(feature = "allocator-api2")]
+    fn make_with_capacity(capacity: usize) -> Self {
+        let bump = Box::leak(Box::new(bumpalo::Bump::new()));
+        TriHashMap::with_capacity_and_hasher_in(
+            capacity,
+            HashBuilder::default(),
+            bump,
+        )
+    }
+
+    #[cfg(not(feature = "allocator-api2"))]
+    fn make_with_capacity(capacity: usize) -> Self {
+        TriHashMap::with_capacity_and_hasher(capacity, HashBuilder::default())
+    }
+
+    #[cfg(all(feature = "serde", feature = "allocator-api2"))]
+    fn make_deserialize_in<'a, D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'a>,
+        T: fmt::Debug + serde::de::Deserialize<'a>,
+    {
+        let bump = Box::leak(Box::new(bumpalo::Bump::new()));
+        TriHashMap::deserialize_in(deserializer, bump)
+    }
+
+    #[cfg(all(feature = "serde", not(feature = "allocator-api2")))]
+    fn make_deserialize_in<'a, D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'a>,
+        T: fmt::Debug + serde::de::Deserialize<'a>,
+    {
+        use serde::Deserialize;
+
+        TriHashMap::deserialize(deserializer)
     }
 
     fn validate_(
         &self,
         compactness: ValidateCompact,
-    ) -> Result<(), ValidationError> {
+    ) -> Result<(), ValidationError>
+    where
+        T: fmt::Debug,
+    {
         self.validate(compactness)
     }
 
-    fn insert_unique(
-        &mut self,
-        value: TestItem,
-    ) -> Result<(), DuplicateItem<TestItem, &TestItem>> {
+    fn insert_unique(&mut self, value: T) -> Result<(), DuplicateItem<T, &T>> {
         self.insert_unique(value)
     }
 
@@ -531,36 +736,45 @@ impl TestItemMap for TriHashMap<TestItem, HashBuilder> {
     }
 }
 
-pub trait IntoRef<'a> {
-    fn into_ref(self) -> &'a TestItem;
+pub trait IntoRef<'a, T> {
+    fn into_ref(self) -> &'a T;
 }
 
-impl<'a> IntoRef<'a> for bi_hash_map::RefMut<'a, TestItem, HashBuilder> {
-    fn into_ref(self) -> &'a TestItem {
+impl<'a, T: BiHashItem> IntoRef<'a, T>
+    for bi_hash_map::RefMut<'a, T, HashBuilder>
+{
+    fn into_ref(self) -> &'a T {
         self.into_ref()
     }
 }
 
-impl<'a> IntoRef<'a> for id_hash_map::RefMut<'a, TestItem, HashBuilder> {
-    fn into_ref(self) -> &'a TestItem {
+impl<'a, T: IdHashItem> IntoRef<'a, T>
+    for id_hash_map::RefMut<'a, T, HashBuilder>
+{
+    fn into_ref(self) -> &'a T {
         self.into_ref()
     }
 }
 
 #[cfg(feature = "std")]
-impl<'a> IntoRef<'a> for id_ord_map::RefMut<'a, TestItem> {
-    fn into_ref(self) -> &'a TestItem {
+impl<'a, T: IdOrdItem> IntoRef<'a, T> for id_ord_map::RefMut<'a, T>
+where
+    for<'k> <T as IdOrdItem>::Key<'k>: std::hash::Hash,
+{
+    fn into_ref(self) -> &'a T {
         self.into_ref()
     }
 }
 
-impl<'a> IntoRef<'a> for tri_hash_map::RefMut<'a, TestItem, HashBuilder> {
-    fn into_ref(self) -> &'a TestItem {
+impl<'a, T: TriHashItem> IntoRef<'a, T>
+    for tri_hash_map::RefMut<'a, T, HashBuilder>
+{
+    fn into_ref(self) -> &'a T {
         self.into_ref()
     }
 }
 
-pub fn assert_iter_eq<M: TestItemMap>(mut map: M, items: Vec<&TestItem>) {
+pub fn assert_iter_eq<M: ItemMap<TestItem>>(mut map: M, items: Vec<&TestItem>) {
     let mut iter = map.iter().collect::<Vec<_>>();
     iter.sort_by_key(|e| e.key1);
     assert_eq!(iter, items, ".iter() items match naive ones");
@@ -576,7 +790,7 @@ pub fn assert_iter_eq<M: TestItemMap>(mut map: M, items: Vec<&TestItem>) {
 
 // Returns a pair of permutations of a set of unique items (unique to a given
 // map).
-pub fn test_item_permutation_strategy<M: TestItemMap>(
+pub fn test_item_permutation_strategy<M: ItemMap<TestItem>>(
     size: impl Into<SizeRange>,
 ) -> impl Strategy<Value = (Vec<TestItem>, Vec<TestItem>)> {
     prop::collection::vec(any::<TestItem>(), size.into()).prop_perturb(
@@ -585,7 +799,7 @@ pub fn test_item_permutation_strategy<M: TestItemMap>(
             // duplicates. How can we remove them? The easiest way is to use
             // the logic that already exists to check for duplicates. Insert
             // all the items one by one, then get the list.
-            let mut map = M::new();
+            let mut map = M::make_new();
             for item in v {
                 // The error case here is expected -- we're actively de-duping
                 // items right now.

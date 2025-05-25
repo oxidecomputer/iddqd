@@ -9,6 +9,7 @@ publish = false
 workspace = true
 
 [dependencies]
+bumpalo = { workspace = true, optional = true }
 iddqd.workspace = true
 proptest.workspace = true
 serde = { workspace = true, optional = true }
@@ -16,6 +17,9 @@ serde_json = { workspace = true, optional = true }
 test-strategy.workspace = true
 
 [features]
+# We test once with allocator-api2 + bumpalo, and once without it and with the
+# default allocator.
+allocator-api2 = ["iddqd/allocator-api2", "bumpalo"]
 # We test once with the default hasher, and once with std's RandomState.
 default-hasher = ["iddqd/default-hasher"]
 std = ["iddqd/std"]

@@ -1,5 +1,11 @@
 use super::{RefMut, tables::TriHashMapTables};
-use crate::{DefaultHashBuilder, TriHashItem, support::item_set::ItemSet};
+use crate::{
+    DefaultHashBuilder, TriHashItem,
+    support::{
+        alloc::{AllocWrapper, Allocator, Global},
+        item_set::ItemSet,
+    },
+};
 use core::{hash::BuildHasher, iter::FusedIterator};
 use hashbrown::hash_map;
 
@@ -18,7 +24,7 @@ pub struct Iter<'a, T: TriHashItem> {
 }
 
 impl<'a, T: TriHashItem> Iter<'a, T> {
-    pub(crate) fn new(items: &'a ItemSet<T>) -> Self {
+    pub(crate) fn new<A: Allocator>(items: &'a ItemSet<T, A>) -> Self {
         Self { inner: items.values() }
     }
 }
@@ -58,22 +64,25 @@ pub struct IterMut<
     'a,
     T: TriHashItem,
     S: Clone + BuildHasher = DefaultHashBuilder,
+    A: Allocator = Global,
 > {
-    tables: &'a TriHashMapTables<S>,
+    tables: &'a TriHashMapTables<S, A>,
     inner: hash_map::ValuesMut<'a, usize, T>,
 }
 
-impl<'a, T: TriHashItem, S: Clone + BuildHasher> IterMut<'a, T, S> {
+impl<'a, T: TriHashItem, S: Clone + BuildHasher, A: Allocator>
+    IterMut<'a, T, S, A>
+{
     pub(super) fn new(
-        tables: &'a TriHashMapTables<S>,
-        items: &'a mut ItemSet<T>,
+        tables: &'a TriHashMapTables<S, A>,
+        items: &'a mut ItemSet<T, A>,
     ) -> Self {
         Self { tables, inner: items.values_mut() }
     }
 }
 
-impl<'a, T: TriHashItem, S: Clone + BuildHasher> Iterator
-    for IterMut<'a, T, S>
+impl<'a, T: TriHashItem, S: Clone + BuildHasher, A: Allocator> Iterator
+    for IterMut<'a, T, S, A>
 {
     type Item = RefMut<'a, T, S>;
 
@@ -85,8 +94,8 @@ impl<'a, T: TriHashItem, S: Clone + BuildHasher> Iterator
     }
 }
 
-impl<T: TriHashItem, S: Clone + BuildHasher> ExactSizeIterator
-    for IterMut<'_, T, S>
+impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> ExactSizeIterator
+    for IterMut<'_, T, S, A>
 {
     #[inline]
     fn len(&self) -> usize {
@@ -95,8 +104,8 @@ impl<T: TriHashItem, S: Clone + BuildHasher> ExactSizeIterator
 }
 
 // hash_map::IterMut is a FusedIterator, so IterMut is as well.
-impl<T: TriHashItem, S: Clone + BuildHasher> FusedIterator
-    for IterMut<'_, T, S>
+impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> FusedIterator
+    for IterMut<'_, T, S, A>
 {
 }
 
@@ -110,17 +119,17 @@ impl<T: TriHashItem, S: Clone + BuildHasher> FusedIterator
 /// [`TriHashMap::into_iter`]: crate::TriHashMap::into_iter
 /// [`HashMap`]: std::collections::HashMap
 #[derive(Debug)]
-pub struct IntoIter<T: TriHashItem> {
-    inner: hash_map::IntoValues<usize, T>,
+pub struct IntoIter<T: TriHashItem, A: Allocator = Global> {
+    inner: hash_map::IntoValues<usize, T, AllocWrapper<A>>,
 }
 
-impl<T: TriHashItem> IntoIter<T> {
-    pub(crate) fn new(items: ItemSet<T>) -> Self {
+impl<T: TriHashItem, A: Allocator> IntoIter<T, A> {
+    pub(crate) fn new(items: ItemSet<T, A>) -> Self {
         Self { inner: items.into_values() }
     }
 }
 
-impl<T: TriHashItem> Iterator for IntoIter<T> {
+impl<T: TriHashItem, A: Allocator> Iterator for IntoIter<T, A> {
     type Item = T;
 
     #[inline]
@@ -129,7 +138,7 @@ impl<T: TriHashItem> Iterator for IntoIter<T> {
     }
 }
 
-impl<T: TriHashItem> ExactSizeIterator for IntoIter<T> {
+impl<T: TriHashItem, A: Allocator> ExactSizeIterator for IntoIter<T, A> {
     #[inline]
     fn len(&self) -> usize {
         self.inner.len()
@@ -137,4 +146,4 @@ impl<T: TriHashItem> ExactSizeIterator for IntoIter<T> {
 }
 
 // hash_map::IterMut is a FusedIterator, so IterMut is as well.
-impl<T: TriHashItem> FusedIterator for IntoIter<T> {}
+impl<T: TriHashItem, A: Allocator> FusedIterator for IntoIter<T, A> {}

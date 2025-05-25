@@ -1,3 +1,6 @@
+/// Re-export `Global` if allocator-api2 isn't enabled; it's not public but is
+/// used within tests.
+pub use crate::support::alloc::Global;
 use alloc::string::String;
 use core::fmt;
 

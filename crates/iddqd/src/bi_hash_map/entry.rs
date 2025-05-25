@@ -1,7 +1,11 @@
 use super::{BiHashItem, BiHashMap, RefMut, entry_indexes::EntryIndexes};
 use crate::{
     DefaultHashBuilder,
-    support::{borrow::DormantMutRef, map_hash::MapHash},
+    support::{
+        alloc::{Allocator, Global},
+        borrow::DormantMutRef,
+        map_hash::MapHash,
+    },
 };
 use alloc::vec::Vec;
 use core::{fmt, hash::BuildHasher};
@@ -10,14 +14,17 @@ use derive_where::derive_where;
 
 /// An implementation of the Entry API for [`BiHashMap`].
 #[derive_where(Debug)]
-pub enum Entry<'a, T: BiHashItem, S = DefaultHashBuilder> {
+pub enum Entry<'a, T: BiHashItem, S = DefaultHashBuilder, A: Allocator = Global>
+{
     /// A vacant entry: none of the provided keys are present.
-    Vacant(VacantEntry<'a, T, S>),
+    Vacant(VacantEntry<'a, T, S, A>),
     /// An occupied entry where at least one of the keys is present in the map.
-    Occupied(OccupiedEntry<'a, T, S>),
+    Occupied(OccupiedEntry<'a, T, S, A>),
 }
 
-impl<'a, T: BiHashItem, S: Clone + BuildHasher> Entry<'a, T, S> {
+impl<'a, T: BiHashItem, S: Clone + BuildHasher, A: Allocator>
+    Entry<'a, T, S, A>
+{
     /// Ensures a value is in the entry by inserting the default if empty, and
     /// returns a mutable reference to the value in the entry.
     ///
@@ -77,14 +84,21 @@ impl<'a, T: BiHashItem, S: Clone + BuildHasher> Entry<'a, T, S> {
 
 /// A vacant entry.
 #[derive_where(Debug)]
-pub struct VacantEntry<'a, T: BiHashItem, S = DefaultHashBuilder> {
-    map: DebugIgnore<DormantMutRef<'a, BiHashMap<T, S>>>,
+pub struct VacantEntry<
+    'a,
+    T: BiHashItem,
+    S = DefaultHashBuilder,
+    A: Allocator = Global,
+> {
+    map: DebugIgnore<DormantMutRef<'a, BiHashMap<T, S, A>>>,
     hashes: [MapHash<S>; 2],
 }
 
-impl<'a, T: BiHashItem, S: Clone + BuildHasher> VacantEntry<'a, T, S> {
+impl<'a, T: BiHashItem, S: Clone + BuildHasher, A: Allocator>
+    VacantEntry<'a, T, S, A>
+{
     pub(super) unsafe fn new(
-        map: DormantMutRef<'a, BiHashMap<T, S>>,
+        map: DormantMutRef<'a, BiHashMap<T, S, A>>,
         hashes: [MapHash<S>; 2],
     ) -> Self {
         VacantEntry { map: map.into(), hashes }
@@ -111,7 +125,7 @@ impl<'a, T: BiHashItem, S: Clone + BuildHasher> VacantEntry<'a, T, S> {
 
     /// Sets the value of the entry, and returns an `OccupiedEntry`.
     #[inline]
-    pub fn insert_entry(mut self, value: T) -> OccupiedEntry<'a, T, S> {
+    pub fn insert_entry(mut self, value: T) -> OccupiedEntry<'a, T, S, A> {
         if !self.hashes[0].is_same_hash(value.key1()) {
             panic!("key1 hashes do not match");
         }
@@ -138,18 +152,25 @@ impl<'a, T: BiHashItem, S: Clone + BuildHasher> VacantEntry<'a, T, S> {
 /// A view into an occupied entry in a [`BiHashMap`]. Part of the [`Entry`]
 /// enum.
 #[derive_where(Debug)]
-pub struct OccupiedEntry<'a, T: BiHashItem, S = DefaultHashBuilder> {
-    map: DebugIgnore<DormantMutRef<'a, BiHashMap<T, S>>>,
+pub struct OccupiedEntry<
+    'a,
+    T: BiHashItem,
+    S = DefaultHashBuilder,
+    A: Allocator = Global,
+> {
+    map: DebugIgnore<DormantMutRef<'a, BiHashMap<T, S, A>>>,
     indexes: EntryIndexes,
 }
 
-impl<'a, T: BiHashItem, S: Clone + BuildHasher> OccupiedEntry<'a, T, S> {
+impl<'a, T: BiHashItem, S: Clone + BuildHasher, A: Allocator>
+    OccupiedEntry<'a, T, S, A>
+{
     /// # Safety
     ///
     /// After self is created, the original reference created by
     /// `DormantMutRef::new` must not be used.
     pub(super) unsafe fn new(
-        map: DormantMutRef<'a, BiHashMap<T, S>>,
+        map: DormantMutRef<'a, BiHashMap<T, S, A>>,
         indexes: EntryIndexes,
     ) -> Self {
         OccupiedEntry { map: map.into(), indexes }

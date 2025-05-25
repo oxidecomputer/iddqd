@@ -1,5 +1,5 @@
 use super::{IdOrdItem, RefMut, tables::IdOrdMapTables};
-use crate::support::{btree_table, item_set::ItemSet};
+use crate::support::{alloc::Global, btree_table, item_set::ItemSet};
 use core::{hash::Hash, iter::FusedIterator};
 
 /// An iterator over the elements of an [`IdOrdMap`] by shared reference.
@@ -10,13 +10,13 @@ use core::{hash::Hash, iter::FusedIterator};
 /// [`IdOrdMap::iter`]: crate::IdOrdMap::iter
 #[derive(Clone, Debug)]
 pub struct Iter<'a, T: IdOrdItem> {
-    items: &'a ItemSet<T>,
+    items: &'a ItemSet<T, Global>,
     iter: btree_table::Iter<'a>,
 }
 
 impl<'a, T: IdOrdItem> Iter<'a, T> {
     pub(super) fn new(
-        items: &'a ItemSet<T>,
+        items: &'a ItemSet<T, Global>,
         tables: &'a IdOrdMapTables,
     ) -> Self {
         Self { items, iter: tables.key_to_item.iter() }
@@ -56,7 +56,7 @@ pub struct IterMut<'a, T: IdOrdItem>
 where
     for<'k> T::Key<'k>: Hash,
 {
-    items: &'a mut ItemSet<T>,
+    items: &'a mut ItemSet<T, Global>,
     tables: &'a IdOrdMapTables,
     iter: btree_table::Iter<'a>,
 }
@@ -66,7 +66,7 @@ where
     for<'k> T::Key<'k>: Hash,
 {
     pub(super) fn new(
-        items: &'a mut ItemSet<T>,
+        items: &'a mut ItemSet<T, Global>,
         tables: &'a IdOrdMapTables,
     ) -> Self {
         Self { items, tables, iter: tables.key_to_item.iter() }
@@ -139,12 +139,15 @@ impl<'a, T: IdOrdItem + 'a> FusedIterator for IterMut<'a, T> where
 /// [`IdOrdMap::into_iter`]: crate::IdOrdMap::into_iter
 #[derive(Debug)]
 pub struct IntoIter<T: IdOrdItem> {
-    items: ItemSet<T>,
+    items: ItemSet<T, Global>,
     iter: btree_table::IntoIter,
 }
 
 impl<T: IdOrdItem> IntoIter<T> {
-    pub(super) fn new(items: ItemSet<T>, tables: IdOrdMapTables) -> Self {
+    pub(super) fn new(
+        items: ItemSet<T, Global>,
+        tables: IdOrdMapTables,
+    ) -> Self {
         Self { items, iter: tables.key_to_item.into_iter() }
     }
 }

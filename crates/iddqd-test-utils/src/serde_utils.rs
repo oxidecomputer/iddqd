@@ -1,14 +1,14 @@
 //! Serde-related test utilities.
 
-use crate::test_item::{MapKind, TestItem, TestItemMap};
+use crate::test_item::{ItemMap, MapKind, TestItem};
 use iddqd::internal::ValidateCompact;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 pub fn assert_serialize_roundtrip<M>(values: Vec<TestItem>)
 where
-    M: TestItemMap + Serialize + for<'de> Deserialize<'de>,
+    M: ItemMap<TestItem> + Serialize,
 {
-    let mut map = M::new();
+    let mut map = M::make_new();
     let mut first_error = None;
     for value in values.clone() {
         // Ignore errors from duplicates which are quite possible to occur
@@ -22,7 +22,10 @@ where
     }
 
     let serialized = serde_json::to_string(&map).unwrap();
-    let deserialized: M = serde_json::from_str(&serialized).unwrap();
+    let deserialized: M = M::make_deserialize_in(
+        &mut serde_json::Deserializer::from_str(&serialized),
+    )
+    .unwrap();
     deserialized
         .validate_(ValidateCompact::Compact)
         .expect("deserialized map is valid");
@@ -47,7 +50,9 @@ where
     //
     // Here, we rely on the fact that the map is serialized as just a vector.
     let serialized = serde_json::to_string(&values).unwrap();
-    let res: Result<M, _> = serde_json::from_str(&serialized);
+    let res: Result<M, _> = M::make_deserialize_in(
+        &mut serde_json::Deserializer::from_str(&serialized),
+    );
     match (first_error, res) {
         (None, Ok(_)) => {} // No error, should be fine
         (Some(first_error), Ok(_)) => {

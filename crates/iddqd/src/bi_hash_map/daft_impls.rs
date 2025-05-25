@@ -2,7 +2,11 @@
 
 use super::{BiHashItem, BiHashMap};
 use crate::{
-    DefaultHashBuilder, IdHashItem, id_hash_map, support::daft_utils::IdLeaf,
+    DefaultHashBuilder, IdHashItem, id_hash_map,
+    support::{
+        alloc::{Allocator, Global},
+        daft_utils::IdLeaf,
+    },
 };
 use core::{
     fmt,
@@ -13,11 +17,15 @@ use derive_where::derive_where;
 use equivalent::Equivalent;
 use ref_cast::RefCast;
 
-impl<T: BiHashItem> Diffable for BiHashMap<T> {
+impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> Diffable
+    for BiHashMap<T, S, A>
+{
     type Diff<'a>
-        = MapLeaf<'a, T>
+        = MapLeaf<'a, T, S, A>
     where
-        T: 'a;
+        T: 'a,
+        S: 'a,
+        A: 'a;
 
     fn diff<'daft>(&'daft self, other: &'daft Self) -> Self::Diff<'daft> {
         MapLeaf { before: self, after: other }
@@ -39,26 +47,31 @@ impl<T: BiHashItem> Diffable for BiHashMap<T> {
     for<'k> T::K2<'k>: fmt::Debug
 )]
 #[derive_where(Clone, Copy)]
-#[derive_where(PartialEq; T: PartialEq, S: Clone + BuildHasher)]
-#[derive_where(Eq; T: Eq, S: Clone + BuildHasher)]
-pub struct MapLeaf<'daft, T: BiHashItem, S = DefaultHashBuilder> {
+#[derive_where(PartialEq; T: PartialEq, S: Clone + BuildHasher, A: Allocator)]
+#[derive_where(Eq; T: Eq, S: Clone + BuildHasher, A: Allocator)]
+pub struct MapLeaf<
+    'daft,
+    T: BiHashItem,
+    S = DefaultHashBuilder,
+    A: Allocator = Global,
+> {
     /// The before map.
-    pub before: &'daft BiHashMap<T, S>,
+    pub before: &'daft BiHashMap<T, S, A>,
 
     /// The after map.
-    pub after: &'daft BiHashMap<T, S>,
+    pub after: &'daft BiHashMap<T, S, A>,
 }
 
-impl<'daft, T: BiHashItem, S: Default + Clone + BuildHasher>
-    MapLeaf<'daft, T, S>
+impl<'daft, T: BiHashItem, S: Clone + BuildHasher, A: Clone + Allocator>
+    MapLeaf<'daft, T, S, A>
 {
     /// Returns a diff of two [`BiHashMap`]s, indexed by `key1`.
     ///
     /// Note that the return type is a [`id_hash_map::Diff`].
-    pub fn by_key1(self) -> id_hash_map::Diff<'daft, ByK1<T>, S> {
+    pub fn by_key1(self) -> id_hash_map::Diff<'daft, ByK1<T>, S, A> {
         impl_diff_ref_cast!(
             self,
-            id_hash_map::Diff::<'daft, ByK1<T>, S>,
+            id_hash_map::Diff::<'daft, ByK1<T>, S, A>,
             key1,
             get1,
             contains_key1,
@@ -69,10 +82,10 @@ impl<'daft, T: BiHashItem, S: Default + Clone + BuildHasher>
     /// Returns a diff of two [`BiHashMap`]s, indexed by `key2`.
     ///
     /// Note that the return type is a [`id_hash_map::Diff`].
-    pub fn by_key2(self) -> id_hash_map::Diff<'daft, ByK2<T>, S> {
+    pub fn by_key2(self) -> id_hash_map::Diff<'daft, ByK2<T>, S, A> {
         impl_diff_ref_cast!(
             self,
-            id_hash_map::Diff::<'daft, ByK2<T>, S>,
+            id_hash_map::Diff::<'daft, ByK2<T>, S, A>,
             key2,
             get2,
             contains_key2,
@@ -83,8 +96,11 @@ impl<'daft, T: BiHashItem, S: Default + Clone + BuildHasher>
     /// Returns a diff of two [`BiHashMap`]s, indexed by `key1` and `key2`.
     ///
     /// The return type is a [`Diff`].
-    pub fn by_unique(self) -> Diff<'daft, T, S> {
-        let mut diff = Diff::default();
+    pub fn by_unique(self) -> Diff<'daft, T, S, A> {
+        let mut diff = Diff::with_hasher_in(
+            self.before.hasher().clone(),
+            self.before.allocator().clone(),
+        );
         for item in self.before {
             if let Some(after_item) =
                 self.after.get_unique(&item.key1(), &item.key2())
@@ -104,20 +120,26 @@ impl<'daft, T: BiHashItem, S: Default + Clone + BuildHasher>
 }
 
 /// A diff of two [`BiHashMap`]s, indexed by both `key1` and `key2`.
-pub struct Diff<'daft, T: ?Sized + BiHashItem, S = DefaultHashBuilder> {
+#[derive_where(Default; S: Default, A: Default)]
+pub struct Diff<
+    'daft,
+    T: ?Sized + BiHashItem,
+    S = DefaultHashBuilder,
+    A: Allocator = Global,
+> {
     /// Entries common to both maps.
     ///
     /// Items are stored as [`IdLeaf`]s to references.
-    pub common: BiHashMap<IdLeaf<&'daft T>, S>,
+    pub common: BiHashMap<IdLeaf<&'daft T>, S, A>,
 
     /// Added entries.
-    pub added: BiHashMap<&'daft T, S>,
+    pub added: BiHashMap<&'daft T, S, A>,
 
     /// Removed entries.
-    pub removed: BiHashMap<&'daft T, S>,
+    pub removed: BiHashMap<&'daft T, S, A>,
 }
 
-#[cfg(feature = "default-hasher")]
+#[cfg(all(feature = "default-hasher", feature = "allocator-api2"))]
 impl<'daft, T: ?Sized + BiHashItem> Diff<'daft, T> {
     /// Creates a new `BiHashMapDiff` from two maps.
     pub fn new() -> Self {
@@ -129,6 +151,7 @@ impl<'daft, T: ?Sized + BiHashItem> Diff<'daft, T> {
     }
 }
 
+#[cfg(feature = "allocator-api2")]
 impl<'daft, T: ?Sized + BiHashItem, S: Clone + BuildHasher> Diff<'daft, T, S> {
     /// Creates a new `BiHashMapDiff` with the given hasher.
     pub fn with_hasher(hasher: S) -> Self {
@@ -140,8 +163,25 @@ impl<'daft, T: ?Sized + BiHashItem, S: Clone + BuildHasher> Diff<'daft, T, S> {
     }
 }
 
-impl<'daft, T: ?Sized + BiHashItem + Eq, S: Clone + BuildHasher>
-    Diff<'daft, T, S>
+impl<
+    'daft,
+    T: ?Sized + BiHashItem,
+    S: Clone + BuildHasher,
+    A: Clone + Allocator,
+> Diff<'daft, T, S, A>
+{
+    /// Creates a new `BiHashMapDiff` with the given hasher and allocator.
+    pub fn with_hasher_in(hasher: S, alloc: A) -> Self {
+        Self {
+            common: BiHashMap::with_hasher_in(hasher.clone(), alloc.clone()),
+            added: BiHashMap::with_hasher_in(hasher.clone(), alloc.clone()),
+            removed: BiHashMap::with_hasher_in(hasher, alloc),
+        }
+    }
+}
+
+impl<'daft, T: ?Sized + BiHashItem + Eq, S: Clone + BuildHasher, A: Allocator>
+    Diff<'daft, T, S, A>
 {
     /// Returns an iterator over unchanged keys and values.
     pub fn unchanged(&self) -> impl Iterator<Item = &'daft T> + '_ {
@@ -243,19 +283,6 @@ impl<'daft, T: ?Sized + BiHashItem + Eq, S: Clone + BuildHasher>
         T: Diffable,
     {
         self.modified().map(|leaf| leaf.diff_pair())
-    }
-}
-
-// Note: not deriving Default here because we don't want to require
-// T to be Default.
-impl<'daft, T: BiHashItem, S: Default> Default for Diff<'daft, T, S> {
-    #[inline]
-    fn default() -> Self {
-        Self {
-            common: BiHashMap::default(),
-            added: BiHashMap::default(),
-            removed: BiHashMap::default(),
-        }
     }
 }
 
