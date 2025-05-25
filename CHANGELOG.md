@@ -1,14 +1,17 @@
 # Changelog
 
-## [0.3.2] - 2025-05-23
+## [0.3.2] - 2025-05-24
 
 ### Added
 
+- The hash map types now support custom hashers.
+- With the new `allocator-api2` feature (enabled by default), the hash map types now support custom allocators, including on stable. See [the bumpalo-alloc example](https://github.com/oxidecomputer/iddqd/blob/940c661095cf23c97b4769c9e0fdf9b95e9a7670/crates/iddqd-extended-examples/examples/bumpalo-alloc.rs#L31).
+- Added some documentation explaining iteration order.
 - Added a note in the README and `lib.rs` that small copyable keys like integers are best returned as owned ones.
 
 ### Changed
 
-Dropped the `Ord` requirement for `Comparable` keys. (The `Hash` requirement for `Equivalent` has to remain.)
+- Dropped the `Ord` requirement for `Comparable` keys. (The `Hash` requirement for `Equivalent` continues to be required.)
 
 ## [0.3.1] - 2025-05-22
 

@@ -12,3 +12,6 @@ workspace = true
 [dependencies]
 bumpalo.workspace = true
 iddqd = { workspace = true, features = ["allocator-api2", "default-hasher"] }
+
+[package.metadata.release]
+release = false
