@@ -143,6 +143,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "hugealloc"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "542733215a252c27c674e5d875a910d7de509cb74123d0bdbaa050f871ec84c2"
+dependencies = [
+ "allocator-api2",
+ "libc",
+ "sptr",
+]
+
+[[package]]
 name = "iddqd"
 version = "0.3.1"
 dependencies = [
@@ -162,10 +173,18 @@ dependencies = [
 ]
 
 [[package]]
-name = "iddqd-test-utils"
+name = "iddqd-extended-examples"
 version = "0.1.0"
 dependencies = [
  "bumpalo",
+ "iddqd",
+]
+
+[[package]]
+name = "iddqd-test-utils"
+version = "0.1.0"
+dependencies = [
+ "hugealloc",
  "iddqd",
  "proptest",
  "serde",
@@ -416,6 +435,12 @@ dependencies = [
  "ryu",
  "serde",
 ]
+
+[[package]]
+name = "sptr"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3b9b39299b249ad65f3b7e96443bad61c02ca5cd3589f46cb6d610a0fd6c0d6a"
 
 [[package]]
 name = "structmeta"

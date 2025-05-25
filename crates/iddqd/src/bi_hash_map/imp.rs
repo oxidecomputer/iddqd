@@ -132,6 +132,34 @@ impl<T: BiHashItem, S: Clone + BuildHasher> BiHashMap<T, S> {
     }
 }
 
+#[cfg(feature = "default-hasher")]
+impl<T: BiHashItem, A: Clone + Allocator> BiHashMap<T, DefaultHashBuilder, A> {
+    /// Creates a new empty `BiHashMap` using the given allocator.
+    pub fn new_in(alloc: A) -> Self {
+        Self {
+            items: ItemSet::with_capacity_in(0, alloc.clone()),
+            tables: BiHashMapTables::with_capacity_and_hasher_in(
+                0,
+                DefaultHashBuilder::default(),
+                alloc,
+            ),
+        }
+    }
+
+    /// Creates an empty `BiHashMap` with the specified capacity using the given
+    /// allocator.
+    pub fn with_capacity_in(capacity: usize, alloc: A) -> Self {
+        Self {
+            items: ItemSet::with_capacity_in(capacity, alloc.clone()),
+            tables: BiHashMapTables::with_capacity_and_hasher_in(
+                capacity,
+                DefaultHashBuilder::default(),
+                alloc,
+            ),
+        }
+    }
+}
+
 impl<T: BiHashItem, S: Clone + BuildHasher, A: Clone + Allocator>
     BiHashMap<T, S, A>
 {

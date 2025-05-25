@@ -24,7 +24,7 @@ pub type HashBuilder = std::hash::RandomState;
 
 #[cfg(feature = "allocator-api2")]
 // Use bumpalo for allocation if this feature is enabled.
-pub type Alloc = &'static bumpalo::Bump;
+pub type Alloc = hugealloc::HugeAlloc;
 
 #[cfg(not(feature = "allocator-api2"))]
 pub type Alloc = iddqd::internal::Global;
@@ -402,8 +402,7 @@ impl<T: Clone + BiHashItem> ItemMap<T> for BiHashMap<T, HashBuilder, Alloc> {
 
     #[cfg(feature = "allocator-api2")]
     fn make_new() -> Self {
-        let bump = Box::leak(Box::new(bumpalo::Bump::new()));
-        BiHashMap::with_hasher_in(HashBuilder::default(), bump)
+        BiHashMap::with_hasher_in(HashBuilder::default(), Alloc::default())
     }
 
     #[cfg(not(feature = "allocator-api2"))]
@@ -413,11 +412,10 @@ impl<T: Clone + BiHashItem> ItemMap<T> for BiHashMap<T, HashBuilder, Alloc> {
 
     #[cfg(feature = "allocator-api2")]
     fn make_with_capacity(capacity: usize) -> Self {
-        let bump = Box::leak(Box::new(bumpalo::Bump::new()));
         BiHashMap::with_capacity_and_hasher_in(
             capacity,
             HashBuilder::default(),
-            bump,
+            Alloc::default(),
         )
     }
 
@@ -432,8 +430,7 @@ impl<T: Clone + BiHashItem> ItemMap<T> for BiHashMap<T, HashBuilder, Alloc> {
         D: serde::de::Deserializer<'a>,
         T: fmt::Debug + serde::de::Deserialize<'a>,
     {
-        let bump = Box::leak(Box::new(bumpalo::Bump::new()));
-        BiHashMap::deserialize_in(deserializer, bump)
+        BiHashMap::deserialize_in(deserializer, Alloc::default())
     }
 
     #[cfg(all(feature = "serde", not(feature = "allocator-api2")))]
@@ -498,8 +495,7 @@ where
 
     #[cfg(feature = "allocator-api2")]
     fn make_new() -> Self {
-        let bump = Box::leak(Box::new(bumpalo::Bump::new()));
-        IdHashMap::with_hasher_in(HashBuilder::default(), bump)
+        IdHashMap::with_hasher_in(HashBuilder::default(), Alloc::default())
     }
 
     #[cfg(not(feature = "allocator-api2"))]
@@ -509,11 +505,10 @@ where
 
     #[cfg(feature = "allocator-api2")]
     fn make_with_capacity(capacity: usize) -> Self {
-        let bump = Box::leak(Box::new(bumpalo::Bump::new()));
         IdHashMap::with_capacity_and_hasher_in(
             capacity,
             HashBuilder::default(),
-            bump,
+            Alloc::default(),
         )
     }
 
@@ -528,8 +523,7 @@ where
         D: serde::de::Deserializer<'a>,
         T: fmt::Debug + serde::de::Deserialize<'a>,
     {
-        let bump = Box::leak(Box::new(bumpalo::Bump::new()));
-        IdHashMap::deserialize_in(deserializer, bump)
+        IdHashMap::deserialize_in(deserializer, Alloc::default())
     }
 
     #[cfg(all(feature = "serde", not(feature = "allocator-api2")))]
@@ -664,8 +658,7 @@ where
 
     #[cfg(feature = "allocator-api2")]
     fn make_new() -> Self {
-        let bump = Box::leak(Box::new(bumpalo::Bump::new()));
-        TriHashMap::with_hasher_in(HashBuilder::default(), bump)
+        TriHashMap::with_hasher_in(HashBuilder::default(), Alloc::default())
     }
 
     #[cfg(not(feature = "allocator-api2"))]
@@ -675,11 +668,10 @@ where
 
     #[cfg(feature = "allocator-api2")]
     fn make_with_capacity(capacity: usize) -> Self {
-        let bump = Box::leak(Box::new(bumpalo::Bump::new()));
         TriHashMap::with_capacity_and_hasher_in(
             capacity,
             HashBuilder::default(),
-            bump,
+            Alloc::default(),
         )
     }
 
@@ -694,8 +686,7 @@ where
         D: serde::de::Deserializer<'a>,
         T: fmt::Debug + serde::de::Deserialize<'a>,
     {
-        let bump = Box::leak(Box::new(bumpalo::Bump::new()));
-        TriHashMap::deserialize_in(deserializer, bump)
+        TriHashMap::deserialize_in(deserializer, Alloc::default())
     }
 
     #[cfg(all(feature = "serde", not(feature = "allocator-api2")))]

@@ -177,6 +177,12 @@
 //! # }
 //! ```
 //!
+//! For more examples, see the
+//! [examples](https://github.com/oxidecomputer/iddqd/tree/main/crates/iddqd/examples)
+//! and [extended
+//! examples](https://github.com/oxidecomputer/iddqd/tree/main/crates/iddqd-extended-examples/examples)
+//! directories.
+//!
 //! ### `Equivalent` and `Comparable`
 //!
 //! An important feature of the standard library's maps is that they allow any
