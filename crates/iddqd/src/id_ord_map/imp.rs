@@ -5,7 +5,11 @@ use super::{
 use crate::{
     errors::DuplicateItem,
     internal::{ValidateChaos, ValidateCompact, ValidationError},
-    support::{borrow::DormantMutRef, item_set::ItemSet},
+    support::{
+        alloc::{Global, global_alloc},
+        borrow::DormantMutRef,
+        item_set::ItemSet,
+    },
 };
 use alloc::collections::BTreeSet;
 use core::{fmt, hash::Hash};
@@ -57,7 +61,9 @@ use equivalent::{Comparable, Equivalent};
 #[derive_where(Default)]
 #[derive(Clone)]
 pub struct IdOrdMap<T: IdOrdItem> {
-    pub(super) items: ItemSet<T>,
+    // We don't expose an allocator trait here because it isn't stable with
+    // std's BTreeMap.
+    pub(super) items: ItemSet<T, Global>,
     // Invariant: the values (usize) in these tables are valid indexes into
     // `items`, and are a 1:1 mapping.
     tables: IdOrdMapTables,
@@ -75,7 +81,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     /// The capacity will be used to initialize the underlying hash table.
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
-            items: ItemSet::with_capacity(capacity),
+            items: ItemSet::with_capacity_in(capacity, global_alloc()),
             tables: IdOrdMapTables::new(),
         }
     }

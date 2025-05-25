@@ -10,7 +10,10 @@ use crate::{
     errors::DuplicateItem,
     internal::{ValidateCompact, ValidationError},
     support::{
-        borrow::DormantMutRef, fmt_utils::StrDisplayAsDebug, item_set::ItemSet,
+        alloc::{AllocWrapper, Allocator, Global, global_alloc},
+        borrow::DormantMutRef,
+        fmt_utils::StrDisplayAsDebug,
+        item_set::ItemSet,
     },
 };
 use alloc::{collections::BTreeSet, vec::Vec};
@@ -69,13 +72,17 @@ use hashbrown::hash_table;
 /// assert!(map.get2(&"baz").is_none());
 /// # }
 /// ```
-#[derive_where(Default; S: Default)]
+#[derive_where(Default; S: Default, A: Default)]
 #[derive(Clone)]
-pub struct BiHashMap<T: BiHashItem, S = DefaultHashBuilder> {
-    pub(super) items: ItemSet<T>,
+pub struct BiHashMap<
+    T: BiHashItem,
+    S = DefaultHashBuilder,
+    A: Allocator = Global,
+> {
+    pub(super) items: ItemSet<T, A>,
     // Invariant: the values (usize) in these tables are valid indexes into
     // `items`, and are a 1:1 mapping.
-    tables: BiHashMapTables<S>,
+    tables: BiHashMapTables<S, A>,
 }
 
 #[cfg(feature = "default-hasher")]
@@ -89,10 +96,11 @@ impl<T: BiHashItem> BiHashMap<T> {
     /// Creates a new `BiHashMap` with the given capacity.
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
-            items: ItemSet::with_capacity(capacity),
-            tables: BiHashMapTables::with_capacity_and_hasher(
+            items: ItemSet::with_capacity_in(capacity, global_alloc()),
+            tables: BiHashMapTables::with_capacity_and_hasher_in(
                 capacity,
                 DefaultHashBuilder::default(),
+                global_alloc(),
             ),
         }
     }
@@ -103,16 +111,96 @@ impl<T: BiHashItem, S: Clone + BuildHasher> BiHashMap<T, S> {
     pub fn with_hasher(hasher: S) -> Self {
         Self {
             items: ItemSet::default(),
-            tables: BiHashMapTables::with_capacity_and_hasher(0, hasher),
+            tables: BiHashMapTables::with_capacity_and_hasher_in(
+                0,
+                hasher,
+                global_alloc(),
+            ),
         }
     }
 
     /// Creates a new `BiHashMap` with the given capacity and hasher.
     pub fn with_capacity_and_hasher(capacity: usize, hasher: S) -> Self {
         Self {
-            items: ItemSet::with_capacity(capacity),
-            tables: BiHashMapTables::with_capacity_and_hasher(capacity, hasher),
+            items: ItemSet::with_capacity_in(capacity, global_alloc()),
+            tables: BiHashMapTables::with_capacity_and_hasher_in(
+                capacity,
+                hasher,
+                global_alloc(),
+            ),
         }
+    }
+}
+
+#[cfg(feature = "default-hasher")]
+impl<T: BiHashItem, A: Clone + Allocator> BiHashMap<T, DefaultHashBuilder, A> {
+    /// Creates a new empty `BiHashMap` using the given allocator.
+    pub fn new_in(alloc: A) -> Self {
+        Self {
+            items: ItemSet::with_capacity_in(0, alloc.clone()),
+            tables: BiHashMapTables::with_capacity_and_hasher_in(
+                0,
+                DefaultHashBuilder::default(),
+                alloc,
+            ),
+        }
+    }
+
+    /// Creates an empty `BiHashMap` with the specified capacity using the given
+    /// allocator.
+    pub fn with_capacity_in(capacity: usize, alloc: A) -> Self {
+        Self {
+            items: ItemSet::with_capacity_in(capacity, alloc.clone()),
+            tables: BiHashMapTables::with_capacity_and_hasher_in(
+                capacity,
+                DefaultHashBuilder::default(),
+                alloc,
+            ),
+        }
+    }
+}
+
+impl<T: BiHashItem, S: Clone + BuildHasher, A: Clone + Allocator>
+    BiHashMap<T, S, A>
+{
+    /// Creates a new, empty `BiHashMap` with the given allocator.
+    pub fn with_hasher_in(hasher: S, alloc: A) -> Self {
+        Self {
+            items: ItemSet::with_capacity_in(0, alloc.clone()),
+            tables: BiHashMapTables::with_capacity_and_hasher_in(
+                0, hasher, alloc,
+            ),
+        }
+    }
+
+    /// Creates a new `BiHashMap` with the given capacity, hasher, and
+    /// allocator.
+    pub fn with_capacity_and_hasher_in(
+        capacity: usize,
+        hasher: S,
+        alloc: A,
+    ) -> Self {
+        Self {
+            items: ItemSet::with_capacity_in(capacity, alloc.clone()),
+            tables: BiHashMapTables::with_capacity_and_hasher_in(
+                capacity, hasher, alloc,
+            ),
+        }
+    }
+}
+
+impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
+    /// Returns the hasher.
+    #[cfg(feature = "daft")]
+    #[inline]
+    pub(crate) fn hasher(&self) -> &S {
+        self.tables.hasher()
+    }
+
+    /// Returns the allocator.
+    #[inline]
+    pub fn allocator(&self) -> &A {
+        self.items.allocator()
     }
 
     /// Returns the currently allocated capacity of the map.
@@ -152,7 +240,7 @@ impl<T: BiHashItem, S: Clone + BuildHasher> BiHashMap<T, S> {
     ///
     /// [`HashMap`]: std::collections::HashMap
     #[inline]
-    pub fn iter_mut(&mut self) -> IterMut<'_, T, S> {
+    pub fn iter_mut(&mut self) -> IterMut<'_, T, S, A> {
         IterMut::new(&self.tables, &mut self.items)
     }
 
@@ -426,7 +514,7 @@ impl<T: BiHashItem, S: Clone + BuildHasher> BiHashMap<T, S> {
         &'a mut self,
         key1: T::K1<'_>,
         key2: T::K2<'_>,
-    ) -> Entry<'a, T, S> {
+    ) -> Entry<'a, T, S, A> {
         let (map, dormant_map) = DormantMutRef::new(self);
         let key1 = T::upcast_key1(key1);
         let key2 = T::upcast_key2(key2);
@@ -735,11 +823,12 @@ impl<T: BiHashItem, S: Clone + BuildHasher> BiHashMap<T, S> {
     }
 }
 
-impl<T, S> fmt::Debug for BiHashMap<T, S>
+impl<T, S, A> fmt::Debug for BiHashMap<T, S, A>
 where
     T: BiHashItem + fmt::Debug,
     for<'k> T::K1<'k>: fmt::Debug,
     for<'k> T::K2<'k>: fmt::Debug,
+    A: Allocator,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         struct KeyMap<'a, T: BiHashItem + 'a> {
@@ -771,8 +860,8 @@ where
     }
 }
 
-impl<T: BiHashItem + PartialEq, S: Clone + BuildHasher> PartialEq
-    for BiHashMap<T, S>
+impl<T: BiHashItem + PartialEq, S: Clone + BuildHasher, A: Allocator> PartialEq
+    for BiHashMap<T, S, A>
 {
     fn eq(&self, other: &Self) -> bool {
         // Implementing PartialEq for BiHashMap is tricky because BiHashMap is
@@ -825,12 +914,15 @@ impl<T: BiHashItem + PartialEq, S: Clone + BuildHasher> PartialEq
 }
 
 // The Eq bound on T ensures that the BiHashMap forms an equivalence class.
-impl<T: BiHashItem + Eq, S: Clone + BuildHasher> Eq for BiHashMap<T, S> {}
+impl<T: BiHashItem + Eq, S: Clone + BuildHasher, A: Allocator> Eq
+    for BiHashMap<T, S, A>
+{
+}
 
-fn detect_dup_or_insert<'a>(
-    item: hash_table::Entry<'a, usize>,
+fn detect_dup_or_insert<'a, A: Allocator>(
+    item: hash_table::Entry<'a, usize, AllocWrapper<A>>,
     duplicates: &mut BTreeSet<usize>,
-) -> Option<hash_table::VacantEntry<'a, usize>> {
+) -> Option<hash_table::VacantEntry<'a, usize, AllocWrapper<A>>> {
     match item {
         hash_table::Entry::Vacant(slot) => Some(slot),
         hash_table::Entry::Occupied(slot) => {
@@ -842,7 +934,9 @@ fn detect_dup_or_insert<'a>(
 
 /// The `Extend` implementation overwrites duplicates. In the future, there will
 /// also be an `extend_unique` method that will return an error.
-impl<T: BiHashItem, S: Clone + BuildHasher> Extend<T> for BiHashMap<T, S> {
+impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> Extend<T>
+    for BiHashMap<T, S, A>
+{
     fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
         for item in iter {
             self.insert_overwrite(item);
@@ -850,8 +944,8 @@ impl<T: BiHashItem, S: Clone + BuildHasher> Extend<T> for BiHashMap<T, S> {
     }
 }
 
-impl<'a, T: BiHashItem, S: Clone + BuildHasher> IntoIterator
-    for &'a BiHashMap<T, S>
+impl<'a, T: BiHashItem, S: Clone + BuildHasher, A: Allocator> IntoIterator
+    for &'a BiHashMap<T, S, A>
 {
     type Item = &'a T;
     type IntoIter = Iter<'a, T>;
@@ -862,11 +956,11 @@ impl<'a, T: BiHashItem, S: Clone + BuildHasher> IntoIterator
     }
 }
 
-impl<'a, T: BiHashItem, S: Clone + BuildHasher> IntoIterator
-    for &'a mut BiHashMap<T, S>
+impl<'a, T: BiHashItem, S: Clone + BuildHasher, A: Allocator> IntoIterator
+    for &'a mut BiHashMap<T, S, A>
 {
     type Item = RefMut<'a, T, S>;
-    type IntoIter = IterMut<'a, T, S>;
+    type IntoIter = IterMut<'a, T, S, A>;
 
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
@@ -874,9 +968,11 @@ impl<'a, T: BiHashItem, S: Clone + BuildHasher> IntoIterator
     }
 }
 
-impl<T: BiHashItem, S: Clone + BuildHasher> IntoIterator for BiHashMap<T, S> {
+impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> IntoIterator
+    for BiHashMap<T, S, A>
+{
     type Item = T;
-    type IntoIter = IntoIter<T>;
+    type IntoIter = IntoIter<T, A>;
 
     #[inline]
     fn into_iter(self) -> Self::IntoIter {

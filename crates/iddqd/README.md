@@ -40,6 +40,11 @@ issues encountered using Rust’s default map types in practice at Oxide.
 * There’s no `insert` method; insertion must be through either
   `insert_overwrite` or `insert_unique`. You must pick an insertion
   behavior.
+* For hash maps, the default hasher is [`foldhash`](https://docs.rs/foldhash/0.1.5/foldhash/index.html), which is much faster
+  than SipHash. However, foldhash does *not provide the same level of HashDoS
+  resistance* as SipHash. If that is important to you, you can use a different
+  hasher. (Disable the `default-hasher` feature to require a hash
+  builder type parameter to be passed in.)
 * The serde implementations reject duplicate keys.
 
 We’ve also sometimes needed to index a set of data by more than one key, or
@@ -180,6 +185,12 @@ assert_eq!(
 );
 ````
 
+For more examples, see the
+[examples](https://github.com/oxidecomputer/iddqd/tree/main/crates/iddqd/examples)
+and [extended
+examples](https://github.com/oxidecomputer/iddqd/tree/main/crates/iddqd-extended-examples/examples)
+directories.
+
 #### `Equivalent` and `Comparable`
 
 An important feature of the standard library’s maps is that they allow any
@@ -277,6 +288,10 @@ platform-specific notion of thread locals, would suffice to make
 * `default-hasher`: Enables the `DefaultHashBuilder` type. Disable this
   feature to require a hash builder type parameter to be passed into
   [`IdHashMap`](https://docs.rs/iddqd/0.3.1/iddqd/id_hash_map/imp/struct.IdHashMap.html), [`BiHashMap`](https://docs.rs/iddqd/0.3.1/iddqd/bi_hash_map/imp/struct.BiHashMap.html), and [`TriHashMap`](https://docs.rs/iddqd/0.3.1/iddqd/tri_hash_map/imp/struct.TriHashMap.html). *Enabled by default.*
+* `allocator-api2`: Enables support for custom allocators via the
+  [`allocator_api2`](https://docs.rs/allocator-api2/0.2.21/allocator_api2/index.html) crate. Both global and scoped/arena allocators
+  (such as `bumpalo`) are supported. Custom allocators are not currently
+  supported by `IdOrdMap`.
 
 ## Related work
 
@@ -309,3 +324,5 @@ This project is available under the terms of either the [Apache 2.0 license](LIC
 license](LICENSE-MIT).
 
 Portions adapted from [The Rust Programming Language](https://github.com/rust-lang/rust) and used under the MIT and Apache 2.0 licenses. The Rust Programming Language is (c) The Rust Project Contributors.
+
+Portions adapted from [hashbrown](https://github.com/rust-lang/hashbrown) and used under the MIT and Apache 2.0 licenses. hashbrown is (c) 2016-2025 Amanieu d'Antras and others.

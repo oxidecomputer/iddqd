@@ -8,14 +8,14 @@ use iddqd_test_utils::{
     eq_props::{assert_eq_props, assert_ne_props},
     naive_map::NaiveMap,
     test_item::{
-        HashBuilder, TestItem, TestKey1, TestKey2, assert_iter_eq,
-        test_item_permutation_strategy,
+        Alloc, HashBuilder, ItemMap, TestItem, TestKey1, TestKey2,
+        assert_iter_eq, test_item_permutation_strategy,
     },
 };
 use proptest::prelude::*;
 use test_strategy::{Arbitrary, proptest};
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct SimpleItem {
     key1: u32,
     key2: char,
@@ -38,7 +38,7 @@ impl BiHashItem for SimpleItem {
 
 #[test]
 fn debug_impls() {
-    let mut map = BiHashMap::<SimpleItem, HashBuilder>::default();
+    let mut map = BiHashMap::<SimpleItem, HashBuilder, Alloc>::make_new();
     map.insert_unique(SimpleItem { key1: 1, key2: 'a' }).unwrap();
     map.insert_unique(SimpleItem { key1: 20, key2: 'b' }).unwrap();
     map.insert_unique(SimpleItem { key1: 10, key2: 'c' }).unwrap();
@@ -68,7 +68,7 @@ fn with_capacity() {
 
 #[test]
 fn test_insert_unique() {
-    let mut map = BiHashMap::<TestItem, HashBuilder>::default();
+    let mut map = BiHashMap::<TestItem, HashBuilder, Alloc>::make_new();
 
     // Add an element.
     let v1 = TestItem::new(0, 'a', "x", "v");
@@ -124,7 +124,7 @@ fn test_insert_unique() {
 
 #[test]
 fn test_extend() {
-    let mut map = BiHashMap::<TestItem, HashBuilder>::default();
+    let mut map = BiHashMap::<TestItem, HashBuilder, Alloc>::make_new();
     let items = vec![
         TestItem::new(1, 'a', "x", "v"),
         TestItem::new(2, 'b', "y", "w"),
@@ -150,7 +150,7 @@ fn test_extend() {
 // test, for easier debugging.
 #[test]
 fn test_insert_overwrite() {
-    let mut map = BiHashMap::<TestItem, HashBuilder>::default();
+    let mut map = BiHashMap::<TestItem, HashBuilder, Alloc>::make_new();
 
     // Add an element.
     let v1 = TestItem::new(20, 'a', "x", "v");
@@ -197,7 +197,7 @@ fn proptest_ops(
         Operation,
     >,
 ) {
-    let mut map = BiHashMap::<TestItem, HashBuilder>::default();
+    let mut map = BiHashMap::<TestItem, HashBuilder, Alloc>::make_new();
     let mut naive_map = NaiveMap::new_key12();
 
     let mut compactness = ValidateCompact::Compact;
@@ -276,12 +276,12 @@ fn proptest_ops(
 
 #[proptest(cases = 64)]
 fn proptest_permutation_eq(
-    #[strategy(test_item_permutation_strategy::<BiHashMap<TestItem, HashBuilder>>(0..256))]
+    #[strategy(test_item_permutation_strategy::<BiHashMap<TestItem, HashBuilder, Alloc>>(0..256))]
     items: (Vec<TestItem>, Vec<TestItem>),
 ) {
     let (items1, items2) = items;
-    let mut map1 = BiHashMap::<TestItem, HashBuilder>::default();
-    let mut map2 = BiHashMap::<TestItem, HashBuilder>::default();
+    let mut map1 = BiHashMap::<TestItem, HashBuilder, Alloc>::make_new();
+    let mut map2 = BiHashMap::<TestItem, HashBuilder, Alloc>::make_new();
 
     for item in items1 {
         map1.insert_unique(item.clone()).unwrap();
@@ -299,8 +299,8 @@ fn proptest_permutation_eq(
 // example-based test.
 #[test]
 fn test_permutation_eq_examples() {
-    let mut map1 = BiHashMap::<TestItem, HashBuilder>::default();
-    let mut map2 = BiHashMap::<TestItem, HashBuilder>::default();
+    let mut map1 = BiHashMap::<TestItem, HashBuilder, Alloc>::make_new();
+    let mut map2 = BiHashMap::<TestItem, HashBuilder, Alloc>::make_new();
 
     // Two empty maps are equal.
     assert_eq!(map1, map2);
@@ -356,7 +356,7 @@ fn test_permutation_eq_examples() {
 #[test]
 #[should_panic(expected = "key1 changed during RefMut borrow")]
 fn get_mut_panics_if_key1_changes() {
-    let mut map = BiHashMap::<TestItem, HashBuilder>::default();
+    let mut map = BiHashMap::<TestItem, HashBuilder, Alloc>::make_new();
     map.insert_unique(TestItem::new(128, 'b', "y", "x")).unwrap();
     map.get1_mut(&TestKey1::new(&128)).unwrap().key1 = 2;
 }
@@ -364,14 +364,14 @@ fn get_mut_panics_if_key1_changes() {
 #[test]
 #[should_panic(expected = "key2 changed during RefMut borrow")]
 fn get_mut_panics_if_key2_changes() {
-    let mut map = BiHashMap::<TestItem, HashBuilder>::default();
+    let mut map = BiHashMap::<TestItem, HashBuilder, Alloc>::make_new();
     map.insert_unique(TestItem::new(128, 'b', "y", "x")).unwrap();
     map.get1_mut(&TestKey1::new(&128)).unwrap().key2 = 'c';
 }
 
 #[test]
 fn entry_examples() {
-    let mut map = BiHashMap::<TestItem, HashBuilder>::default();
+    let mut map = BiHashMap::<TestItem, HashBuilder, Alloc>::make_new();
     let item1 = TestItem::new(0, 'a', "x", "v");
 
     let Entry::Vacant(entry) = map.entry(item1.key1(), item1.key2()) else {
@@ -473,7 +473,7 @@ fn entry_examples() {
 #[should_panic = "key1 hashes do not match"]
 fn insert_panics_for_non_matching_key1() {
     let v1 = TestItem::new(0, 'a', "foo", "value");
-    let mut map = BiHashMap::<TestItem, HashBuilder>::default();
+    let mut map = BiHashMap::<TestItem, HashBuilder, Alloc>::make_new();
     map.insert_unique(v1.clone()).expect("insert_unique succeeded");
 
     let v2 = TestItem::new(1, 'b', "bar", "value");
@@ -487,7 +487,7 @@ fn insert_panics_for_non_matching_key1() {
 #[should_panic = "key2 hashes do not match"]
 fn insert_panics_for_non_matching_key2() {
     let v1 = TestItem::new(0, 'a', "foo", "value");
-    let mut map = BiHashMap::<TestItem, HashBuilder>::default();
+    let mut map = BiHashMap::<TestItem, HashBuilder, Alloc>::make_new();
     map.insert_unique(v1.clone()).expect("insert_unique succeeded");
 
     let v2 = TestItem::new(1, 'b', "bar", "value");
@@ -500,7 +500,7 @@ fn insert_panics_for_non_matching_key2() {
 #[test]
 fn entry_insert_non_matching_key1() {
     let v1 = TestItem::new(0, 'a', "foo", "value");
-    let mut map = BiHashMap::<TestItem, HashBuilder>::default();
+    let mut map = BiHashMap::<TestItem, HashBuilder, Alloc>::make_new();
     map.insert_unique(v1.clone()).expect("insert_unique succeeded");
 
     let v2 = TestItem::new(1, 'a', "bar", "value");
@@ -518,7 +518,7 @@ fn entry_insert_non_matching_key1() {
 #[test]
 fn entry_insert_non_matching_key2() {
     let v1 = TestItem::new(0, 'a', "foo", "value");
-    let mut map = BiHashMap::<TestItem, HashBuilder>::default();
+    let mut map = BiHashMap::<TestItem, HashBuilder, Alloc>::make_new();
     map.insert_unique(v1.clone()).expect("insert_unique succeeded");
 
     let v2 = TestItem::new(0, 'b', "bar", "value");
@@ -537,7 +537,7 @@ fn entry_insert_non_matching_key2() {
 #[should_panic = "key1 hashes do not match"]
 fn insert_entry_panics_for_non_matching_keys() {
     let v1 = TestItem::new(0, 'a', "foo", "value");
-    let mut map = BiHashMap::<_, HashBuilder>::default();
+    let mut map = BiHashMap::<_, HashBuilder, Alloc>::make_new();
     map.insert_unique(v1.clone()).expect("insert_unique succeeded");
 
     let v2 = TestItem::new(1, 'b', "bar", "value");
@@ -556,12 +556,14 @@ mod serde_tests {
     use iddqd::BiHashMap;
     use iddqd_test_utils::{
         serde_utils::assert_serialize_roundtrip,
-        test_item::{HashBuilder, TestItem},
+        test_item::{Alloc, HashBuilder, TestItem},
     };
     use test_strategy::proptest;
 
     #[proptest]
     fn proptest_serialize_roundtrip(values: Vec<TestItem>) {
-        assert_serialize_roundtrip::<BiHashMap<TestItem, HashBuilder>>(values);
+        assert_serialize_roundtrip::<BiHashMap<TestItem, HashBuilder, Alloc>>(
+            values,
+        );
     }
 }

@@ -1,3 +1,4 @@
+pub(crate) mod alloc;
 pub(crate) mod borrow;
 #[cfg(feature = "std")]
 pub(crate) mod btree_table;

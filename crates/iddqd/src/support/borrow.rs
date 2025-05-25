@@ -1,6 +1,7 @@
+// Adapted from the Rust standard library, which is licensed under MIT OR
+// Apache-2.0.
+// Copyright (c) The Rust Project Developers
 // SPDX-License-Identifier: MIT OR Apache-2.0
-// Adapted from the Rust standard library, which is licensed under MIT OR Apache
-// 2.0.
 
 use core::{marker::PhantomData, ptr::NonNull};
 

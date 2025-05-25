@@ -30,6 +30,11 @@
 //! * There's no `insert` method; insertion must be through either
 //!   `insert_overwrite` or `insert_unique`. You must pick an insertion
 //!   behavior.
+//! * For hash maps, the default hasher is [`foldhash`], which is much faster
+//!   than SipHash. However, foldhash does *not provide the same level of HashDoS
+//!   resistance* as SipHash. If that is important to you, you can use a different
+//!   hasher. (Disable the `default-hasher` feature to require a hash
+//!   builder type parameter to be passed in.)
 //! * The serde implementations reject duplicate keys.
 //!
 //! We've also sometimes needed to index a set of data by more than one key, or
@@ -177,6 +182,12 @@
 //! # }
 //! ```
 //!
+//! For more examples, see the
+//! [examples](https://github.com/oxidecomputer/iddqd/tree/main/crates/iddqd/examples)
+//! and [extended
+//! examples](https://github.com/oxidecomputer/iddqd/tree/main/crates/iddqd-extended-examples/examples)
+//! directories.
+//!
 //! ### `Equivalent` and `Comparable`
 //!
 //! An important feature of the standard library's maps is that they allow any
@@ -307,6 +318,10 @@
 //! - `default-hasher`: Enables the `DefaultHashBuilder` type. Disable this
 //!   feature to require a hash builder type parameter to be passed into
 //!   [`IdHashMap`], [`BiHashMap`], and [`TriHashMap`]. *Enabled by default.*
+//! - `allocator-api2`: Enables support for custom allocators via the
+//!   [`allocator_api2`] crate. Both global and scoped/arena allocators
+//!   (such as `bumpalo`) are supported. Custom allocators are not currently
+//!   supported by `IdOrdMap`.
 //!
 //! # Related work
 //!

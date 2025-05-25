@@ -1,26 +1,30 @@
 use crate::{
     IdHashItem,
     internal::{ValidateCompact, ValidationError},
-    support::{hash_table::MapHashTable, map_hash::MapHash},
+    support::{alloc::Allocator, hash_table::MapHashTable, map_hash::MapHash},
 };
 use core::hash::BuildHasher;
 
 #[derive(Clone, Debug, Default)]
-pub(super) struct IdHashMapTables<S> {
-    pub(super) key_to_item: MapHashTable<S>,
+pub(super) struct IdHashMapTables<S, A: Allocator> {
+    pub(super) key_to_item: MapHashTable<S, A>,
 }
 
-impl<S: Clone + BuildHasher> IdHashMapTables<S> {
+impl<S: Clone + BuildHasher, A: Allocator> IdHashMapTables<S, A> {
     #[cfg(feature = "daft")]
     pub(crate) fn hasher(&self) -> &S {
         // TODO: store hasher here
         self.key_to_item.state()
     }
 
-    pub(super) fn with_capacity_and_hasher(capacity: usize, hasher: S) -> Self {
+    pub(super) fn with_capacity_and_hasher_in(
+        capacity: usize,
+        hasher: S,
+        alloc: A,
+    ) -> Self {
         Self {
-            key_to_item: MapHashTable::with_capacity_and_hasher(
-                capacity, hasher,
+            key_to_item: MapHashTable::with_capacity_and_hasher_in(
+                capacity, hasher, alloc,
             ),
         }
     }

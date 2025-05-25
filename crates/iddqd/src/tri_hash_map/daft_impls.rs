@@ -2,7 +2,11 @@
 
 use super::{TriHashItem, TriHashMap};
 use crate::{
-    DefaultHashBuilder, IdHashItem, id_hash_map, support::daft_utils::IdLeaf,
+    DefaultHashBuilder, IdHashItem, id_hash_map,
+    support::{
+        alloc::{Allocator, Global},
+        daft_utils::IdLeaf,
+    },
 };
 use core::{
     fmt,
@@ -13,12 +17,15 @@ use derive_where::derive_where;
 use equivalent::Equivalent;
 use ref_cast::RefCast;
 
-impl<T: TriHashItem, S> Diffable for TriHashMap<T, S> {
+impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> Diffable
+    for TriHashMap<T, S, A>
+{
     type Diff<'a>
-        = MapLeaf<'a, T, S>
+        = MapLeaf<'a, T, S, A>
     where
         T: 'a,
-        S: 'a;
+        S: 'a,
+        A: 'a;
 
     fn diff<'daft>(&'daft self, other: &'daft Self) -> Self::Diff<'daft> {
         MapLeaf { before: self, after: other }
@@ -42,26 +49,31 @@ impl<T: TriHashItem, S> Diffable for TriHashMap<T, S> {
     for<'k> T::K3<'k>: fmt::Debug
 )]
 #[derive_where(Clone, Copy)]
-#[derive_where(PartialEq; T: PartialEq, S: Clone + BuildHasher)]
-#[derive_where(Eq; T: Eq, S: Clone + BuildHasher)]
-pub struct MapLeaf<'daft, T: TriHashItem, S = DefaultHashBuilder> {
+#[derive_where(PartialEq; T: PartialEq, S: Clone + BuildHasher, A: Allocator)]
+#[derive_where(Eq; T: Eq, S: Clone + BuildHasher, A: Allocator)]
+pub struct MapLeaf<
+    'daft,
+    T: TriHashItem,
+    S = DefaultHashBuilder,
+    A: Allocator = Global,
+> {
     /// The before map.
-    pub before: &'daft TriHashMap<T, S>,
+    pub before: &'daft TriHashMap<T, S, A>,
 
     /// The after map.
-    pub after: &'daft TriHashMap<T, S>,
+    pub after: &'daft TriHashMap<T, S, A>,
 }
 
-impl<'daft, T: TriHashItem, S: Clone + BuildHasher + Default>
-    MapLeaf<'daft, T, S>
+impl<'daft, T: TriHashItem, S: Clone + BuildHasher, A: Clone + Allocator>
+    MapLeaf<'daft, T, S, A>
 {
     /// Returns a diff of two [`TriHashMap`]s, indexed by `key1`.
     ///
     /// Note that the return type is a [`Diff`].
-    pub fn by_key1(self) -> id_hash_map::Diff<'daft, ByK1<T>, S> {
+    pub fn by_key1(self) -> id_hash_map::Diff<'daft, ByK1<T>, S, A> {
         impl_diff_ref_cast!(
             self,
-            id_hash_map::Diff::<'daft, ByK1<T>, S>,
+            id_hash_map::Diff::<'daft, ByK1<T>, S, A>,
             key1,
             get1,
             contains_key1,
@@ -72,10 +84,10 @@ impl<'daft, T: TriHashItem, S: Clone + BuildHasher + Default>
     /// Returns a diff of two [`TriHashMap`]s, indexed by `key2`.
     ///
     /// Note that the return type is a [`Diff`].
-    pub fn by_key2(self) -> id_hash_map::Diff<'daft, ByK2<T>, S> {
+    pub fn by_key2(self) -> id_hash_map::Diff<'daft, ByK2<T>, S, A> {
         impl_diff_ref_cast!(
             self,
-            id_hash_map::Diff::<'daft, ByK2<T>, S>,
+            id_hash_map::Diff::<'daft, ByK2<T>, S, A>,
             key2,
             get2,
             contains_key2,
@@ -86,10 +98,10 @@ impl<'daft, T: TriHashItem, S: Clone + BuildHasher + Default>
     /// Returns a diff of two [`TriHashMap`]s, indexed by `key3`.
     ///
     /// Note that the return type is a [`Diff`].
-    pub fn by_key3(self) -> id_hash_map::Diff<'daft, ByK3<T>, S> {
+    pub fn by_key3(self) -> id_hash_map::Diff<'daft, ByK3<T>, S, A> {
         impl_diff_ref_cast!(
             self,
-            id_hash_map::Diff::<'daft, ByK3<T>, S>,
+            id_hash_map::Diff::<'daft, ByK3<T>, S, A>,
             key3,
             get3,
             contains_key3,
@@ -100,8 +112,11 @@ impl<'daft, T: TriHashItem, S: Clone + BuildHasher + Default>
     /// Returns a diff of two [`TriHashMap`]s, indexed by `key1`, `key2`, and `key3`.
     ///
     /// The return type is a [`Diff`].
-    pub fn by_unique(self) -> Diff<'daft, T, S> {
-        let mut diff = Diff::default();
+    pub fn by_unique(self) -> Diff<'daft, T, S, A> {
+        let mut diff = Diff::with_hasher_in(
+            self.before.hasher().clone(),
+            self.before.allocator().clone(),
+        );
         for item in self.before {
             if let Some(after_item) =
                 self.after.get_unique(&item.key1(), &item.key2(), &item.key3())
@@ -125,20 +140,26 @@ impl<'daft, T: TriHashItem, S: Clone + BuildHasher + Default>
 }
 
 /// A diff of two [`TriHashMap`]s, indexed by `key1`, `key2`, and `key3`.
-pub struct Diff<'daft, T: ?Sized + TriHashItem, S = DefaultHashBuilder> {
+#[derive_where(Default; S: Default, A: Default)]
+pub struct Diff<
+    'daft,
+    T: ?Sized + TriHashItem,
+    S = DefaultHashBuilder,
+    A: Allocator = Global,
+> {
     /// Entries common to both maps.
     ///
     /// Items are stored as [`IdLeaf`]s to references.
-    pub common: TriHashMap<IdLeaf<&'daft T>, S>,
+    pub common: TriHashMap<IdLeaf<&'daft T>, S, A>,
 
     /// Added entries.
-    pub added: TriHashMap<&'daft T, S>,
+    pub added: TriHashMap<&'daft T, S, A>,
 
     /// Removed entries.
-    pub removed: TriHashMap<&'daft T, S>,
+    pub removed: TriHashMap<&'daft T, S, A>,
 }
 
-#[cfg(feature = "default-hasher")]
+#[cfg(all(feature = "default-hasher", feature = "allocator-api2"))]
 impl<'daft, T: ?Sized + TriHashItem> Diff<'daft, T> {
     /// Creates a new `TriHashMapDiff` from two maps.
     pub fn new() -> Self {
@@ -150,6 +171,7 @@ impl<'daft, T: ?Sized + TriHashItem> Diff<'daft, T> {
     }
 }
 
+#[cfg(feature = "allocator-api2")]
 impl<'daft, T: ?Sized + TriHashItem, S: Clone + BuildHasher> Diff<'daft, T, S> {
     /// Creates a new `TriHashMapDiff` with the given hasher.
     pub fn with_hasher(hasher: S) -> Self {
@@ -161,8 +183,25 @@ impl<'daft, T: ?Sized + TriHashItem, S: Clone + BuildHasher> Diff<'daft, T, S> {
     }
 }
 
-impl<'daft, T: ?Sized + TriHashItem + Eq, S: Clone + BuildHasher>
-    Diff<'daft, T, S>
+impl<
+    'daft,
+    T: ?Sized + TriHashItem,
+    S: Clone + BuildHasher,
+    A: Clone + Allocator,
+> Diff<'daft, T, S, A>
+{
+    /// Creates a new `TriHashMapDiff` with the given hasher and allocator.
+    pub fn with_hasher_in(hasher: S, alloc: A) -> Self {
+        Self {
+            common: TriHashMap::with_hasher_in(hasher.clone(), alloc.clone()),
+            added: TriHashMap::with_hasher_in(hasher.clone(), alloc.clone()),
+            removed: TriHashMap::with_hasher_in(hasher, alloc),
+        }
+    }
+}
+
+impl<'daft, T: ?Sized + TriHashItem + Eq, S: Clone + BuildHasher, A: Allocator>
+    Diff<'daft, T, S, A>
 {
     /// Returns an iterator over unchanged keys and values.
     pub fn unchanged(&self) -> impl Iterator<Item = &'daft T> + '_ {
@@ -302,18 +341,6 @@ impl<'daft, T: ?Sized + TriHashItem + Eq, S: Clone + BuildHasher>
         T: Diffable,
     {
         self.modified().map(|leaf| leaf.diff_pair())
-    }
-}
-
-// Note: not deriving Default here because we don't want to require
-// T to be Default.
-impl<'daft, T: TriHashItem, S: Default> Default for Diff<'daft, T, S> {
-    fn default() -> Self {
-        Self {
-            common: TriHashMap::default(),
-            added: TriHashMap::default(),
-            removed: TriHashMap::default(),
-        }
     }
 }
 

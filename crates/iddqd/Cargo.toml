@@ -19,6 +19,11 @@ rustdoc-args = ["--cfg=doc_cfg"]
 workspace = true
 
 [dependencies]
+# We have to turn on allocator-api2 here even if we don't expose it in our
+# public API. Even if the allocator-api2 feature is not enabled, we still rely
+# on being able to implement it for our Global type, so we can pass it into
+# hashbrown.
+allocator-api2 = { workspace = true }
 daft = { workspace = true, optional = true }
 debug-ignore.workspace = true
 derive-where.workspace = true
@@ -35,8 +40,9 @@ proptest.workspace = true
 test-strategy.workspace = true
 
 [features]
+allocator-api2 = ["iddqd-test-utils/allocator-api2"]
 daft = ["dep:daft", "dep:ref-cast"]
-default = ["std", "default-hasher"]
+default = ["allocator-api2", "std", "default-hasher"]
 default-hasher = ["dep:foldhash", "iddqd-test-utils/default-hasher"]
 std = ["dep:foldhash", "iddqd-test-utils/std", "rustc-hash/std"]
 serde = ["dep:serde", "iddqd-test-utils/serde"]
