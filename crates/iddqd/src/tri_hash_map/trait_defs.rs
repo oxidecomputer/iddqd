@@ -11,7 +11,7 @@ use core::hash::Hash;
 ///
 /// ```
 /// # #[cfg(feature = "default-hasher")] {
-/// use iddqd::{TriHashMap, TriHashItem, tri_upcast};
+/// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
 ///
 /// // Define a struct with three keys.
 /// #[derive(Debug, PartialEq, Eq, Hash)]
@@ -47,13 +47,13 @@ use core::hash::Hash;
 /// map.insert_unique(Person {
 ///     id: 1,
 ///     name: "Alice".to_string(),
-///     email: "alice@example.com".to_string()
+///     email: "alice@example.com".to_string(),
 /// })
 /// .unwrap();
 /// map.insert_unique(Person {
 ///     id: 2,
 ///     name: "Bob".to_string(),
-///     email: "bob@example.com".to_string()
+///     email: "bob@example.com".to_string(),
 /// })
 /// .unwrap();
 /// # }

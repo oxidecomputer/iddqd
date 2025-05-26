@@ -9,7 +9,7 @@ use core::hash::Hash;
 ///
 /// ```
 /// # #[cfg(feature = "default-hasher")] {
-/// use iddqd::{IdHashMap, IdHashItem, id_upcast};
+/// use iddqd::{IdHashItem, IdHashMap, id_upcast};
 ///
 /// // Define a struct with a key.
 /// #[derive(Debug, PartialEq, Eq, Hash)]

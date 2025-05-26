@@ -11,7 +11,7 @@ use core::hash::Hash;
 ///
 /// ```
 /// # #[cfg(feature = "default-hasher")] {
-/// use iddqd::{BiHashMap, BiHashItem, bi_upcast};
+/// use iddqd::{BiHashItem, BiHashMap, bi_upcast};
 ///
 /// // Define a struct with two keys.
 /// #[derive(Debug, PartialEq, Eq, Hash)]

@@ -35,7 +35,7 @@ use hashbrown::hash_table;
 ///
 /// ```
 /// # #[cfg(feature = "default-hasher")] {
-/// use iddqd::{BiHashMap, BiHashItem, bi_upcast};
+/// use iddqd::{BiHashItem, BiHashMap, bi_upcast};
 ///
 /// // Define a struct with two keys and a value.
 /// #[derive(Debug, PartialEq, Eq)]
@@ -50,8 +50,12 @@ use hashbrown::hash_table;
 ///     type K1<'a> = u32;
 ///     type K2<'a> = &'a str;
 ///
-///     fn key1(&self) -> Self::K1<'_> { self.id }
-///     fn key2(&self) -> Self::K2<'_> { self.name }
+///     fn key1(&self) -> Self::K1<'_> {
+///         self.id
+///     }
+///     fn key2(&self) -> Self::K2<'_> {
+///         self.name
+///     }
 ///
 ///     bi_upcast!();
 /// }
