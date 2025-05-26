@@ -293,11 +293,18 @@ platform-specific notion of thread locals, would suffice to make
 * [`bimap`](https://docs.rs/bimap) provides a bijective map, but does not
   have a way to associate arbitrary values with each pair of keys. However,
   it does support an ordered map type without the need for std.
+
 * [`multi_index_map`](https://crates.io/crates/multi_index_map) provides
   maps with arbitrary indexes on fields, and is more flexible than this
   crate. However, it doesn’t expose generic traits for map types, and it
   requires key types to be `Clone`. In `iddqd`, we pick a somewhat different
   point in the design space, but we think `multi_index_map` is also great.
+
+* In general, this is similar to relational database records with
+  indexes. For sufficiently complex use cases, consider an embedded
+  database like [SQLite](https://www.sqlite.org/), or even a networked
+  database like [PostgreSQL](https://www.postgresql.org/). `iddqd` is a
+  good fit for simple in-memory caches of data stored in these databases.
 
 ## Minimum supported Rust version (MSRV)
 
