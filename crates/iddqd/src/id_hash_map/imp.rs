@@ -78,12 +78,64 @@ pub struct IdHashMap<
 #[cfg(feature = "default-hasher")]
 impl<T: IdHashItem> IdHashMap<T> {
     /// Creates a new, empty `IdHashMap`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{IdHashItem, IdHashMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, Hash)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdHashItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let map: IdHashMap<Item> = IdHashMap::new();
+    /// assert!(map.is_empty());
+    /// assert_eq!(map.len(), 0);
+    /// # }
+    /// ```
     #[inline]
     pub fn new() -> Self {
         Self { items: ItemSet::default(), tables: IdHashMapTables::default() }
     }
 
     /// Creates a new `IdHashMap` with the given capacity.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{IdHashItem, IdHashMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, Hash)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdHashItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let map: IdHashMap<Item> = IdHashMap::with_capacity(10);
+    /// assert!(map.capacity() >= 10);
+    /// assert!(map.is_empty());
+    /// # }
+    /// ```
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             items: ItemSet::with_capacity_in(capacity, global_alloc()),
@@ -98,6 +150,31 @@ impl<T: IdHashItem> IdHashMap<T> {
 
 impl<T: IdHashItem, S: Clone + BuildHasher> IdHashMap<T, S> {
     /// Creates a new, empty `IdHashMap` with the given hasher.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use iddqd::{IdHashItem, IdHashMap, id_upcast};
+    /// use std::collections::hash_map::RandomState;
+    ///
+    /// #[derive(Debug, PartialEq, Eq, Hash)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdHashItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let hasher = RandomState::new();
+    /// let map: IdHashMap<Item, _> = IdHashMap::with_hasher(hasher);
+    /// assert!(map.is_empty());
+    /// ```
     pub fn with_hasher(hasher: S) -> Self {
         Self {
             items: ItemSet::default(),
@@ -110,6 +187,33 @@ impl<T: IdHashItem, S: Clone + BuildHasher> IdHashMap<T, S> {
     }
 
     /// Creates a new `IdHashMap` with the given capacity and hasher.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use iddqd::{IdHashItem, IdHashMap, id_upcast};
+    /// use std::collections::hash_map::RandomState;
+    ///
+    /// #[derive(Debug, PartialEq, Eq, Hash)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdHashItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let hasher = RandomState::new();
+    /// let map: IdHashMap<Item, _> =
+    ///     IdHashMap::with_capacity_and_hasher(10, hasher);
+    /// assert!(map.capacity() >= 10);
+    /// assert!(map.is_empty());
+    /// ```
     pub fn with_capacity_and_hasher(capacity: usize, hasher: S) -> Self {
         Self {
             items: ItemSet::with_capacity_in(capacity, global_alloc()),
@@ -124,7 +228,38 @@ impl<T: IdHashItem, S: Clone + BuildHasher> IdHashMap<T, S> {
 
 #[cfg(feature = "default-hasher")]
 impl<T: IdHashItem, A: Clone + Allocator> IdHashMap<T, DefaultHashBuilder, A> {
-    /// Creates a new empty `BiHashMap` using the given allocator.
+    /// Creates a new empty `IdHashMap` using the given allocator.
+    ///
+    /// Requires the `allocator-api2` feature to be enabled.
+    ///
+    /// # Examples
+    ///
+    /// Using the [`bumpalo`](https://docs.rs/bumpalo) allocator:
+    ///
+    /// ```
+    /// # #[cfg(all(feature = "default-hasher", feature = "allocator-api2"))] {
+    /// use iddqd::{IdHashMap, IdHashItem, id_upcast};
+    /// # use iddqd_test_utils::bumpalo;
+    ///
+    /// #[derive(Debug, PartialEq, Eq, Hash)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdHashItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///     fn key(&self) -> Self::Key<'_> { &self.id }
+    ///     id_upcast!();
+    /// }
+    ///
+    /// // Define a new allocator.
+    /// let bump = bumpalo::Bump::new();
+    /// // Create a new IdHashMap using the allocator.
+    /// let map: IdHashMap<Item, _, &bumpalo::Bump> = IdHashMap::new_in(&bump);
+    /// assert!(map.is_empty());
+    /// # }
+    /// ```
     pub fn new_in(alloc: A) -> Self {
         Self {
             items: ItemSet::with_capacity_in(0, alloc.clone()),
@@ -136,8 +271,40 @@ impl<T: IdHashItem, A: Clone + Allocator> IdHashMap<T, DefaultHashBuilder, A> {
         }
     }
 
-    /// Creates an empty `BiHashMap` with the specified capacity using the given
+    /// Creates an empty `IdHashMap` with the specified capacity using the given
     /// allocator.
+    ///
+    /// Requires the `allocator-api2` feature to be enabled.
+    ///
+    /// # Examples
+    ///
+    /// Using the [`bumpalo`](https://docs.rs/bumpalo) allocator:
+    ///
+    /// ```
+    /// # #[cfg(all(feature = "default-hasher", feature = "allocator-api2"))] {
+    /// use iddqd::{IdHashMap, IdHashItem, id_upcast};
+    /// # use iddqd_test_utils::bumpalo;
+    ///
+    /// #[derive(Debug, PartialEq, Eq, Hash)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdHashItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///     fn key(&self) -> Self::Key<'_> { &self.id }
+    ///     id_upcast!();
+    /// }
+    ///
+    /// // Define a new allocator.
+    /// let bump = bumpalo::Bump::new();
+    /// // Create a new IdHashMap with capacity using the allocator.
+    /// let map: IdHashMap<Item, _, &bumpalo::Bump> = IdHashMap::with_capacity_in(10, &bump);
+    /// assert!(map.capacity() >= 10);
+    /// assert!(map.is_empty());
+    /// # }
+    /// ```
     pub fn with_capacity_in(capacity: usize, alloc: A) -> Self {
         Self {
             items: ItemSet::with_capacity_in(capacity, alloc.clone()),
@@ -154,6 +321,42 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Clone + Allocator>
     IdHashMap<T, S, A>
 {
     /// Creates a new, empty `IdHashMap` with the given hasher and allocator.
+    ///
+    /// Requires the `allocator-api2` feature to be enabled.
+    ///
+    /// # Examples
+    ///
+    /// Using the [`bumpalo`](https://docs.rs/bumpalo) allocator:
+    ///
+    /// ```
+    /// # #[cfg(feature = "allocator-api2")] {
+    /// use iddqd::{IdHashItem, IdHashMap, id_upcast};
+    /// use std::collections::hash_map::RandomState;
+    /// # use iddqd_test_utils::bumpalo;
+    ///
+    /// #[derive(Debug, PartialEq, Eq, Hash)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdHashItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///     id_upcast!();
+    /// }
+    ///
+    /// // Define a new allocator.
+    /// let bump = bumpalo::Bump::new();
+    /// let hasher = RandomState::new();
+    /// // Create a new IdHashMap with hasher using the allocator.
+    /// let map: IdHashMap<Item, _, &bumpalo::Bump> =
+    ///     IdHashMap::with_hasher_in(hasher, &bump);
+    /// assert!(map.is_empty());
+    /// # }
+    /// ```
     pub fn with_hasher_in(hasher: S, alloc: A) -> Self {
         Self {
             items: ItemSet::with_capacity_in(0, alloc.clone()),
@@ -163,7 +366,45 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Clone + Allocator>
         }
     }
 
-    /// Creates a new `IdHashMap` with the given capacity, hasher, and allocator.
+    /// Creates a new, empty `IdHashMap` with the given capacity, hasher, and
+    /// allocator.
+    ///
+    /// Requires the `allocator-api2` feature to be enabled.
+    ///
+    /// # Examples
+    ///
+    /// Using the [`bumpalo`](https://docs.rs/bumpalo) allocator:
+    ///
+    /// ```
+    /// # #[cfg(feature = "allocator-api2")] {
+    /// use iddqd::{IdHashItem, IdHashMap, id_upcast};
+    /// use std::collections::hash_map::RandomState;
+    /// # use iddqd_test_utils::bumpalo;
+    ///
+    /// #[derive(Debug, PartialEq, Eq, Hash)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdHashItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///     id_upcast!();
+    /// }
+    ///
+    /// // Define a new allocator.
+    /// let bump = bumpalo::Bump::new();
+    /// let hasher = RandomState::new();
+    /// // Create a new IdHashMap with capacity and hasher using the allocator.
+    /// let map: IdHashMap<Item, _, &bumpalo::Bump> =
+    ///     IdHashMap::with_capacity_and_hasher_in(10, hasher, &bump);
+    /// assert!(map.capacity() >= 10);
+    /// assert!(map.is_empty());
+    /// # }
+    /// ```
     pub fn with_capacity_and_hasher_in(
         capacity: usize,
         hasher: S,
@@ -185,11 +426,67 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
     }
 
     /// Returns the allocator.
+    ///
+    /// Requires the `allocator-api2` feature to be enabled.
+    ///
+    /// # Examples
+    ///
+    /// Using the [`bumpalo`](https://docs.rs/bumpalo) allocator:
+    ///
+    /// ```
+    /// # #[cfg(all(feature = "default-hasher", feature = "allocator-api2"))] {
+    /// use iddqd::{IdHashMap, IdHashItem, id_upcast};
+    /// # use iddqd_test_utils::bumpalo;
+    ///
+    /// #[derive(Debug, PartialEq, Eq, Hash)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdHashItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///     fn key(&self) -> Self::Key<'_> { &self.id }
+    ///     id_upcast!();
+    /// }
+    ///
+    /// // Define a new allocator.
+    /// let bump = bumpalo::Bump::new();
+    /// // Create a new IdHashMap using the allocator.
+    /// let map: IdHashMap<Item, _, &bumpalo::Bump> = IdHashMap::new_in(&bump);
+    /// let _allocator = map.allocator();
+    /// # }
+    /// ```
     pub fn allocator(&self) -> &A {
         self.items.allocator()
     }
 
     /// Returns the currently allocated capacity of the map.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{IdHashItem, IdHashMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, Hash)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdHashItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let map: IdHashMap<Item> = IdHashMap::with_capacity(10);
+    /// assert!(map.capacity() >= 10);
+    /// # }
+    /// ```
     pub fn capacity(&self) -> usize {
         // items and tables.capacity might theoretically diverge: use
         // items.capacity.
@@ -197,12 +494,71 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
     }
 
     /// Returns true if the map is empty.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{IdHashItem, IdHashMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, Hash)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdHashItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let mut map = IdHashMap::new();
+    /// assert!(map.is_empty());
+    ///
+    /// map.insert_unique(Item { id: "foo".to_string(), value: 42 }).unwrap();
+    /// assert!(!map.is_empty());
+    /// # }
+    /// ```
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
     }
 
     /// Returns the number of items in the map.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{IdHashItem, IdHashMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, Hash)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdHashItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let mut map = IdHashMap::new();
+    /// assert_eq!(map.len(), 0);
+    ///
+    /// map.insert_unique(Item { id: "foo".to_string(), value: 42 }).unwrap();
+    /// assert_eq!(map.len(), 1);
+    ///
+    /// map.insert_unique(Item { id: "bar".to_string(), value: 20 }).unwrap();
+    /// assert_eq!(map.len(), 2);
+    /// # }
+    /// ```
     #[inline]
     pub fn len(&self) -> usize {
         self.items.len()
@@ -212,6 +568,36 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
     ///
     /// Similar to [`HashMap`], the iteration order is arbitrary and not
     /// guaranteed to be stable.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{IdHashItem, IdHashMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, Hash)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdHashItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let mut map = IdHashMap::new();
+    /// map.insert_unique(Item { id: "foo".to_string(), value: 42 }).unwrap();
+    /// map.insert_unique(Item { id: "bar".to_string(), value: 20 }).unwrap();
+    ///
+    /// let mut values: Vec<u32> = map.iter().map(|item| item.value).collect();
+    /// values.sort();
+    /// assert_eq!(values, vec![20, 42]);
+    /// # }
+    /// ```
     ///
     /// [`HashMap`]: std::collections::HashMap
     #[inline]
@@ -223,6 +609,39 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
     ///
     /// Similar to [`HashMap`], the iteration order is arbitrary and not
     /// guaranteed to be stable.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{IdHashItem, IdHashMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, Hash)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdHashItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let mut map = IdHashMap::new();
+    /// map.insert_unique(Item { id: "foo".to_string(), value: 42 }).unwrap();
+    /// map.insert_unique(Item { id: "bar".to_string(), value: 20 }).unwrap();
+    ///
+    /// for mut item in map.iter_mut() {
+    ///     item.value *= 2;
+    /// }
+    ///
+    /// assert_eq!(map.get("foo").unwrap().value, 84);
+    /// assert_eq!(map.get("bar").unwrap().value, 40);
+    /// # }
+    /// ```
     ///
     /// [`HashMap`]: std::collections::HashMap
     #[inline]
@@ -267,6 +686,39 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
 
     /// Inserts a value into the map, removing and returning the conflicting
     /// item, if any.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{IdHashItem, IdHashMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, Hash)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdHashItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let mut map = IdHashMap::new();
+    ///
+    /// // First insertion returns None
+    /// let old = map.insert_overwrite(Item { id: "foo".to_string(), value: 42 });
+    /// assert!(old.is_none());
+    ///
+    /// // Second insertion with same key returns the old value
+    /// let old = map.insert_overwrite(Item { id: "foo".to_string(), value: 100 });
+    /// assert_eq!(old.unwrap().value, 42);
+    /// assert_eq!(map.get("foo").unwrap().value, 100);
+    /// # }
+    /// ```
     #[doc(alias = "insert")]
     pub fn insert_overwrite(&mut self, value: T) -> Option<T> {
         // Trying to write this function for maximal efficiency can get very
@@ -289,6 +741,45 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
 
     /// Inserts a value into the set, returning an error if any duplicates were
     /// added.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{IdHashItem, IdHashMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, Hash)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdHashItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let mut map = IdHashMap::new();
+    ///
+    /// // First insertion succeeds
+    /// assert!(
+    ///     map.insert_unique(Item { id: "foo".to_string(), value: 42 }).is_ok()
+    /// );
+    ///
+    /// // Second insertion with different key succeeds
+    /// assert!(
+    ///     map.insert_unique(Item { id: "bar".to_string(), value: 20 }).is_ok()
+    /// );
+    ///
+    /// // Third insertion with duplicate key fails
+    /// assert!(
+    ///     map.insert_unique(Item { id: "foo".to_string(), value: 100 }).is_err()
+    /// );
+    /// # }
+    /// ```
     pub fn insert_unique(
         &mut self,
         value: T,
@@ -297,7 +788,35 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
         Ok(())
     }
 
-    /// Returns true if the map contains the given `key1`.
+    /// Returns true if the map contains the given key.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{IdHashItem, IdHashMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, Hash)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdHashItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let mut map = IdHashMap::new();
+    /// map.insert_unique(Item { id: "foo".to_string(), value: 42 }).unwrap();
+    ///
+    /// assert!(map.contains_key("foo"));
+    /// assert!(!map.contains_key("bar"));
+    /// # }
+    /// ```
     pub fn contains_key<'a, Q>(&'a self, key1: &Q) -> bool
     where
         Q: ?Sized + Hash + Equivalent<T::Key<'a>>,
@@ -306,6 +825,34 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
     }
 
     /// Gets a reference to the value associated with the given key.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{IdHashItem, IdHashMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, Hash)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdHashItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let mut map = IdHashMap::new();
+    /// map.insert_unique(Item { id: "foo".to_string(), value: 42 }).unwrap();
+    ///
+    /// assert_eq!(map.get("foo").unwrap().value, 42);
+    /// assert!(map.get("bar").is_none());
+    /// # }
+    /// ```
     pub fn get<'a, Q>(&'a self, key: &Q) -> Option<&'a T>
     where
         Q: ?Sized + Hash + Equivalent<T::Key<'a>>,
@@ -313,7 +860,39 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
         self.find_index(key).map(|ix| &self.items[ix])
     }
 
-    /// Gets a mutable reference to the value associated with the given `key`.
+    /// Gets a mutable reference to the value associated with the given key.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{IdHashItem, IdHashMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, Hash)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdHashItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let mut map = IdHashMap::new();
+    /// map.insert_unique(Item { id: "foo".to_string(), value: 42 }).unwrap();
+    ///
+    /// if let Some(mut item) = map.get_mut("foo") {
+    ///     item.value = 100;
+    /// }
+    ///
+    /// assert_eq!(map.get("foo").unwrap().value, 100);
+    /// assert!(map.get_mut("bar").is_none());
+    /// # }
+    /// ```
     pub fn get_mut<'a, Q>(&'a mut self, key: &Q) -> Option<RefMut<'a, T, S>>
     where
         Q: ?Sized + Hash + Equivalent<T::Key<'a>>,
@@ -331,7 +910,39 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
         Some(RefMut::new(hashes, item))
     }
 
-    /// Removes an item from the map by its `key`.
+    /// Removes an item from the map by its key.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{IdHashItem, IdHashMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, Hash)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdHashItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let mut map = IdHashMap::new();
+    /// map.insert_unique(Item { id: "foo".to_string(), value: 42 }).unwrap();
+    ///
+    /// let removed = map.remove("foo");
+    /// assert_eq!(removed.unwrap().value, 42);
+    /// assert!(map.is_empty());
+    ///
+    /// // Removing non-existent key returns None
+    /// assert!(map.remove("bar").is_none());
+    /// # }
+    /// ```
     pub fn remove<'a, Q>(&'a mut self, key: &Q) -> Option<T>
     where
         Q: ?Sized + Hash + Equivalent<T::Key<'a>>,
@@ -369,10 +980,42 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
         Some(value)
     }
 
-    /// Retrieves an entry by its `key`.
+    /// Retrieves an entry by its key.
     ///
     /// Due to borrow checker limitations, this always accepts an owned key
     /// rather than a borrowed form of it.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{IdHashItem, IdHashMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, Hash)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdHashItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let mut map = IdHashMap::new();
+    ///
+    /// // Use entry API for conditional insertion
+    /// map.entry("foo".to_string().as_str())
+    ///     .or_insert(Item { id: "foo".to_string(), value: 42 });
+    /// map.entry("bar".to_string().as_str())
+    ///     .or_insert(Item { id: "bar".to_string(), value: 20 });
+    ///
+    /// assert_eq!(map.len(), 2);
+    /// # }
+    /// ```
     pub fn entry<'a>(&'a mut self, key: T::Key<'_>) -> Entry<'a, T, S, A> {
         // Why does this always take an owned key? Well, it would seem like we
         // should be able to pass in any Q that is equivalent. That results in
@@ -579,6 +1222,42 @@ impl<T: IdHashItem + Eq, S: Clone + BuildHasher, A: Allocator> Eq
 
 /// The `Extend` implementation overwrites duplicates. In the future, there will
 /// also be an `extend_unique` method that will return an error.
+///
+/// # Examples
+///
+/// ```
+/// # #[cfg(feature = "default-hasher")] {
+/// use iddqd::{IdHashItem, IdHashMap, id_upcast};
+///
+/// #[derive(Debug, PartialEq, Eq, Hash)]
+/// struct Item {
+///     id: String,
+///     value: u32,
+/// }
+///
+/// impl IdHashItem for Item {
+///     type Key<'a> = &'a str;
+///     fn key(&self) -> Self::Key<'_> {
+///         &self.id
+///     }
+///     id_upcast!();
+/// }
+///
+/// let mut map = IdHashMap::new();
+/// map.insert_unique(Item { id: "foo".to_string(), value: 42 }).unwrap();
+///
+/// let new_items = vec![
+///     Item { id: "foo".to_string(), value: 100 }, // overwrites existing
+///     Item { id: "bar".to_string(), value: 20 },  // new item
+/// ];
+///
+/// map.extend(new_items);
+/// assert_eq!(map.len(), 2);
+/// assert_eq!(map.get("foo").unwrap().value, 100); // overwritten
+/// assert_eq!(map.get("bar").unwrap().value, 20); // new
+///
+/// # }
+/// ```
 impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> Extend<T>
     for IdHashMap<T, S, A>
 {
@@ -595,6 +1274,38 @@ impl<'a, T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IntoIterator
     type Item = &'a T;
     type IntoIter = Iter<'a, T>;
 
+    /// Creates an iterator over references to the items in the map.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{IdHashItem, IdHashMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, Hash)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdHashItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let mut map = IdHashMap::new();
+    /// map.insert_unique(Item { id: "foo".to_string(), value: 42 }).unwrap();
+    /// map.insert_unique(Item { id: "bar".to_string(), value: 20 }).unwrap();
+    ///
+    /// let mut values: Vec<u32> =
+    ///     (&map).into_iter().map(|item| item.value).collect();
+    /// values.sort();
+    /// assert_eq!(values, vec![20, 42]);
+    /// # }
+    /// ```
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
@@ -607,6 +1318,40 @@ impl<'a, T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IntoIterator
     type Item = RefMut<'a, T, S>;
     type IntoIter = IterMut<'a, T, S, A>;
 
+    /// Creates an iterator over mutable references to the items in the map.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{IdHashItem, IdHashMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, Hash)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdHashItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let mut map = IdHashMap::new();
+    /// map.insert_unique(Item { id: "foo".to_string(), value: 42 }).unwrap();
+    /// map.insert_unique(Item { id: "bar".to_string(), value: 20 }).unwrap();
+    ///
+    /// for mut item in &mut map {
+    ///     item.value *= 2;
+    /// }
+    ///
+    /// assert_eq!(map.get("foo").unwrap().value, 84);
+    /// assert_eq!(map.get("bar").unwrap().value, 40);
+    /// # }
+    /// ```
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
         self.iter_mut()
@@ -619,6 +1364,37 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IntoIterator
     type Item = T;
     type IntoIter = IntoIter<T, A>;
 
+    /// Consumes the map and creates an iterator over the owned items.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{IdHashItem, IdHashMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, Hash)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdHashItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let mut map = IdHashMap::new();
+    /// map.insert_unique(Item { id: "foo".to_string(), value: 42 }).unwrap();
+    /// map.insert_unique(Item { id: "bar".to_string(), value: 20 }).unwrap();
+    ///
+    /// let mut values: Vec<u32> = map.into_iter().map(|item| item.value).collect();
+    /// values.sort();
+    /// assert_eq!(values, vec![20, 42]);
+    /// # }
+    /// ```
     #[inline]
     fn into_iter(self) -> Self::IntoIter {
         IntoIter::new(self.items)
@@ -627,6 +1403,39 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IntoIterator
 
 /// The `FromIterator` implementation for `IdHashMap` overwrites duplicate
 /// items.
+///
+/// # Examples
+///
+/// ```
+/// # #[cfg(feature = "default-hasher")] {
+/// use iddqd::{IdHashItem, IdHashMap, id_upcast};
+///
+/// #[derive(Debug, PartialEq, Eq, Hash)]
+/// struct Item {
+///     id: String,
+///     value: u32,
+/// }
+///
+/// impl IdHashItem for Item {
+///     type Key<'a> = &'a str;
+///     fn key(&self) -> Self::Key<'_> {
+///         &self.id
+///     }
+///     id_upcast!();
+/// }
+///
+/// let items = vec![
+///     Item { id: "foo".to_string(), value: 42 },
+///     Item { id: "bar".to_string(), value: 20 },
+///     Item { id: "foo".to_string(), value: 100 }, // duplicate key, overwrites
+/// ];
+///
+/// let map: IdHashMap<Item> = items.into_iter().collect();
+/// assert_eq!(map.len(), 2);
+/// assert_eq!(map.get("foo").unwrap().value, 100); // last value wins
+/// assert_eq!(map.get("bar").unwrap().value, 20);
+/// # }
+/// ```
 impl<T: IdHashItem, S: Default + Clone + BuildHasher, A: Allocator + Default>
     FromIterator<T> for IdHashMap<T, S, A>
 {

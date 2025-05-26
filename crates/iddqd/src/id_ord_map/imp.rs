@@ -71,6 +71,32 @@ pub struct IdOrdMap<T: IdOrdItem> {
 
 impl<T: IdOrdItem> IdOrdMap<T> {
     /// Creates a new, empty `IdOrdMap`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use iddqd::{IdOrdItem, IdOrdMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdOrdItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let map: IdOrdMap<Item> = IdOrdMap::new();
+    /// assert!(map.is_empty());
+    /// assert_eq!(map.len(), 0);
+    /// ```
     #[inline]
     pub fn new() -> Self {
         Self { items: ItemSet::default(), tables: IdOrdMapTables::new() }
@@ -79,6 +105,32 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     /// Creates a new `IdOrdMap` with the given capacity.
     ///
     /// The capacity will be used to initialize the underlying hash table.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use iddqd::{IdOrdItem, IdOrdMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdOrdItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let map: IdOrdMap<Item> = IdOrdMap::with_capacity(10);
+    /// assert!(map.capacity() >= 10);
+    /// assert!(map.is_empty());
+    /// ```
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             items: ItemSet::with_capacity_in(capacity, global_alloc()),
@@ -87,6 +139,31 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     }
 
     /// Returns the currently allocated capacity of the map.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use iddqd::{IdOrdItem, IdOrdMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdOrdItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let map: IdOrdMap<Item> = IdOrdMap::with_capacity(10);
+    /// assert!(map.capacity() >= 10);
+    /// ```
     pub fn capacity(&self) -> usize {
         // There's no self.tables.capacity.
         self.items.capacity()
@@ -96,6 +173,45 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     /// duplicates.
     ///
     /// To overwrite duplicates instead, use [`IdOrdMap::from_iter`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use iddqd::{IdOrdItem, IdOrdMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdOrdItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let items = vec![
+    ///     Item { id: "foo".to_string(), value: 42 },
+    ///     Item { id: "bar".to_string(), value: 99 },
+    /// ];
+    ///
+    /// // Successful creation with unique keys
+    /// let map = IdOrdMap::from_iter_unique(items).unwrap();
+    /// assert_eq!(map.len(), 2);
+    /// assert_eq!(map.get("foo").unwrap().value, 42);
+    ///
+    /// // Error with duplicate keys
+    /// let duplicate_items = vec![
+    ///     Item { id: "foo".to_string(), value: 42 },
+    ///     Item { id: "foo".to_string(), value: 99 },
+    /// ];
+    /// assert!(IdOrdMap::from_iter_unique(duplicate_items).is_err());
+    /// ```
     pub fn from_iter_unique<I: IntoIterator<Item = T>>(
         iter: I,
     ) -> Result<Self, DuplicateItem<T>> {
@@ -123,20 +239,114 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     }
 
     /// Returns true if the map is empty.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use iddqd::{IdOrdItem, IdOrdMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdOrdItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let mut map = IdOrdMap::new();
+    /// assert!(map.is_empty());
+    ///
+    /// map.insert_unique(Item { id: "foo".to_string(), value: 42 }).unwrap();
+    /// assert!(!map.is_empty());
+    /// ```
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
     }
 
     /// Returns the number of items in the map.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use iddqd::{IdOrdItem, IdOrdMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdOrdItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let mut map = IdOrdMap::new();
+    /// assert_eq!(map.len(), 0);
+    ///
+    /// map.insert_unique(Item { id: "foo".to_string(), value: 42 }).unwrap();
+    /// map.insert_unique(Item { id: "bar".to_string(), value: 99 }).unwrap();
+    /// assert_eq!(map.len(), 2);
+    /// ```
     #[inline]
     pub fn len(&self) -> usize {
         self.items.len()
     }
 
-    /// Iterates over the items in the map, allowing for mutation.
+    /// Iterates over the items in the map.
     ///
     /// Similar to [`BTreeMap`], the iteration is ordered by [`T::Key`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use iddqd::{IdOrdItem, IdOrdMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdOrdItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let mut map = IdOrdMap::new();
+    /// map.insert_unique(Item { id: "charlie".to_string(), value: 30 }).unwrap();
+    /// map.insert_unique(Item { id: "alice".to_string(), value: 42 }).unwrap();
+    /// map.insert_unique(Item { id: "bob".to_string(), value: 99 }).unwrap();
+    ///
+    /// // Iteration is ordered by key
+    /// let mut iter = map.iter();
+    /// let item = iter.next().unwrap();
+    /// assert_eq!(item.id, "alice");
+    /// let item = iter.next().unwrap();
+    /// assert_eq!(item.id, "bob");
+    /// let item = iter.next().unwrap();
+    /// assert_eq!(item.id, "charlie");
+    /// assert!(iter.next().is_none());
+    /// ```
     ///
     /// [`BTreeMap`]: std::collections::BTreeMap
     /// [`T::Key`]: crate::IdOrdItem::Key
@@ -148,6 +358,40 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     /// Iterates over the items in the map, allowing for mutation.
     ///
     /// Similar to [`BTreeMap`], the iteration is ordered by [`T::Key`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use iddqd::{IdOrdItem, IdOrdMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdOrdItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let mut map = IdOrdMap::new();
+    /// map.insert_unique(Item { id: "foo".to_string(), value: 42 }).unwrap();
+    /// map.insert_unique(Item { id: "bar".to_string(), value: 99 }).unwrap();
+    ///
+    /// // Modify values through the mutable iterator
+    /// for mut item in map.iter_mut() {
+    ///     item.value *= 2;
+    /// }
+    ///
+    /// assert_eq!(map.get("foo").unwrap().value, 84);
+    /// assert_eq!(map.get("bar").unwrap().value, 198);
+    /// ```
     ///
     /// [`BTreeMap`]: std::collections::BTreeMap
     /// [`T::Key`]: crate::IdOrdItem::Key
@@ -208,6 +452,43 @@ impl<T: IdOrdItem> IdOrdMap<T> {
 
     /// Inserts a value into the set, returning an error if any duplicates were
     /// added.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use iddqd::{IdOrdItem, IdOrdMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdOrdItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let mut map = IdOrdMap::new();
+    ///
+    /// // Successful insertion
+    /// assert!(
+    ///     map.insert_unique(Item { id: "foo".to_string(), value: 42 }).is_ok()
+    /// );
+    /// assert!(
+    ///     map.insert_unique(Item { id: "bar".to_string(), value: 99 }).is_ok()
+    /// );
+    ///
+    /// // Duplicate key
+    /// assert!(
+    ///     map.insert_unique(Item { id: "foo".to_string(), value: 100 }).is_err()
+    /// );
+    /// ```
     pub fn insert_unique(
         &mut self,
         value: T,
@@ -218,6 +499,42 @@ impl<T: IdOrdItem> IdOrdMap<T> {
 
     /// Inserts a value into the map, removing and returning the conflicting
     /// item, if any.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use iddqd::{IdOrdItem, IdOrdMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdOrdItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let mut map = IdOrdMap::new();
+    ///
+    /// // First insertion - no conflict
+    /// let old = map.insert_overwrite(Item { id: "foo".to_string(), value: 42 });
+    /// assert!(old.is_none());
+    ///
+    /// // Overwrite existing key - returns old value
+    /// let old = map.insert_overwrite(Item { id: "foo".to_string(), value: 99 });
+    /// assert!(old.is_some());
+    /// assert_eq!(old.unwrap().value, 42);
+    ///
+    /// // Verify new value is in the map
+    /// assert_eq!(map.get("foo").unwrap().value, 99);
+    /// ```
     #[doc(alias = "insert")]
     pub fn insert_overwrite(&mut self, value: T) -> Option<T> {
         // Trying to write this function for maximal efficiency can get very
@@ -239,6 +556,34 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     }
 
     /// Returns true if the map contains the given `key`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use iddqd::{IdOrdItem, IdOrdMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdOrdItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let mut map = IdOrdMap::new();
+    /// map.insert_unique(Item { id: "foo".to_string(), value: 42 }).unwrap();
+    ///
+    /// assert!(map.contains_key("foo"));
+    /// assert!(!map.contains_key("bar"));
+    /// ```
     pub fn contains_key<'a, Q>(&'a self, key: &Q) -> bool
     where
         Q: ?Sized + Comparable<T::Key<'a>>,
@@ -247,6 +592,34 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     }
 
     /// Gets a reference to the value associated with the given `key`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use iddqd::{IdOrdItem, IdOrdMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdOrdItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let mut map = IdOrdMap::new();
+    /// map.insert_unique(Item { id: "foo".to_string(), value: 42 }).unwrap();
+    ///
+    /// assert_eq!(map.get("foo").unwrap().value, 42);
+    /// assert!(map.get("bar").is_none());
+    /// ```
     pub fn get<'a, Q>(&'a self, key: &Q) -> Option<&'a T>
     where
         Q: ?Sized + Comparable<T::Key<'a>>,
@@ -255,6 +628,37 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     }
 
     /// Gets a mutable reference to the item associated with the given `key`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use iddqd::{IdOrdItem, IdOrdMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdOrdItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let mut map = IdOrdMap::new();
+    /// map.insert_unique(Item { id: "foo".to_string(), value: 42 }).unwrap();
+    ///
+    /// if let Some(mut item) = map.get_mut("foo") {
+    ///     item.value = 99;
+    /// }
+    ///
+    /// assert_eq!(map.get("foo").unwrap().value, 99);
+    /// ```
     pub fn get_mut<'a, Q>(&'a mut self, key: &Q) -> Option<RefMut<'a, T>>
     where
         Q: ?Sized + Comparable<T::Key<'a>>,
@@ -274,6 +678,39 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     }
 
     /// Removes an item from the map by its `key`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use iddqd::{IdOrdItem, IdOrdMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdOrdItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let mut map = IdOrdMap::new();
+    /// map.insert_unique(Item { id: "foo".to_string(), value: 42 }).unwrap();
+    ///
+    /// let removed = map.remove("foo");
+    /// assert!(removed.is_some());
+    /// assert_eq!(removed.unwrap().value, 42);
+    /// assert!(map.is_empty());
+    ///
+    /// // Removing a non-existent key returns None
+    /// assert!(map.remove("bar").is_none());
+    /// ```
     pub fn remove<'a, Q>(&'a mut self, key: &Q) -> Option<T>
     where
         Q: ?Sized + Comparable<T::Key<'a>>,
@@ -293,6 +730,48 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     ///
     /// Due to borrow checker limitations, this always accepts an owned key rather
     /// than a borrowed form.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use iddqd::{IdOrdItem, IdOrdMap, id_ord_map, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdOrdItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let mut map = IdOrdMap::new();
+    ///
+    /// // Insert via vacant entry
+    /// match map.entry("foo") {
+    ///     id_ord_map::Entry::Vacant(entry) => {
+    ///         entry.insert(Item { id: "foo".to_string(), value: 42 });
+    ///     }
+    ///     id_ord_map::Entry::Occupied(_) => {}
+    /// }
+    ///
+    /// // Update via occupied entry
+    /// match map.entry("foo") {
+    ///     id_ord_map::Entry::Occupied(mut entry) => {
+    ///         entry.get_mut().value = 99;
+    ///     }
+    ///     id_ord_map::Entry::Vacant(_) => {}
+    /// }
+    ///
+    /// assert_eq!(map.get("foo").unwrap().value, 99);
+    /// ```
     pub fn entry<'a>(&'a mut self, key: T::Key<'_>) -> Entry<'a, T> {
         // Why does this always take an owned key? Well, it would seem like we
         // should be able to pass in any Q that is equivalent. That results in

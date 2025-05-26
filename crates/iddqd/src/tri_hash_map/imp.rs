@@ -98,12 +98,86 @@ pub struct TriHashMap<
 #[cfg(feature = "default-hasher")]
 impl<T: TriHashItem> TriHashMap<T> {
     /// Creates a new, empty `TriHashMap`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Person {
+    ///     id: u32,
+    ///     email: String,
+    ///     phone: String,
+    ///     name: String,
+    /// }
+    ///
+    /// impl TriHashItem for Person {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///     type K3<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.email
+    ///     }
+    ///     fn key3(&self) -> Self::K3<'_> {
+    ///         &self.phone
+    ///     }
+    ///     tri_upcast!();
+    /// }
+    ///
+    /// let map: TriHashMap<Person> = TriHashMap::new();
+    /// assert!(map.is_empty());
+    /// assert_eq!(map.len(), 0);
+    /// # }
+    /// ```
     #[inline]
     pub fn new() -> Self {
         Self { items: ItemSet::default(), tables: TriHashMapTables::default() }
     }
 
     /// Creates a new `TriHashMap` with the given capacity.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Person {
+    ///     id: u32,
+    ///     email: String,
+    ///     phone: String,
+    ///     name: String,
+    /// }
+    ///
+    /// impl TriHashItem for Person {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///     type K3<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.email
+    ///     }
+    ///     fn key3(&self) -> Self::K3<'_> {
+    ///         &self.phone
+    ///     }
+    ///     tri_upcast!();
+    /// }
+    ///
+    /// let map: TriHashMap<Person> = TriHashMap::with_capacity(10);
+    /// assert!(map.capacity() >= 10);
+    /// assert!(map.is_empty());
+    /// # }
+    /// ```
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             items: ItemSet::with_capacity_in(capacity, global_alloc()),
@@ -118,6 +192,42 @@ impl<T: TriHashItem> TriHashMap<T> {
 
 impl<T: TriHashItem, S: Clone + BuildHasher> TriHashMap<T, S> {
     /// Creates a new, empty `TriHashMap` with the given hasher.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
+    /// use std::collections::hash_map::RandomState;
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Person {
+    ///     id: u32,
+    ///     email: String,
+    ///     phone: String,
+    ///     name: String,
+    /// }
+    ///
+    /// impl TriHashItem for Person {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///     type K3<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.email
+    ///     }
+    ///     fn key3(&self) -> Self::K3<'_> {
+    ///         &self.phone
+    ///     }
+    ///     tri_upcast!();
+    /// }
+    ///
+    /// let map: TriHashMap<Person, RandomState> =
+    ///     TriHashMap::with_hasher(RandomState::new());
+    /// assert!(map.is_empty());
+    /// ```
     pub fn with_hasher(hasher: S) -> Self {
         Self {
             items: ItemSet::default(),
@@ -130,6 +240,43 @@ impl<T: TriHashItem, S: Clone + BuildHasher> TriHashMap<T, S> {
     }
 
     /// Creates a new `TriHashMap` with the given capacity and hasher.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
+    /// use std::collections::hash_map::RandomState;
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Person {
+    ///     id: u32,
+    ///     email: String,
+    ///     phone: String,
+    ///     name: String,
+    /// }
+    ///
+    /// impl TriHashItem for Person {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///     type K3<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.email
+    ///     }
+    ///     fn key3(&self) -> Self::K3<'_> {
+    ///         &self.phone
+    ///     }
+    ///     tri_upcast!();
+    /// }
+    ///
+    /// let map: TriHashMap<Person, RandomState> =
+    ///     TriHashMap::with_capacity_and_hasher(10, RandomState::new());
+    /// assert!(map.capacity() >= 10);
+    /// assert!(map.is_empty());
+    /// ```
     pub fn with_capacity_and_hasher(capacity: usize, hasher: S) -> Self {
         Self {
             items: ItemSet::with_capacity_in(capacity, global_alloc()),
@@ -146,7 +293,51 @@ impl<T: TriHashItem, S: Clone + BuildHasher> TriHashMap<T, S> {
 impl<T: TriHashItem, A: Clone + Allocator>
     TriHashMap<T, DefaultHashBuilder, A>
 {
-    /// Creates a new empty `HashMap` using the given allocator.
+    /// Creates a new empty `TriHashMap` using the given allocator.
+    ///
+    /// Requires the `allocator-api2` feature to be enabled.
+    ///
+    /// # Examples
+    ///
+    /// Using the [`bumpalo`](https://docs.rs/bumpalo) allocator:
+    ///
+    /// ```
+    /// # #[cfg(all(feature = "default-hasher", feature = "allocator-api2"))] {
+    /// use iddqd::{TriHashMap, TriHashItem, tri_upcast};
+    /// # use iddqd_test_utils::bumpalo;
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Person {
+    ///     id: u32,
+    ///     email: String,
+    ///     phone: String,
+    ///     name: String,
+    /// }
+    ///
+    /// impl TriHashItem for Person {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///     type K3<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.email
+    ///     }
+    ///     fn key3(&self) -> Self::K3<'_> {
+    ///         &self.phone
+    ///     }
+    ///     tri_upcast!();
+    /// }
+    ///
+    /// // Define a new allocator.
+    /// let bump = bumpalo::Bump::new();
+    /// // Create a new TriHashMap using the allocator.
+    /// let map: TriHashMap<Person, _, &bumpalo::Bump> = TriHashMap::new_in(&bump);
+    /// assert!(map.is_empty());
+    /// # }
+    /// ```
     pub fn new_in(alloc: A) -> Self {
         Self {
             items: ItemSet::with_capacity_in(0, alloc.clone()),
@@ -158,8 +349,53 @@ impl<T: TriHashItem, A: Clone + Allocator>
         }
     }
 
-    /// Creates an empty `HashMap` with the specified capacity using the given
+    /// Creates an empty `TriHashMap` with the specified capacity using the given
     /// allocator.
+    ///
+    /// Requires the `allocator-api2` feature to be enabled.
+    ///
+    /// # Examples
+    ///
+    /// Using the [`bumpalo`](https://docs.rs/bumpalo) allocator:
+    ///
+    /// ```
+    /// # #[cfg(all(feature = "default-hasher", feature = "allocator-api2"))] {
+    /// use iddqd::{TriHashMap, TriHashItem, tri_upcast};
+    /// # use iddqd_test_utils::bumpalo;
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Person {
+    ///     id: u32,
+    ///     email: String,
+    ///     phone: String,
+    ///     name: String,
+    /// }
+    ///
+    /// impl TriHashItem for Person {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///     type K3<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.email
+    ///     }
+    ///     fn key3(&self) -> Self::K3<'_> {
+    ///         &self.phone
+    ///     }
+    ///     tri_upcast!();
+    /// }
+    ///
+    /// // Define a new allocator.
+    /// let bump = bumpalo::Bump::new();
+    /// // Create a new TriHashMap with capacity using the allocator.
+    /// let map: TriHashMap<Person, _, &bumpalo::Bump> = TriHashMap::with_capacity_in(10, &bump);
+    /// assert!(map.capacity() >= 10);
+    /// assert!(map.is_empty());
+    /// # }
+    /// ```
     pub fn with_capacity_in(capacity: usize, alloc: A) -> Self {
         Self {
             items: ItemSet::with_capacity_in(capacity, alloc.clone()),
@@ -176,6 +412,53 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Clone + Allocator>
     TriHashMap<T, S, A>
 {
     /// Creates a new, empty `TriHashMap` with the given hasher and allocator.
+    ///
+    /// Requires the `allocator-api2` feature to be enabled.
+    ///
+    /// # Examples
+    ///
+    /// Using the [`bumpalo`](https://docs.rs/bumpalo) allocator:
+    ///
+    /// ```
+    /// # #[cfg(feature = "allocator-api2")] {
+    /// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
+    /// use std::collections::hash_map::RandomState;
+    /// # use iddqd_test_utils::bumpalo;
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Person {
+    ///     id: u32,
+    ///     email: String,
+    ///     phone: String,
+    ///     name: String,
+    /// }
+    ///
+    /// impl TriHashItem for Person {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///     type K3<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.email
+    ///     }
+    ///     fn key3(&self) -> Self::K3<'_> {
+    ///         &self.phone
+    ///     }
+    ///     tri_upcast!();
+    /// }
+    ///
+    /// // Define a new allocator.
+    /// let bump = bumpalo::Bump::new();
+    /// let hasher = RandomState::new();
+    /// // Create a new TriHashMap with hasher using the allocator.
+    /// let map: TriHashMap<Person, _, &bumpalo::Bump> =
+    ///     TriHashMap::with_hasher_in(hasher, &bump);
+    /// assert!(map.is_empty());
+    /// # }
+    /// ```
     pub fn with_hasher_in(hasher: S, alloc: A) -> Self {
         Self {
             items: ItemSet::with_capacity_in(0, alloc.clone()),
@@ -189,6 +472,54 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Clone + Allocator>
 
     /// Creates a new `TriHashMap` with the given capacity, hasher, and
     /// allocator.
+    ///
+    /// Requires the `allocator-api2` feature to be enabled.
+    ///
+    /// # Examples
+    ///
+    /// Using the [`bumpalo`](https://docs.rs/bumpalo) allocator:
+    ///
+    /// ```
+    /// # #[cfg(feature = "allocator-api2")] {
+    /// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
+    /// use std::collections::hash_map::RandomState;
+    /// # use iddqd_test_utils::bumpalo;
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Person {
+    ///     id: u32,
+    ///     email: String,
+    ///     phone: String,
+    ///     name: String,
+    /// }
+    ///
+    /// impl TriHashItem for Person {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///     type K3<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.email
+    ///     }
+    ///     fn key3(&self) -> Self::K3<'_> {
+    ///         &self.phone
+    ///     }
+    ///     tri_upcast!();
+    /// }
+    ///
+    /// // Define a new allocator.
+    /// let bump = bumpalo::Bump::new();
+    /// let hasher = RandomState::new();
+    /// // Create a new TriHashMap with capacity and hasher using the allocator.
+    /// let map: TriHashMap<Person, _, &bumpalo::Bump> =
+    ///     TriHashMap::with_capacity_and_hasher_in(10, hasher, &bump);
+    /// assert!(map.capacity() >= 10);
+    /// assert!(map.is_empty());
+    /// # }
+    /// ```
     pub fn with_capacity_and_hasher_in(
         capacity: usize,
         hasher: S,
@@ -212,12 +543,93 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     }
 
     /// Returns the allocator.
+    ///
+    /// Requires the `allocator-api2` feature to be enabled.
+    ///
+    /// # Examples
+    ///
+    /// Using the [`bumpalo`](https://docs.rs/bumpalo) allocator:
+    ///
+    /// ```
+    /// # #[cfg(all(feature = "default-hasher", feature = "allocator-api2"))] {
+    /// use iddqd::{TriHashMap, TriHashItem, tri_upcast};
+    /// # use iddqd_test_utils::bumpalo;
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Person {
+    ///     id: u32,
+    ///     email: String,
+    ///     phone: String,
+    ///     name: String,
+    /// }
+    ///
+    /// impl TriHashItem for Person {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///     type K3<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.email
+    ///     }
+    ///     fn key3(&self) -> Self::K3<'_> {
+    ///         &self.phone
+    ///     }
+    ///     tri_upcast!();
+    /// }
+    ///
+    /// // Define a new allocator.
+    /// let bump = bumpalo::Bump::new();
+    /// // Create a new TriHashMap using the allocator.
+    /// let map: TriHashMap<Person, _, &bumpalo::Bump> = TriHashMap::new_in(&bump);
+    /// // Access the allocator.
+    /// let allocator = map.allocator();
+    /// # }
+    /// ```
     #[inline]
     pub fn allocator(&self) -> &A {
         self.items.allocator()
     }
 
     /// Returns the currently allocated capacity of the map.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Person {
+    ///     id: u32,
+    ///     email: String,
+    ///     phone: String,
+    ///     name: String,
+    /// }
+    ///
+    /// impl TriHashItem for Person {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///     type K3<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.email
+    ///     }
+    ///     fn key3(&self) -> Self::K3<'_> {
+    ///         &self.phone
+    ///     }
+    ///     tri_upcast!();
+    /// }
+    ///
+    /// let map: TriHashMap<Person> = TriHashMap::with_capacity(10);
+    /// assert!(map.capacity() >= 10);
+    /// # }
+    /// ```
     pub fn capacity(&self) -> usize {
         // items and tables.capacity might theoretically diverge: use
         // items.capacity.
@@ -225,12 +637,109 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     }
 
     /// Returns true if the map is empty.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Person {
+    ///     id: u32,
+    ///     email: String,
+    ///     phone: String,
+    ///     name: String,
+    /// }
+    ///
+    /// impl TriHashItem for Person {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///     type K3<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.email
+    ///     }
+    ///     fn key3(&self) -> Self::K3<'_> {
+    ///         &self.phone
+    ///     }
+    ///     tri_upcast!();
+    /// }
+    ///
+    /// let mut map = TriHashMap::new();
+    /// assert!(map.is_empty());
+    ///
+    /// map.insert_unique(Person {
+    ///     id: 1,
+    ///     email: "alice@example.com".to_string(),
+    ///     phone: "555-1234".to_string(),
+    ///     name: "Alice".to_string(),
+    /// })
+    /// .unwrap();
+    /// assert!(!map.is_empty());
+    /// # }
+    /// ```
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
     }
 
     /// Returns the number of items in the map.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Person {
+    ///     id: u32,
+    ///     email: String,
+    ///     phone: String,
+    ///     name: String,
+    /// }
+    ///
+    /// impl TriHashItem for Person {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///     type K3<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.email
+    ///     }
+    ///     fn key3(&self) -> Self::K3<'_> {
+    ///         &self.phone
+    ///     }
+    ///     tri_upcast!();
+    /// }
+    ///
+    /// let mut map = TriHashMap::new();
+    /// assert_eq!(map.len(), 0);
+    ///
+    /// map.insert_unique(Person {
+    ///     id: 1,
+    ///     email: "alice@example.com".to_string(),
+    ///     phone: "555-1234".to_string(),
+    ///     name: "Alice".to_string(),
+    /// })
+    /// .unwrap();
+    /// map.insert_unique(Person {
+    ///     id: 2,
+    ///     email: "bob@example.com".to_string(),
+    ///     phone: "555-5678".to_string(),
+    ///     name: "Bob".to_string(),
+    /// })
+    /// .unwrap();
+    /// assert_eq!(map.len(), 2);
+    /// # }
+    /// ```
     #[inline]
     pub fn len(&self) -> usize {
         self.items.len()
@@ -240,6 +749,62 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     ///
     /// Similar to [`HashMap`], the iteration order is arbitrary and not
     /// guaranteed to be stable.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Person {
+    ///     id: u32,
+    ///     email: String,
+    ///     phone: String,
+    ///     name: String,
+    /// }
+    ///
+    /// impl TriHashItem for Person {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///     type K3<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.email
+    ///     }
+    ///     fn key3(&self) -> Self::K3<'_> {
+    ///         &self.phone
+    ///     }
+    ///     tri_upcast!();
+    /// }
+    ///
+    /// let mut map = TriHashMap::new();
+    /// map.insert_unique(Person {
+    ///     id: 1,
+    ///     email: "alice@example.com".to_string(),
+    ///     phone: "555-1234".to_string(),
+    ///     name: "Alice".to_string(),
+    /// })
+    /// .unwrap();
+    /// map.insert_unique(Person {
+    ///     id: 2,
+    ///     email: "bob@example.com".to_string(),
+    ///     phone: "555-5678".to_string(),
+    ///     name: "Bob".to_string(),
+    /// })
+    /// .unwrap();
+    ///
+    /// let mut count = 0;
+    /// for person in map.iter() {
+    ///     assert!(person.id == 1 || person.id == 2);
+    ///     count += 1;
+    /// }
+    /// assert_eq!(count, 2);
+    /// # }
+    /// ```
     ///
     /// [`HashMap`]: std::collections::HashMap
     #[inline]
@@ -251,6 +816,55 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     ///
     /// Similar to [`HashMap`], the iteration order is arbitrary and not
     /// guaranteed to be stable.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Person {
+    ///     id: u32,
+    ///     email: String,
+    ///     phone: String,
+    ///     name: String,
+    /// }
+    ///
+    /// impl TriHashItem for Person {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///     type K3<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.email
+    ///     }
+    ///     fn key3(&self) -> Self::K3<'_> {
+    ///         &self.phone
+    ///     }
+    ///     tri_upcast!();
+    /// }
+    ///
+    /// let mut map = TriHashMap::new();
+    /// map.insert_unique(Person {
+    ///     id: 1,
+    ///     email: "alice@example.com".to_string(),
+    ///     phone: "555-1234".to_string(),
+    ///     name: "Alice".to_string(),
+    /// })
+    /// .unwrap();
+    ///
+    /// for mut person in map.iter_mut() {
+    ///     person.name.push_str(" Updated");
+    /// }
+    ///
+    /// let person = map.get1(&1).unwrap();
+    /// assert_eq!(person.name, "Alice Updated");
+    /// # }
+    /// ```
     ///
     /// [`HashMap`]: std::collections::HashMap
     #[inline]
@@ -311,6 +925,60 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
 
     /// Inserts a value into the map, removing any conflicting items and
     /// returning a list of those items.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Person {
+    ///     id: u32,
+    ///     email: String,
+    ///     phone: String,
+    ///     name: String,
+    /// }
+    ///
+    /// impl TriHashItem for Person {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///     type K3<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.email
+    ///     }
+    ///     fn key3(&self) -> Self::K3<'_> {
+    ///         &self.phone
+    ///     }
+    ///     tri_upcast!();
+    /// }
+    ///
+    /// let mut map = TriHashMap::new();
+    ///
+    /// // First insertion - no conflicts
+    /// let overwritten = map.insert_overwrite(Person {
+    ///     id: 1,
+    ///     email: "alice@example.com".to_string(),
+    ///     phone: "555-1234".to_string(),
+    ///     name: "Alice".to_string(),
+    /// });
+    /// assert!(overwritten.is_empty());
+    ///
+    /// // Overwrite with same id - returns the old item
+    /// let overwritten = map.insert_overwrite(Person {
+    ///     id: 1,
+    ///     email: "alice.new@example.com".to_string(),
+    ///     phone: "555-9999".to_string(),
+    ///     name: "Alice New".to_string(),
+    /// });
+    /// assert_eq!(overwritten.len(), 1);
+    /// assert_eq!(overwritten[0].name, "Alice");
+    /// # }
+    /// ```
     #[doc(alias = "insert")]
     pub fn insert_overwrite(&mut self, value: T) -> Vec<T> {
         // Trying to write this function for maximal efficiency can get very
@@ -336,6 +1004,94 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
 
     /// Inserts a value into the set, returning an error if any duplicates were
     /// added.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Person {
+    ///     id: u32,
+    ///     email: String,
+    ///     phone: String,
+    ///     name: String,
+    /// }
+    ///
+    /// impl TriHashItem for Person {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///     type K3<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.email
+    ///     }
+    ///     fn key3(&self) -> Self::K3<'_> {
+    ///         &self.phone
+    ///     }
+    ///     tri_upcast!();
+    /// }
+    ///
+    /// let mut map = TriHashMap::new();
+    ///
+    /// // Successful insertion
+    /// assert!(
+    ///     map.insert_unique(Person {
+    ///         id: 1,
+    ///         email: "alice@example.com".to_string(),
+    ///         phone: "555-1234".to_string(),
+    ///         name: "Alice".to_string(),
+    ///     })
+    ///     .is_ok()
+    /// );
+    /// assert!(
+    ///     map.insert_unique(Person {
+    ///         id: 2,
+    ///         email: "bob@example.com".to_string(),
+    ///         phone: "555-5678".to_string(),
+    ///         name: "Bob".to_string(),
+    ///     })
+    ///     .is_ok()
+    /// );
+    ///
+    /// // Duplicate key1
+    /// assert!(
+    ///     map.insert_unique(Person {
+    ///         id: 1,
+    ///         email: "charlie@example.com".to_string(),
+    ///         phone: "555-9999".to_string(),
+    ///         name: "Charlie".to_string(),
+    ///     })
+    ///     .is_err()
+    /// );
+    ///
+    /// // Duplicate key2
+    /// assert!(
+    ///     map.insert_unique(Person {
+    ///         id: 3,
+    ///         email: "alice@example.com".to_string(),
+    ///         phone: "555-7777".to_string(),
+    ///         name: "Alice2".to_string(),
+    ///     })
+    ///     .is_err()
+    /// );
+    ///
+    /// // Duplicate key3
+    /// assert!(
+    ///     map.insert_unique(Person {
+    ///         id: 4,
+    ///         email: "dave@example.com".to_string(),
+    ///         phone: "555-1234".to_string(),
+    ///         name: "Dave".to_string(),
+    ///     })
+    ///     .is_err()
+    /// );
+    /// # }
+    /// ```
     pub fn insert_unique(
         &mut self,
         value: T,
@@ -390,6 +1146,58 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
 
     /// Returns true if the map contains a single item that matches all three
     /// keys.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Person {
+    ///     id: u32,
+    ///     email: String,
+    ///     phone: String,
+    ///     name: String,
+    /// }
+    ///
+    /// impl TriHashItem for Person {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///     type K3<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.email
+    ///     }
+    ///     fn key3(&self) -> Self::K3<'_> {
+    ///         &self.phone
+    ///     }
+    ///     tri_upcast!();
+    /// }
+    ///
+    /// let mut map = TriHashMap::new();
+    /// map.insert_unique(Person {
+    ///     id: 1,
+    ///     email: "alice@example.com".to_string(),
+    ///     phone: "555-1234".to_string(),
+    ///     name: "Alice".to_string(),
+    /// }).unwrap();
+    /// map.insert_unique(Person {
+    ///     id: 2,
+    ///     email: "bob@example.com".to_string(),
+    ///     phone: "555-5678".to_string(),
+    ///     name: "Bob".to_string(),
+    /// }).unwrap();
+    ///
+    /// assert!(map.contains_key_unique(&1, &"alice@example.com", &"555-1234"));
+    /// assert!(map.contains_key_unique(&2, &"bob@example.com", &"555-5678"));
+    /// assert!(!map.contains_key_unique(&1, &"bob@example.com", &"555-1234")); // key1 exists but key2 doesn't match
+    /// assert!(!map.contains_key_unique(&3, &"charlie@example.com", &"555-9999")); // none of the keys exist
+    /// # }
+    /// ```
     pub fn contains_key_unique<'a, Q1, Q2, Q3>(
         &'a self,
         key1: &Q1,
@@ -406,6 +1214,58 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
 
     /// Gets a reference to the unique item associated with the given `key1`,
     /// `key2`, and `key3`, if it exists.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Person {
+    ///     id: u32,
+    ///     email: String,
+    ///     phone: String,
+    ///     name: String,
+    /// }
+    ///
+    /// impl TriHashItem for Person {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///     type K3<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.email
+    ///     }
+    ///     fn key3(&self) -> Self::K3<'_> {
+    ///         &self.phone
+    ///     }
+    ///     tri_upcast!();
+    /// }
+    ///
+    /// let mut map = TriHashMap::new();
+    /// map.insert_unique(Person {
+    ///     id: 1,
+    ///     email: "alice@example.com".to_string(),
+    ///     phone: "555-1234".to_string(),
+    ///     name: "Alice".to_string(),
+    /// })
+    /// .unwrap();
+    ///
+    /// // All three keys must match
+    /// assert_eq!(
+    ///     map.get_unique(&1, &"alice@example.com", &"555-1234").unwrap().name,
+    ///     "Alice"
+    /// );
+    ///
+    /// // If any key doesn't match, returns None
+    /// assert!(map.get_unique(&1, &"wrong@example.com", &"555-1234").is_none());
+    /// assert!(map.get_unique(&2, &"alice@example.com", &"555-1234").is_none());
+    /// # }
+    /// ```
     pub fn get_unique<'a, Q1, Q2, Q3>(
         &'a self,
         key1: &Q1,
@@ -428,6 +1288,58 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
 
     /// Gets a mutable reference to the unique item associated with the given
     /// `key1`, `key2`, and `key3`, if it exists.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Person {
+    ///     id: u32,
+    ///     email: String,
+    ///     phone: String,
+    ///     name: String,
+    /// }
+    ///
+    /// impl TriHashItem for Person {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///     type K3<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.email
+    ///     }
+    ///     fn key3(&self) -> Self::K3<'_> {
+    ///         &self.phone
+    ///     }
+    ///     tri_upcast!();
+    /// }
+    ///
+    /// let mut map = TriHashMap::new();
+    /// map.insert_unique(Person {
+    ///     id: 1,
+    ///     email: "alice@example.com".to_string(),
+    ///     phone: "555-1234".to_string(),
+    ///     name: "Alice".to_string(),
+    /// })
+    /// .unwrap();
+    ///
+    /// // Modify the item through the mutable reference
+    /// if let Some(mut person) =
+    ///     map.get_mut_unique(&1, &"alice@example.com", &"555-1234")
+    /// {
+    ///     person.name = "Alice Updated".to_string();
+    /// }
+    ///
+    /// // Verify the change
+    /// assert_eq!(map.get1(&1).unwrap().name, "Alice Updated");
+    /// # }
+    /// ```
     pub fn get_mut_unique<'a, Q1, Q2, Q3>(
         &'a mut self,
         key1: &Q1,
@@ -459,6 +1371,59 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
 
     /// Removes the item uniquely identified by `key1`, `key2`, and `key3`, if
     /// it exists.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Person {
+    ///     id: u32,
+    ///     email: String,
+    ///     phone: String,
+    ///     name: String,
+    /// }
+    ///
+    /// impl TriHashItem for Person {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///     type K3<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.email
+    ///     }
+    ///     fn key3(&self) -> Self::K3<'_> {
+    ///         &self.phone
+    ///     }
+    ///     tri_upcast!();
+    /// }
+    ///
+    /// let mut map = TriHashMap::new();
+    /// map.insert_unique(Person {
+    ///     id: 1,
+    ///     email: "alice@example.com".to_string(),
+    ///     phone: "555-1234".to_string(),
+    ///     name: "Alice".to_string(),
+    /// })
+    /// .unwrap();
+    ///
+    /// // Remove the item using all three keys
+    /// let removed = map.remove_unique(&1, &"alice@example.com", &"555-1234");
+    /// assert!(removed.is_some());
+    /// assert_eq!(removed.unwrap().name, "Alice");
+    ///
+    /// // Map is now empty
+    /// assert!(map.is_empty());
+    ///
+    /// // Trying to remove again returns None
+    /// assert!(map.remove_unique(&1, &"alice@example.com", &"555-1234").is_none());
+    /// # }
+    /// ```
     pub fn remove_unique<'a, Q1, Q2, Q3>(
         &'a mut self,
         key1: &Q1,
@@ -488,6 +1453,51 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     }
 
     /// Returns true if the map contains the given `key1`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Person {
+    ///     id: u32,
+    ///     email: String,
+    ///     phone: String,
+    ///     name: String,
+    /// }
+    ///
+    /// impl TriHashItem for Person {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///     type K3<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.email
+    ///     }
+    ///     fn key3(&self) -> Self::K3<'_> {
+    ///         &self.phone
+    ///     }
+    ///     tri_upcast!();
+    /// }
+    ///
+    /// let mut map = TriHashMap::new();
+    /// map.insert_unique(Person {
+    ///     id: 1,
+    ///     email: "alice@example.com".to_string(),
+    ///     phone: "555-1234".to_string(),
+    ///     name: "Alice".to_string(),
+    /// })
+    /// .unwrap();
+    ///
+    /// assert!(map.contains_key1(&1));
+    /// assert!(!map.contains_key1(&2));
+    /// # }
+    /// ```
     pub fn contains_key1<'a, Q>(&'a self, key1: &Q) -> bool
     where
         Q: Hash + Equivalent<T::K1<'a>> + ?Sized,
@@ -496,6 +1506,51 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     }
 
     /// Gets a reference to the value associated with the given `key1`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Person {
+    ///     id: u32,
+    ///     email: String,
+    ///     phone: String,
+    ///     name: String,
+    /// }
+    ///
+    /// impl TriHashItem for Person {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///     type K3<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.email
+    ///     }
+    ///     fn key3(&self) -> Self::K3<'_> {
+    ///         &self.phone
+    ///     }
+    ///     tri_upcast!();
+    /// }
+    ///
+    /// let mut map = TriHashMap::new();
+    /// map.insert_unique(Person {
+    ///     id: 1,
+    ///     email: "alice@example.com".to_string(),
+    ///     phone: "555-1234".to_string(),
+    ///     name: "Alice".to_string(),
+    /// })
+    /// .unwrap();
+    ///
+    /// assert_eq!(map.get1(&1).unwrap().name, "Alice");
+    /// assert!(map.get1(&2).is_none());
+    /// # }
+    /// ```
     pub fn get1<'a, Q>(&'a self, key1: &Q) -> Option<&'a T>
     where
         Q: Hash + Equivalent<T::K1<'a>> + ?Sized,
@@ -504,6 +1559,54 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     }
 
     /// Gets a mutable reference to the value associated with the given `key1`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Person {
+    ///     id: u32,
+    ///     email: String,
+    ///     phone: String,
+    ///     name: String,
+    /// }
+    ///
+    /// impl TriHashItem for Person {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///     type K3<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.email
+    ///     }
+    ///     fn key3(&self) -> Self::K3<'_> {
+    ///         &self.phone
+    ///     }
+    ///     tri_upcast!();
+    /// }
+    ///
+    /// let mut map = TriHashMap::new();
+    /// map.insert_unique(Person {
+    ///     id: 1,
+    ///     email: "alice@example.com".to_string(),
+    ///     phone: "555-1234".to_string(),
+    ///     name: "Alice".to_string(),
+    /// })
+    /// .unwrap();
+    ///
+    /// if let Some(mut person) = map.get1_mut(&1) {
+    ///     person.name = "Alice Updated".to_string();
+    /// }
+    ///
+    /// assert_eq!(map.get1(&1).unwrap().name, "Alice Updated");
+    /// # }
+    /// ```
     pub fn get1_mut<'a, Q>(&'a mut self, key1: &Q) -> Option<RefMut<'a, T, S>>
     where
         Q: Hash + Equivalent<T::K1<'a>> + ?Sized,
@@ -522,6 +1625,53 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     }
 
     /// Removes an item from the map by its `key1`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Person {
+    ///     id: u32,
+    ///     email: String,
+    ///     phone: String,
+    ///     name: String,
+    /// }
+    ///
+    /// impl TriHashItem for Person {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///     type K3<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.email
+    ///     }
+    ///     fn key3(&self) -> Self::K3<'_> {
+    ///         &self.phone
+    ///     }
+    ///     tri_upcast!();
+    /// }
+    ///
+    /// let mut map = TriHashMap::new();
+    /// map.insert_unique(Person {
+    ///     id: 1,
+    ///     email: "alice@example.com".to_string(),
+    ///     phone: "555-1234".to_string(),
+    ///     name: "Alice".to_string(),
+    /// })
+    /// .unwrap();
+    ///
+    /// let removed = map.remove1(&1);
+    /// assert!(removed.is_some());
+    /// assert_eq!(removed.unwrap().name, "Alice");
+    /// assert!(map.is_empty());
+    /// # }
+    /// ```
     pub fn remove1<'a, Q>(&'a mut self, key1: &Q) -> Option<T>
     where
         Q: Hash + Equivalent<T::K1<'a>> + ?Sized,
@@ -539,6 +1689,51 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     }
 
     /// Returns true if the map contains the given `key2`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Person {
+    ///     id: u32,
+    ///     email: String,
+    ///     phone: String,
+    ///     name: String,
+    /// }
+    ///
+    /// impl TriHashItem for Person {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///     type K3<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.email
+    ///     }
+    ///     fn key3(&self) -> Self::K3<'_> {
+    ///         &self.phone
+    ///     }
+    ///     tri_upcast!();
+    /// }
+    ///
+    /// let mut map = TriHashMap::new();
+    /// map.insert_unique(Person {
+    ///     id: 1,
+    ///     email: "alice@example.com".to_string(),
+    ///     phone: "555-1234".to_string(),
+    ///     name: "Alice".to_string(),
+    /// })
+    /// .unwrap();
+    ///
+    /// assert!(map.contains_key2("alice@example.com"));
+    /// assert!(!map.contains_key2("bob@example.com"));
+    /// # }
+    /// ```
     pub fn contains_key2<'a, Q>(&'a self, key2: &Q) -> bool
     where
         Q: Hash + Equivalent<T::K2<'a>> + ?Sized,
@@ -547,6 +1742,51 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     }
 
     /// Gets a reference to the value associated with the given `key2`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Person {
+    ///     id: u32,
+    ///     email: String,
+    ///     phone: String,
+    ///     name: String,
+    /// }
+    ///
+    /// impl TriHashItem for Person {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///     type K3<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.email
+    ///     }
+    ///     fn key3(&self) -> Self::K3<'_> {
+    ///         &self.phone
+    ///     }
+    ///     tri_upcast!();
+    /// }
+    ///
+    /// let mut map = TriHashMap::new();
+    /// map.insert_unique(Person {
+    ///     id: 1,
+    ///     email: "alice@example.com".to_string(),
+    ///     phone: "555-1234".to_string(),
+    ///     name: "Alice".to_string(),
+    /// })
+    /// .unwrap();
+    ///
+    /// assert_eq!(map.get2("alice@example.com").unwrap().name, "Alice");
+    /// assert!(map.get2("bob@example.com").is_none());
+    /// # }
+    /// ```
     pub fn get2<'a, Q>(&'a self, key2: &Q) -> Option<&'a T>
     where
         Q: Hash + Equivalent<T::K2<'a>> + ?Sized,
@@ -555,6 +1795,54 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     }
 
     /// Gets a mutable reference to the value associated with the given `key2`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Person {
+    ///     id: u32,
+    ///     email: String,
+    ///     phone: String,
+    ///     name: String,
+    /// }
+    ///
+    /// impl TriHashItem for Person {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///     type K3<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.email
+    ///     }
+    ///     fn key3(&self) -> Self::K3<'_> {
+    ///         &self.phone
+    ///     }
+    ///     tri_upcast!();
+    /// }
+    ///
+    /// let mut map = TriHashMap::new();
+    /// map.insert_unique(Person {
+    ///     id: 1,
+    ///     email: "alice@example.com".to_string(),
+    ///     phone: "555-1234".to_string(),
+    ///     name: "Alice".to_string(),
+    /// })
+    /// .unwrap();
+    ///
+    /// if let Some(mut person) = map.get2_mut("alice@example.com") {
+    ///     person.name = "Alice Updated".to_string();
+    /// }
+    ///
+    /// assert_eq!(map.get2("alice@example.com").unwrap().name, "Alice Updated");
+    /// # }
+    /// ```
     pub fn get2_mut<'a, Q>(&'a mut self, key2: &Q) -> Option<RefMut<'a, T, S>>
     where
         Q: Hash + Equivalent<T::K2<'a>> + ?Sized,
@@ -573,6 +1861,53 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     }
 
     /// Removes an item from the map by its `key2`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Person {
+    ///     id: u32,
+    ///     email: String,
+    ///     phone: String,
+    ///     name: String,
+    /// }
+    ///
+    /// impl TriHashItem for Person {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///     type K3<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.email
+    ///     }
+    ///     fn key3(&self) -> Self::K3<'_> {
+    ///         &self.phone
+    ///     }
+    ///     tri_upcast!();
+    /// }
+    ///
+    /// let mut map = TriHashMap::new();
+    /// map.insert_unique(Person {
+    ///     id: 1,
+    ///     email: "alice@example.com".to_string(),
+    ///     phone: "555-1234".to_string(),
+    ///     name: "Alice".to_string(),
+    /// })
+    /// .unwrap();
+    ///
+    /// let removed = map.remove2("alice@example.com");
+    /// assert!(removed.is_some());
+    /// assert_eq!(removed.unwrap().name, "Alice");
+    /// assert!(map.is_empty());
+    /// # }
+    /// ```
     pub fn remove2<'a, Q>(&'a mut self, key2: &Q) -> Option<T>
     where
         Q: Hash + Equivalent<T::K2<'a>> + ?Sized,
@@ -590,6 +1925,51 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     }
 
     /// Returns true if the map contains the given `key3`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Person {
+    ///     id: u32,
+    ///     email: String,
+    ///     phone: String,
+    ///     name: String,
+    /// }
+    ///
+    /// impl TriHashItem for Person {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///     type K3<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.email
+    ///     }
+    ///     fn key3(&self) -> Self::K3<'_> {
+    ///         &self.phone
+    ///     }
+    ///     tri_upcast!();
+    /// }
+    ///
+    /// let mut map = TriHashMap::new();
+    /// map.insert_unique(Person {
+    ///     id: 1,
+    ///     email: "alice@example.com".to_string(),
+    ///     phone: "555-1234".to_string(),
+    ///     name: "Alice".to_string(),
+    /// })
+    /// .unwrap();
+    ///
+    /// assert!(map.contains_key3("555-1234"));
+    /// assert!(!map.contains_key3("555-5678"));
+    /// # }
+    /// ```
     pub fn contains_key3<'a, Q>(&'a self, key3: &Q) -> bool
     where
         Q: Hash + Equivalent<T::K3<'a>> + ?Sized,
@@ -598,6 +1978,51 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     }
 
     /// Gets a reference to the value associated with the given `key3`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Person {
+    ///     id: u32,
+    ///     email: String,
+    ///     phone: String,
+    ///     name: String,
+    /// }
+    ///
+    /// impl TriHashItem for Person {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///     type K3<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.email
+    ///     }
+    ///     fn key3(&self) -> Self::K3<'_> {
+    ///         &self.phone
+    ///     }
+    ///     tri_upcast!();
+    /// }
+    ///
+    /// let mut map = TriHashMap::new();
+    /// map.insert_unique(Person {
+    ///     id: 1,
+    ///     email: "alice@example.com".to_string(),
+    ///     phone: "555-1234".to_string(),
+    ///     name: "Alice".to_string(),
+    /// })
+    /// .unwrap();
+    ///
+    /// assert_eq!(map.get3("555-1234").unwrap().name, "Alice");
+    /// assert!(map.get3("555-5678").is_none());
+    /// # }
+    /// ```
     pub fn get3<'a, Q>(&'a self, key3: &Q) -> Option<&'a T>
     where
         Q: Hash + Equivalent<T::K3<'a>> + ?Sized,
@@ -606,6 +2031,54 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     }
 
     /// Gets a mutable reference to the value associated with the given `key3`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Person {
+    ///     id: u32,
+    ///     email: String,
+    ///     phone: String,
+    ///     name: String,
+    /// }
+    ///
+    /// impl TriHashItem for Person {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///     type K3<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.email
+    ///     }
+    ///     fn key3(&self) -> Self::K3<'_> {
+    ///         &self.phone
+    ///     }
+    ///     tri_upcast!();
+    /// }
+    ///
+    /// let mut map = TriHashMap::new();
+    /// map.insert_unique(Person {
+    ///     id: 1,
+    ///     email: "alice@example.com".to_string(),
+    ///     phone: "555-1234".to_string(),
+    ///     name: "Alice".to_string(),
+    /// })
+    /// .unwrap();
+    ///
+    /// if let Some(mut person) = map.get3_mut("555-1234") {
+    ///     person.name = "Alice Updated".to_string();
+    /// }
+    ///
+    /// assert_eq!(map.get3("555-1234").unwrap().name, "Alice Updated");
+    /// # }
+    /// ```
     pub fn get3_mut<'a, Q>(&'a mut self, key3: &Q) -> Option<RefMut<'a, T, S>>
     where
         Q: Hash + Equivalent<T::K3<'a>> + ?Sized,
@@ -624,6 +2097,53 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     }
 
     /// Removes an item from the map by its `key3`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Person {
+    ///     id: u32,
+    ///     email: String,
+    ///     phone: String,
+    ///     name: String,
+    /// }
+    ///
+    /// impl TriHashItem for Person {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///     type K3<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.email
+    ///     }
+    ///     fn key3(&self) -> Self::K3<'_> {
+    ///         &self.phone
+    ///     }
+    ///     tri_upcast!();
+    /// }
+    ///
+    /// let mut map = TriHashMap::new();
+    /// map.insert_unique(Person {
+    ///     id: 1,
+    ///     email: "alice@example.com".to_string(),
+    ///     phone: "555-1234".to_string(),
+    ///     name: "Alice".to_string(),
+    /// })
+    /// .unwrap();
+    ///
+    /// let removed = map.remove3("555-1234");
+    /// assert!(removed.is_some());
+    /// assert_eq!(removed.unwrap().name, "Alice");
+    /// assert!(map.is_empty());
+    /// # }
+    /// ```
     pub fn remove3<'a, Q>(&'a mut self, key3: &Q) -> Option<T>
     where
         Q: Hash + Equivalent<T::K3<'a>> + ?Sized,
