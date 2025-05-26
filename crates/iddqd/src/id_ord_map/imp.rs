@@ -26,7 +26,7 @@ use equivalent::{Comparable, Equivalent};
 ///
 /// ```
 /// # #[cfg(feature = "default-hasher")] {
-/// use iddqd::{IdOrdMap, IdOrdItem, id_upcast};
+/// use iddqd::{IdOrdItem, IdOrdMap, id_upcast};
 ///
 /// // Define a struct with a key.
 /// #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]

@@ -62,13 +62,14 @@ use hashbrown::hash_table::{Entry, VacantEntry};
 ///
 /// // Create a TriHashMap and insert items.
 /// let mut people = TriHashMap::new();
-/// people.insert_unique(Person {
-///     id: 1,
-///     email: "alice@example.com".to_string(),
-///     phone: "555-1234".to_string(),
-///     name: "Alice".to_string(),
-/// })
-/// .unwrap();
+/// people
+///     .insert_unique(Person {
+///         id: 1,
+///         email: "alice@example.com".to_string(),
+///         phone: "555-1234".to_string(),
+///         name: "Alice".to_string(),
+///     })
+///     .unwrap();
 ///
 /// // Lookup by any of the three keys.
 /// let person = people.get1(&1).unwrap();

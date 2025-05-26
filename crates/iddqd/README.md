@@ -64,7 +64,7 @@ non-key data associated with them as well.
 An example for [`IdOrdMap`](https://docs.rs/iddqd/0.3.2/iddqd/id_ord_map/imp/struct.IdOrdMap.html):
 
 ````rust
-use iddqd::{IdOrdMap, IdOrdItem, id_upcast};
+use iddqd::{IdOrdItem, IdOrdMap, id_upcast};
 
 #[derive(Debug)]
 struct User {
@@ -115,7 +115,9 @@ impl IdOrdItem for Record {
     // The key type is small, so an owned key is preferred.
     type Key<'a> = u32;
 
-    fn key(&self) -> Self::Key<'_> { self.id }
+    fn key(&self) -> Self::Key<'_> {
+        self.id
+    }
 
     id_upcast!();
 }
@@ -128,7 +130,7 @@ An example for [`IdHashMap`](https://docs.rs/iddqd/0.3.2/iddqd/id_hash_map/imp/s
 returns references to more than one field from the value.
 
 ````rust
-use iddqd::{IdHashMap, IdHashItem, id_upcast};
+use iddqd::{IdHashItem, IdHashMap, id_upcast};
 
 #[derive(Debug)]
 struct Artifact {
@@ -150,10 +152,7 @@ impl IdHashItem for Artifact {
     type Key<'a> = ArtifactKey<'a>;
 
     fn key(&self) -> Self::Key<'_> {
-        ArtifactKey {
-            name: &self.name,
-            version: &self.version,
-        }
+        ArtifactKey { name: &self.name, version: &self.version }
     }
 
     id_upcast!();
@@ -162,18 +161,20 @@ impl IdHashItem for Artifact {
 let mut artifacts = IdHashMap::<Artifact>::new();
 
 // Add artifacts to the map.
-artifacts.insert_unique(Artifact {
-    name: "artifact1".to_owned(),
-    version: "1.0".to_owned(),
-    data: b"data1".to_vec(),
-})
-.unwrap();
-artifacts.insert_unique(Artifact {
-    name: "artifact2".to_owned(),
-    version: "1.0".to_owned(),
-    data: b"data2".to_vec(),
-})
-.unwrap();
+artifacts
+    .insert_unique(Artifact {
+        name: "artifact1".to_owned(),
+        version: "1.0".to_owned(),
+        data: b"data1".to_vec(),
+    })
+    .unwrap();
+artifacts
+    .insert_unique(Artifact {
+        name: "artifact2".to_owned(),
+        version: "1.0".to_owned(),
+        data: b"data2".to_vec(),
+    })
+    .unwrap();
 
 // Look up artifacts by name and version.
 assert_eq!(
@@ -244,13 +245,7 @@ let owned_key = OwnedArtifactKey {
     name: "artifact1".to_owned(),
     version: "1.0".to_owned(),
 };
-assert_eq!(
-    artifacts
-        .get(&owned_key)
-        .unwrap()
-        .data,
-    b"data1",
-);
+assert_eq!(artifacts.get(&owned_key).unwrap().data, b"data1",);
 ````
 
 There’s a blanket implementation of [`Equivalent`](https://docs.rs/equivalent/1.0.2/equivalent/trait.Equivalent.html) and [`Comparable`](https://docs.rs/equivalent/1.0.2/equivalent/trait.Comparable.html) for
