@@ -184,6 +184,7 @@ dependencies = [
 name = "iddqd-test-utils"
 version = "0.1.0"
 dependencies = [
+ "bumpalo",
  "hugealloc",
  "iddqd",
  "proptest",

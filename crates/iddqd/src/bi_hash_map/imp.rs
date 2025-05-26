@@ -92,12 +92,76 @@ pub struct BiHashMap<
 #[cfg(feature = "default-hasher")]
 impl<T: BiHashItem> BiHashMap<T> {
     /// Creates a new, empty `BiHashMap`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{BiHashItem, BiHashMap, bi_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Item {
+    ///     id: u32,
+    ///     name: String,
+    ///     value: i32,
+    /// }
+    ///
+    /// impl BiHashItem for Item {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.name
+    ///     }
+    ///     bi_upcast!();
+    /// }
+    ///
+    /// let map: BiHashMap<Item> = BiHashMap::new();
+    /// assert!(map.is_empty());
+    /// assert_eq!(map.len(), 0);
+    /// # }
+    /// ```
     #[inline]
     pub fn new() -> Self {
         Self { items: ItemSet::default(), tables: BiHashMapTables::default() }
     }
 
     /// Creates a new `BiHashMap` with the given capacity.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{BiHashItem, BiHashMap, bi_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Item {
+    ///     id: u32,
+    ///     name: String,
+    ///     value: i32,
+    /// }
+    ///
+    /// impl BiHashItem for Item {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.name
+    ///     }
+    ///     bi_upcast!();
+    /// }
+    ///
+    /// let map: BiHashMap<Item> = BiHashMap::with_capacity(10);
+    /// assert!(map.capacity() >= 10);
+    /// assert!(map.is_empty());
+    /// # }
+    /// ```
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
             items: ItemSet::with_capacity_in(capacity, global_alloc()),
@@ -112,6 +176,37 @@ impl<T: BiHashItem> BiHashMap<T> {
 
 impl<T: BiHashItem, S: Clone + BuildHasher> BiHashMap<T, S> {
     /// Creates a new `BiHashMap` with the given hasher.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use iddqd::{BiHashItem, BiHashMap, bi_upcast};
+    /// use std::collections::hash_map::RandomState;
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Item {
+    ///     id: u32,
+    ///     name: String,
+    ///     value: i32,
+    /// }
+    ///
+    /// impl BiHashItem for Item {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.name
+    ///     }
+    ///     bi_upcast!();
+    /// }
+    ///
+    /// let hasher = RandomState::new();
+    /// let map: BiHashMap<Item, RandomState> = BiHashMap::with_hasher(hasher);
+    /// assert!(map.is_empty());
+    /// ```
     pub fn with_hasher(hasher: S) -> Self {
         Self {
             items: ItemSet::default(),
@@ -124,6 +219,39 @@ impl<T: BiHashItem, S: Clone + BuildHasher> BiHashMap<T, S> {
     }
 
     /// Creates a new `BiHashMap` with the given capacity and hasher.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use iddqd::{BiHashItem, BiHashMap, bi_upcast};
+    /// use std::collections::hash_map::RandomState;
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Item {
+    ///     id: u32,
+    ///     name: String,
+    ///     value: i32,
+    /// }
+    ///
+    /// impl BiHashItem for Item {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.name
+    ///     }
+    ///     bi_upcast!();
+    /// }
+    ///
+    /// let hasher = RandomState::new();
+    /// let map: BiHashMap<Item, _> =
+    ///     BiHashMap::with_capacity_and_hasher(10, hasher);
+    /// assert!(map.capacity() >= 10);
+    /// assert!(map.is_empty());
+    /// ```
     pub fn with_capacity_and_hasher(capacity: usize, hasher: S) -> Self {
         Self {
             items: ItemSet::with_capacity_in(capacity, global_alloc()),
@@ -139,6 +267,45 @@ impl<T: BiHashItem, S: Clone + BuildHasher> BiHashMap<T, S> {
 #[cfg(feature = "default-hasher")]
 impl<T: BiHashItem, A: Clone + Allocator> BiHashMap<T, DefaultHashBuilder, A> {
     /// Creates a new empty `BiHashMap` using the given allocator.
+    ///
+    /// Requires the `allocator-api2` feature to be enabled.
+    ///
+    /// # Examples
+    ///
+    /// Using the [`bumpalo`](https://docs.rs/bumpalo) allocator:
+    ///
+    /// ```
+    /// # #[cfg(all(feature = "default-hasher", feature = "allocator-api2"))] {
+    /// use iddqd::{BiHashMap, BiHashItem, bi_upcast};
+    /// # use iddqd_test_utils::bumpalo;
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Item {
+    ///     id: u32,
+    ///     name: String,
+    ///     value: i32,
+    /// }
+    ///
+    /// impl BiHashItem for Item {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.name
+    ///     }
+    ///     bi_upcast!();
+    /// }
+    ///
+    /// // Define a new allocator.
+    /// let bump = bumpalo::Bump::new();
+    /// // Create a new BiHashMap using the allocator.
+    /// let map: BiHashMap<Item, _, &bumpalo::Bump> = BiHashMap::new_in(&bump);
+    /// assert!(map.is_empty());
+    /// # }
+    /// ```
     pub fn new_in(alloc: A) -> Self {
         Self {
             items: ItemSet::with_capacity_in(0, alloc.clone()),
@@ -152,6 +319,46 @@ impl<T: BiHashItem, A: Clone + Allocator> BiHashMap<T, DefaultHashBuilder, A> {
 
     /// Creates an empty `BiHashMap` with the specified capacity using the given
     /// allocator.
+    ///
+    /// Requires the `allocator-api2` feature to be enabled.
+    ///
+    /// # Examples
+    ///
+    /// Using the [`bumpalo`](https://docs.rs/bumpalo) allocator:
+    ///
+    /// ```
+    /// # #[cfg(all(feature = "default-hasher", feature = "allocator-api2"))] {
+    /// use iddqd::{BiHashMap, BiHashItem, bi_upcast};
+    /// # use iddqd_test_utils::bumpalo;
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Item {
+    ///     id: u32,
+    ///     name: String,
+    ///     value: i32,
+    /// }
+    ///
+    /// impl BiHashItem for Item {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.name
+    ///     }
+    ///     bi_upcast!();
+    /// }
+    ///
+    /// // Define a new allocator.
+    /// let bump = bumpalo::Bump::new();
+    /// // Create a new BiHashMap with capacity using the allocator.
+    /// let map: BiHashMap<Item, _, &bumpalo::Bump> = BiHashMap::with_capacity_in(10, &bump);
+    /// assert!(map.capacity() >= 10);
+    /// assert!(map.is_empty());
+    /// # }
+    /// ```
     pub fn with_capacity_in(capacity: usize, alloc: A) -> Self {
         Self {
             items: ItemSet::with_capacity_in(capacity, alloc.clone()),
@@ -167,7 +374,49 @@ impl<T: BiHashItem, A: Clone + Allocator> BiHashMap<T, DefaultHashBuilder, A> {
 impl<T: BiHashItem, S: Clone + BuildHasher, A: Clone + Allocator>
     BiHashMap<T, S, A>
 {
-    /// Creates a new, empty `BiHashMap` with the given allocator.
+    /// Creates a new, empty `BiHashMap` with the given hasher and allocator.
+    ///
+    /// Requires the `allocator-api2` feature to be enabled.
+    ///
+    /// # Examples
+    ///
+    /// Using the [`bumpalo`](https://docs.rs/bumpalo) allocator:
+    ///
+    /// ```
+    /// # #[cfg(feature = "allocator-api2")] {
+    /// use iddqd::{BiHashItem, BiHashMap, bi_upcast};
+    /// use std::collections::hash_map::RandomState;
+    /// # use iddqd_test_utils::bumpalo;
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Item {
+    ///     id: u32,
+    ///     name: String,
+    ///     value: i32,
+    /// }
+    ///
+    /// impl BiHashItem for Item {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.name
+    ///     }
+    ///     bi_upcast!();
+    /// }
+    ///
+    /// // Define a new allocator.
+    /// let bump = bumpalo::Bump::new();
+    /// let hasher = RandomState::new();
+    /// // Create a new BiHashMap with hasher using the allocator.
+    /// let map: BiHashMap<Item, _, &bumpalo::Bump> =
+    ///     BiHashMap::with_hasher_in(hasher, &bump);
+    /// assert!(map.is_empty());
+    /// # }
+    /// ```
     pub fn with_hasher_in(hasher: S, alloc: A) -> Self {
         Self {
             items: ItemSet::with_capacity_in(0, alloc.clone()),
@@ -177,8 +426,51 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Clone + Allocator>
         }
     }
 
-    /// Creates a new `BiHashMap` with the given capacity, hasher, and
+    /// Creates a new, empty `BiHashMap` with the given capacity, hasher, and
     /// allocator.
+    ///
+    /// Requires the `allocator-api2` feature to be enabled.
+    ///
+    /// # Examples
+    ///
+    /// Using the [`bumpalo`](https://docs.rs/bumpalo) allocator:
+    ///
+    /// ```
+    /// # #[cfg(feature = "allocator-api2")] {
+    /// use iddqd::{BiHashItem, BiHashMap, bi_upcast};
+    /// use std::collections::hash_map::RandomState;
+    /// # use iddqd_test_utils::bumpalo;
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Item {
+    ///     id: u32,
+    ///     name: String,
+    ///     value: i32,
+    /// }
+    ///
+    /// impl BiHashItem for Item {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.name
+    ///     }
+    ///     bi_upcast!();
+    /// }
+    ///
+    /// // Define a new allocator.
+    /// let bump = bumpalo::Bump::new();
+    /// let hasher = RandomState::new();
+    /// // Create a new BiHashMap with capacity and hasher using the allocator.
+    /// let map: BiHashMap<Item, _, &bumpalo::Bump> =
+    ///     BiHashMap::with_capacity_and_hasher_in(10, hasher, &bump);
+    /// assert!(map.capacity() >= 10);
+    /// assert!(map.is_empty());
+    /// # }
+    /// ```
     pub fn with_capacity_and_hasher_in(
         capacity: usize,
         hasher: S,
@@ -202,36 +494,218 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
     }
 
     /// Returns the allocator.
+    ///
+    /// Requires the `allocator-api2` feature to be enabled.
+    ///
+    /// # Examples
+    ///
+    /// Using the [`bumpalo`](https://docs.rs/bumpalo) allocator:
+    ///
+    /// ```
+    /// # #[cfg(all(feature = "default-hasher", feature = "allocator-api2"))] {
+    /// use iddqd::{BiHashMap, BiHashItem, bi_upcast};
+    /// # use iddqd_test_utils::bumpalo;
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Item {
+    ///     id: u32,
+    ///     name: String,
+    ///     value: i32,
+    /// }
+    ///
+    /// impl BiHashItem for Item {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.name
+    ///     }
+    ///     bi_upcast!();
+    /// }
+    ///
+    /// // Define a new allocator.
+    /// let bump = bumpalo::Bump::new();
+    /// // Create a new BiHashMap using the allocator.
+    /// let map: BiHashMap<Item, _, &bumpalo::Bump> = BiHashMap::new_in(&bump);
+    /// let _allocator = map.allocator();
+    /// # }
+    /// ```
     #[inline]
     pub fn allocator(&self) -> &A {
         self.items.allocator()
     }
 
     /// Returns the currently allocated capacity of the map.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{BiHashItem, BiHashMap, bi_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Item {
+    ///     id: u32,
+    ///     name: String,
+    ///     value: i32,
+    /// }
+    ///
+    /// impl BiHashItem for Item {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.name
+    ///     }
+    ///     bi_upcast!();
+    /// }
+    ///
+    /// let map: BiHashMap<Item> = BiHashMap::with_capacity(10);
+    /// assert!(map.capacity() >= 10);
+    ///
+    /// let empty_map: BiHashMap<Item> = BiHashMap::new();
+    /// assert!(empty_map.capacity() >= 0);
+    /// # }
+    /// ```
     pub fn capacity(&self) -> usize {
         // items and tables.capacity might theoretically diverge: use
         // items.capacity.
         self.items.capacity()
     }
 
-    /// Returns true if the map is empty.
+    /// Returns true if the map contains no items.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{BiHashItem, BiHashMap, bi_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Item {
+    ///     id: u32,
+    ///     name: String,
+    ///     value: i32,
+    /// }
+    ///
+    /// impl BiHashItem for Item {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.name
+    ///     }
+    ///     bi_upcast!();
+    /// }
+    ///
+    /// let mut map = BiHashMap::new();
+    /// assert!(map.is_empty());
+    ///
+    /// map.insert_unique(Item { id: 1, name: "foo".to_string(), value: 42 })
+    ///     .unwrap();
+    /// assert!(!map.is_empty());
+    /// # }
+    /// ```
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.items.is_empty()
     }
 
     /// Returns the number of items in the map.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{BiHashItem, BiHashMap, bi_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Item {
+    ///     id: u32,
+    ///     name: String,
+    ///     value: i32,
+    /// }
+    ///
+    /// impl BiHashItem for Item {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.name
+    ///     }
+    ///     bi_upcast!();
+    /// }
+    ///
+    /// let mut map = BiHashMap::new();
+    /// assert_eq!(map.len(), 0);
+    ///
+    /// map.insert_unique(Item { id: 1, name: "foo".to_string(), value: 42 })
+    ///     .unwrap();
+    /// map.insert_unique(Item { id: 2, name: "bar".to_string(), value: 99 })
+    ///     .unwrap();
+    /// assert_eq!(map.len(), 2);
+    /// # }
+    /// ```
     #[inline]
     pub fn len(&self) -> usize {
         self.items.len()
     }
 
-    /// Iterates over the items in the map.
+    /// Returns an iterator over all items in the map.
     ///
     /// Similar to [`HashMap`], the iteration order is arbitrary and not
     /// guaranteed to be stable.
     ///
     /// [`HashMap`]: std::collections::HashMap
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{BiHashItem, BiHashMap, bi_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Item {
+    ///     id: u32,
+    ///     name: String,
+    ///     value: i32,
+    /// }
+    ///
+    /// impl BiHashItem for Item {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.name
+    ///     }
+    ///     bi_upcast!();
+    /// }
+    ///
+    /// let mut map = BiHashMap::new();
+    /// map.insert_unique(Item { id: 1, name: "foo".to_string(), value: 42 })
+    ///     .unwrap();
+    /// map.insert_unique(Item { id: 2, name: "bar".to_string(), value: 99 })
+    ///     .unwrap();
+    ///
+    /// let mut values: Vec<i32> = map.iter().map(|item| item.value).collect();
+    /// values.sort();
+    /// assert_eq!(values, vec![42, 99]);
+    /// # }
+    /// ```
     #[inline]
     pub fn iter(&self) -> Iter<'_, T> {
         Iter::new(&self.items)
@@ -241,6 +715,47 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
     ///
     /// Similar to [`HashMap`], the iteration order is arbitrary and not
     /// guaranteed to be stable.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{BiHashItem, BiHashMap, bi_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Item {
+    ///     id: u32,
+    ///     name: String,
+    ///     value: i32,
+    /// }
+    ///
+    /// impl BiHashItem for Item {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.name
+    ///     }
+    ///     bi_upcast!();
+    /// }
+    ///
+    /// let mut map = BiHashMap::new();
+    /// map.insert_unique(Item { id: 1, name: "foo".to_string(), value: 42 })
+    ///     .unwrap();
+    /// map.insert_unique(Item { id: 2, name: "bar".to_string(), value: 99 })
+    ///     .unwrap();
+    ///
+    /// for mut item in map.iter_mut() {
+    ///     item.value += 10;
+    /// }
+    ///
+    /// assert_eq!(map.get1(&1).unwrap().value, 52);
+    /// assert_eq!(map.get1(&2).unwrap().value, 109);
+    /// # }
+    /// ```
     ///
     /// [`HashMap`]: std::collections::HashMap
     #[inline]
@@ -294,6 +809,53 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
 
     /// Inserts a value into the map, removing any conflicting items and
     /// returning a list of those items.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{BiHashItem, BiHashMap, bi_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Item {
+    ///     id: u32,
+    ///     name: String,
+    ///     value: i32,
+    /// }
+    ///
+    /// impl BiHashItem for Item {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.name
+    ///     }
+    ///     bi_upcast!();
+    /// }
+    ///
+    /// let mut map = BiHashMap::new();
+    /// map.insert_unique(Item { id: 1, name: "foo".to_string(), value: 42 })
+    ///     .unwrap();
+    /// map.insert_unique(Item { id: 2, name: "bar".to_string(), value: 99 })
+    ///     .unwrap();
+    ///
+    /// // Insert an item with conflicting key1
+    /// let removed = map.insert_overwrite(Item {
+    ///     id: 1,
+    ///     name: "baz".to_string(),
+    ///     value: 100,
+    /// });
+    /// assert_eq!(removed.len(), 1);
+    /// assert_eq!(removed[0].name, "foo");
+    /// assert_eq!(removed[0].value, 42);
+    ///
+    /// assert_eq!(map.len(), 2);
+    /// assert_eq!(map.get1(&1).unwrap().name, "baz");
+    /// # }
+    /// ```
     #[doc(alias = "insert")]
     pub fn insert_overwrite(&mut self, value: T) -> Vec<T> {
         // Trying to write this function for maximal efficiency can get very
@@ -318,6 +880,58 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
 
     /// Inserts a value into the set, returning an error if any duplicates were
     /// added.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{BiHashItem, BiHashMap, bi_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Item {
+    ///     id: u32,
+    ///     name: String,
+    ///     value: i32,
+    /// }
+    ///
+    /// impl BiHashItem for Item {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.name
+    ///     }
+    ///     bi_upcast!();
+    /// }
+    ///
+    /// let mut map = BiHashMap::new();
+    ///
+    /// // Successful insertion
+    /// assert!(
+    ///     map.insert_unique(Item { id: 1, name: "foo".to_string(), value: 42 })
+    ///         .is_ok()
+    /// );
+    /// assert!(
+    ///     map.insert_unique(Item { id: 2, name: "bar".to_string(), value: 99 })
+    ///         .is_ok()
+    /// );
+    ///
+    /// // Duplicate key1
+    /// assert!(
+    ///     map.insert_unique(Item { id: 1, name: "baz".to_string(), value: 100 })
+    ///         .is_err()
+    /// );
+    ///
+    /// // Duplicate key2
+    /// assert!(
+    ///     map.insert_unique(Item { id: 3, name: "foo".to_string(), value: 200 })
+    ///         .is_err()
+    /// );
+    /// # }
+    /// ```
     pub fn insert_unique(
         &mut self,
         value: T,
@@ -327,6 +941,43 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
     }
 
     /// Returns true if the map contains a single item that matches both `key1` and `key2`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{BiHashItem, BiHashMap, bi_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Item {
+    ///     id: u32,
+    ///     name: String,
+    ///     value: i32,
+    /// }
+    ///
+    /// impl BiHashItem for Item {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.name
+    ///     }
+    ///     bi_upcast!();
+    /// }
+    ///
+    /// let mut map = BiHashMap::new();
+    /// map.insert_unique(Item { id: 1, name: "foo".to_string(), value: 42 }).unwrap();
+    /// map.insert_unique(Item { id: 2, name: "bar".to_string(), value: 99 }).unwrap();
+    ///
+    /// assert!(map.contains_key_unique(&1, &"foo"));
+    /// assert!(map.contains_key_unique(&2, &"bar"));
+    /// assert!(!map.contains_key_unique(&1, &"bar")); // key1 exists but key2 doesn't match
+    /// assert!(!map.contains_key_unique(&3, &"baz")); // neither key exists
+    /// # }
+    /// ```
     pub fn contains_key_unique<'a, Q1, Q2>(
         &'a self,
         key1: &Q1,
@@ -341,6 +992,43 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
 
     /// Gets a reference to the unique item associated with the given `key1` and
     /// `key2`, if it exists.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{BiHashItem, BiHashMap, bi_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Item {
+    ///     id: u32,
+    ///     name: String,
+    ///     value: i32,
+    /// }
+    ///
+    /// impl BiHashItem for Item {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.name
+    ///     }
+    ///     bi_upcast!();
+    /// }
+    ///
+    /// let mut map = BiHashMap::new();
+    /// map.insert_unique(Item { id: 1, name: "foo".to_string(), value: 42 }).unwrap();
+    /// map.insert_unique(Item { id: 2, name: "bar".to_string(), value: 99 }).unwrap();
+    ///
+    /// assert_eq!(map.get_unique(&1, &"foo").unwrap().value, 42);
+    /// assert_eq!(map.get_unique(&2, &"bar").unwrap().value, 99);
+    /// assert!(map.get_unique(&1, &"bar").is_none()); // key1 exists but key2 doesn't match
+    /// assert!(map.get_unique(&3, &"baz").is_none()); // neither key exists
+    /// # }
+    /// ```
     pub fn get_unique<'a, Q1, Q2>(
         &'a self,
         key1: &Q1,
@@ -410,6 +1098,44 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
     }
 
     /// Returns true if the map contains the given `key1`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{BiHashItem, BiHashMap, bi_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Item {
+    ///     id: u32,
+    ///     name: String,
+    ///     value: i32,
+    /// }
+    ///
+    /// impl BiHashItem for Item {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.name
+    ///     }
+    ///     bi_upcast!();
+    /// }
+    ///
+    /// let mut map = BiHashMap::new();
+    /// map.insert_unique(Item { id: 1, name: "foo".to_string(), value: 42 })
+    ///     .unwrap();
+    /// map.insert_unique(Item { id: 2, name: "bar".to_string(), value: 99 })
+    ///     .unwrap();
+    ///
+    /// assert!(map.contains_key1(&1));
+    /// assert!(map.contains_key1(&2));
+    /// assert!(!map.contains_key1(&3));
+    /// # }
+    /// ```
     pub fn contains_key1<'a, Q>(&'a self, key1: &Q) -> bool
     where
         Q: Hash + Equivalent<T::K1<'a>> + ?Sized,
@@ -418,6 +1144,44 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
     }
 
     /// Gets a reference to the value associated with the given `key1`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{BiHashItem, BiHashMap, bi_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Item {
+    ///     id: u32,
+    ///     name: String,
+    ///     value: i32,
+    /// }
+    ///
+    /// impl BiHashItem for Item {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.name
+    ///     }
+    ///     bi_upcast!();
+    /// }
+    ///
+    /// let mut map = BiHashMap::new();
+    /// map.insert_unique(Item { id: 1, name: "foo".to_string(), value: 42 })
+    ///     .unwrap();
+    /// map.insert_unique(Item { id: 2, name: "bar".to_string(), value: 99 })
+    ///     .unwrap();
+    ///
+    /// assert_eq!(map.get1(&1).unwrap().value, 42);
+    /// assert_eq!(map.get1(&2).unwrap().value, 99);
+    /// assert!(map.get1(&3).is_none());
+    /// # }
+    /// ```
     pub fn get1<'a, Q>(&'a self, key1: &Q) -> Option<&'a T>
     where
         Q: Hash + Equivalent<T::K1<'a>> + ?Sized,
@@ -445,6 +1209,46 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
     }
 
     /// Removes an item from the map by its `key1`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{BiHashItem, BiHashMap, bi_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Item {
+    ///     id: u32,
+    ///     name: String,
+    ///     value: i32,
+    /// }
+    ///
+    /// impl BiHashItem for Item {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.name
+    ///     }
+    ///     bi_upcast!();
+    /// }
+    ///
+    /// let mut map = BiHashMap::new();
+    /// map.insert_unique(Item { id: 1, name: "foo".to_string(), value: 42 })
+    ///     .unwrap();
+    /// map.insert_unique(Item { id: 2, name: "bar".to_string(), value: 99 })
+    ///     .unwrap();
+    ///
+    /// let removed = map.remove1(&1);
+    /// assert_eq!(removed.unwrap().value, 42);
+    /// assert_eq!(map.len(), 1);
+    /// assert!(map.get1(&1).is_none());
+    /// assert!(map.remove1(&3).is_none());
+    /// # }
+    /// ```
     pub fn remove1<'a, Q>(&'a mut self, key1: &Q) -> Option<T>
     where
         Q: Hash + Equivalent<T::K1<'a>> + ?Sized,
@@ -462,6 +1266,44 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
     }
 
     /// Returns true if the map contains the given `key2`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{BiHashItem, BiHashMap, bi_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Item {
+    ///     id: u32,
+    ///     name: String,
+    ///     value: i32,
+    /// }
+    ///
+    /// impl BiHashItem for Item {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.name
+    ///     }
+    ///     bi_upcast!();
+    /// }
+    ///
+    /// let mut map = BiHashMap::new();
+    /// map.insert_unique(Item { id: 1, name: "foo".to_string(), value: 42 })
+    ///     .unwrap();
+    /// map.insert_unique(Item { id: 2, name: "bar".to_string(), value: 99 })
+    ///     .unwrap();
+    ///
+    /// assert!(map.contains_key2(&"foo"));
+    /// assert!(map.contains_key2(&"bar"));
+    /// assert!(!map.contains_key2(&"baz"));
+    /// # }
+    /// ```
     pub fn contains_key2<'a, Q>(&'a self, key2: &Q) -> bool
     where
         Q: Hash + Equivalent<T::K2<'a>> + ?Sized,
@@ -470,6 +1312,44 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
     }
 
     /// Gets a reference to the value associated with the given `key2`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{BiHashItem, BiHashMap, bi_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Item {
+    ///     id: u32,
+    ///     name: String,
+    ///     value: i32,
+    /// }
+    ///
+    /// impl BiHashItem for Item {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.name
+    ///     }
+    ///     bi_upcast!();
+    /// }
+    ///
+    /// let mut map = BiHashMap::new();
+    /// map.insert_unique(Item { id: 1, name: "foo".to_string(), value: 42 })
+    ///     .unwrap();
+    /// map.insert_unique(Item { id: 2, name: "bar".to_string(), value: 99 })
+    ///     .unwrap();
+    ///
+    /// assert_eq!(map.get2(&"foo").unwrap().value, 42);
+    /// assert_eq!(map.get2(&"bar").unwrap().value, 99);
+    /// assert!(map.get2(&"baz").is_none());
+    /// # }
+    /// ```
     pub fn get2<'a, Q>(&'a self, key2: &Q) -> Option<&'a T>
     where
         Q: Hash + Equivalent<T::K2<'a>> + ?Sized,
@@ -478,6 +1358,44 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
     }
 
     /// Gets a mutable reference to the value associated with the given `key2`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{BiHashItem, BiHashMap, bi_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Item {
+    ///     id: u32,
+    ///     name: String,
+    ///     value: i32,
+    /// }
+    ///
+    /// impl BiHashItem for Item {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.name
+    ///     }
+    ///     bi_upcast!();
+    /// }
+    ///
+    /// let mut map = BiHashMap::new();
+    /// map.insert_unique(Item { id: 1, name: "foo".to_string(), value: 42 })
+    ///     .unwrap();
+    ///
+    /// if let Some(mut item_ref) = map.get2_mut(&"foo") {
+    ///     item_ref.value = 100;
+    /// }
+    ///
+    /// assert_eq!(map.get2(&"foo").unwrap().value, 100);
+    /// # }
+    /// ```
     pub fn get2_mut<'a, Q>(&'a mut self, key2: &Q) -> Option<RefMut<'a, T, S>>
     where
         Q: Hash + Equivalent<T::K2<'a>> + ?Sized,
@@ -497,6 +1415,46 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
     }
 
     /// Removes an item from the map by its `key2`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{BiHashItem, BiHashMap, bi_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Item {
+    ///     id: u32,
+    ///     name: String,
+    ///     value: i32,
+    /// }
+    ///
+    /// impl BiHashItem for Item {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.name
+    ///     }
+    ///     bi_upcast!();
+    /// }
+    ///
+    /// let mut map = BiHashMap::new();
+    /// map.insert_unique(Item { id: 1, name: "foo".to_string(), value: 42 })
+    ///     .unwrap();
+    /// map.insert_unique(Item { id: 2, name: "bar".to_string(), value: 99 })
+    ///     .unwrap();
+    ///
+    /// let removed = map.remove2(&"foo");
+    /// assert_eq!(removed.unwrap().value, 42);
+    /// assert_eq!(map.len(), 1);
+    /// assert!(map.get2(&"foo").is_none());
+    /// assert!(map.remove2(&"baz").is_none());
+    /// # }
+    /// ```
     pub fn remove2<'a, Q>(&'a mut self, key2: &Q) -> Option<T>
     where
         Q: Hash + Equivalent<T::K2<'a>> + ?Sized,
@@ -517,6 +1475,56 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
     ///
     /// Due to borrow checker limitations, this always accepts owned keys rather
     /// than a borrowed form of them.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{BiHashItem, BiHashMap, bi_hash_map, bi_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Item {
+    ///     id: u32,
+    ///     name: String,
+    ///     value: i32,
+    /// }
+    ///
+    /// impl BiHashItem for Item {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.name
+    ///     }
+    ///     bi_upcast!();
+    /// }
+    ///
+    /// let mut map = BiHashMap::new();
+    /// map.insert_unique(Item { id: 1, name: "foo".to_string(), value: 42 })
+    ///     .unwrap();
+    ///
+    /// // Get existing entry
+    /// match map.entry(1, "foo") {
+    ///     bi_hash_map::Entry::Occupied(entry) => {
+    ///         assert_eq!(entry.get().as_unique().unwrap().value, 42);
+    ///     }
+    ///     bi_hash_map::Entry::Vacant(_) => panic!("Should be occupied"),
+    /// }
+    ///
+    /// // Try to get a non-existing entry
+    /// match map.entry(2, "bar") {
+    ///     bi_hash_map::Entry::Occupied(_) => panic!("Should be vacant"),
+    ///     bi_hash_map::Entry::Vacant(entry) => {
+    ///         entry.insert(Item { id: 2, name: "bar".to_string(), value: 99 });
+    ///     }
+    /// }
+    ///
+    /// assert_eq!(map.len(), 2);
+    /// # }
+    /// ```
     pub fn entry<'a>(
         &'a mut self,
         key1: T::K1<'_>,
@@ -881,6 +1889,55 @@ where
     }
 }
 
+/// The `PartialEq` implementation for `BiHashMap` checks that both maps have
+/// the same items, regardless of insertion order.
+///
+/// # Examples
+///
+/// ```
+/// # #[cfg(feature = "default-hasher")] {
+/// use iddqd::{BiHashItem, BiHashMap, bi_upcast};
+///
+/// #[derive(Debug, PartialEq, Eq)]
+/// struct Item {
+///     id: u32,
+///     name: String,
+///     value: i32,
+/// }
+///
+/// impl BiHashItem for Item {
+///     type K1<'a> = u32;
+///     type K2<'a> = &'a str;
+///
+///     fn key1(&self) -> Self::K1<'_> {
+///         self.id
+///     }
+///     fn key2(&self) -> Self::K2<'_> {
+///         &self.name
+///     }
+///     bi_upcast!();
+/// }
+///
+/// let mut map1 = BiHashMap::new();
+/// map1.insert_unique(Item { id: 1, name: "foo".to_string(), value: 42 })
+///     .unwrap();
+/// map1.insert_unique(Item { id: 2, name: "bar".to_string(), value: 99 })
+///     .unwrap();
+///
+/// let mut map2 = BiHashMap::new();
+/// map2.insert_unique(Item { id: 2, name: "bar".to_string(), value: 99 })
+///     .unwrap();
+/// map2.insert_unique(Item { id: 1, name: "foo".to_string(), value: 42 })
+///     .unwrap();
+///
+/// // Maps are equal even if items were inserted in different order
+/// assert_eq!(map1, map2);
+///
+/// map2.insert_unique(Item { id: 3, name: "baz".to_string(), value: 200 })
+///     .unwrap();
+/// assert_ne!(map1, map2);
+/// # }
+/// ```
 impl<T: BiHashItem + PartialEq, S: Clone + BuildHasher, A: Allocator> PartialEq
     for BiHashMap<T, S, A>
 {
@@ -955,6 +2012,47 @@ fn detect_dup_or_insert<'a, A: Allocator>(
 
 /// The `Extend` implementation overwrites duplicates. In the future, there will
 /// also be an `extend_unique` method that will return an error.
+///
+/// # Examples
+///
+/// ```
+/// # #[cfg(feature = "default-hasher")] {
+/// use iddqd::{BiHashItem, BiHashMap, bi_upcast};
+///
+/// #[derive(Debug, PartialEq, Eq)]
+/// struct Item {
+///     id: u32,
+///     name: String,
+///     value: i32,
+/// }
+///
+/// impl BiHashItem for Item {
+///     type K1<'a> = u32;
+///     type K2<'a> = &'a str;
+///
+///     fn key1(&self) -> Self::K1<'_> {
+///         self.id
+///     }
+///     fn key2(&self) -> Self::K2<'_> {
+///         &self.name
+///     }
+///     bi_upcast!();
+/// }
+///
+/// let mut map = BiHashMap::new();
+/// map.insert_unique(Item { id: 1, name: "foo".to_string(), value: 42 }).unwrap();
+///
+/// let new_items = vec![
+///     Item { id: 2, name: "bar".to_string(), value: 99 },
+///     Item { id: 1, name: "baz".to_string(), value: 100 }, // overwrites existing
+/// ];
+///
+/// map.extend(new_items);
+/// assert_eq!(map.len(), 2);
+/// assert_eq!(map.get1(&1).unwrap().name, "baz"); // overwritten
+/// assert_eq!(map.get1(&1).unwrap().value, 100);
+/// # }
+/// ```
 impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> Extend<T>
     for BiHashMap<T, S, A>
 {
@@ -1003,6 +2101,46 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> IntoIterator
 
 /// The `FromIterator` implementation for `BiHashMap` overwrites duplicate
 /// items.
+///
+/// # Examples
+///
+/// ```
+/// # #[cfg(feature = "default-hasher")] {
+/// use iddqd::{BiHashItem, BiHashMap, bi_upcast};
+///
+/// #[derive(Debug, PartialEq, Eq)]
+/// struct Item {
+///     id: u32,
+///     name: String,
+///     value: i32,
+/// }
+///
+/// impl BiHashItem for Item {
+///     type K1<'a> = u32;
+///     type K2<'a> = &'a str;
+///
+///     fn key1(&self) -> Self::K1<'_> {
+///         self.id
+///     }
+///     fn key2(&self) -> Self::K2<'_> {
+///         &self.name
+///     }
+///     bi_upcast!();
+/// }
+///
+/// let items = vec![
+///     Item { id: 1, name: "foo".to_string(), value: 42 },
+///     Item { id: 2, name: "bar".to_string(), value: 99 },
+///     Item { id: 1, name: "baz".to_string(), value: 100 }, // overwrites first item
+/// ];
+///
+/// let map: BiHashMap<Item> = items.into_iter().collect();
+/// assert_eq!(map.len(), 2);
+/// assert_eq!(map.get1(&1).unwrap().name, "baz"); // overwritten
+/// assert_eq!(map.get1(&1).unwrap().value, 100);
+/// assert_eq!(map.get1(&2).unwrap().value, 99);
+/// # }
+/// ```
 impl<T: BiHashItem, S: Clone + BuildHasher + Default, A: Default + Allocator>
     FromIterator<T> for BiHashMap<T, S, A>
 {
