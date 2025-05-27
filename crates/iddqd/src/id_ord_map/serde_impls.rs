@@ -34,8 +34,8 @@ use serde::{
 /// }
 ///
 /// impl IdOrdItem for Item {
-///     type Id<'a> = ComplexKey<'a>;
-///     fn id(&self) -> Self::Id<'_> {
+///     type Key<'a> = ComplexKey<'a>;
+///     fn key(&self) -> Self::Key<'_> {
 ///         ComplexKey { id: self.id, email: &self.email }
 ///     }
 ///     id_upcast!();
