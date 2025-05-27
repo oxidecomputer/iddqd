@@ -41,6 +41,111 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> Diffable
 /// * [`Self::by_key2`] to get a diff indexed by `key2`.
 /// * [`Self::by_key3`] to get a diff indexed by `key3`.
 /// * [`Self::by_unique`] to get a diff indexed by `key1`, `key2`, and `key3`.
+///
+/// # Examples
+///
+/// ```
+/// # #[cfg(feature = "default-hasher")] {
+/// use daft::Diffable;
+/// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
+///
+/// #[derive(Eq, PartialEq)]
+/// struct Item {
+///     id: u32,
+///     name: String,
+///     email: String,
+///     value: u32,
+/// }
+///
+/// impl TriHashItem for Item {
+///     type K1<'a> = u32;
+///     type K2<'a> = &'a str;
+///     type K3<'a> = &'a str;
+///
+///     fn key1(&self) -> Self::K1<'_> {
+///         self.id
+///     }
+///
+///     fn key2(&self) -> Self::K2<'_> {
+///         &self.name
+///     }
+///
+///     fn key3(&self) -> Self::K3<'_> {
+///         &self.email
+///     }
+///
+///     tri_upcast!();
+/// }
+///
+/// // Create two TriHashMaps with overlapping items.
+/// let mut map1 = TriHashMap::new();
+/// map1.insert_unique(Item {
+///     id: 1,
+///     name: "alice".to_string(),
+///     email: "alice@example.com".to_string(),
+///     value: 10,
+/// });
+/// map1.insert_unique(Item {
+///     id: 2,
+///     name: "bob".to_string(),
+///     email: "bob@example.com".to_string(),
+///     value: 20,
+/// });
+///
+/// let mut map2 = TriHashMap::new();
+/// map2.insert_unique(Item {
+///     id: 2,
+///     name: "bob".to_string(),
+///     email: "bob@example.com".to_string(),
+///     value: 30,
+/// });
+/// map2.insert_unique(Item {
+///     id: 3,
+///     name: "charlie".to_string(),
+///     email: "charlie@example.com".to_string(),
+///     value: 40,
+/// });
+///
+/// // Compute the diff between the two maps.
+/// let map_leaf = map1.diff(&map2);
+///
+/// // Get diff by key1 (id).
+/// let diff_by_id = map_leaf.by_key1();
+/// // alice removed, bob modified, charlie added.
+/// assert!(diff_by_id.removed.contains_key(&1));
+/// assert!(diff_by_id.is_modified(&2));
+/// assert!(diff_by_id.added.contains_key(&3));
+///
+/// // Get diff by key2 (name).
+/// let diff_by_name = map_leaf.by_key2();
+/// // alice removed, bob modified, charlie added.
+/// assert!(diff_by_name.removed.contains_key("alice"));
+/// assert!(diff_by_name.is_modified("bob"));
+/// assert!(diff_by_name.added.contains_key("charlie"));
+///
+/// // Get diff by key3 (email).
+/// let diff_by_email = map_leaf.by_key3();
+/// // alice's email removed, bob's email modified, charlie's email added.
+/// assert!(diff_by_email.removed.contains_key("alice@example.com"));
+/// assert!(diff_by_email.is_modified("bob@example.com"));
+/// assert!(diff_by_email.added.contains_key("charlie@example.com"));
+///
+/// // Get diff by unique combination of all three keys.
+/// let diff_unique = map_leaf.by_unique();
+/// // alice removed (by id, name and email)
+/// assert!(diff_unique.removed.contains_key1(&1));
+/// assert!(diff_unique.removed.contains_key2("alice"));
+/// assert!(diff_unique.removed.contains_key3("alice@example.com"));
+/// // bob modified (by id, name and email)
+/// assert!(diff_unique.is_modified1(&2));
+/// assert!(diff_unique.is_modified2("bob"));
+/// assert!(diff_unique.is_modified3("bob@example.com"));
+/// // charlie added (by id, name and email)
+/// assert!(diff_unique.added.contains_key1(&3));
+/// assert!(diff_unique.added.contains_key2("charlie"));
+/// assert!(diff_unique.added.contains_key3("charlie@example.com"));
+/// # }
+/// ```
 #[derive_where(
     Debug;
     T: fmt::Debug,
