@@ -41,7 +41,11 @@ where
 
         // Now build a map from scratch, inserting the items sequentially.
         // This will catch issues with duplicates.
-        let mut map = IdHashMap::default();
+        let mut map = IdHashMap::with_capacity_and_hasher_in(
+            items.len(),
+            S::default(),
+            A::default(),
+        );
         for item in items {
             map.insert_unique(item).map_err(serde::de::Error::custom)?;
         }
@@ -78,7 +82,8 @@ impl<
 
         // Now build a map from scratch, inserting the items sequentially.
         // This will catch issues with duplicates.
-        let mut map = IdHashMap::with_hasher_in(hasher, alloc);
+        let mut map =
+            IdHashMap::with_capacity_and_hasher_in(items.len(), hasher, alloc);
         for item in items {
             map.insert_unique(item).map_err(serde::de::Error::custom)?;
         }
