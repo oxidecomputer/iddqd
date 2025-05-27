@@ -7,6 +7,56 @@ use serde::{
 
 /// An `IdHashMap` serializes to the list of items. Items are serialized in
 /// arbitrary order.
+///
+/// Serializing as a list of items rather than as a map works around the lack of
+/// non-string keys in formats like JSON.
+///
+/// # Examples
+///
+/// ```
+/// # #[cfg(feature = "default-hasher")] {
+/// use iddqd::{IdHashItem, IdHashMap, id_upcast};
+/// # use iddqd_test_utils::serde_json;
+/// use serde::{Deserialize, Serialize};
+///
+/// #[derive(Debug, Serialize)]
+/// struct Item {
+///     id: u32,
+///     name: String,
+///     email: String,
+/// }
+///
+/// // This is a complex key, so it can't be a JSON map key.
+/// #[derive(Eq, Hash, PartialEq)]
+/// struct ComplexKey<'a> {
+///     id: u32,
+///     email: &'a str,
+/// }
+///
+/// impl IdHashItem for Item {
+///     type Key<'a> = ComplexKey<'a>;
+///     fn key(&self) -> Self::Key<'_> {
+///         ComplexKey { id: self.id, email: &self.email }
+///     }
+///     id_upcast!();
+/// }
+///
+/// let mut map = IdHashMap::<Item>::new();
+/// map.insert_unique(Item {
+///     id: 1,
+///     name: "Alice".to_string(),
+///     email: "alice@example.com".to_string(),
+/// })
+/// .unwrap();
+///
+/// // The map is serialized as a list of items.
+/// let serialized = serde_json::to_string(&map).unwrap();
+/// assert_eq!(
+///     serialized,
+///     r#"[{"id":1,"name":"Alice","email":"alice@example.com"}]"#,
+/// );
+/// # }
+/// ```
 impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> Serialize
     for IdHashMap<T, S, A>
 where
