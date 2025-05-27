@@ -1,8 +1,9 @@
 use super::{IdOrdItem, IdOrdMap};
-use alloc::vec::Vec;
-use core::fmt;
+use core::{fmt, marker::PhantomData};
 use serde::{
-    Deserialize, Deserializer, Serialize, Serializer, ser::SerializeSeq,
+    Deserialize, Deserializer, Serialize, Serializer,
+    de::{SeqAccess, Visitor},
+    ser::SerializeSeq,
 };
 
 /// An `IdOrdMap` serializes to the list of items. Items are serialized in
@@ -35,11 +36,40 @@ where
     where
         D: Deserializer<'de>,
     {
-        let items = Vec::<T>::deserialize(deserializer)?;
-        let mut map = IdOrdMap::new();
-        for item in items {
-            map.insert_unique(item).map_err(serde::de::Error::custom)?;
+        deserializer.deserialize_seq(SeqVisitor { _marker: PhantomData })
+    }
+}
+
+struct SeqVisitor<T> {
+    _marker: PhantomData<fn() -> T>,
+}
+
+impl<'de, T> Visitor<'de> for SeqVisitor<T>
+where
+    T: IdOrdItem + Deserialize<'de> + fmt::Debug,
+{
+    type Value = IdOrdMap<T>;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("a sequence of items representing an IdOrdMap")
+    }
+
+    fn visit_seq<Access>(
+        self,
+        mut seq: Access,
+    ) -> Result<Self::Value, Access::Error>
+    where
+        Access: SeqAccess<'de>,
+    {
+        let mut map = match seq.size_hint() {
+            Some(size) => IdOrdMap::with_capacity(size),
+            None => IdOrdMap::new(),
+        };
+
+        while let Some(element) = seq.next_element()? {
+            map.insert_unique(element).map_err(serde::de::Error::custom)?;
         }
+
         Ok(map)
     }
 }

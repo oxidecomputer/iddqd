@@ -1,7 +1,9 @@
 use crate::{BiHashItem, BiHashMap, support::alloc::Allocator};
-use alloc::vec::Vec;
-use core::{fmt, hash::BuildHasher};
-use serde::{Deserialize, Serialize, Serializer};
+use core::{fmt, hash::BuildHasher, marker::PhantomData};
+use serde::{
+    Deserialize, Serialize, Serializer,
+    de::{SeqAccess, Visitor},
+};
 
 /// A `BiHashMap` serializes to the list of items. Items are serialized in
 /// arbitrary order.
@@ -36,21 +38,11 @@ where
     fn deserialize<D: serde::Deserializer<'de>>(
         deserializer: D,
     ) -> Result<Self, D::Error> {
-        // First, deserialize the items.
-        let items = Vec::<T>::deserialize(deserializer)?;
-
-        // Now build a map from scratch, inserting the items sequentially.
-        // This will catch issues with duplicates.
-        let mut map = BiHashMap::with_capacity_and_hasher_in(
-            items.len(),
-            S::default(),
-            A::default(),
-        );
-        for item in items {
-            map.insert_unique(item).map_err(serde::de::Error::custom)?;
-        }
-
-        Ok(map)
+        deserializer.deserialize_seq(SeqVisitor {
+            _marker: PhantomData,
+            hasher: S::default(),
+            alloc: A::default(),
+        })
     }
 }
 
@@ -70,7 +62,27 @@ impl<
     where
         S: Default,
     {
-        Self::deserialize_with_hasher_in(deserializer, S::default(), alloc)
+        deserializer.deserialize_seq(SeqVisitor {
+            _marker: PhantomData,
+            hasher: S::default(),
+            alloc,
+        })
+    }
+
+    /// Deserializes from a list of items, with the given hasher, using the
+    /// default allocator.
+    pub fn deserialize_with_hasher<D: serde::Deserializer<'de>>(
+        deserializer: D,
+        hasher: S,
+    ) -> Result<Self, D::Error>
+    where
+        A: Default,
+    {
+        deserializer.deserialize_seq(SeqVisitor {
+            _marker: PhantomData,
+            hasher,
+            alloc: A::default(),
+        })
     }
 
     /// Deserializes from a list of items, with the given hasher, and allocating
@@ -80,15 +92,53 @@ impl<
         hasher: S,
         alloc: A,
     ) -> Result<Self, D::Error> {
-        // First, deserialize the items.
-        let items = Vec::<T>::deserialize(deserializer)?;
+        deserializer.deserialize_seq(SeqVisitor {
+            _marker: PhantomData,
+            hasher,
+            alloc,
+        })
+    }
+}
 
-        // Now build a map from scratch, inserting the items sequentially.
-        // This will catch issues with duplicates.
-        let mut map =
-            BiHashMap::with_capacity_and_hasher_in(items.len(), hasher, alloc);
-        for item in items {
-            map.insert_unique(item).map_err(serde::de::Error::custom)?;
+struct SeqVisitor<T, S, A> {
+    _marker: PhantomData<fn() -> T>,
+    hasher: S,
+    alloc: A,
+}
+
+impl<'de, T, S, A> Visitor<'de> for SeqVisitor<T, S, A>
+where
+    T: BiHashItem + Deserialize<'de> + fmt::Debug,
+    S: Clone + BuildHasher,
+    A: Clone + Allocator,
+{
+    type Value = BiHashMap<T, S, A>;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("a sequence of items representing a BiHashMap")
+    }
+
+    fn visit_seq<Access>(
+        self,
+        mut seq: Access,
+    ) -> Result<Self::Value, Access::Error>
+    where
+        Access: SeqAccess<'de>,
+    {
+        let mut map = match seq.size_hint() {
+            Some(size) => BiHashMap::with_capacity_and_hasher_in(
+                size,
+                self.hasher.clone(),
+                self.alloc.clone(),
+            ),
+            None => BiHashMap::with_hasher_in(
+                self.hasher.clone(),
+                self.alloc.clone(),
+            ),
+        };
+
+        while let Some(element) = seq.next_element()? {
+            map.insert_unique(element).map_err(serde::de::Error::custom)?;
         }
 
         Ok(map)
