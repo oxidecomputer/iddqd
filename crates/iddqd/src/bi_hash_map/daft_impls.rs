@@ -40,6 +40,70 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> Diffable
 /// * [`Self::by_key1`] to get a diff indexed by `key1`.
 /// * [`Self::by_key2`] to get a diff indexed by `key2`.
 /// * [`Self::by_unique`] to get a diff indexed by `key1` and `key2`.
+///
+/// # Examples
+///
+/// ```
+/// # #[cfg(feature = "default-hasher")] {
+/// use daft::Diffable;
+/// use iddqd::{BiHashItem, BiHashMap, bi_upcast};
+///
+/// #[derive(Eq, PartialEq)]
+/// struct Item {
+///     id: u32,
+///     name: String,
+///     value: u32,
+/// }
+///
+/// impl BiHashItem for Item {
+///     type K1<'a> = u32;
+///     type K2<'a> = &'a str;
+///     
+///     fn key1(&self) -> Self::K1<'_> {
+///         self.id
+///     }
+///     
+///     fn key2(&self) -> Self::K2<'_> {
+///         &self.name
+///     }
+///     
+///     bi_upcast!();
+/// }
+///
+/// // Create two BiHashMaps with overlapping items.
+/// let mut map1 = BiHashMap::new();
+/// map1.insert_unique(Item { id: 1, name: "alice".to_string(), value: 10 });
+/// map1.insert_unique(Item { id: 2, name: "bob".to_string(), value: 20 });
+///
+/// let mut map2 = BiHashMap::new();
+/// map2.insert_unique(Item { id: 2, name: "bob".to_string(), value: 30 });
+/// map2.insert_unique(Item { id: 3, name: "charlie".to_string(), value: 40 });
+///
+/// // Compute the diff between the two maps.
+/// let map_leaf = map1.diff(&map2);
+///
+/// // Get diff by key1 (id).
+/// let diff_by_id = map_leaf.by_key1();
+/// assert!(diff_by_id.removed.contains_key(&1));  // alice removed
+/// assert!(diff_by_id.is_modified(&2));           // bob modified
+/// assert!(diff_by_id.added.contains_key(&3));    // charlie added
+///
+/// // Get diff by key2 (name).
+/// let diff_by_name = map_leaf.by_key2();
+/// assert!(diff_by_name.removed.contains_key("alice"));   // alice removed
+/// assert!(diff_by_name.is_modified("bob"));              // bob modified
+/// assert!(diff_by_name.added.contains_key("charlie"));   // charlie added
+///
+/// // Get diff by unique combination of both keys.
+/// let diff_unique = map_leaf.by_unique();
+/// assert!(diff_unique.removed.contains_key1(&1));        // alice removed (by id)
+/// assert!(diff_unique.removed.contains_key2("alice"));   // alice removed (by name)
+/// assert!(diff_unique.is_modified1(&2));                 // bob modified (by id)
+/// assert!(diff_unique.is_modified2("bob"));              // bob modified (by name)
+/// assert!(diff_unique.added.contains_key1(&3));          // charlie added (by id)
+/// assert!(diff_unique.added.contains_key2("charlie"));   // charlie added (by name)
+/// # }
+/// ```
 #[derive_where(
     Debug;
     T: fmt::Debug,
