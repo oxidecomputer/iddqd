@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.3] - 2025-05-27
+
+### Added
+
+- A lot of new documentation. Most functions now have doctests.
+
+### Fixed
+
+- Serde implementations no longer do internal buffering.
+- Serde implementations now reserve capacity if the size hint is available; thanks [@aatifsyed](https://github.com/aatifsyed) for your first contribution!
+- A few unnecessary bounds have been loosened.
+
 ## [0.3.2] - 2025-05-24
 
 ### Added
@@ -66,6 +78,7 @@
 
 Initial release.
 
+[0.3.3]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.3
 [0.3.2]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.2
 [0.3.1]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.1
 [0.3.0]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.0

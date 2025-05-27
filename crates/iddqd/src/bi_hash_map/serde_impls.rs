@@ -184,13 +184,10 @@ where
         let mut map = match seq.size_hint() {
             Some(size) => BiHashMap::with_capacity_and_hasher_in(
                 size,
-                self.hasher.clone(),
-                self.alloc.clone(),
+                self.hasher,
+                self.alloc,
             ),
-            None => BiHashMap::with_hasher_in(
-                self.hasher.clone(),
-                self.alloc.clone(),
-            ),
+            None => BiHashMap::with_hasher_in(self.hasher, self.alloc),
         };
 
         while let Some(element) = seq.next_element()? {
