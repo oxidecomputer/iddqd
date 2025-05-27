@@ -67,11 +67,19 @@ where
         }
         (Some(first_error), Err(error)) => {
             // first_error is the error from the map, and error is the
-            // deserialization error (which should always be a custom
-            // error, stored as a string).
+            // deserialization error (which should always be a custom error,
+            // stored as a string).
             let expected = first_error.to_string();
             let actual = error.to_string();
-            assert_eq!(actual, expected, "error matches");
+
+            // Ensure that line and column numbers are reported.
+            let Some((actual_prefix, _)) = actual.rsplit_once(" at line ")
+            else {
+                panic!(
+                    "error does not contain line number at the end: {actual}"
+                );
+            };
+            assert_eq!(actual_prefix, expected, "error matches");
         }
     }
 }

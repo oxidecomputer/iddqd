@@ -1,7 +1,9 @@
 use crate::{IdHashItem, IdHashMap, support::alloc::Allocator};
-use alloc::vec::Vec;
-use core::{fmt, hash::BuildHasher};
-use serde::{Deserialize, Serialize, Serializer};
+use core::{fmt, hash::BuildHasher, marker::PhantomData};
+use serde::{
+    Deserialize, Serialize, Serializer,
+    de::{SeqAccess, Visitor},
+};
 
 /// An `IdHashMap` serializes to the list of items. Items are serialized in
 /// arbitrary order.
@@ -36,28 +38,18 @@ where
     fn deserialize<D: serde::Deserializer<'de>>(
         deserializer: D,
     ) -> Result<Self, D::Error> {
-        // First, deserialize the items.
-        let items = Vec::<T>::deserialize(deserializer)?;
-
-        // Now build a map from scratch, inserting the items sequentially.
-        // This will catch issues with duplicates.
-        let mut map = IdHashMap::with_capacity_and_hasher_in(
-            items.len(),
-            S::default(),
-            A::default(),
-        );
-        for item in items {
-            map.insert_unique(item).map_err(serde::de::Error::custom)?;
-        }
-
-        Ok(map)
+        deserializer.deserialize_seq(SeqVisitor {
+            _marker: PhantomData,
+            hasher: S::default(),
+            alloc: A::default(),
+        })
     }
 }
 
 impl<
     'de,
     T: IdHashItem + fmt::Debug + Deserialize<'de>,
-    S: Default + Clone + BuildHasher,
+    S: Clone + BuildHasher,
     A: Clone + Allocator,
 > IdHashMap<T, S, A>
 {
@@ -66,8 +58,31 @@ impl<
     pub fn deserialize_in<D: serde::Deserializer<'de>>(
         deserializer: D,
         alloc: A,
-    ) -> Result<Self, D::Error> {
-        Self::deserialize_with_hasher_in(deserializer, S::default(), alloc)
+    ) -> Result<Self, D::Error>
+    where
+        S: Default,
+    {
+        deserializer.deserialize_seq(SeqVisitor {
+            _marker: PhantomData,
+            hasher: S::default(),
+            alloc,
+        })
+    }
+
+    /// Deserializes from a list of items, with the given hasher, using the
+    /// default allocator.
+    pub fn deserialize_with_hasher<D: serde::Deserializer<'de>>(
+        deserializer: D,
+        hasher: S,
+    ) -> Result<Self, D::Error>
+    where
+        A: Default,
+    {
+        deserializer.deserialize_seq(SeqVisitor {
+            _marker: PhantomData,
+            hasher,
+            alloc: A::default(),
+        })
     }
 
     /// Deserializes from a list of items, with the given hasher, and allocating
@@ -78,14 +93,53 @@ impl<
         alloc: A,
     ) -> Result<Self, D::Error> {
         // First, deserialize the items.
-        let items = Vec::<T>::deserialize(deserializer)?;
+        deserializer.deserialize_seq(SeqVisitor {
+            _marker: PhantomData,
+            hasher,
+            alloc,
+        })
+    }
+}
 
-        // Now build a map from scratch, inserting the items sequentially.
-        // This will catch issues with duplicates.
-        let mut map =
-            IdHashMap::with_capacity_and_hasher_in(items.len(), hasher, alloc);
-        for item in items {
-            map.insert_unique(item).map_err(serde::de::Error::custom)?;
+struct SeqVisitor<T, S, A> {
+    _marker: PhantomData<fn() -> T>,
+    hasher: S,
+    alloc: A,
+}
+
+impl<'de, T, S, A> Visitor<'de> for SeqVisitor<T, S, A>
+where
+    T: IdHashItem + Deserialize<'de> + fmt::Debug,
+    S: Clone + BuildHasher,
+    A: Clone + Allocator,
+{
+    type Value = IdHashMap<T, S, A>;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("a sequence of items representing an IdHashMap")
+    }
+
+    fn visit_seq<Access>(
+        self,
+        mut seq: Access,
+    ) -> Result<Self::Value, Access::Error>
+    where
+        Access: SeqAccess<'de>,
+    {
+        let mut map = match seq.size_hint() {
+            Some(size) => IdHashMap::with_capacity_and_hasher_in(
+                size,
+                self.hasher.clone(),
+                self.alloc.clone(),
+            ),
+            None => IdHashMap::with_hasher_in(
+                self.hasher.clone(),
+                self.alloc.clone(),
+            ),
+        };
+
+        while let Some(element) = seq.next_element()? {
+            map.insert_unique(element).map_err(serde::de::Error::custom)?;
         }
 
         Ok(map)
