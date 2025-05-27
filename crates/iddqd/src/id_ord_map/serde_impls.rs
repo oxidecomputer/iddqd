@@ -8,6 +8,54 @@ use serde::{
 
 /// An `IdOrdMap` serializes to the list of items. Items are serialized in
 /// order of their keys.
+///
+/// Serializing as a list of items rather than as a map works around the lack of
+/// non-string keys in formats like JSON.
+///
+/// # Examples
+///
+/// ```
+/// use iddqd::{IdOrdItem, IdOrdMap, id_upcast};
+/// # use iddqd_test_utils::serde_json;
+/// use serde::{Deserialize, Serialize};
+///
+/// #[derive(Debug, Serialize)]
+/// struct Item {
+///     id: u32,
+///     name: String,
+///     email: String,
+/// }
+///
+/// // This is a complex key, so it can't be a JSON map key.
+/// #[derive(Eq, PartialEq, PartialOrd, Ord)]
+/// struct ComplexKey<'a> {
+///     id: u32,
+///     email: &'a str,
+/// }
+///
+/// impl IdOrdItem for Item {
+///     type Id<'a> = ComplexKey<'a>;
+///     fn id(&self) -> Self::Id<'_> {
+///         ComplexKey { id: self.id, email: &self.email }
+///     }
+///     id_upcast!();
+/// }
+///
+/// let mut map = IdOrdMap::<Item>::new();
+/// map.insert_unique(Item {
+///     id: 1,
+///     name: "Alice".to_string(),
+///     email: "alice@example.com".to_string(),
+/// })
+/// .unwrap();
+///
+/// // The map is serialized as a list of items in order of their keys.
+/// let serialized = serde_json::to_string(&map).unwrap();
+/// assert_eq!(
+///     serialized,
+///     r#"[{"id":1,"name":"Alice","email":"alice@example.com"}]"#,
+/// );
+/// ```
 impl<T: IdOrdItem> Serialize for IdOrdMap<T>
 where
     T: Serialize,

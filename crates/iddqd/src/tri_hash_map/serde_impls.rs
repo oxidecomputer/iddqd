@@ -7,6 +7,66 @@ use serde::{
 
 /// A `TriHashMap` serializes to the list of items. Items are serialized in
 /// arbitrary order.
+///
+/// Serializing as a list of items rather than as a map works around the lack of
+/// non-string keys in formats like JSON.
+///
+/// # Examples
+///
+/// ```
+/// # #[cfg(feature = "default-hasher")] {
+/// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
+/// # use iddqd_test_utils::serde_json;
+/// use serde::{Deserialize, Serialize};
+///
+/// #[derive(Debug, Serialize)]
+/// struct Item {
+///     id: u32,
+///     name: String,
+///     email: String,
+///     value: usize,
+/// }
+///
+/// // This is a complex key, so it can't be a JSON map key.
+/// #[derive(Eq, Hash, PartialEq)]
+/// struct ComplexKey<'a> {
+///     name: &'a str,
+///     email: &'a str,
+/// }
+///
+/// impl TriHashItem for Item {
+///     type K1<'a> = u32;
+///     type K2<'a> = &'a str;
+///     type K3<'a> = ComplexKey<'a>;
+///     fn key1(&self) -> Self::K1<'_> {
+///         self.id
+///     }
+///     fn key2(&self) -> Self::K2<'_> {
+///         &self.name
+///     }
+///     fn key3(&self) -> Self::K3<'_> {
+///         ComplexKey { name: &self.name, email: &self.email }
+///     }
+///     tri_upcast!();
+/// }
+///
+/// let mut map = TriHashMap::<Item>::new();
+/// map.insert_unique(Item {
+///     id: 1,
+///     name: "Alice".to_string(),
+///     email: "alice@example.com".to_string(),
+///     value: 42,
+/// })
+/// .unwrap();
+///
+/// // The map is serialized as a list of items.
+/// let serialized = serde_json::to_string(&map).unwrap();
+/// assert_eq!(
+///     serialized,
+///     r#"[{"id":1,"name":"Alice","email":"alice@example.com","value":42}]"#,
+/// );
+/// # }
+/// ```
 impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> Serialize
     for TriHashMap<T, S, A>
 where

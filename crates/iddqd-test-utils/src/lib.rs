@@ -9,3 +9,7 @@ pub mod unwind;
 /// used by doctests.
 #[cfg(feature = "allocator-api2")]
 pub use bumpalo;
+/// Re-exports `serde_json` if the `serde` feature is enabled -- used by
+/// doctests.
+#[cfg(feature = "serde")]
+pub use serde_json;
