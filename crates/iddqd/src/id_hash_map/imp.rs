@@ -1008,10 +1008,8 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
     /// let mut map = IdHashMap::new();
     ///
     /// // Use entry API for conditional insertion
-    /// map.entry("foo".to_string().as_str())
-    ///     .or_insert(Item { id: "foo".to_string(), value: 42 });
-    /// map.entry("bar".to_string().as_str())
-    ///     .or_insert(Item { id: "bar".to_string(), value: 20 });
+    /// map.entry("foo").or_insert(Item { id: "foo".to_string(), value: 42 });
+    /// map.entry("bar").or_insert(Item { id: "bar".to_string(), value: 20 });
     ///
     /// assert_eq!(map.len(), 2);
     /// # }
