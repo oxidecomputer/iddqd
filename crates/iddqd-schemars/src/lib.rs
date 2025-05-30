@@ -109,7 +109,13 @@ use std::{boxed::Box, collections::BTreeMap, marker::PhantomData};
 ///     users: IdHashMap<User>,
 /// }
 /// ```
-pub struct IdHashMapSchema<T>(PhantomData<T>);
+#[derive(Clone, Copy, Debug)]
+pub struct IdHashMapSchema<T>(
+    // Implementation note: here and below, we use fn() -> T to make this type
+    // Send + Sync regardless of T. See
+    // https://doc.rust-lang.org/nomicon/phantom-data.html#table-of-phantomdata-patterns.
+    PhantomData<fn() -> T>,
+);
 
 impl<T> JsonSchema for IdHashMapSchema<T>
 where
@@ -184,7 +190,8 @@ where
 /// }
 /// # }
 /// ```
-pub struct IdOrdMapSchema<T>(PhantomData<T>);
+#[derive(Clone, Copy, Debug)]
+pub struct IdOrdMapSchema<T>(PhantomData<fn() -> T>);
 
 impl<T> JsonSchema for IdOrdMapSchema<T>
 where
@@ -256,7 +263,8 @@ where
 ///     users: BiHashMap<User>,
 /// }
 /// ```
-pub struct BiHashMapSchema<T>(PhantomData<T>);
+#[derive(Clone, Copy, Debug)]
+pub struct BiHashMapSchema<T>(PhantomData<fn() -> T>);
 
 impl<T> JsonSchema for BiHashMapSchema<T>
 where
@@ -336,7 +344,8 @@ where
 ///     users: TriHashMap<User>,
 /// }
 /// ```
-pub struct TriHashMapSchema<T>(PhantomData<T>);
+#[derive(Clone, Copy, Debug)]
+pub struct TriHashMapSchema<T>(PhantomData<fn() -> T>);
 
 impl<T> JsonSchema for TriHashMapSchema<T>
 where
