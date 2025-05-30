@@ -105,7 +105,9 @@ jobs:
       - uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
       - uses: taiki-e/install-action@cargo-hack
       - uses: taiki-e/install-action@nextest
+      # Run tests for all crates containing unsafe code. Currently, that's just
+      # iddqd.
       - name: Run tests
-        run: cargo +nightly miri nextest run
+        run: cargo +nightly miri nextest run -p iddqd
       - name: Doctests
-        run: cargo +nightly miri test --doc
+        run: cargo +nightly miri test --doc -p iddqd
