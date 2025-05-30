@@ -21,7 +21,6 @@ use core::{
     fmt,
     hash::{BuildHasher, Hash},
 };
-use derive_where::derive_where;
 use equivalent::Equivalent;
 use hashbrown::hash_table;
 
@@ -76,7 +75,6 @@ use hashbrown::hash_table;
 /// assert!(map.get2(&"baz").is_none());
 /// # }
 /// ```
-#[derive_where(Default; S: Default, A: Default)]
 #[derive(Clone)]
 pub struct BiHashMap<
     T: BiHashItem,
@@ -87,6 +85,17 @@ pub struct BiHashMap<
     // Invariant: the values (usize) in these tables are valid indexes into
     // `items`, and are a 1:1 mapping.
     tables: BiHashMapTables<S, A>,
+}
+
+impl<T: BiHashItem, S: Default, A: Allocator + Default> Default
+    for BiHashMap<T, S, A>
+{
+    fn default() -> Self {
+        Self {
+            items: ItemSet::with_capacity_in(0, A::default()),
+            tables: BiHashMapTables::default(),
+        }
+    }
 }
 
 #[cfg(feature = "default-hasher")]
@@ -773,7 +782,7 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
         compactness: ValidateCompact,
     ) -> Result<(), ValidationError>
     where
-        T: core::fmt::Debug,
+        T: fmt::Debug,
     {
         self.items.validate(compactness)?;
         self.tables.validate(self.len(), compactness)?;

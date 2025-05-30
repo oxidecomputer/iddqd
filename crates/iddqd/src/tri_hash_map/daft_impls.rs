@@ -13,7 +13,6 @@ use core::{
     hash::{BuildHasher, Hash},
 };
 use daft::Diffable;
-use derive_where::derive_where;
 use equivalent::Equivalent;
 use ref_cast::RefCast;
 
@@ -146,16 +145,6 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> Diffable
 /// assert!(diff_unique.added.contains_key3("charlie@example.com"));
 /// # }
 /// ```
-#[derive_where(
-    Debug;
-    T: fmt::Debug,
-    for<'k> T::K1<'k>: fmt::Debug,
-    for<'k> T::K2<'k>: fmt::Debug,
-    for<'k> T::K3<'k>: fmt::Debug
-)]
-#[derive_where(Clone, Copy)]
-#[derive_where(PartialEq; T: PartialEq, S: Clone + BuildHasher, A: Allocator)]
-#[derive_where(Eq; T: Eq, S: Clone + BuildHasher, A: Allocator)]
 pub struct MapLeaf<
     'daft,
     T: TriHashItem,
@@ -167,6 +156,42 @@ pub struct MapLeaf<
 
     /// The after map.
     pub after: &'daft TriHashMap<T, S, A>,
+}
+
+impl<'daft, T: TriHashItem + fmt::Debug, S, A: Allocator> fmt::Debug
+    for MapLeaf<'daft, T, S, A>
+where
+    for<'k> T::K1<'k>: fmt::Debug,
+    for<'k> T::K2<'k>: fmt::Debug,
+    for<'k> T::K3<'k>: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("MapLeaf")
+            .field("before", &self.before)
+            .field("after", &self.after)
+            .finish()
+    }
+}
+
+impl<'daft, T: TriHashItem, S, A: Allocator> Clone for MapLeaf<'daft, T, S, A> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<'daft, T: TriHashItem, S, A: Allocator> Copy for MapLeaf<'daft, T, S, A> {}
+
+impl<'daft, T: TriHashItem + PartialEq, S: Clone + BuildHasher, A: Allocator>
+    PartialEq for MapLeaf<'daft, T, S, A>
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.before == other.before && self.after == other.after
+    }
+}
+
+impl<'daft, T: TriHashItem + Eq, S: Clone + BuildHasher, A: Allocator> Eq
+    for MapLeaf<'daft, T, S, A>
+{
 }
 
 impl<'daft, T: TriHashItem, S: Clone + BuildHasher, A: Clone + Allocator>
@@ -245,7 +270,6 @@ impl<'daft, T: TriHashItem, S: Clone + BuildHasher, A: Clone + Allocator>
 }
 
 /// A diff of two [`TriHashMap`]s, indexed by `key1`, `key2`, and `key3`.
-#[derive_where(Default; S: Default, A: Default)]
 pub struct Diff<
     'daft,
     T: ?Sized + TriHashItem,
@@ -262,6 +286,18 @@ pub struct Diff<
 
     /// Removed entries.
     pub removed: TriHashMap<&'daft T, S, A>,
+}
+
+impl<'daft, T: ?Sized + TriHashItem, S: Default, A: Allocator + Default> Default
+    for Diff<'daft, T, S, A>
+{
+    fn default() -> Self {
+        Self {
+            common: TriHashMap::default(),
+            added: TriHashMap::default(),
+            removed: TriHashMap::default(),
+        }
+    }
 }
 
 #[cfg(all(feature = "default-hasher", feature = "allocator-api2"))]

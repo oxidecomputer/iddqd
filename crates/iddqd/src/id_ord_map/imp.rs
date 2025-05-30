@@ -13,7 +13,6 @@ use crate::{
 };
 use alloc::collections::BTreeSet;
 use core::{fmt, hash::Hash};
-use derive_where::derive_where;
 use equivalent::{Comparable, Equivalent};
 
 /// An ordered map where the keys are part of the values, based on a B-Tree.
@@ -58,7 +57,6 @@ use equivalent::{Comparable, Equivalent};
 /// assert!(map.get("baz").is_none());
 /// # }
 /// ```
-#[derive_where(Default)]
 #[derive(Clone)]
 pub struct IdOrdMap<T: IdOrdItem> {
     // We don't expose an allocator trait here because it isn't stable with
@@ -67,6 +65,12 @@ pub struct IdOrdMap<T: IdOrdItem> {
     // Invariant: the values (usize) in these tables are valid indexes into
     // `items`, and are a 1:1 mapping.
     tables: IdOrdMapTables,
+}
+
+impl<T: IdOrdItem> Default for IdOrdMap<T> {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl<T: IdOrdItem> IdOrdMap<T> {

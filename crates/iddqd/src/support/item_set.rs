@@ -7,14 +7,11 @@ use core::{
     fmt,
     ops::{Index, IndexMut},
 };
-use derive_where::derive_where;
 use hashbrown::{HashMap, hash_map};
 use rustc_hash::FxBuildHasher;
 
 /// A map of items stored by integer index.
 #[derive(Clone)]
-#[derive_where(Default; A: Default)]
-#[derive_where(Debug; T: fmt::Debug)]
 pub(crate) struct ItemSet<T, A: Allocator> {
     // rustc-hash's FxHashMap is custom-designed for compact-ish integer keys.
     items: HashMap<usize, T, FxBuildHasher, AllocWrapper<A>>,
@@ -23,6 +20,21 @@ pub(crate) struct ItemSet<T, A: Allocator> {
     // An alternative might be to use a free list of indexes, but that's
     // unnecessarily complex.
     next_index: usize,
+}
+
+impl<T, A: Allocator + Default> Default for ItemSet<T, A> {
+    fn default() -> Self {
+        Self::with_capacity_in(0, A::default())
+    }
+}
+
+impl<T: fmt::Debug, A: Allocator> fmt::Debug for ItemSet<T, A> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ItemSet")
+            .field("items", &self.items)
+            .field("next_index", &self.next_index)
+            .finish()
+    }
 }
 
 impl<T, A: Allocator> ItemSet<T, A> {

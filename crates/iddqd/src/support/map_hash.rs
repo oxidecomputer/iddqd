@@ -1,13 +1,21 @@
-use core::hash::{BuildHasher, Hash};
-use debug_ignore::DebugIgnore;
-use derive_where::derive_where;
+use core::{
+    fmt,
+    hash::{BuildHasher, Hash},
+};
 
 /// Packages up a state and a hash for later validation.
-#[derive_where(Debug)]
 #[derive(Clone)]
 pub(crate) struct MapHash<S> {
-    pub(super) state: DebugIgnore<S>,
+    pub(super) state: S,
     pub(super) hash: u64,
+}
+
+impl<S> fmt::Debug for MapHash<S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("MapHash")
+            .field("hash", &self.hash)
+            .finish_non_exhaustive()
+    }
 }
 
 impl<S: BuildHasher> MapHash<S> {

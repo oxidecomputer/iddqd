@@ -1,16 +1,26 @@
 use super::{IdOrdItem, IdOrdMap, RefMut};
 use crate::support::borrow::DormantMutRef;
-use core::hash::Hash;
-use debug_ignore::DebugIgnore;
-use derive_where::derive_where;
+use core::{fmt, hash::Hash};
 
 /// An implementation of the Entry API for [`IdOrdMap`].
-#[derive_where(Debug)]
 pub enum Entry<'a, T: IdOrdItem> {
     /// A vacant entry.
     Vacant(VacantEntry<'a, T>),
     /// An occupied entry.
     Occupied(OccupiedEntry<'a, T>),
+}
+
+impl<'a, T: IdOrdItem> fmt::Debug for Entry<'a, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Entry::Vacant(entry) => {
+                f.debug_tuple("Vacant").field(entry).finish()
+            }
+            Entry::Occupied(entry) => {
+                f.debug_tuple("Occupied").field(entry).finish()
+            }
+        }
+    }
 }
 
 impl<'a, T: IdOrdItem> Entry<'a, T> {
@@ -105,14 +115,19 @@ impl<'a, T: IdOrdItem> Entry<'a, T> {
 }
 
 /// A vacant entry.
-#[derive_where(Debug)]
 pub struct VacantEntry<'a, T: IdOrdItem> {
-    map: DebugIgnore<DormantMutRef<'a, IdOrdMap<T>>>,
+    map: DormantMutRef<'a, IdOrdMap<T>>,
+}
+
+impl<'a, T: IdOrdItem> fmt::Debug for VacantEntry<'a, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("VacantEntry").finish_non_exhaustive()
+    }
 }
 
 impl<'a, T: IdOrdItem> VacantEntry<'a, T> {
     pub(super) unsafe fn new(map: DormantMutRef<'a, IdOrdMap<T>>) -> Self {
-        VacantEntry { map: map.into() }
+        VacantEntry { map }
     }
 
     /// Sets the entry to a new value, returning a shared reference to the
@@ -126,7 +141,7 @@ impl<'a, T: IdOrdItem> VacantEntry<'a, T> {
     pub fn insert_ref(self, value: T) -> &'a T {
         // SAFETY: The safety assumption behind `Self::new` guarantees that the
         // original reference to the map is not used at this point.
-        let map = unsafe { self.map.0.awaken() };
+        let map = unsafe { self.map.awaken() };
         let Ok(index) = map.insert_unique_impl(value) else {
             panic!("key already present in map");
         };
@@ -141,7 +156,7 @@ impl<'a, T: IdOrdItem> VacantEntry<'a, T> {
     {
         // SAFETY: The safety assumption behind `Self::new` guarantees that the
         // original reference to the map is not used at this point.
-        let map = unsafe { self.map.0.awaken() };
+        let map = unsafe { self.map.awaken() };
         let Ok(index) = map.insert_unique_impl(value) else {
             panic!("key already present in map");
         };
@@ -154,7 +169,7 @@ impl<'a, T: IdOrdItem> VacantEntry<'a, T> {
         let index = {
             // SAFETY: The safety assumption behind `Self::new` guarantees that the
             // original reference to the map is not used at this point.
-            let map = unsafe { self.map.0.reborrow() };
+            let map = unsafe { self.map.reborrow() };
             let Ok(index) = map.insert_unique_impl(value) else {
                 panic!("key already present in map");
             };
@@ -163,17 +178,24 @@ impl<'a, T: IdOrdItem> VacantEntry<'a, T> {
 
         // SAFETY: map, as well as anything that was borrowed from it, is
         // dropped once the above block exits.
-        unsafe { OccupiedEntry::new(self.map.0, index) }
+        unsafe { OccupiedEntry::new(self.map, index) }
     }
 }
 
 /// A view into an occupied entry in an [`IdOrdMap`]. Part of the [`Entry`]
 /// enum.
-#[derive_where(Debug)]
 pub struct OccupiedEntry<'a, T: IdOrdItem> {
-    map: DebugIgnore<DormantMutRef<'a, IdOrdMap<T>>>,
+    map: DormantMutRef<'a, IdOrdMap<T>>,
     // index is a valid index into the map's internal hash table.
     index: usize,
+}
+
+impl<'a, T: IdOrdItem> fmt::Debug for OccupiedEntry<'a, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("OccupiedEntry")
+            .field("index", &self.index)
+            .finish_non_exhaustive()
+    }
 }
 
 impl<'a, T: IdOrdItem> OccupiedEntry<'a, T> {
@@ -185,7 +207,7 @@ impl<'a, T: IdOrdItem> OccupiedEntry<'a, T> {
         map: DormantMutRef<'a, IdOrdMap<T>>,
         index: usize,
     ) -> Self {
-        OccupiedEntry { map: map.into(), index }
+        OccupiedEntry { map, index }
     }
 
     /// Gets a reference to the value.
@@ -222,7 +244,7 @@ impl<'a, T: IdOrdItem> OccupiedEntry<'a, T> {
     pub fn into_ref(self) -> &'a T {
         // SAFETY: The safety assumption behind `Self::new` guarantees that the
         // original reference to the map is not used at this point.
-        unsafe { self.map.0.awaken() }
+        unsafe { self.map.awaken() }
             .get_by_index(self.index)
             .expect("index is known to be valid")
     }
@@ -237,7 +259,7 @@ impl<'a, T: IdOrdItem> OccupiedEntry<'a, T> {
     {
         // SAFETY: The safety assumption behind `Self::new` guarantees that the
         // original reference to the map is not used at this point.
-        unsafe { self.map.0.awaken() }
+        unsafe { self.map.awaken() }
             .get_by_index_mut(self.index)
             .expect("index is known to be valid")
     }
