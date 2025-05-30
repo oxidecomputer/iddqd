@@ -320,7 +320,8 @@
 //!
 //! # Other integrations
 //!
-//! - [`iddqd-schemars`] provides implementations for [`schemars`].
+//! - [`iddqd-schemars`] provides [JSON Schema], and therefore OpenAPI, support
+//!   through [`schemars`].
 //!
 //! # Related work
 //!
@@ -353,6 +354,8 @@
 //!
 //! [`Borrow`]: core::borrow::Borrow
 //! [`iddqd-schemars`]: https://crates.io/crates/iddqd-schemars
+//! [JSON Schema]: https://json-schema.org/
+//! [OpenAPI]: https://www.openapis.org/
 //! [`schemars`]: https://crates.io/crates/schemars
 
 #![no_std]
