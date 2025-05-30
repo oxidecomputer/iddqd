@@ -494,25 +494,25 @@ mod tests {
         let schema = schema_for!(IdHashMapSchema<TestUser>);
         assert_contents(
             "tests/output/id_hash_map_schema.json",
-            &serde_json::to_string_pretty(&schema).unwrap(),
+            &to_string_pretty_ln(&schema),
         );
 
         let schema = schema_for!(IdOrdMapSchema<TestUser>);
         assert_contents(
             "tests/output/id_ord_map_schema.json",
-            &serde_json::to_string_pretty(&schema).unwrap(),
+            &to_string_pretty_ln(&schema),
         );
 
         let schema = schema_for!(BiHashMapSchema<TestUser>);
         assert_contents(
             "tests/output/bi_hash_map_schema.json",
-            &serde_json::to_string_pretty(&schema).unwrap(),
+            &to_string_pretty_ln(&schema),
         );
 
         let schema = schema_for!(TriHashMapSchema<TestUser>);
         assert_contents(
             "tests/output/tri_hash_map_schema.json",
-            &serde_json::to_string_pretty(&schema).unwrap(),
+            &to_string_pretty_ln(&schema),
         );
     }
 
@@ -538,7 +538,7 @@ mod tests {
         let schema = schema_for!(Container);
         assert_contents(
             "tests/output/container_schema.json",
-            &serde_json::to_string_pretty(&schema).unwrap(),
+            &to_string_pretty_ln(&schema),
         );
 
         // A simple container with just IdHashMap<TestUser>. This fixture is
@@ -553,7 +553,13 @@ mod tests {
         let schema = schema_for!(SimpleContainer);
         assert_contents(
             "tests/output/simple_container_schema.json",
-            &serde_json::to_string_pretty(&schema).unwrap(),
+            &to_string_pretty_ln(&schema),
         );
+    }
+
+    fn to_string_pretty_ln<T: Serialize>(data: &T) -> String {
+        let mut s = serde_json::to_string_pretty(data).unwrap();
+        s.push('\n');
+        s
     }
 }

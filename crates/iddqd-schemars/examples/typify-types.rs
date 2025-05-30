@@ -9,7 +9,8 @@ use typify::import_types;
 import_types!(
     // Import types from the schema file.
     schema = "tests/output/simple_container_schema.json",
-    // Specify that you have the "iddqd" crate available.
+    // Add iddqd to your dependency list, and specify that you have the "iddqd"
+    // crate available.
     crates = {
         "iddqd" = "0.3.4",
     },
