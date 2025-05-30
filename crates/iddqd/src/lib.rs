@@ -320,7 +320,7 @@
 //!
 //! # Other integrations
 //!
-//! - [`iddqd-schemars`] provides [JSON Schema], and therefore OpenAPI, support
+//! - [`iddqd-schemars`] provides [JSON Schema], and therefore [OpenAPI], support
 //!   through [`schemars`].
 //!
 //! # Related work

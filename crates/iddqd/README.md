@@ -290,7 +290,7 @@ platform-specific notion of thread locals, would suffice to make
 
 ## Other integrations
 
-* [`iddqd-schemars`] provides [JSON Schema], and therefore OpenAPI, support
+* [`iddqd-schemars`] provides [JSON Schema], and therefore [OpenAPI], support
   through [`schemars`].
 
 ## Related work
@@ -325,6 +325,7 @@ code](https://doomwiki.org/wiki/Doom_cheat_codes) in the classic video game
 [`Borrow`]: https://doc.rust-lang.org/nightly/core/borrow/trait.Borrow.html
 [`iddqd-schemars`]: https://crates.io/crates/iddqd-schemars
 [JSON Schema]: https://json-schema.org/
+[OpenAPI]: https://www.openapis.org/
 [`schemars`]: https://crates.io/crates/schemars
 <!-- cargo-sync-rdme ]] -->
 
