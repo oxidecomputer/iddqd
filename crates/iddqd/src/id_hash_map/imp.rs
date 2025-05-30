@@ -18,7 +18,6 @@ use core::{
     fmt,
     hash::{BuildHasher, Hash},
 };
-use derive_where::derive_where;
 use equivalent::Equivalent;
 use hashbrown::hash_table;
 
@@ -64,7 +63,6 @@ use hashbrown::hash_table;
 /// assert!(map.get("baz").is_none());
 /// # }
 /// ```
-#[derive_where(Default; S: Default, A: Default)]
 #[derive(Clone)]
 pub struct IdHashMap<
     T: IdHashItem,
@@ -73,6 +71,17 @@ pub struct IdHashMap<
 > {
     pub(super) items: ItemSet<T, A>,
     tables: IdHashMapTables<S, A>,
+}
+
+impl<T: IdHashItem, S: Default, A: Allocator + Default> Default
+    for IdHashMap<T, S, A>
+{
+    fn default() -> Self {
+        Self {
+            items: ItemSet::with_capacity_in(0, A::default()),
+            tables: IdHashMapTables::default(),
+        }
+    }
 }
 
 #[cfg(feature = "default-hasher")]
@@ -659,7 +668,7 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
         compactness: ValidateCompact,
     ) -> Result<(), ValidationError>
     where
-        T: core::fmt::Debug,
+        T: fmt::Debug,
     {
         self.items.validate(compactness)?;
         self.tables.validate(self.len(), compactness)?;

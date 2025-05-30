@@ -11,18 +11,25 @@ use core::{
     fmt,
     hash::{BuildHasher, Hash},
 };
-use derive_where::derive_where;
 use equivalent::Equivalent;
 use hashbrown::{
     HashTable,
     hash_table::{AbsentEntry, Entry, OccupiedEntry},
 };
 
-#[derive_where(Debug; S: fmt::Debug)]
 #[derive(Clone, Default)]
 pub(crate) struct MapHashTable<S, A: Allocator> {
     pub(super) state: S,
     pub(super) items: HashTable<usize, AllocWrapper<A>>,
+}
+
+impl<S: fmt::Debug, A: Allocator> fmt::Debug for MapHashTable<S, A> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("MapHashTable")
+            .field("state", &self.state)
+            .field("items", &self.items)
+            .finish()
+    }
 }
 
 impl<S: Clone + BuildHasher, A: Allocator> MapHashTable<S, A> {
@@ -91,10 +98,7 @@ impl<S: Clone + BuildHasher, A: Allocator> MapHashTable<S, A> {
     }
 
     pub(crate) fn compute_hash<K: Hash + Eq>(&self, key: K) -> MapHash<S> {
-        MapHash {
-            state: self.state.clone().into(),
-            hash: self.state.hash_one(key),
-        }
+        MapHash { state: self.state.clone(), hash: self.state.hash_one(key) }
     }
 
     // Ensure that K has a consistent hash.

@@ -13,7 +13,6 @@ use core::{
     hash::{BuildHasher, Hash},
 };
 use daft::Diffable;
-use derive_where::derive_where;
 use equivalent::Equivalent;
 use ref_cast::RefCast;
 
@@ -58,15 +57,15 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> Diffable
 /// impl BiHashItem for Item {
 ///     type K1<'a> = u32;
 ///     type K2<'a> = &'a str;
-///     
+///
 ///     fn key1(&self) -> Self::K1<'_> {
 ///         self.id
 ///     }
-///     
+///
 ///     fn key2(&self) -> Self::K2<'_> {
 ///         &self.name
 ///     }
-///     
+///
 ///     bi_upcast!();
 /// }
 ///
@@ -104,15 +103,6 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> Diffable
 /// assert!(diff_unique.added.contains_key2("charlie"));   // charlie added (by name)
 /// # }
 /// ```
-#[derive_where(
-    Debug;
-    T: fmt::Debug,
-    for<'k> T::K1<'k>: fmt::Debug,
-    for<'k> T::K2<'k>: fmt::Debug
-)]
-#[derive_where(Clone, Copy)]
-#[derive_where(PartialEq; T: PartialEq, S: Clone + BuildHasher, A: Allocator)]
-#[derive_where(Eq; T: Eq, S: Clone + BuildHasher, A: Allocator)]
 pub struct MapLeaf<
     'daft,
     T: BiHashItem,
@@ -124,6 +114,41 @@ pub struct MapLeaf<
 
     /// The after map.
     pub after: &'daft BiHashMap<T, S, A>,
+}
+
+impl<'daft, T: BiHashItem + fmt::Debug, S, A: Allocator> fmt::Debug
+    for MapLeaf<'daft, T, S, A>
+where
+    for<'k> T::K1<'k>: fmt::Debug,
+    for<'k> T::K2<'k>: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("MapLeaf")
+            .field("before", &self.before)
+            .field("after", &self.after)
+            .finish()
+    }
+}
+
+impl<'daft, T: BiHashItem, S, A: Allocator> Clone for MapLeaf<'daft, T, S, A> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<'daft, T: BiHashItem, S, A: Allocator> Copy for MapLeaf<'daft, T, S, A> {}
+
+impl<'daft, T: BiHashItem + PartialEq, S: Clone + BuildHasher, A: Allocator>
+    PartialEq for MapLeaf<'daft, T, S, A>
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.before == other.before && self.after == other.after
+    }
+}
+
+impl<'daft, T: BiHashItem + Eq, S: Clone + BuildHasher, A: Allocator> Eq
+    for MapLeaf<'daft, T, S, A>
+{
 }
 
 impl<'daft, T: BiHashItem, S: Clone + BuildHasher, A: Clone + Allocator>
@@ -184,7 +209,6 @@ impl<'daft, T: BiHashItem, S: Clone + BuildHasher, A: Clone + Allocator>
 }
 
 /// A diff of two [`BiHashMap`]s, indexed by both `key1` and `key2`.
-#[derive_where(Default; S: Default, A: Default)]
 pub struct Diff<
     'daft,
     T: ?Sized + BiHashItem,
@@ -201,6 +225,18 @@ pub struct Diff<
 
     /// Removed entries.
     pub removed: BiHashMap<&'daft T, S, A>,
+}
+
+impl<'daft, T: ?Sized + BiHashItem, S: Default, A: Allocator + Default> Default
+    for Diff<'daft, T, S, A>
+{
+    fn default() -> Self {
+        Self {
+            common: BiHashMap::default(),
+            added: BiHashMap::default(),
+            removed: BiHashMap::default(),
+        }
+    }
 }
 
 #[cfg(all(feature = "default-hasher", feature = "allocator-api2"))]

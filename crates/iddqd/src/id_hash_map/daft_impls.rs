@@ -10,7 +10,6 @@ use crate::{
 };
 use core::hash::{BuildHasher, Hash};
 use daft::Diffable;
-use derive_where::derive_where;
 use equivalent::Equivalent;
 
 impl<T: IdHashItem, S: Clone + BuildHasher, A: Clone + Allocator> Diffable
@@ -91,7 +90,6 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Clone + Allocator> Diffable
 /// ```
 ///
 /// [`Diffable`]: daft::Diffable
-#[derive_where(Default; S: Default, A: Default)]
 pub struct Diff<
     'daft,
     T: ?Sized + IdHashItem,
@@ -108,6 +106,18 @@ pub struct Diff<
 
     /// Removed entries.
     pub removed: IdHashMap<&'daft T, S, A>,
+}
+
+impl<'daft, T: ?Sized + IdHashItem, S: Default, A: Allocator + Default> Default
+    for Diff<'daft, T, S, A>
+{
+    fn default() -> Self {
+        Self {
+            common: IdHashMap::default(),
+            added: IdHashMap::default(),
+            removed: IdHashMap::default(),
+        }
+    }
 }
 
 #[cfg(all(feature = "default-hasher", feature = "allocator-api2"))]

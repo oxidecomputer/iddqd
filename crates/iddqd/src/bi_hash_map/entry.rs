@@ -9,17 +9,27 @@ use crate::{
 };
 use alloc::vec::Vec;
 use core::{fmt, hash::BuildHasher};
-use debug_ignore::DebugIgnore;
-use derive_where::derive_where;
 
 /// An implementation of the Entry API for [`BiHashMap`].
-#[derive_where(Debug)]
 pub enum Entry<'a, T: BiHashItem, S = DefaultHashBuilder, A: Allocator = Global>
 {
     /// A vacant entry: none of the provided keys are present.
     Vacant(VacantEntry<'a, T, S, A>),
     /// An occupied entry where at least one of the keys is present in the map.
     Occupied(OccupiedEntry<'a, T, S, A>),
+}
+
+impl<'a, T: BiHashItem, S, A: Allocator> fmt::Debug for Entry<'a, T, S, A> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Entry::Vacant(entry) => {
+                f.debug_tuple("Vacant").field(entry).finish()
+            }
+            Entry::Occupied(entry) => {
+                f.debug_tuple("Occupied").field(entry).finish()
+            }
+        }
+    }
 }
 
 impl<'a, T: BiHashItem, S: Clone + BuildHasher, A: Allocator>
@@ -83,15 +93,24 @@ impl<'a, T: BiHashItem, S: Clone + BuildHasher, A: Allocator>
 }
 
 /// A vacant entry.
-#[derive_where(Debug)]
 pub struct VacantEntry<
     'a,
     T: BiHashItem,
     S = DefaultHashBuilder,
     A: Allocator = Global,
 > {
-    map: DebugIgnore<DormantMutRef<'a, BiHashMap<T, S, A>>>,
+    map: DormantMutRef<'a, BiHashMap<T, S, A>>,
     hashes: [MapHash<S>; 2],
+}
+
+impl<'a, T: BiHashItem, S, A: Allocator> fmt::Debug
+    for VacantEntry<'a, T, S, A>
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("VacantEntry")
+            .field("hashes", &self.hashes)
+            .finish_non_exhaustive()
+    }
 }
 
 impl<'a, T: BiHashItem, S: Clone + BuildHasher, A: Allocator>
@@ -101,7 +120,7 @@ impl<'a, T: BiHashItem, S: Clone + BuildHasher, A: Allocator>
         map: DormantMutRef<'a, BiHashMap<T, S, A>>,
         hashes: [MapHash<S>; 2],
     ) -> Self {
-        VacantEntry { map: map.into(), hashes }
+        VacantEntry { map, hashes }
     }
 
     /// Sets the entry to a new value, returning a mutable reference to the
@@ -116,7 +135,7 @@ impl<'a, T: BiHashItem, S: Clone + BuildHasher, A: Allocator>
 
         // SAFETY: The safety assumption behind `Self::new` guarantees that the
         // original reference to the map is not used at this point.
-        let map = unsafe { self.map.0.awaken() };
+        let map = unsafe { self.map.awaken() };
         let Ok(index) = map.insert_unique_impl(value) else {
             panic!("key already present in map");
         };
@@ -136,7 +155,7 @@ impl<'a, T: BiHashItem, S: Clone + BuildHasher, A: Allocator>
         let index = {
             // SAFETY: The safety assumption behind `Self::new` guarantees that the
             // original reference to the map is not used at this point.
-            let map = unsafe { self.map.0.reborrow() };
+            let map = unsafe { self.map.reborrow() };
             let Ok(index) = map.insert_unique_impl(value) else {
                 panic!("key already present in map");
             };
@@ -145,21 +164,30 @@ impl<'a, T: BiHashItem, S: Clone + BuildHasher, A: Allocator>
 
         // SAFETY: map, as well as anything that was borrowed from it, is
         // dropped once the above block exits.
-        unsafe { OccupiedEntry::new(self.map.0, EntryIndexes::Unique(index)) }
+        unsafe { OccupiedEntry::new(self.map, EntryIndexes::Unique(index)) }
     }
 }
 
 /// A view into an occupied entry in a [`BiHashMap`]. Part of the [`Entry`]
 /// enum.
-#[derive_where(Debug)]
 pub struct OccupiedEntry<
     'a,
     T: BiHashItem,
     S = DefaultHashBuilder,
     A: Allocator = Global,
 > {
-    map: DebugIgnore<DormantMutRef<'a, BiHashMap<T, S, A>>>,
+    map: DormantMutRef<'a, BiHashMap<T, S, A>>,
     indexes: EntryIndexes,
+}
+
+impl<'a, T: BiHashItem, S, A: Allocator> fmt::Debug
+    for OccupiedEntry<'a, T, S, A>
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("OccupiedEntry")
+            .field("indexes", &self.indexes)
+            .finish_non_exhaustive()
+    }
 }
 
 impl<'a, T: BiHashItem, S: Clone + BuildHasher, A: Allocator>
@@ -173,7 +201,7 @@ impl<'a, T: BiHashItem, S: Clone + BuildHasher, A: Allocator>
         map: DormantMutRef<'a, BiHashMap<T, S, A>>,
         indexes: EntryIndexes,
     ) -> Self {
-        OccupiedEntry { map: map.into(), indexes }
+        OccupiedEntry { map, indexes }
     }
 
     /// Returns true if the entry is unique.
@@ -222,7 +250,7 @@ impl<'a, T: BiHashItem, S: Clone + BuildHasher, A: Allocator>
     pub fn into_ref(self) -> OccupiedEntryRef<'a, T> {
         // SAFETY: The safety assumption behind `Self::new` guarantees that the
         // original reference to the map is not used at this point.
-        let map = unsafe { self.map.0.awaken() };
+        let map = unsafe { self.map.awaken() };
         map.get_by_entry_index(self.indexes)
     }
 
@@ -234,7 +262,7 @@ impl<'a, T: BiHashItem, S: Clone + BuildHasher, A: Allocator>
     pub fn into_mut(self) -> OccupiedEntryMut<'a, T, S> {
         // SAFETY: The safety assumption behind `Self::new` guarantees that the
         // original reference to the map is not used at this point.
-        let map = unsafe { self.map.0.awaken() };
+        let map = unsafe { self.map.awaken() };
         map.get_by_entry_index_mut(self.indexes)
     }
 
@@ -332,7 +360,6 @@ impl<'a, T: BiHashItem> OccupiedEntryRef<'a, T> {
 /// A mutable view into an occupied entry in a [`BiHashMap`].
 ///
 /// Returned by [`OccupiedEntry::get_mut`].
-#[derive_where(Debug; T: fmt::Debug)]
 pub enum OccupiedEntryMut<
     'a,
     T: BiHashItem,
@@ -349,6 +376,23 @@ pub enum OccupiedEntryMut<
         /// The value fetched by the second key.
         by_key2: Option<RefMut<'a, T, S>>,
     },
+}
+
+impl<'a, T: BiHashItem + fmt::Debug, S: Clone + BuildHasher> fmt::Debug
+    for OccupiedEntryMut<'a, T, S>
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            OccupiedEntryMut::Unique(ref_mut) => {
+                f.debug_tuple("Unique").field(ref_mut).finish()
+            }
+            OccupiedEntryMut::NonUnique { by_key1, by_key2 } => f
+                .debug_struct("NonUnique")
+                .field("by_key1", by_key1)
+                .field("by_key2", by_key2)
+                .finish(),
+        }
+    }
 }
 
 impl<'a, T: BiHashItem, S: Clone + BuildHasher> OccupiedEntryMut<'a, T, S> {
