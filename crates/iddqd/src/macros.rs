@@ -16,7 +16,10 @@ macro_rules! id_upcast {
         #[inline]
         fn upcast_key<'short, 'long: 'short>(
             long: Self::Key<'long>,
-        ) -> Self::Key<'short> {
+        ) -> Self::Key<'short>
+        where
+            Self: 'long,
+        {
             long
         }
     };
@@ -37,14 +40,20 @@ macro_rules! bi_upcast {
         #[inline]
         fn upcast_key1<'short, 'long: 'short>(
             long: Self::K1<'long>,
-        ) -> Self::K1<'short> {
+        ) -> Self::K1<'short>
+        where
+            Self: 'long,
+        {
             long
         }
 
         #[inline]
         fn upcast_key2<'short, 'long: 'short>(
             long: Self::K2<'long>,
-        ) -> Self::K2<'short> {
+        ) -> Self::K2<'short>
+        where
+            Self: 'long,
+        {
             long
         }
     };
@@ -65,21 +74,30 @@ macro_rules! tri_upcast {
         #[inline]
         fn upcast_key1<'short, 'long: 'short>(
             long: Self::K1<'long>,
-        ) -> Self::K1<'short> {
+        ) -> Self::K1<'short>
+        where
+            Self: 'long,
+        {
             long
         }
 
         #[inline]
         fn upcast_key2<'short, 'long: 'short>(
             long: Self::K2<'long>,
-        ) -> Self::K2<'short> {
+        ) -> Self::K2<'short>
+        where
+            Self: 'long,
+        {
             long
         }
 
         #[inline]
         fn upcast_key3<'short, 'long: 'short>(
             long: Self::K3<'long>,
-        ) -> Self::K3<'short> {
+        ) -> Self::K3<'short>
+        where
+            Self: 'long,
+        {
             long
         }
     };

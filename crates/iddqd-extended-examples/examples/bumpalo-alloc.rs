@@ -6,27 +6,31 @@
 
 use bumpalo::Bump;
 use iddqd::{IdHashItem, IdHashMap, id_upcast};
-use std::path::{Path, PathBuf};
 
 /// These are the items we'll store in the `IdHashMap`.
 #[derive(Clone, Debug, PartialEq, Eq)]
-struct MyStruct {
-    a: String,
+struct MyStruct<'bump> {
+    // Because bumpalo doesn't run destructors on drop, we use strings and
+    // vectors provided by the bumpalo crate. See https://docs.rs/bumpalo for
+    // more.
+    a: bumpalo::collections::String<'bump>,
     b: usize,
-    c: PathBuf,
-    d: Vec<usize>,
+    c: bumpalo::collections::Vec<'bump, usize>,
 }
 
-/// The map will be indexed uniquely by (b, c, d). Note that this is a
-/// borrowed key that can be constructed efficiently.
+/// The map will be indexed uniquely by (b, c). Note that this is a borrowed key
+/// that can be constructed efficiently.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 struct MyKey<'a> {
     b: usize,
-    c: &'a Path,
+    c: &'a [usize],
 }
 
-impl IdHashItem for MyStruct {
-    type Key<'a> = MyKey<'a>;
+impl<'bump> IdHashItem for MyStruct<'bump> {
+    type Key<'a>
+        = MyKey<'a>
+    where
+        Self: 'a;
 
     fn key(&self) -> Self::Key<'_> {
         MyKey { b: self.b, c: &self.c }
@@ -44,23 +48,21 @@ fn main() {
 
     // Insert some items into the map.
     let v1 = MyStruct {
-        a: "Hello".to_string(),
+        a: bumpalo::format!(in &bump, "Hello",),
         b: 42,
-        c: PathBuf::from("/path/to/file"),
-        d: vec![1, 2, 3],
+        c: bumpalo::vec![in &bump; 1, 2, 3],
     };
     map.insert_unique(v1.clone()).unwrap();
 
     let v2 = MyStruct {
-        a: "World".to_string(),
+        a: bumpalo::format!(in &bump, "World",),
         b: 42,
-        c: PathBuf::from("/path/to/another/file"),
-        d: vec![4, 5, 6],
+        c: bumpalo::vec![in &bump; 4, 5, 6],
     };
     map.insert_unique(v2).unwrap();
 
     // Retrieve an item from the map.
-    let item = map.get(&MyKey { b: 42, c: Path::new("/path/to/file") });
+    let item = map.get(&MyKey { b: 42, c: &[4, 5, 6] });
     println!("retrieved {item:?}");
     assert_eq!(item, Some(&v1));
 
