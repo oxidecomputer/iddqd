@@ -318,6 +318,11 @@
 //!   (such as `bumpalo`) are supported. Custom allocators are not currently
 //!   supported by `IdOrdMap`.
 //!
+//! # Other integrations
+//!
+//! - [`iddqd-schemars`] provides [JSON Schema], and therefore [OpenAPI], support
+//!   through [`schemars`].
+//!
 //! # Related work
 //!
 //! - [`bimap`](https://docs.rs/bimap) provides a bijective map, but does not
@@ -348,6 +353,10 @@
 //! _Doom_. It has `id` in the name, and is short and memorable.
 //!
 //! [`Borrow`]: core::borrow::Borrow
+//! [`iddqd-schemars`]: https://crates.io/crates/iddqd-schemars
+//! [JSON Schema]: https://json-schema.org/
+//! [OpenAPI]: https://www.openapis.org/
+//! [`schemars`]: https://crates.io/crates/schemars
 
 #![no_std]
 #![cfg_attr(doc_cfg, feature(doc_auto_cfg))]

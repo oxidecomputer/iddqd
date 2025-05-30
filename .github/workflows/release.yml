@@ -7,8 +7,8 @@ on:
       - "*"
 
 jobs:
-  release:
-    if: github.repository_owner == 'oxidecomputer'
+  iddqd-release:
+    if: github.repository_owner == 'oxidecomputer' && startsWith(github.ref_name, 'iddqd-0')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
@@ -24,6 +24,31 @@ jobs:
         with:
           prefix: iddqd
           changelog: CHANGELOG.md
+          title: $prefix $version
+          branch: main
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - run: just ci-cargo-release
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  iddqd-schemars-release:
+    if: github.repository_owner == 'oxidecomputer' && startsWith(github.ref_name, 'iddqd-schemars-')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          persist-credentials: false
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo release
+        uses: taiki-e/install-action@5bc300ae6202155e070ca83afb334e8aac18c49c # v2
+        with:
+          tool: cargo-release@0.25.17,just
+      - uses: taiki-e/create-gh-release-action@b7abb0cf5e72cb5500307b577f9ca3fd4c5be9d2 # v1
+        with:
+          prefix: iddqd-schemars
+          changelog: crates/iddqd-schemars/CHANGELOG.md
           title: $prefix $version
           branch: main
         env:

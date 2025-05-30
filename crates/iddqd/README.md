@@ -288,6 +288,11 @@ platform-specific notion of thread locals, would suffice to make
   (such as `bumpalo`) are supported. Custom allocators are not currently
   supported by `IdOrdMap`.
 
+## Other integrations
+
+* [`iddqd-schemars`] provides [JSON Schema], and therefore [OpenAPI], support
+  through [`schemars`].
+
 ## Related work
 
 * [`bimap`](https://docs.rs/bimap) provides a bijective map, but does not
@@ -318,6 +323,10 @@ code](https://doomwiki.org/wiki/Doom_cheat_codes) in the classic video game
 *Doom*. It has `id` in the name, and is short and memorable.
 
 [`Borrow`]: https://doc.rust-lang.org/nightly/core/borrow/trait.Borrow.html
+[`iddqd-schemars`]: https://crates.io/crates/iddqd-schemars
+[JSON Schema]: https://json-schema.org/
+[OpenAPI]: https://www.openapis.org/
+[`schemars`]: https://crates.io/crates/schemars
 <!-- cargo-sync-rdme ]] -->
 
 ## License
