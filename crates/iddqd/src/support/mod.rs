@@ -9,3 +9,4 @@ pub(crate) mod hash_builder;
 pub(crate) mod hash_table;
 pub(crate) mod item_set;
 pub(crate) mod map_hash;
+pub(crate) mod ordered_set;

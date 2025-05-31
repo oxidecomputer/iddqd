@@ -366,6 +366,7 @@ mod macros;
 pub mod bi_hash_map;
 pub mod errors;
 pub mod id_hash_map;
+pub mod id_index_map;
 #[cfg(feature = "std")]
 pub mod id_ord_map;
 #[doc(hidden)]
@@ -382,6 +383,7 @@ pub use equivalent::Comparable;
 #[doc(no_inline)]
 pub use equivalent::Equivalent;
 pub use id_hash_map::{imp::IdHashMap, trait_defs::IdHashItem};
+pub use id_index_map::imp::IdIndexMap;
 #[cfg(feature = "std")]
 pub use id_ord_map::{imp::IdOrdMap, trait_defs::IdOrdItem};
 #[cfg(feature = "daft")]

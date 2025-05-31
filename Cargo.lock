@@ -82,6 +82,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "37909eebbb50d72f9059c3b6d82c0463f2ff062c9e95845c43a6c9c0355411be"
 
 [[package]]
+name = "flex_array"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "94efd9404da148e1ab14db7a674a97da8ab964638a25056f32fed36f2064ff92"
+dependencies = [
+ "allocator-api2",
+]
+
+[[package]]
 name = "fnv"
 version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -143,6 +152,7 @@ dependencies = [
  "allocator-api2",
  "daft",
  "equivalent",
+ "flex_array",
  "foldhash",
  "hashbrown",
  "iddqd-test-utils",

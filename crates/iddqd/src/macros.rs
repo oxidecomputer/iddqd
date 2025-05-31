@@ -1,6 +1,6 @@
 //! Macros for this crate.
 
-/// Implement upcasts for [`IdOrdMap`] or [`IdHashMap`].
+/// Implement upcasts for [`IdOrdMap`], [`IdHashMap`], or [`IdIndexMap`].
 ///
 /// The maps in this crate require that the key types' lifetimes are covariant.
 /// This macro assists with implementing this requirement.
@@ -10,6 +10,7 @@
 ///
 /// [`IdOrdMap`]: crate::IdOrdMap
 /// [`IdHashMap`]: crate::IdHashMap
+/// [`IdIndexMap`]: crate::IdIndexMap
 #[macro_export]
 macro_rules! id_upcast {
     () => {
