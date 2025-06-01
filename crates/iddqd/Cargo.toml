@@ -26,6 +26,7 @@ workspace = true
 allocator-api2 = { workspace = true }
 daft = { workspace = true, optional = true }
 equivalent.workspace = true
+flex_array.workspace = true
 foldhash = { workspace = true, optional = true }
 hashbrown.workspace = true
 ref-cast = { workspace = true, optional = true }
