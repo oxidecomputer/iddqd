@@ -66,7 +66,9 @@
 #![warn(missing_docs)]
 
 static IDDQD_CRATE_NAME: &str = "iddqd";
-static IDDQD_CRATE_VERSION: &str = "0.3.0";
+// We say * here because we assume IdHashMap and such are going to stay the same
+// across breaking changes.
+static IDDQD_CRATE_VERSION: &str = "*";
 
 use schemars::{
     JsonSchema,
@@ -128,12 +130,7 @@ where
     fn json_schema(generator: &mut SchemaGenerator) -> Schema {
         Schema::Object(SchemaObject {
             instance_type: Some(schemars::schema::InstanceType::Array.into()),
-            array: Some(Box::new(schemars::schema::ArrayValidation {
-                items: Some(schemars::schema::SingleOrVec::Single(Box::new(
-                    generator.subschema_for::<T>(),
-                ))),
-                ..Default::default()
-            })),
+            array: Some(array_validation::<T>(generator)),
             metadata: Some(Box::new(schemars::schema::Metadata {
                 title: Some("IdHashMap".to_string()),
                 description: Some(
@@ -204,12 +201,7 @@ where
     fn json_schema(generator: &mut SchemaGenerator) -> Schema {
         Schema::Object(SchemaObject {
             instance_type: Some(schemars::schema::InstanceType::Array.into()),
-            array: Some(Box::new(schemars::schema::ArrayValidation {
-                items: Some(schemars::schema::SingleOrVec::Single(Box::new(
-                    generator.subschema_for::<T>(),
-                ))),
-                ..Default::default()
-            })),
+            array: Some(array_validation::<T>(generator)),
             metadata: Some(Box::new(schemars::schema::Metadata {
                 title: Some("IdOrdMap".to_string()),
                 description: Some(
@@ -277,12 +269,7 @@ where
     fn json_schema(generator: &mut SchemaGenerator) -> Schema {
         Schema::Object(SchemaObject {
             instance_type: Some(schemars::schema::InstanceType::Array.into()),
-            array: Some(Box::new(schemars::schema::ArrayValidation {
-                items: Some(schemars::schema::SingleOrVec::Single(Box::new(
-                    generator.subschema_for::<T>(),
-                ))),
-                ..Default::default()
-            })),
+            array: Some(array_validation::<T>(generator)),
             metadata: Some(Box::new(schemars::schema::Metadata {
                 title: Some("BiHashMap".to_string()),
                 description: Some(
@@ -358,12 +345,7 @@ where
     fn json_schema(generator: &mut SchemaGenerator) -> Schema {
         Schema::Object(SchemaObject {
             instance_type: Some(schemars::schema::InstanceType::Array.into()),
-            array: Some(Box::new(schemars::schema::ArrayValidation {
-                items: Some(schemars::schema::SingleOrVec::Single(Box::new(
-                    generator.subschema_for::<T>(),
-                ))),
-                ..Default::default()
-            })),
+            array: Some(array_validation::<T>(generator)),
             metadata: Some(Box::new(schemars::schema::Metadata {
                 title: Some("TriHashMap".to_string()),
                 description: Some(
@@ -380,6 +362,39 @@ where
             ..Default::default()
         })
     }
+}
+
+fn array_validation<T>(
+    generator: &mut SchemaGenerator,
+) -> Box<schemars::schema::ArrayValidation>
+where
+    T: JsonSchema,
+{
+    Box::new(schemars::schema::ArrayValidation {
+        items: Some(schemars::schema::SingleOrVec::Single(Box::new(
+            generator.subschema_for::<T>(),
+        ))),
+        // Setting unique_items to true here requires a bit of reasoning. For
+        // two items T1 and T2:
+        //
+        // * If T1 == T2 (schema validation fails), then for all keys Key,
+        //   T1::Key == T2::Key (would be rejected by the map). The map's
+        //   behavior is consistent with the schema.
+        //
+        // * If T1 != T2 (schema validation succeeds), then there are two
+        //   cases:
+        //   1. For all keys Key, T1::Key != T2::Key. In this case, the map
+        //      accepts the key. The map's behavior is consistent with the
+        //      schema.
+        //   2. There is at least one key for which T1::Key == T2::Key. In
+        //      this case, the map will reject the key.
+        //
+        // Overall, the map's validation is strictly stronger than the schema.
+        // This is normal in cases where JSON Schema cannot represent a
+        // particular kind of validation.
+        unique_items: Some(true),
+        ..Default::default()
+    })
 }
 
 // https://github.com/oxidecomputer/typify#including-x-rust-type-in-your-library
