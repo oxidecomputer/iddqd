@@ -1,8 +1,5 @@
 use iddqd::{
-    IdHashItem, IdHashMap, id_hash_map,
-    id_hash_map::{Entry, RefMut},
-    id_upcast,
-    internal::ValidateCompact,
+    IdHashItem, IdHashMap, id_hash_map, id_upcast, internal::ValidateCompact,
 };
 use iddqd_test_utils::{
     eq_props::{assert_eq_props, assert_ne_props},
@@ -89,7 +86,8 @@ fn test_insert_unique() {
 
     // Iterate over the items mutably. This ensures that miri detects UB if it
     // exists.
-    let mut items: Vec<RefMut<_, HashBuilder>> = map.iter_mut().collect();
+    let mut items: Vec<id_hash_map::RefMut<_, HashBuilder>> =
+        map.iter_mut().collect();
     items.sort_by(|a, b| a.key().cmp(&b.key()));
     let e1 = &items[0];
     assert_eq!(**e1, v3);
@@ -310,7 +308,7 @@ fn entry_examples() {
     let mut map = IdHashMap::<TestItem, HashBuilder, Alloc>::make_new();
     let item1 = TestItem::new(0, 'a', "x", "v");
 
-    let Entry::Vacant(entry) = map.entry(item1.key()) else {
+    let id_hash_map::Entry::Vacant(entry) = map.entry(item1.key()) else {
         panic!("expected VacantEntry")
     };
     let mut entry = entry.insert_entry(item1.clone());
@@ -322,7 +320,7 @@ fn entry_examples() {
     // Try looking up another item with the same key1.
     let item2 = TestItem::new(0, 'b', "y", "x");
 
-    let Entry::Occupied(mut entry) = map.entry(item2.key()) else {
+    let id_hash_map::Entry::Occupied(mut entry) = map.entry(item2.key()) else {
         panic!("expected OccupiedEntry");
     };
     assert_eq!(entry.insert(item2.clone()), item1);
@@ -365,7 +363,7 @@ fn insert_panics_for_non_matching_key() {
 
     let v2 = TestItem::new(1, 'a', "bar", "value");
     let entry = map.entry(v2.key());
-    assert!(matches!(entry, Entry::Vacant(_)));
+    assert!(matches!(entry, id_hash_map::Entry::Vacant(_)));
     // Try inserting v1, which is present in the map.
     entry.or_insert(v1);
 }
@@ -379,9 +377,9 @@ fn insert_entry_panics_for_non_matching_key() {
 
     let v2 = TestItem::new(1, 'a', "bar", "value");
     let entry = map.entry(v2.key());
-    assert!(matches!(entry, Entry::Vacant(_)));
+    assert!(matches!(entry, id_hash_map::Entry::Vacant(_)));
     // Try inserting v1, which is present in the map.
-    if let Entry::Vacant(vacant_entry) = entry {
+    if let id_hash_map::Entry::Vacant(vacant_entry) = entry {
         vacant_entry.insert_entry(v1);
     } else {
         panic!("expected VacantEntry");
@@ -407,7 +405,7 @@ mod macro_tests {
 
     #[cfg(feature = "default-hasher")]
     #[test]
-    fn test_id_hash_map_macro() {
+    fn macro_basic() {
         let map = id_hash_map! {
             User { id: 1, name: "Alice".to_string() },
             User { id: 2, name: "Bob".to_string() },
@@ -419,7 +417,7 @@ mod macro_tests {
     }
 
     #[test]
-    fn test_id_hash_map_macro_with_hasher() {
+    fn macro_with_hasher() {
         let map = id_hash_map! {
             HashBuilder;
             User { id: 3, name: "Charlie".to_string() },
@@ -433,15 +431,16 @@ mod macro_tests {
 
     #[cfg(feature = "default-hasher")]
     #[test]
-    fn test_id_hash_map_macro_empty() {
-        let _empty_map: IdHashMap<User> = id_hash_map! {};
+    fn macro_empty() {
+        let empty_map: IdHashMap<User> = id_hash_map! {};
+        assert!(empty_map.is_empty());
     }
 
     #[cfg(feature = "default-hasher")]
     #[test]
-    fn test_id_hash_map_macro_trailing_comma() {
+    fn macro_without_trailing_comma() {
         let map = id_hash_map! {
-            User { id: 1, name: "Alice".to_string() },
+            User { id: 1, name: "Alice".to_string() }
         };
         assert_eq!(map.len(), 1);
     }
@@ -449,7 +448,7 @@ mod macro_tests {
     #[cfg(feature = "default-hasher")]
     #[test]
     #[should_panic(expected = "DuplicateItem")]
-    fn test_id_hash_map_macro_duplicate_key() {
+    fn macro_duplicate_key() {
         let _map = id_hash_map! {
             User { id: 1, name: "Alice".to_string() },
             User { id: 1, name: "Bob".to_string() },
