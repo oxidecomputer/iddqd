@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.3.4] - 2025-06-03
+
+### Added
+
+- New macros `id_hash_map`, `bi_hash_map`, `tri_hash_map`, and `id_ord_map` allow easy construction of literal macros. These macros use `insert_unique`, so they panic if duplicate keys are encountered.
+
+### Changed
+
+- The `id_upcast`, `bi_upcast` and `tri_upcast` macros now have a `Self: 'long` bound, allowing them to be used for non-`'static` items.
+- Minimized dependency list, removing the dependency on `derive-where`, `debug-ignore`, and serde's `derive` feature. iddqd no longer depends on any proc macros.
+
 ## [0.3.3] - 2025-05-27
 
 ### Added
@@ -78,6 +89,7 @@
 
 Initial release.
 
+[0.3.4]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.4
 [0.3.3]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.3
 [0.3.2]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.2
 [0.3.1]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.1

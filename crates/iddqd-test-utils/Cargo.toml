@@ -13,7 +13,7 @@ bumpalo = { workspace = true, optional = true }
 hugealloc = { workspace = true, optional = true }
 iddqd.workspace = true
 proptest.workspace = true
-serde = { workspace = true, optional = true }
+serde = { workspace = true, features = ["derive"], optional = true }
 serde_json = { workspace = true, optional = true }
 test-strategy.workspace = true
 
