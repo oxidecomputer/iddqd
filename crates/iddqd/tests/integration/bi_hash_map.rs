@@ -1,8 +1,5 @@
 use iddqd::{
-    BiHashItem, BiHashMap,
-    bi_hash_map::{Entry, RefMut},
-    bi_upcast,
-    internal::ValidateCompact,
+    BiHashItem, BiHashMap, bi_hash_map, bi_upcast, internal::ValidateCompact,
 };
 use iddqd_test_utils::{
     eq_props::{assert_eq_props, assert_ne_props},
@@ -98,7 +95,8 @@ fn test_insert_unique() {
     // Iterate over the items mutably. This ensures that miri detects UB if it
     // exists.
     {
-        let mut items: Vec<RefMut<_, HashBuilder>> = map.iter_mut().collect();
+        let mut items: Vec<bi_hash_map::RefMut<_, HashBuilder>> =
+            map.iter_mut().collect();
         items.sort_by(|a, b| a.key1().cmp(&b.key1()));
         let e1 = &items[0];
         assert_eq!(**e1, v1);
@@ -374,7 +372,9 @@ fn entry_examples() {
     let mut map = BiHashMap::<TestItem, HashBuilder, Alloc>::make_new();
     let item1 = TestItem::new(0, 'a', "x", "v");
 
-    let Entry::Vacant(entry) = map.entry(item1.key1(), item1.key2()) else {
+    let bi_hash_map::Entry::Vacant(entry) =
+        map.entry(item1.key1(), item1.key2())
+    else {
         panic!("expected VacantEntry")
     };
     let mut entry = entry.insert_entry(item1.clone());
@@ -391,7 +391,8 @@ fn entry_examples() {
 
     // Test a non-unique item.
     let item2 = TestItem::new(0, 'b', "x", "v");
-    let Entry::Occupied(mut entry) = map.entry(item2.key1(), item2.key2())
+    let bi_hash_map::Entry::Occupied(mut entry) =
+        map.entry(item2.key1(), item2.key2())
     else {
         panic!("expected OccupiedEntry")
     };
@@ -463,7 +464,7 @@ fn entry_examples() {
                 item5_seen = true;
             }
         });
-        assert!(matches!(entry, Entry::Occupied(_)));
+        assert!(matches!(entry, bi_hash_map::Entry::Occupied(_)));
         assert!(item3_seen);
         assert!(item5_seen);
     }
@@ -478,7 +479,7 @@ fn insert_panics_for_non_matching_key1() {
 
     let v2 = TestItem::new(1, 'b', "bar", "value");
     let entry = map.entry(TestKey1::new(&2), TestKey2::new('b'));
-    assert!(matches!(entry, Entry::Vacant(_)));
+    assert!(matches!(entry, bi_hash_map::Entry::Vacant(_)));
     // Try inserting v2 which matches v1's key2 but not key1.
     entry.or_insert(v2);
 }
@@ -492,7 +493,7 @@ fn insert_panics_for_non_matching_key2() {
 
     let v2 = TestItem::new(1, 'b', "bar", "value");
     let entry = map.entry(TestKey1::new(&1), TestKey2::new('c'));
-    assert!(matches!(entry, Entry::Vacant(_)));
+    assert!(matches!(entry, bi_hash_map::Entry::Vacant(_)));
     // Try inserting v2 which matches v1's key1 but not key2.
     entry.or_insert(v2);
 }
@@ -505,7 +506,7 @@ fn entry_insert_non_matching_key1() {
 
     let v2 = TestItem::new(1, 'a', "bar", "value");
     let entry = map.entry(v2.key1(), v2.key2());
-    let Entry::Occupied(mut entry) = entry else {
+    let bi_hash_map::Entry::Occupied(mut entry) = entry else {
         panic!("expected OccupiedEntry");
     };
     // Try inserting v1, which is present in the map.
@@ -523,7 +524,7 @@ fn entry_insert_non_matching_key2() {
 
     let v2 = TestItem::new(0, 'b', "bar", "value");
     let entry = map.entry(v2.key1(), v2.key2());
-    let Entry::Occupied(mut entry) = entry else {
+    let bi_hash_map::Entry::Occupied(mut entry) = entry else {
         panic!("expected OccupiedEntry");
     };
     // Try inserting v1, which is present in the map.
@@ -542,12 +543,96 @@ fn insert_entry_panics_for_non_matching_keys() {
 
     let v2 = TestItem::new(1, 'b', "bar", "value");
     let entry = map.entry(v2.key1(), v2.key2());
-    assert!(matches!(entry, Entry::Vacant(_)));
+    assert!(matches!(entry, bi_hash_map::Entry::Vacant(_)));
     // Try inserting v1, which is present in the map.
-    if let Entry::Vacant(entry) = entry {
+    if let bi_hash_map::Entry::Vacant(entry) = entry {
         entry.insert_entry(v1);
     } else {
         panic!("expected VacantEntry");
+    }
+}
+
+mod macro_tests {
+    use super::*;
+
+    #[derive(Debug, PartialEq)]
+    struct User {
+        id: u32,
+        name: String,
+    }
+
+    impl BiHashItem for User {
+        type K1<'a> = u32;
+        type K2<'a> = &'a str;
+        fn key1(&self) -> Self::K1<'_> {
+            self.id
+        }
+        fn key2(&self) -> Self::K2<'_> {
+            &self.name
+        }
+        bi_upcast!();
+    }
+
+    #[cfg(feature = "default-hasher")]
+    #[test]
+    fn macro_basic() {
+        let map = bi_hash_map! {
+            User { id: 1, name: "Alice".to_string() },
+            User { id: 2, name: "Bob".to_string() },
+        };
+
+        assert_eq!(map.len(), 2);
+        assert_eq!(map.get1(&1).unwrap().name, "Alice");
+        assert_eq!(map.get2("Bob").unwrap().id, 2);
+    }
+
+    #[test]
+    fn macro_with_hasher() {
+        let map = bi_hash_map! {
+            HashBuilder;
+            User { id: 3, name: "Charlie".to_string() },
+            User { id: 4, name: "David".to_string() },
+        };
+
+        assert_eq!(map.len(), 2);
+        assert_eq!(map.get1(&3).unwrap().name, "Charlie");
+        assert_eq!(map.get2("David").unwrap().id, 4);
+    }
+
+    #[cfg(feature = "default-hasher")]
+    #[test]
+    fn macro_empty() {
+        let empty_map: BiHashMap<User> = bi_hash_map! {};
+        assert!(empty_map.is_empty());
+    }
+
+    #[cfg(feature = "default-hasher")]
+    #[test]
+    fn macro_without_trailing_comma() {
+        let map = bi_hash_map! {
+            User { id: 1, name: "Alice".to_string() }
+        };
+        assert_eq!(map.len(), 1);
+    }
+
+    #[cfg(feature = "default-hasher")]
+    #[test]
+    #[should_panic(expected = "DuplicateItem")]
+    fn macro_duplicate_key1() {
+        let _map = bi_hash_map! {
+            User { id: 1, name: "Alice".to_string() },
+            User { id: 1, name: "Bob".to_string() },
+        };
+    }
+
+    #[cfg(feature = "default-hasher")]
+    #[test]
+    #[should_panic(expected = "DuplicateItem")]
+    fn macro_duplicate_key2() {
+        let _map = bi_hash_map! {
+            User { id: 1, name: "Alice".to_string() },
+            User { id: 2, name: "Alice".to_string() },
+        };
     }
 }
 
