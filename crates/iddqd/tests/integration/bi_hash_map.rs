@@ -1,5 +1,5 @@
 use iddqd::{
-    BiHashItem, BiHashMap,
+    BiHashItem, BiHashMap, bi_hash_map,
     bi_hash_map::{Entry, RefMut},
     bi_upcast,
     internal::ValidateCompact,
@@ -548,6 +548,89 @@ fn insert_entry_panics_for_non_matching_keys() {
         entry.insert_entry(v1);
     } else {
         panic!("expected VacantEntry");
+    }
+}
+
+mod macro_tests {
+    use super::*;
+
+    #[derive(Debug, PartialEq)]
+    struct User {
+        id: u32,
+        name: String,
+    }
+
+    impl BiHashItem for User {
+        type K1<'a> = u32;
+        type K2<'a> = &'a str;
+        fn key1(&self) -> Self::K1<'_> {
+            self.id
+        }
+        fn key2(&self) -> Self::K2<'_> {
+            &self.name
+        }
+        bi_upcast!();
+    }
+
+    #[cfg(feature = "default-hasher")]
+    #[test]
+    fn test_bi_hash_map_macro() {
+        let map = bi_hash_map! {
+            User { id: 1, name: "Alice".to_string() },
+            User { id: 2, name: "Bob".to_string() },
+        };
+
+        assert_eq!(map.len(), 2);
+        assert_eq!(map.get1(&1).unwrap().name, "Alice");
+        assert_eq!(map.get2("Bob").unwrap().id, 2);
+    }
+
+    #[test]
+    fn test_bi_hash_map_macro_with_hasher() {
+        let map = bi_hash_map! {
+            HashBuilder;
+            User { id: 3, name: "Charlie".to_string() },
+            User { id: 4, name: "David".to_string() },
+        };
+
+        assert_eq!(map.len(), 2);
+        assert_eq!(map.get1(&3).unwrap().name, "Charlie");
+        assert_eq!(map.get2("David").unwrap().id, 4);
+    }
+
+    #[cfg(feature = "default-hasher")]
+    #[test]
+    fn test_bi_hash_map_macro_empty() {
+        let _empty_map: BiHashMap<User> = bi_hash_map! {};
+    }
+
+    #[cfg(feature = "default-hasher")]
+    #[test]
+    fn test_bi_hash_map_macro_trailing_comma() {
+        let map = bi_hash_map! {
+            User { id: 1, name: "Alice".to_string() },
+        };
+        assert_eq!(map.len(), 1);
+    }
+
+    #[cfg(feature = "default-hasher")]
+    #[test]
+    #[should_panic(expected = "DuplicateItem")]
+    fn test_bi_hash_map_macro_duplicate_key1() {
+        let _map = bi_hash_map! {
+            User { id: 1, name: "Alice".to_string() },
+            User { id: 1, name: "Bob".to_string() },
+        };
+    }
+
+    #[cfg(feature = "default-hasher")]
+    #[test]
+    #[should_panic(expected = "DuplicateItem")]
+    fn test_bi_hash_map_macro_duplicate_key2() {
+        let _map = bi_hash_map! {
+            User { id: 1, name: "Alice".to_string() },
+            User { id: 2, name: "Alice".to_string() },
+        };
     }
 }
 

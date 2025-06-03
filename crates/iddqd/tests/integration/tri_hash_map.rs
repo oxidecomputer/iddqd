@@ -1,6 +1,6 @@
 use iddqd::{
-    TriHashItem, TriHashMap, internal::ValidateCompact, tri_hash_map::RefMut,
-    tri_upcast,
+    TriHashItem, TriHashMap, internal::ValidateCompact, tri_hash_map,
+    tri_hash_map::RefMut, tri_upcast,
 };
 use iddqd_test_utils::{
     eq_props::{assert_eq_props, assert_ne_props},
@@ -428,6 +428,106 @@ fn get_mut_panics_if_key3_changes() {
     let mut map = TriHashMap::<TestItem, HashBuilder, Alloc>::make_new();
     map.insert_unique(TestItem::new(128, 'b', "y", "x")).unwrap();
     map.get1_mut(&TestKey1::new(&128)).unwrap().key3 = "z".to_owned();
+}
+
+mod macro_tests {
+    use super::*;
+
+    #[derive(Debug, PartialEq)]
+    struct Person {
+        id: u32,
+        name: String,
+        email: String,
+    }
+
+    impl TriHashItem for Person {
+        type K1<'a> = u32;
+        type K2<'a> = &'a str;
+        type K3<'a> = &'a str;
+        fn key1(&self) -> Self::K1<'_> {
+            self.id
+        }
+        fn key2(&self) -> Self::K2<'_> {
+            &self.name
+        }
+        fn key3(&self) -> Self::K3<'_> {
+            &self.email
+        }
+        tri_upcast!();
+    }
+
+    #[cfg(feature = "default-hasher")]
+    #[test]
+    fn test_tri_hash_map_macro() {
+        let map = tri_hash_map! {
+            Person { id: 1, name: "Alice".to_string(), email: "alice@example.com".to_string() },
+            Person { id: 2, name: "Bob".to_string(), email: "bob@example.com".to_string() },
+        };
+
+        assert_eq!(map.len(), 2);
+        assert_eq!(map.get1(&1).unwrap().name, "Alice");
+        assert_eq!(map.get2("Bob").unwrap().id, 2);
+        assert_eq!(map.get3("alice@example.com").unwrap().name, "Alice");
+    }
+
+    #[test]
+    fn test_tri_hash_map_macro_with_hasher() {
+        let map = tri_hash_map! {
+            HashBuilder;
+            Person { id: 3, name: "Charlie".to_string(), email: "charlie@example.com".to_string() },
+            Person { id: 4, name: "David".to_string(), email: "david@example.com".to_string() },
+        };
+
+        assert_eq!(map.len(), 2);
+        assert_eq!(map.get1(&3).unwrap().name, "Charlie");
+        assert_eq!(map.get2("David").unwrap().id, 4);
+        assert_eq!(map.get3("charlie@example.com").unwrap().name, "Charlie");
+    }
+
+    #[cfg(feature = "default-hasher")]
+    #[test]
+    fn test_tri_hash_map_macro_empty() {
+        let _empty_map: TriHashMap<Person> = tri_hash_map! {};
+    }
+
+    #[cfg(feature = "default-hasher")]
+    #[test]
+    fn test_tri_hash_map_macro_trailing_comma() {
+        let map = tri_hash_map! {
+            Person { id: 1, name: "Alice".to_string(), email: "alice@example.com".to_string() },
+        };
+        assert_eq!(map.len(), 1);
+    }
+
+    #[cfg(feature = "default-hasher")]
+    #[test]
+    #[should_panic(expected = "DuplicateItem")]
+    fn test_tri_hash_map_macro_duplicate_key1() {
+        let _map = tri_hash_map! {
+            Person { id: 1, name: "Alice".to_string(), email: "alice@example.com".to_string() },
+            Person { id: 1, name: "Bob".to_string(), email: "bob@example.com".to_string() },
+        };
+    }
+
+    #[cfg(feature = "default-hasher")]
+    #[test]
+    #[should_panic(expected = "DuplicateItem")]
+    fn test_tri_hash_map_macro_duplicate_key2() {
+        let _map = tri_hash_map! {
+            Person { id: 1, name: "Alice".to_string(), email: "alice@example.com".to_string() },
+            Person { id: 2, name: "Alice".to_string(), email: "alice2@example.com".to_string() },
+        };
+    }
+
+    #[cfg(feature = "default-hasher")]
+    #[test]
+    #[should_panic(expected = "DuplicateItem")]
+    fn test_tri_hash_map_macro_duplicate_key3() {
+        let _map = tri_hash_map! {
+            Person { id: 1, name: "Alice".to_string(), email: "alice@example.com".to_string() },
+            Person { id: 2, name: "Bob".to_string(), email: "alice@example.com".to_string() },
+        };
+    }
 }
 
 #[cfg(feature = "serde")]

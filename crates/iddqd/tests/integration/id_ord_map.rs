@@ -1,5 +1,5 @@
 use iddqd::{
-    IdOrdItem, IdOrdMap,
+    IdOrdItem, IdOrdMap, id_ord_map,
     id_ord_map::{Entry, RefMut},
     id_upcast,
     internal::{ValidateChaos, ValidateCompact},
@@ -466,6 +466,58 @@ fn insert_entry_panics_for_present_key() {
         vacant_entry.insert_entry(v1);
     } else {
         panic!("Expected Vacant entry");
+    }
+}
+
+mod macro_tests {
+    use super::*;
+
+    #[derive(Debug, PartialEq)]
+    struct User {
+        id: u32,
+        name: String,
+    }
+
+    impl IdOrdItem for User {
+        type Key<'a> = u32;
+        fn key(&self) -> Self::Key<'_> {
+            self.id
+        }
+        id_upcast!();
+    }
+
+    #[test]
+    fn test_id_ord_map_macro() {
+        let map = id_ord_map! {
+            User { id: 1, name: "Alice".to_string() },
+            User { id: 2, name: "Bob".to_string() },
+        };
+
+        assert_eq!(map.len(), 2);
+        assert_eq!(map.get(&1).unwrap().name, "Alice");
+        assert_eq!(map.get(&2).unwrap().name, "Bob");
+    }
+
+    #[test]
+    fn test_id_ord_map_macro_empty() {
+        let _empty_map: IdOrdMap<User> = id_ord_map! {};
+    }
+
+    #[test]
+    fn test_id_ord_map_macro_trailing_comma() {
+        let map = id_ord_map! {
+            User { id: 1, name: "Alice".to_string() },
+        };
+        assert_eq!(map.len(), 1);
+    }
+
+    #[test]
+    #[should_panic(expected = "DuplicateItem")]
+    fn test_id_ord_map_macro_duplicate_key() {
+        let _map = id_ord_map! {
+            User { id: 1, name: "Alice".to_string() },
+            User { id: 1, name: "Bob".to_string() },
+        };
     }
 }
 

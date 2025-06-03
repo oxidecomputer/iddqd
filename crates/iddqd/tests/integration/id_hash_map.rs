@@ -1,5 +1,5 @@
 use iddqd::{
-    IdHashItem, IdHashMap,
+    IdHashItem, IdHashMap, id_hash_map,
     id_hash_map::{Entry, RefMut},
     id_upcast,
     internal::ValidateCompact,
@@ -385,6 +385,75 @@ fn insert_entry_panics_for_non_matching_key() {
         vacant_entry.insert_entry(v1);
     } else {
         panic!("expected VacantEntry");
+    }
+}
+
+mod macro_tests {
+    use super::*;
+
+    #[derive(Debug, PartialEq)]
+    struct User {
+        id: u32,
+        name: String,
+    }
+
+    impl IdHashItem for User {
+        type Key<'a> = u32;
+        fn key(&self) -> Self::Key<'_> {
+            self.id
+        }
+        id_upcast!();
+    }
+
+    #[cfg(feature = "default-hasher")]
+    #[test]
+    fn test_id_hash_map_macro() {
+        let map = id_hash_map! {
+            User { id: 1, name: "Alice".to_string() },
+            User { id: 2, name: "Bob".to_string() },
+        };
+
+        assert_eq!(map.len(), 2);
+        assert_eq!(map.get(&1).unwrap().name, "Alice");
+        assert_eq!(map.get(&2).unwrap().name, "Bob");
+    }
+
+    #[test]
+    fn test_id_hash_map_macro_with_hasher() {
+        let map = id_hash_map! {
+            HashBuilder;
+            User { id: 3, name: "Charlie".to_string() },
+            User { id: 4, name: "David".to_string() },
+        };
+
+        assert_eq!(map.len(), 2);
+        assert_eq!(map.get(&3).unwrap().name, "Charlie");
+        assert_eq!(map.get(&4).unwrap().name, "David");
+    }
+
+    #[cfg(feature = "default-hasher")]
+    #[test]
+    fn test_id_hash_map_macro_empty() {
+        let _empty_map: IdHashMap<User> = id_hash_map! {};
+    }
+
+    #[cfg(feature = "default-hasher")]
+    #[test]
+    fn test_id_hash_map_macro_trailing_comma() {
+        let map = id_hash_map! {
+            User { id: 1, name: "Alice".to_string() },
+        };
+        assert_eq!(map.len(), 1);
+    }
+
+    #[cfg(feature = "default-hasher")]
+    #[test]
+    #[should_panic(expected = "DuplicateItem")]
+    fn test_id_hash_map_macro_duplicate_key() {
+        let _map = id_hash_map! {
+            User { id: 1, name: "Alice".to_string() },
+            User { id: 1, name: "Bob".to_string() },
+        };
     }
 }
 
