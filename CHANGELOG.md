@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.5] - 2025-06-05
+
+### Added
+
+- New feature `schemars08` adds support for generating JSON schemas.
+
 ## [0.3.4] - 2025-06-03
 
 ### Added
@@ -89,6 +95,7 @@
 
 Initial release.
 
+[0.3.5]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.5
 [0.3.4]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.4
 [0.3.3]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.3
 [0.3.2]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.2

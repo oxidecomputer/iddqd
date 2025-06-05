@@ -70,3 +70,8 @@ required-features = ["default-hasher"]
 [[example]]
 name = "schemars-examples"
 required-features = ["default-hasher", "schemars08"]
+
+[package.metadata.release]
+pre-release-replacements = [
+    { file = "../iddqd-extended-examples/examples/typify-types.rs", search = "iddqd\" = \".*\"", replace = "iddqd\" = \"{{version}}\"", exactly = 1 },
+]
