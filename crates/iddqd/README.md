@@ -277,6 +277,8 @@ platform-specific notion of thread locals, would suffice to make
 
 * `serde`: Enables serde support for all ID map types. *Not enabled by
   default.*
+* `schemars08`: Enables [`schemars`] support for all ID map types. *Not enabled by
+  default.*
 * `daft`: Enables [`daft`](https://docs.rs/daft/0.1.3/daft/index.html) support for all ID map types. *Not enabled by
   default.*
 * `std`: Enables std support. *Enabled by default.*
@@ -318,6 +320,7 @@ code](https://doomwiki.org/wiki/Doom_cheat_codes) in the classic video game
 *Doom*. It has `id` in the name, and is short and memorable.
 
 [`Borrow`]: https://doc.rust-lang.org/nightly/core/borrow/trait.Borrow.html
+[`schemars`]: https://crates.io/crates/schemars
 <!-- cargo-sync-rdme ]] -->
 
 ## License

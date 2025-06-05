@@ -307,6 +307,8 @@
 //!
 //! - `serde`: Enables serde support for all ID map types. *Not enabled by
 //!   default.*
+//! - `schemars08`: Enables [`schemars`] support for all ID map types. *Not enabled by
+//!   default.*
 //! - `daft`: Enables [`daft`] support for all ID map types. *Not enabled by
 //!   default.*
 //! - `std`: Enables std support. *Enabled by default.*
@@ -348,6 +350,9 @@
 //! _Doom_. It has `id` in the name, and is short and memorable.
 //!
 //! [`Borrow`]: core::borrow::Borrow
+//! [JSON Schema]: https://json-schema.org/
+//! [OpenAPI]: https://www.openapis.org/
+//! [`schemars`]: https://crates.io/crates/schemars
 
 #![no_std]
 #![cfg_attr(doc_cfg, feature(doc_auto_cfg))]
