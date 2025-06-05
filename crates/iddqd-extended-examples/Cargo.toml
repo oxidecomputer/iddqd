@@ -11,7 +11,7 @@ workspace = true
 
 [dev-dependencies]
 bumpalo.workspace = true
-iddqd = { workspace = true, features = ["allocator-api2", "default-hasher"] }
+iddqd = { workspace = true, features = ["allocator-api2", "default-hasher", "serde"] }
 serde.workspace = true
 serde_json.workspace = true
 typify.workspace = true
