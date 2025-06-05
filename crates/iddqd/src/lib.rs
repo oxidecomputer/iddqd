@@ -307,6 +307,8 @@
 //!
 //! - `serde`: Enables serde support for all ID map types. *Not enabled by
 //!   default.*
+//! - `schemars08`: Enables [`schemars`] support for all ID map types. *Not enabled by
+//!   default.*
 //! - `daft`: Enables [`daft`] support for all ID map types. *Not enabled by
 //!   default.*
 //! - `std`: Enables std support. *Enabled by default.*
@@ -317,11 +319,6 @@
 //!   [`allocator_api2`] crate. Both global and scoped/arena allocators
 //!   (such as `bumpalo`) are supported. Custom allocators are not currently
 //!   supported by `IdOrdMap`.
-//!
-//! # Other integrations
-//!
-//! - [`iddqd-schemars`] provides [JSON Schema], and therefore [OpenAPI], support
-//!   through [`schemars`].
 //!
 //! # Related work
 //!
@@ -353,7 +350,6 @@
 //! _Doom_. It has `id` in the name, and is short and memorable.
 //!
 //! [`Borrow`]: core::borrow::Borrow
-//! [`iddqd-schemars`]: https://crates.io/crates/iddqd-schemars
 //! [JSON Schema]: https://json-schema.org/
 //! [OpenAPI]: https://www.openapis.org/
 //! [`schemars`]: https://crates.io/crates/schemars

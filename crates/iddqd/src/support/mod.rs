@@ -9,3 +9,5 @@ pub(crate) mod hash_builder;
 pub(crate) mod hash_table;
 pub(crate) mod item_set;
 pub(crate) mod map_hash;
+#[cfg(feature = "schemars08")]
+pub(crate) mod schemars_utils;

@@ -1,7 +1,5 @@
 use iddqd::{
-    IdOrdItem, IdOrdMap,
-    id_ord_map::{Entry, RefMut},
-    id_upcast,
+    IdOrdItem, IdOrdMap, id_ord_map, id_upcast,
     internal::{ValidateChaos, ValidateCompact},
 };
 use iddqd_test_utils::{
@@ -90,8 +88,8 @@ fn test_compact_chaos() {
         // iter_mut can potentially cause mutable UB.
         catch_panic(|| map.iter_mut().collect::<Vec<_>>());
         catch_panic(|| match map.entry(item.key()) {
-            Entry::Vacant(_) => {}
-            Entry::Occupied(mut entry) => {
+            id_ord_map::Entry::Vacant(_) => {}
+            id_ord_map::Entry::Occupied(mut entry) => {
                 // This can trigger some unsafe code.
                 {
                     let _mut1 = entry.get_mut();
@@ -139,7 +137,7 @@ fn test_insert_unique() {
 
     // Iterate over the items mutably. This ensures that miri detects UB if it
     // exists.
-    let items: Vec<RefMut<_>> = map.iter_mut().collect();
+    let items: Vec<id_ord_map::RefMut<_>> = map.iter_mut().collect();
     let e1 = &items[0];
     assert_eq!(**e1, v3);
 
@@ -354,7 +352,7 @@ fn entry_examples() {
     let mut map = IdOrdMap::<TestItem>::make_new();
     let item1 = TestItem::new(0, 'a', "x", "v");
 
-    let Entry::Vacant(entry) = map.entry(item1.key()) else {
+    let id_ord_map::Entry::Vacant(entry) = map.entry(item1.key()) else {
         panic!("expected VacantEntry")
     };
     let mut entry = entry.insert_entry(item1.clone());
@@ -366,7 +364,7 @@ fn entry_examples() {
     // Try looking up another item with the same key1.
     let item2 = TestItem::new(0, 'b', "y", "x");
 
-    let Entry::Occupied(mut entry) = map.entry(item2.key()) else {
+    let id_ord_map::Entry::Occupied(mut entry) = map.entry(item2.key()) else {
         panic!("expected OccupiedEntry");
     };
     assert_eq!(entry.insert(item2.clone()), item1);
@@ -432,7 +430,7 @@ fn or_insert_ref_panics_for_present_key() {
 
     let v2 = TestItem::new(1, 'a', "bar", "value");
     let entry = map.entry(v2.key());
-    assert!(matches!(entry, Entry::Vacant(_)));
+    assert!(matches!(entry, id_ord_map::Entry::Vacant(_)));
     // Try inserting v1, which is present in the map.
     entry.or_insert_ref(v1);
 }
@@ -446,7 +444,7 @@ fn or_insert_panics_for_present_key() {
 
     let v2 = TestItem::new(1, 'a', "bar", "value");
     let entry = map.entry(v2.key());
-    assert!(matches!(entry, Entry::Vacant(_)));
+    assert!(matches!(entry, id_ord_map::Entry::Vacant(_)));
     // Try inserting v1, which is present in the map.
     entry.or_insert(v1);
 }
@@ -460,12 +458,65 @@ fn insert_entry_panics_for_present_key() {
 
     let v2 = TestItem::new(1, 'a', "bar", "value");
     let entry = map.entry(v2.key());
-    assert!(matches!(entry, Entry::Vacant(_)));
+    assert!(matches!(entry, id_ord_map::Entry::Vacant(_)));
     // Try inserting v1, which is present in the map.
-    if let Entry::Vacant(vacant_entry) = entry {
+    if let id_ord_map::Entry::Vacant(vacant_entry) = entry {
         vacant_entry.insert_entry(v1);
     } else {
         panic!("Expected Vacant entry");
+    }
+}
+
+mod macro_tests {
+    use super::*;
+
+    #[derive(Debug, PartialEq)]
+    struct User {
+        id: u32,
+        name: String,
+    }
+
+    impl IdOrdItem for User {
+        type Key<'a> = u32;
+        fn key(&self) -> Self::Key<'_> {
+            self.id
+        }
+        id_upcast!();
+    }
+
+    #[test]
+    fn macro_basic() {
+        let map = id_ord_map! {
+            User { id: 1, name: "Alice".to_string() },
+            User { id: 2, name: "Bob".to_string() },
+        };
+
+        assert_eq!(map.len(), 2);
+        assert_eq!(map.get(&1).unwrap().name, "Alice");
+        assert_eq!(map.get(&2).unwrap().name, "Bob");
+    }
+
+    #[test]
+    fn macro_empty() {
+        let empty_map: IdOrdMap<User> = id_ord_map! {};
+        assert!(empty_map.is_empty());
+    }
+
+    #[test]
+    fn macro_without_trailing_comma() {
+        let map = id_ord_map! {
+            User { id: 1, name: "Alice".to_string() }
+        };
+        assert_eq!(map.len(), 1);
+    }
+
+    #[test]
+    #[should_panic(expected = "DuplicateItem")]
+    fn macro_duplicate_key() {
+        let _map = id_ord_map! {
+            User { id: 1, name: "Alice".to_string() },
+            User { id: 1, name: "Bob".to_string() },
+        };
     }
 }
 

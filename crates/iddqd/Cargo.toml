@@ -1,6 +1,6 @@
 [package]
 name = "iddqd"
-version = "0.3.3"
+version = "0.3.4"
 description = "Maps where keys borrow from values, including bijective and trijective maps."
 readme = "README.md"
 documentation = "https://docs.rs/iddqd"
@@ -30,9 +30,12 @@ foldhash = { workspace = true, optional = true }
 hashbrown.workspace = true
 ref-cast = { workspace = true, optional = true }
 rustc-hash.workspace = true
+schemars = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
 
 [dev-dependencies]
+expectorate.workspace = true
 iddqd-test-utils.workspace = true
 proptest.workspace = true
 test-strategy.workspace = true
@@ -42,8 +45,9 @@ allocator-api2 = ["iddqd-test-utils/allocator-api2"]
 daft = ["dep:daft", "dep:ref-cast"]
 default = ["allocator-api2", "std", "default-hasher"]
 default-hasher = ["dep:foldhash", "iddqd-test-utils/default-hasher"]
-std = ["dep:foldhash", "iddqd-test-utils/std", "rustc-hash/std"]
+schemars08 = ["dep:schemars", "dep:serde_json", "serde"]
 serde = ["dep:serde", "iddqd-test-utils/serde"]
+std = ["dep:foldhash", "iddqd-test-utils/std", "rustc-hash/std"]
 
 [package.metadata.cargo-sync-rdme.badge.badges]
 license = true
@@ -62,3 +66,7 @@ required-features = ["default-hasher"]
 [[example]]
 name = "tri-complex"
 required-features = ["default-hasher"]
+
+[[example]]
+name = "schemars-examples"
+required-features = ["default-hasher", "schemars08"]

@@ -7,13 +7,7 @@
   ],
   "properties": {
     "users": {
-      "$ref": "#/definitions/IdHashMap_of_TestUser"
-    }
-  },
-  "definitions": {
-    "IdHashMap_of_TestUser": {
       "title": "IdHashMap",
-      "description": "A hash map where keys are borrowed from values, serialized as an array of values",
       "type": "array",
       "items": {
         "$ref": "#/definitions/TestUser"
@@ -29,7 +23,9 @@
         "path": "iddqd::IdHashMap",
         "version": "*"
       }
-    },
+    }
+  },
+  "definitions": {
     "TestUser": {
       "type": "object",
       "required": [

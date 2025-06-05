@@ -1,13 +1,9 @@
-//! Basic usage example for iddqd-schemars.
-//!
-//! This example shows how to use the marker types to generate JSON schemas
-//! for iddqd map types.
+//! Basic usage example for iddqd with schemars.
 
 use iddqd::{
     BiHashItem, BiHashMap, IdHashItem, IdHashMap, TriHashItem, TriHashMap,
     bi_upcast, id_upcast, tri_upcast,
 };
-use iddqd_schemars::{BiHashMapSchema, IdHashMapSchema, TriHashMapSchema};
 use schemars::{JsonSchema, schema_for};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -68,15 +64,12 @@ impl TriHashItem for User {
 #[derive(Serialize, Deserialize, JsonSchema)]
 struct UserDatabase {
     /// Users indexed by name
-    #[schemars(with = "IdHashMapSchema<User>")]
     users_by_name: IdHashMap<User>,
 
     /// Users with bidirectional lookup by name and email
-    #[schemars(with = "BiHashMapSchema<User>")]
     users_bi: BiHashMap<User>,
 
     /// Users with three-way lookup by name, email, and age
-    #[schemars(with = "TriHashMapSchema<User>")]
     users_tri: TriHashMap<User>,
 
     /// Regular HashMap for comparison
@@ -88,15 +81,15 @@ fn main() {
 
     // Generate schemas for individual map types.
     println!("*** schema for IdHashMap<User>:");
-    let id_hash_schema = schema_for!(IdHashMapSchema<User>);
+    let id_hash_schema = schema_for!(IdHashMap<User>);
     println!("{}\n", serde_json::to_string_pretty(&id_hash_schema).unwrap());
 
     println!("*** schema for BiHashMap<User>:");
-    let bi_hash_schema = schema_for!(BiHashMapSchema<User>);
+    let bi_hash_schema = schema_for!(BiHashMap<User>);
     println!("{}\n", serde_json::to_string_pretty(&bi_hash_schema).unwrap());
 
     println!("*** schema for TriHashMap<User>:");
-    let tri_hash_schema = schema_for!(TriHashMapSchema<User>);
+    let tri_hash_schema = schema_for!(TriHashMap<User>);
     println!("{}\n", serde_json::to_string_pretty(&tri_hash_schema).unwrap());
 
     // Generate a schema for the container struct.

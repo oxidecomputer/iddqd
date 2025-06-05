@@ -1,7 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "TriHashMap",
-  "description": "A trijective hash map with three keys, serialized as an array of values",
+  "title": "IdOrdMap",
   "type": "array",
   "items": {
     "$ref": "#/definitions/TestUser"
@@ -14,7 +13,7 @@
         "$ref": "#/definitions/TestUser"
       }
     ],
-    "path": "iddqd::TriHashMap",
+    "path": "iddqd::IdOrdMap",
     "version": "*"
   },
   "definitions": {

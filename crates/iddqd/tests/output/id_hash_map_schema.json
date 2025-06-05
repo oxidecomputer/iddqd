@@ -1,7 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "BiHashMap",
-  "description": "A bijective hash map with two keys, serialized as an array of values",
+  "title": "IdHashMap",
   "type": "array",
   "items": {
     "$ref": "#/definitions/TestUser"
@@ -14,7 +13,7 @@
         "$ref": "#/definitions/TestUser"
       }
     ],
-    "path": "iddqd::BiHashMap",
+    "path": "iddqd::IdHashMap",
     "version": "*"
   },
   "definitions": {

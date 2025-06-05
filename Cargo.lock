@@ -194,18 +194,21 @@ dependencies = [
 
 [[package]]
 name = "iddqd"
-version = "0.3.3"
+version = "0.3.4"
 dependencies = [
  "allocator-api2",
  "daft",
  "equivalent",
+ "expectorate",
  "foldhash",
  "hashbrown",
  "iddqd-test-utils",
  "proptest",
  "ref-cast",
  "rustc-hash",
+ "schemars",
  "serde",
+ "serde_json",
  "test-strategy",
 ]
 
@@ -215,16 +218,6 @@ version = "0.1.0"
 dependencies = [
  "bumpalo",
  "iddqd",
-]
-
-[[package]]
-name = "iddqd-schemars"
-version = "0.1.0"
-dependencies = [
- "expectorate",
- "iddqd",
- "iddqd-test-utils",
- "schemars",
  "serde",
  "serde_json",
  "typify",

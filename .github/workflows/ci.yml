@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        partition: ["1", "2", "3", "4"]
+        partition: ["1", "2", "3", "4", "5"]
     env:
       RUSTFLAGS: -D warnings
     steps:
@@ -28,7 +28,7 @@ jobs:
         with:
           tool: just,cargo-hack,cargo-sync-rdme
       - name: Lint (clippy)
-        run: just powerset --partition ${{ matrix.partition }}/4 clippy --all-targets
+        run: just powerset --partition ${{ matrix.partition }}/5 clippy --all-targets
       - name: Lint (rustfmt)
         run: cargo xfmt --check
       - name: Run rustdoc

@@ -1,7 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "IdOrdMap",
-  "description": "An ordered map where keys are borrowed from values, serialized as an array of values",
+  "title": "TriHashMap",
   "type": "array",
   "items": {
     "$ref": "#/definitions/TestUser"
@@ -14,7 +13,7 @@
         "$ref": "#/definitions/TestUser"
       }
     ],
-    "path": "iddqd::IdOrdMap",
+    "path": "iddqd::TriHashMap",
     "version": "*"
   },
   "definitions": {

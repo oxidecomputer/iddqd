@@ -9,9 +9,12 @@ publish = false
 [lints]
 workspace = true
 
-[dependencies]
+[dev-dependencies]
 bumpalo.workspace = true
 iddqd = { workspace = true, features = ["allocator-api2", "default-hasher"] }
+serde.workspace = true
+serde_json.workspace = true
+typify.workspace = true
 
 [package.metadata.release]
 release = false

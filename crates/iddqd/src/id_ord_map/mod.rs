@@ -8,6 +8,8 @@ mod entry;
 pub(crate) mod imp;
 mod iter;
 mod ref_mut;
+#[cfg(feature = "schemars08")]
+mod schemars_impls;
 #[cfg(feature = "serde")]
 mod serde_impls;
 mod tables;

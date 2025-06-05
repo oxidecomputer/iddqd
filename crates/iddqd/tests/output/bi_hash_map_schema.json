@@ -1,7 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "IdHashMap",
-  "description": "A hash map where keys are borrowed from values, serialized as an array of values",
+  "title": "BiHashMap",
   "type": "array",
   "items": {
     "$ref": "#/definitions/TestUser"
@@ -14,7 +13,7 @@
         "$ref": "#/definitions/TestUser"
       }
     ],
-    "path": "iddqd::IdHashMap",
+    "path": "iddqd::BiHashMap",
     "version": "*"
   },
   "definitions": {
