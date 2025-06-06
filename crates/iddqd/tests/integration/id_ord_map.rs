@@ -3,6 +3,7 @@ use iddqd::{
     internal::{ValidateChaos, ValidateCompact},
 };
 use iddqd_test_utils::{
+    borrowed_item::BorrowedItem,
     eq_props::{assert_eq_props, assert_ne_props},
     naive_map::NaiveMap,
     test_item::{
@@ -12,6 +13,7 @@ use iddqd_test_utils::{
     unwind::catch_panic,
 };
 use proptest::prelude::*;
+use std::path::Path;
 use test_strategy::{Arbitrary, proptest};
 
 #[test]
@@ -465,6 +467,42 @@ fn insert_entry_panics_for_present_key() {
     } else {
         panic!("Expected Vacant entry");
     }
+}
+
+#[test]
+fn borrowed_item() {
+    let mut map = IdOrdMap::<BorrowedItem>::default();
+    let item1 =
+        BorrowedItem { key1: "foo", key2: b"foo", key3: Path::new("foo") };
+    let item2 =
+        BorrowedItem { key1: "bar", key2: b"bar", key3: Path::new("bar") };
+
+    // Insert items.
+    map.insert_unique(item1.clone()).unwrap();
+    map.insert_unique(item2.clone()).unwrap();
+
+    // Check that we can retrieve them.
+    assert_eq!(map.get("foo").unwrap().key1, "foo");
+    assert_eq!(map.get("bar").unwrap().key1, "bar");
+
+    // Check that we can iterate over them.
+    let keys: Vec<_> = map.iter().map(|item| item.key()).collect();
+    assert_eq!(keys, vec!["bar", "foo"]);
+
+    // Check that we can print a Debug representation, even within a function
+    // (supporting this requires a little bit of unsafe code to get the
+    // lifetimes to line up).
+    fn fmt_debug(map: &IdOrdMap<BorrowedItem<'_>>) -> String {
+        format!("{:?}", map)
+    }
+
+    static DEBUG_OUTPUT: &str = "{\"bar\": BorrowedItem { \
+        key1: \"bar\", key2: [98, 97, 114], key3: \"bar\" }, \
+        \"foo\": BorrowedItem { \
+        key1: \"foo\", key2: [102, 111, 111], key3: \"foo\" }}";
+
+    assert_eq!(format!("{:?}", map), DEBUG_OUTPUT);
+    assert_eq!(fmt_debug(&map), DEBUG_OUTPUT);
 }
 
 mod macro_tests {

@@ -2,6 +2,7 @@ use iddqd::{
     IdHashItem, IdHashMap, id_hash_map, id_upcast, internal::ValidateCompact,
 };
 use iddqd_test_utils::{
+    borrowed_item::BorrowedItem,
     eq_props::{assert_eq_props, assert_ne_props},
     naive_map::NaiveMap,
     test_item::{
@@ -10,6 +11,7 @@ use iddqd_test_utils::{
     },
 };
 use proptest::prelude::*;
+use std::path::Path;
 use test_strategy::{Arbitrary, proptest};
 
 #[derive(Clone, Debug)]
@@ -384,6 +386,43 @@ fn insert_entry_panics_for_non_matching_key() {
     } else {
         panic!("expected VacantEntry");
     }
+}
+
+#[test]
+fn borrowed_item() {
+    let mut map = IdHashMap::<BorrowedItem, HashBuilder, Alloc>::default();
+    let item1 =
+        BorrowedItem { key1: "foo", key2: b"foo", key3: Path::new("foo") };
+    let item2 =
+        BorrowedItem { key1: "bar", key2: b"bar", key3: Path::new("bar") };
+
+    // Insert items.
+    map.insert_unique(item1.clone()).unwrap();
+    map.insert_unique(item2.clone()).unwrap();
+
+    // Check that we can retrieve them.
+    assert_eq!(map.get("foo").unwrap().key1, "foo");
+    assert_eq!(map.get("bar").unwrap().key1, "bar");
+
+    // Check that we can iterate over them.
+    let keys: Vec<_> = map.iter().map(|item| item.key()).collect();
+    assert_eq!(keys, vec!["foo", "bar"]);
+
+    // Check that we can print a Debug representation, even within a function
+    // (supporting this requires a little bit of unsafe code to get the
+    // lifetimes to line up).
+    fn fmt_debug(
+        map: &IdHashMap<BorrowedItem<'_>, HashBuilder, Alloc>,
+    ) -> String {
+        format!("{:?}", map)
+    }
+
+    static DEBUG_OUTPUT: &str = "{\"foo\": BorrowedItem { \
+        key1: \"foo\", key2: [102, 111, 111], key3: \"foo\" }, \
+        \"bar\": BorrowedItem { \
+        key1: \"bar\", key2: [98, 97, 114], key3: \"bar\" }}";
+    assert_eq!(format!("{:?}", map), DEBUG_OUTPUT);
+    assert_eq!(fmt_debug(&map), DEBUG_OUTPUT);
 }
 
 mod macro_tests {

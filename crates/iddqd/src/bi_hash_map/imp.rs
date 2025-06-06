@@ -1861,39 +1861,50 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
     }
 }
 
-impl<T, S, A> fmt::Debug for BiHashMap<T, S, A>
+impl<'a, T, S, A> fmt::Debug for BiHashMap<T, S, A>
 where
     T: BiHashItem + fmt::Debug,
-    for<'k> T::K1<'k>: fmt::Debug,
-    for<'k> T::K2<'k>: fmt::Debug,
+    T::K1<'a>: fmt::Debug,
+    T::K2<'a>: fmt::Debug,
+    T: 'a,
     A: Allocator,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        struct KeyMap<'a, T: BiHashItem + 'a> {
-            key1: T::K1<'a>,
-            key2: T::K2<'a>,
-        }
+        let mut map = f.debug_map();
+        for item in self.items.values() {
+            let key: KeyMap<'_, T> =
+                KeyMap { key1: item.key1(), key2: item.key2() };
 
-        impl<'a, T: BiHashItem> fmt::Debug for KeyMap<'a, T>
-        where
-            for<'k> T::K1<'k>: fmt::Debug,
-            for<'k> T::K2<'k>: fmt::Debug,
-        {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                // We don't want to show key1 and key2 as a tuple since it's
-                // misleading (suggests maps of tuples). The best we can do
-                // instead is to show "{k1: "abc", k2: "xyz"}"
-                f.debug_map()
-                    .entry(&StrDisplayAsDebug("k1"), &self.key1)
-                    .entry(&StrDisplayAsDebug("k2"), &self.key2)
-                    .finish()
-            }
-        }
+            // SAFETY: We only use key within the scope of this block before
+            // immediately dropping it -- map.entry calls key.fmt() without
+            // holding a reference to it.
+            let key: KeyMap<'a, T> = unsafe {
+                core::mem::transmute::<KeyMap<'_, T>, KeyMap<'a, T>>(key)
+            };
 
+            map.entry(&key as &dyn fmt::Debug, item);
+        }
+        map.finish()
+    }
+}
+
+struct KeyMap<'a, T: BiHashItem + 'a> {
+    key1: T::K1<'a>,
+    key2: T::K2<'a>,
+}
+
+impl<'a, T: BiHashItem + 'a> fmt::Debug for KeyMap<'a, T>
+where
+    T::K1<'a>: fmt::Debug,
+    T::K2<'a>: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // We don't want to show key1 and key2 as a tuple since it's
+        // misleading (suggests maps of tuples). The best we can do
+        // instead is to show "{k1: "abc", k2: "xyz"}"
         f.debug_map()
-            .entries(self.items.iter().map(|(_, item)| {
-                (KeyMap::<T> { key1: item.key1(), key2: item.key2() }, item)
-            }))
+            .entry(&StrDisplayAsDebug("k1"), &self.key1)
+            .entry(&StrDisplayAsDebug("k2"), &self.key2)
             .finish()
     }
 }
