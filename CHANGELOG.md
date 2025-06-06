@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.6] - 2025-06-06
+
+### Changed
+
+- Relaxed `Debug` requirement to only require that `T::Key<'a>: fmt::Debug`, not `for<'k> T::Key<'k>: fmt::Debug`. This allows items with borrowed data to compile in more cases.
+- Relaxed `Hash` requirement for `IdOrdMap` `get_mut` and related APIs in a similar fashion.
+
 ## [0.3.5] - 2025-06-05
 
 ### Added
@@ -95,6 +102,7 @@
 
 Initial release.
 
+[0.3.6]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.6
 [0.3.5]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.5
 [0.3.4]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.4
 [0.3.3]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.3
