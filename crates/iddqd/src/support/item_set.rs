@@ -93,13 +93,13 @@ impl<T, A: Allocator> ItemSet<T, A> {
     }
 
     #[inline]
-    pub(crate) fn iter(&self) -> hash_map::Iter<usize, T> {
+    pub(crate) fn iter(&self) -> hash_map::Iter<'_, usize, T> {
         self.items.iter()
     }
 
     #[inline]
     #[expect(dead_code)]
-    pub(crate) fn iter_mut(&mut self) -> hash_map::IterMut<usize, T> {
+    pub(crate) fn iter_mut(&mut self) -> hash_map::IterMut<'_, usize, T> {
         self.items.iter_mut()
     }
 

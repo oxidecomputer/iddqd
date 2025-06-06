@@ -205,7 +205,7 @@ impl MapBTreeTable {
         drop(guard);
     }
 
-    pub(crate) fn iter(&self) -> Iter {
+    pub(crate) fn iter(&self) -> Iter<'_> {
         Iter::new(self.items.iter())
     }
 
