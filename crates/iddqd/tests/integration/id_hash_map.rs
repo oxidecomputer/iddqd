@@ -392,9 +392,9 @@ fn insert_entry_panics_for_non_matching_key() {
 fn borrowed_item() {
     let mut map = IdHashMap::<BorrowedItem, HashBuilder, Alloc>::default();
     let item1 =
-        BorrowedItem { key1: "foo", key2: b"foo", key3: &Path::new("foo") };
+        BorrowedItem { key1: "foo", key2: b"foo", key3: Path::new("foo") };
     let item2 =
-        BorrowedItem { key1: "bar", key2: b"bar", key3: &Path::new("bar") };
+        BorrowedItem { key1: "bar", key2: b"bar", key3: Path::new("bar") };
 
     // Insert items.
     map.insert_unique(item1.clone()).unwrap();
