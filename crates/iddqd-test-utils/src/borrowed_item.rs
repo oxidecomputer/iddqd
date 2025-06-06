@@ -1,6 +1,7 @@
+#[cfg(feature = "std")]
+use iddqd::IdOrdItem;
 use iddqd::{
-    BiHashItem, IdHashItem, IdOrdItem, TriHashItem, bi_upcast, id_upcast,
-    tri_upcast,
+    BiHashItem, IdHashItem, TriHashItem, bi_upcast, id_upcast, tri_upcast,
 };
 use std::path::Path;
 
@@ -24,6 +25,7 @@ impl<'a> IdHashItem for BorrowedItem<'a> {
     id_upcast!();
 }
 
+#[cfg(feature = "std")]
 impl<'a> IdOrdItem for BorrowedItem<'a> {
     type Key<'k>
         = &'a str
