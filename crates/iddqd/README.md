@@ -12,18 +12,18 @@ Maps where keys are borrowed from values.
 
 This crate consists of several map types, collectively called **ID maps**:
 
-* [`IdOrdMap`](https://docs.rs/iddqd/0.3.5/iddqd/id_ord_map/imp/struct.IdOrdMap.html): A B-Tree based map where keys are borrowed from values.
-* [`IdHashMap`](https://docs.rs/iddqd/0.3.5/iddqd/id_hash_map/imp/struct.IdHashMap.html): A hash map where keys are borrowed from values.
-* [`BiHashMap`](https://docs.rs/iddqd/0.3.5/iddqd/bi_hash_map/imp/struct.BiHashMap.html): A bijective (1:1) hash map with two keys, borrowed from
+* [`IdOrdMap`](https://docs.rs/iddqd/0.3.6/iddqd/id_ord_map/imp/struct.IdOrdMap.html): A B-Tree based map where keys are borrowed from values.
+* [`IdHashMap`](https://docs.rs/iddqd/0.3.6/iddqd/id_hash_map/imp/struct.IdHashMap.html): A hash map where keys are borrowed from values.
+* [`BiHashMap`](https://docs.rs/iddqd/0.3.6/iddqd/bi_hash_map/imp/struct.BiHashMap.html): A bijective (1:1) hash map with two keys, borrowed from
   values.
-* [`TriHashMap`](https://docs.rs/iddqd/0.3.5/iddqd/tri_hash_map/imp/struct.TriHashMap.html): A trijective (1:1:1) hash map with three keys, borrowed
+* [`TriHashMap`](https://docs.rs/iddqd/0.3.6/iddqd/tri_hash_map/imp/struct.TriHashMap.html): A trijective (1:1:1) hash map with three keys, borrowed
   from values.
 
 ## Usage
 
 * Pick your ID map type.
-* Depending on the ID map type, implement [`IdOrdItem`](https://docs.rs/iddqd/0.3.5/iddqd/id_ord_map/trait_defs/trait.IdOrdItem.html), [`IdHashItem`](https://docs.rs/iddqd/0.3.5/iddqd/id_hash_map/trait_defs/trait.IdHashItem.html),
-  [`BiHashItem`](https://docs.rs/iddqd/0.3.5/iddqd/bi_hash_map/trait_defs/trait.BiHashItem.html), or [`TriHashItem`](https://docs.rs/iddqd/0.3.5/iddqd/tri_hash_map/trait_defs/trait.TriHashItem.html) for your value type.
+* Depending on the ID map type, implement [`IdOrdItem`](https://docs.rs/iddqd/0.3.6/iddqd/id_ord_map/trait_defs/trait.IdOrdItem.html), [`IdHashItem`](https://docs.rs/iddqd/0.3.6/iddqd/id_hash_map/trait_defs/trait.IdHashItem.html),
+  [`BiHashItem`](https://docs.rs/iddqd/0.3.6/iddqd/bi_hash_map/trait_defs/trait.BiHashItem.html), or [`TriHashItem`](https://docs.rs/iddqd/0.3.6/iddqd/tri_hash_map/trait_defs/trait.TriHashItem.html) for your value type.
 * Store values in the ID map type.
 
 ### Features
@@ -49,11 +49,11 @@ issues encountered using Rust’s default map types in practice at Oxide.
 
 We’ve also sometimes needed to index a set of data by more than one key, or
 perhaps map one key to another. For that purpose, this crate provides
-[`BiHashMap`](https://docs.rs/iddqd/0.3.5/iddqd/bi_hash_map/imp/struct.BiHashMap.html) and [`TriHashMap`](https://docs.rs/iddqd/0.3.5/iddqd/tri_hash_map/imp/struct.TriHashMap.html).
+[`BiHashMap`](https://docs.rs/iddqd/0.3.6/iddqd/bi_hash_map/imp/struct.BiHashMap.html) and [`TriHashMap`](https://docs.rs/iddqd/0.3.6/iddqd/tri_hash_map/imp/struct.TriHashMap.html).
 
-* [`BiHashMap`](https://docs.rs/iddqd/0.3.5/iddqd/bi_hash_map/imp/struct.BiHashMap.html) has two keys, and provides a bijection (1:1 relationship)
+* [`BiHashMap`](https://docs.rs/iddqd/0.3.6/iddqd/bi_hash_map/imp/struct.BiHashMap.html) has two keys, and provides a bijection (1:1 relationship)
   between the keys.
-* [`TriHashMap`](https://docs.rs/iddqd/0.3.5/iddqd/tri_hash_map/imp/struct.TriHashMap.html) has three keys, and provides a trijection (1:1:1
+* [`TriHashMap`](https://docs.rs/iddqd/0.3.6/iddqd/tri_hash_map/imp/struct.TriHashMap.html) has three keys, and provides a trijection (1:1:1
   relationship) between the keys.
 
 As a consequence of the general API structure, maps can have arbitrary
@@ -61,7 +61,7 @@ non-key data associated with them as well.
 
 ### Examples
 
-An example for [`IdOrdMap`](https://docs.rs/iddqd/0.3.5/iddqd/id_ord_map/imp/struct.IdOrdMap.html):
+An example for [`IdOrdMap`](https://docs.rs/iddqd/0.3.6/iddqd/id_ord_map/imp/struct.IdOrdMap.html):
 
 ````rust
 use iddqd::{IdOrdItem, IdOrdMap, id_upcast};
@@ -103,7 +103,7 @@ for user in &users {
 
 Keys don’t have to be borrowed from the value. For smaller `Copy` types,
 it’s recommended that you use owned keys. Here’s an example of using
-[`IdOrdMap`](https://docs.rs/iddqd/0.3.5/iddqd/id_ord_map/imp/struct.IdOrdMap.html) with a small integer key:
+[`IdOrdMap`](https://docs.rs/iddqd/0.3.6/iddqd/id_ord_map/imp/struct.IdOrdMap.html) with a small integer key:
 
 ````rust
 struct Record {
@@ -125,7 +125,7 @@ impl IdOrdItem for Record {
 // ...
 ````
 
-An example for [`IdHashMap`](https://docs.rs/iddqd/0.3.5/iddqd/id_hash_map/imp/struct.IdHashMap.html), showing a complex borrowed key. Here,
+An example for [`IdHashMap`](https://docs.rs/iddqd/0.3.6/iddqd/id_hash_map/imp/struct.IdHashMap.html), showing a complex borrowed key. Here,
 “complex” means that the key is not a reference itself, but a struct that
 returns references to more than one field from the value.
 
@@ -209,7 +209,7 @@ For a key type `T::Key<'_>` and a lookup type `L`:
   must hash in the same way as `T::Key<'_>`. Typically, this is done by
   ensuring that enum variants and struct fields are in the same
   order[^proptest].
-* [`IdOrdMap`](https://docs.rs/iddqd/0.3.5/iddqd/id_ord_map/imp/struct.IdOrdMap.html) requires `L: Comparable<T::Key<'_>>`, which in turn requires
+* [`IdOrdMap`](https://docs.rs/iddqd/0.3.6/iddqd/id_ord_map/imp/struct.IdOrdMap.html) requires `L: Comparable<T::Key<'_>>`, which in turn requires
   `Equivalent<T::Key<'_>>`. (There’s no need for `L` to implement `Ord` or
   `Eq` itself.)
 
@@ -264,11 +264,11 @@ If you see a gap in testing, new tests are welcome. Thank you!
 
 Most of this crate is no-std compatible, though [`alloc`](https://doc.rust-lang.org/nightly/alloc/index.html) is required.
 
-The [`IdOrdMap`](https://docs.rs/iddqd/0.3.5/iddqd/id_ord_map/imp/struct.IdOrdMap.html) type is not currently no-std compatible due to its use of a
+The [`IdOrdMap`](https://docs.rs/iddqd/0.3.6/iddqd/id_ord_map/imp/struct.IdOrdMap.html) type is not currently no-std compatible due to its use of a
 thread-local. This thread-local is just a way to work around a limitation in
 std’s `BTreeMap` API, though. Either a custom B-Tree implementation, or a
 platform-specific notion of thread locals, would suffice to make
-[`IdOrdMap`](https://docs.rs/iddqd/0.3.5/iddqd/id_ord_map/imp/struct.IdOrdMap.html) no-std compatible.
+[`IdOrdMap`](https://docs.rs/iddqd/0.3.6/iddqd/id_ord_map/imp/struct.IdOrdMap.html) no-std compatible.
 
 ## Optional features
 
@@ -282,7 +282,7 @@ platform-specific notion of thread locals, would suffice to make
 * `std`: Enables std support. *Enabled by default.*
 * `default-hasher`: Enables the `DefaultHashBuilder` type. Disable this
   feature to require a hash builder type parameter to be passed into
-  [`IdHashMap`](https://docs.rs/iddqd/0.3.5/iddqd/id_hash_map/imp/struct.IdHashMap.html), [`BiHashMap`](https://docs.rs/iddqd/0.3.5/iddqd/bi_hash_map/imp/struct.BiHashMap.html), and [`TriHashMap`](https://docs.rs/iddqd/0.3.5/iddqd/tri_hash_map/imp/struct.TriHashMap.html). *Enabled by default.*
+  [`IdHashMap`](https://docs.rs/iddqd/0.3.6/iddqd/id_hash_map/imp/struct.IdHashMap.html), [`BiHashMap`](https://docs.rs/iddqd/0.3.6/iddqd/bi_hash_map/imp/struct.BiHashMap.html), and [`TriHashMap`](https://docs.rs/iddqd/0.3.6/iddqd/tri_hash_map/imp/struct.TriHashMap.html). *Enabled by default.*
 * `allocator-api2`: Enables support for custom allocators via the
   [`allocator_api2`](https://docs.rs/allocator-api2/0.2.21/allocator_api2/index.html) crate. Both global and scoped/arena allocators
   (such as `bumpalo`) are supported. Custom allocators are not currently
