@@ -158,12 +158,13 @@ pub struct MapLeaf<
     pub after: &'daft TriHashMap<T, S, A>,
 }
 
-impl<'daft, T: TriHashItem + fmt::Debug, S, A: Allocator> fmt::Debug
+impl<'a, 'daft, T: TriHashItem + fmt::Debug, S, A: Allocator> fmt::Debug
     for MapLeaf<'daft, T, S, A>
 where
-    for<'k> T::K1<'k>: fmt::Debug,
-    for<'k> T::K2<'k>: fmt::Debug,
-    for<'k> T::K3<'k>: fmt::Debug,
+    T::K1<'a>: fmt::Debug,
+    T::K2<'a>: fmt::Debug,
+    T::K3<'a>: fmt::Debug,
+    T: 'a,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("MapLeaf")
