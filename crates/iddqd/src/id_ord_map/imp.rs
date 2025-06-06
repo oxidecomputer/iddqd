@@ -64,7 +64,7 @@ pub struct IdOrdMap<T: IdOrdItem> {
     pub(super) items: ItemSet<T, Global>,
     // Invariant: the values (usize) in these tables are valid indexes into
     // `items`, and are a 1:1 mapping.
-    tables: IdOrdMapTables,
+    pub(super) tables: IdOrdMapTables,
 }
 
 impl<T: IdOrdItem> Default for IdOrdMap<T> {
@@ -400,9 +400,9 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     /// [`BTreeMap`]: std::collections::BTreeMap
     /// [`T::Key`]: crate::IdOrdItem::Key
     #[inline]
-    pub fn iter_mut(&mut self) -> IterMut<'_, T>
+    pub fn iter_mut<'a>(&'a mut self) -> IterMut<'a, T>
     where
-        for<'k> T::Key<'k>: Hash,
+        T::Key<'a>: Hash,
     {
         IterMut::new(&mut self.items, &self.tables)
     }
@@ -666,7 +666,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     pub fn get_mut<'a, Q>(&'a mut self, key: &Q) -> Option<RefMut<'a, T>>
     where
         Q: ?Sized + Comparable<T::Key<'a>>,
-        for<'k> T::Key<'k>: Hash,
+        T::Key<'a>: Hash,
     {
         let (dormant_map, index) = {
             let (map, dormant_map) = DormantMutRef::new(self);
@@ -677,7 +677,14 @@ impl<T: IdOrdItem> IdOrdMap<T> {
         // SAFETY: `map` is not used after this point.
         let awakened_map = unsafe { dormant_map.awaken() };
         let item = &mut awakened_map.items[index];
-        let hash = awakened_map.tables.make_hash(item);
+        let (hash, dormant) = {
+            let (item, dormant) = DormantMutRef::new(item);
+            let hash = awakened_map.tables.make_hash(item);
+            (hash, dormant)
+        };
+
+        // SAFETY: the original item is not used after this point.
+        let item = unsafe { dormant.awaken() };
         Some(RefMut::new(hash, item))
     }
 
@@ -841,15 +848,22 @@ impl<T: IdOrdItem> IdOrdMap<T> {
         self.items.get(index)
     }
 
-    pub(super) fn get_by_index_mut(
-        &mut self,
+    pub(super) fn get_by_index_mut<'a>(
+        &'a mut self,
         index: usize,
-    ) -> Option<RefMut<'_, T>>
+    ) -> Option<RefMut<'a, T>>
     where
-        for<'k> T::Key<'k>: Hash,
+        T::Key<'a>: Hash,
     {
-        let item = self.items.get_mut(index)?;
-        let hash = self.tables.make_hash(item);
+        let (hash, dormant) = {
+            let item: &'a mut T = self.items.get_mut(index)?;
+            let (item, dormant) = DormantMutRef::new(item);
+            let hash = self.tables.make_hash(item);
+            (hash, dormant)
+        };
+
+        // SAFETY: item is no longer used after the above point.
+        let item = unsafe { dormant.awaken() };
         Some(RefMut::new(hash, item))
     }
 
@@ -941,7 +955,7 @@ where
             let key: T::Key<'a> =
                 unsafe { core::mem::transmute::<T::Key<'_>, T::Key<'a>>(key) };
 
-            map.entry(&key, item);
+            map.entry(&key, &item);
         }
         map.finish()
     }
@@ -987,7 +1001,7 @@ impl<'a, T: IdOrdItem> IntoIterator for &'a IdOrdMap<T> {
 
 impl<'a, T: IdOrdItem> IntoIterator for &'a mut IdOrdMap<T>
 where
-    for<'k> T::Key<'k>: Hash,
+    T::Key<'a>: Hash,
 {
     type Item = RefMut<'a, T>;
     type IntoIter = IterMut<'a, T>;

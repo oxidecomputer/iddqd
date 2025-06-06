@@ -568,7 +568,7 @@ where
 impl<T> ItemMap<T> for IdOrdMap<T>
 where
     T: IdOrdItem + Clone,
-    for<'k> <T as IdOrdItem>::Key<'k>: std::hash::Hash,
+    for<'k> T::Key<'k>: std::hash::Hash,
 {
     type RefMut<'a>
         = id_ord_map::RefMut<'a, T>
@@ -750,7 +750,7 @@ impl<'a, T: IdHashItem> IntoRef<'a, T>
 #[cfg(feature = "std")]
 impl<'a, T: IdOrdItem> IntoRef<'a, T> for id_ord_map::RefMut<'a, T>
 where
-    for<'k> <T as IdOrdItem>::Key<'k>: std::hash::Hash,
+    T::Key<'a>: std::hash::Hash,
 {
     fn into_ref(self) -> &'a T {
         self.into_ref()

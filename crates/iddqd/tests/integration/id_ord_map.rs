@@ -503,6 +503,38 @@ fn borrowed_item() {
 
     assert_eq!(format!("{:?}", map), DEBUG_OUTPUT);
     assert_eq!(fmt_debug(&map), DEBUG_OUTPUT);
+
+    // Try using the entry API against the borrowed item.
+    fn entry_api_tests(map: &mut IdOrdMap<BorrowedItem<'_>>) {
+        let entry = map.entry("foo");
+        entry.or_insert(BorrowedItem {
+            key1: "foo",
+            key2: b"foo",
+            key3: Path::new("foo"),
+        });
+
+        let entry = map.entry("foo");
+        entry.or_insert_with(|| BorrowedItem {
+            key1: "foo",
+            key2: b"foo",
+            key3: Path::new("foo"),
+        });
+
+        let entry = map.entry("bar");
+        let entry = entry.and_modify(|mut v| {
+            // IdOrdMap<BorrowedItem<'_>> is not indexed by key2, so changing
+            // key2 will not cause a panic. (Changing key1 would cause a panic.)
+            v.key2 = b"baz";
+        });
+
+        let id_ord_map::Entry::Occupied(mut entry) = entry else {
+            panic!("Entry should be occupied")
+        };
+        let mut v = entry.get_mut();
+        v.key2 = b"quux";
+    }
+
+    entry_api_tests(&mut map);
 }
 
 mod macro_tests {

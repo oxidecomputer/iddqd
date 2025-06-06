@@ -51,7 +51,7 @@ impl<'a, T: IdOrdItem> Entry<'a, T> {
     #[inline]
     pub fn or_insert(self, default: T) -> RefMut<'a, T>
     where
-        for<'k> T::Key<'k>: Hash,
+        T::Key<'a>: Hash,
     {
         match self {
             Entry::Occupied(entry) => entry.into_mut(),
@@ -88,7 +88,7 @@ impl<'a, T: IdOrdItem> Entry<'a, T> {
     #[inline]
     pub fn or_insert_with<F: FnOnce() -> T>(self, default: F) -> RefMut<'a, T>
     where
-        for<'k> T::Key<'k>: Hash,
+        T::Key<'a>: Hash,
     {
         match self {
             Entry::Occupied(entry) => entry.into_mut(),
@@ -102,11 +102,31 @@ impl<'a, T: IdOrdItem> Entry<'a, T> {
     pub fn and_modify<F>(self, f: F) -> Self
     where
         F: FnOnce(RefMut<'_, T>),
-        for<'k> T::Key<'k>: Hash,
+        T::Key<'a>: Hash,
     {
         match self {
             Entry::Occupied(mut entry) => {
-                f(entry.get_mut());
+                {
+                    let (hash, dormant) = {
+                        // SAFETY: The safety assumption behind
+                        // `OccupiedEntry::new` guarantees that the original
+                        // reference to the map is not used at this point.
+                        let map = unsafe { entry.map.reborrow() };
+                        let item = map
+                            .items
+                            .get_mut(entry.index)
+                            .expect("index is valid");
+
+                        let (item, dormant) = DormantMutRef::new(item);
+                        let hash = map.tables.make_hash(item);
+                        (hash, dormant)
+                    };
+
+                    // SAFETY: the item above is not used after this point.
+                    let awakened_item = unsafe { dormant.awaken() };
+                    let ref_mut = RefMut::new(hash, awakened_item);
+                    f(ref_mut);
+                }
                 Entry::Occupied(entry)
             }
             Entry::Vacant(entry) => Entry::Vacant(entry),
@@ -152,7 +172,7 @@ impl<'a, T: IdOrdItem> VacantEntry<'a, T> {
     /// value.
     pub fn insert(self, value: T) -> RefMut<'a, T>
     where
-        for<'k> T::Key<'k>: Hash,
+        T::Key<'a>: Hash,
     {
         // SAFETY: The safety assumption behind `Self::new` guarantees that the
         // original reference to the map is not used at this point.
@@ -226,9 +246,9 @@ impl<'a, T: IdOrdItem> OccupiedEntry<'a, T> {
     ///
     /// If you need a reference to `T` that may outlive the destruction of the
     /// `Entry` value, see [`into_mut`](Self::into_mut).
-    pub fn get_mut(&mut self) -> RefMut<'_, T>
+    pub fn get_mut<'b>(&'b mut self) -> RefMut<'b, T>
     where
-        for<'k> T::Key<'k>: Hash,
+        T::Key<'b>: Hash,
     {
         // SAFETY: The safety assumption behind `Self::new` guarantees that the
         // original reference to the map is not used at this point.
@@ -255,7 +275,7 @@ impl<'a, T: IdOrdItem> OccupiedEntry<'a, T> {
     /// [`get_mut`](Self::get_mut).
     pub fn into_mut(self) -> RefMut<'a, T>
     where
-        for<'k> T::Key<'k>: Hash,
+        T::Key<'a>: Hash,
     {
         // SAFETY: The safety assumption behind `Self::new` guarantees that the
         // original reference to the map is not used at this point.
