@@ -130,7 +130,7 @@ An example for [`IdHashMap`](https://docs.rs/iddqd/0.3.5/iddqd/id_hash_map/imp/s
 returns references to more than one field from the value.
 
 ````rust
-use iddqd::{IdHashItem, IdHashMap, id_upcast};
+use iddqd::{IdHashItem, id_hash_map, id_upcast};
 
 #[derive(Debug)]
 struct Artifact {
@@ -158,23 +158,20 @@ impl IdHashItem for Artifact {
     id_upcast!();
 }
 
-let mut artifacts = IdHashMap::<Artifact>::new();
-
-// Add artifacts to the map.
-artifacts
-    .insert_unique(Artifact {
+// Create a new `IdHashMap` with the given artifacts. This uses the
+// `id_hash_map!` macro that comes with iddqd.
+let artifacts = id_hash_map! {
+    Artifact {
         name: "artifact1".to_owned(),
         version: "1.0".to_owned(),
         data: b"data1".to_vec(),
-    })
-    .unwrap();
-artifacts
-    .insert_unique(Artifact {
+    },
+    Artifact {
         name: "artifact2".to_owned(),
         version: "1.0".to_owned(),
         data: b"data2".to_vec(),
-    })
-    .unwrap();
+    },
+};
 
 // Look up artifacts by name and version.
 assert_eq!(

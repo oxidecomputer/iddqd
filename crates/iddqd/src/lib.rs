@@ -126,7 +126,7 @@
 //!
 //! ```
 //! # #[cfg(feature = "default-hasher")] {
-//! use iddqd::{IdHashItem, IdHashMap, id_upcast};
+//! use iddqd::{IdHashItem, id_hash_map, id_upcast};
 //!
 //! #[derive(Debug)]
 //! struct Artifact {
@@ -154,23 +154,20 @@
 //!     id_upcast!();
 //! }
 //!
-//! let mut artifacts = IdHashMap::<Artifact>::new();
-//!
-//! // Add artifacts to the map.
-//! artifacts
-//!     .insert_unique(Artifact {
+//! // Create a new `IdHashMap` with the given artifacts. This uses the
+//! // `id_hash_map!` macro that comes with iddqd.
+//! let artifacts = id_hash_map! {
+//!     Artifact {
 //!         name: "artifact1".to_owned(),
 //!         version: "1.0".to_owned(),
 //!         data: b"data1".to_vec(),
-//!     })
-//!     .unwrap();
-//! artifacts
-//!     .insert_unique(Artifact {
+//!     },
+//!     Artifact {
 //!         name: "artifact2".to_owned(),
 //!         version: "1.0".to_owned(),
 //!         data: b"data2".to_vec(),
-//!     })
-//!     .unwrap();
+//!     },
+//! };
 //!
 //! // Look up artifacts by name and version.
 //! assert_eq!(
@@ -223,7 +220,7 @@
 //! ```
 //! # #[cfg(feature = "default-hasher")] {
 //! use equivalent::Equivalent;
-//! # use iddqd::{IdHashMap, IdHashItem, id_upcast};
+//! # use iddqd::{id_hash_map, IdHashItem, id_upcast};
 //! # #[derive(Debug)]
 //! # struct Artifact {
 //! #     name: String,
@@ -245,15 +242,13 @@
 //! #     }
 //! #     id_upcast!();
 //! # }
-//! # let mut artifacts = IdHashMap::<Artifact>::new();
-//! #
-//! # // Add artifacts to the map.
-//! # artifacts.insert_unique(Artifact {
-//! #     name: "artifact1".to_owned(),
-//! #     version: "1.0".to_owned(),
-//! #     data: b"data1".to_vec(),
-//! # })
-//! # .unwrap();
+//! # let artifacts = id_hash_map! {
+//! #     Artifact {
+//! #         name: "artifact1".to_owned(),
+//! #         version: "1.0".to_owned(),
+//! #         data: b"data1".to_vec(),
+//! #     }
+//! # };
 //!
 //! // This is an owned form of ArtifactKey. The fields are in the same
 //! // order as ArtifactKey's fields, so it hashes the same way.
