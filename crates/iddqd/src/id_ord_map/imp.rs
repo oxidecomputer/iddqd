@@ -923,15 +923,27 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     }
 }
 
-impl<T: IdOrdItem> fmt::Debug for IdOrdMap<T>
+impl<'a, T: IdOrdItem> fmt::Debug for IdOrdMap<T>
 where
     T: fmt::Debug,
-    for<'k> T::Key<'k>: fmt::Debug,
+    T::Key<'a>: fmt::Debug,
+    T: 'a,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_map()
-            .entries(self.iter().map(|item| (item.key(), item)))
-            .finish()
+        let mut map = f.debug_map();
+
+        for item in self.iter() {
+            let key = item.key();
+
+            // SAFETY: We only use key within the scope of this block before
+            // immediately dropping it -- map.entry calls key.fmt() without
+            // holding a reference to it.
+            let key: T::Key<'a> =
+                unsafe { core::mem::transmute::<T::Key<'_>, T::Key<'a>>(key) };
+
+            map.entry(&key, item);
+        }
+        map.finish()
     }
 }
 

@@ -1,3 +1,4 @@
+pub mod borrowed_item;
 pub mod eq_props;
 pub mod naive_map;
 #[cfg(feature = "serde")]
