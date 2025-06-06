@@ -46,14 +46,14 @@ use core::{
 /// [birthday problem]: https://en.wikipedia.org/wiki/Birthday_problem#Probability_table
 pub struct RefMut<'a, T: IdOrdItem>
 where
-    for<'k> T::Key<'k>: Hash,
+    T::Key<'a>: Hash,
 {
     inner: Option<RefMutInner<'a, T>>,
 }
 
 impl<'a, T: IdOrdItem> RefMut<'a, T>
 where
-    for<'k> T::Key<'k>: Hash,
+    T::Key<'a>: Hash,
 {
     pub(super) fn new(
         hash: MapHash<foldhash::fast::RandomState>,
@@ -63,15 +63,6 @@ where
         Self { inner: Some(inner) }
     }
 
-    /// Borrows self into a shorter-lived `RefMut`.
-    ///
-    /// This `RefMut` will also check hash equality on drop.
-    pub fn reborrow(&mut self) -> RefMut<'_, T> {
-        let inner = self.inner.as_mut().unwrap();
-        let borrowed = &mut *inner.borrowed;
-        RefMut::new(inner.hash.clone(), borrowed)
-    }
-
     /// Converts this `RefMut` into a `&'a T`.
     pub fn into_ref(mut self) -> &'a T {
         let inner = self.inner.take().unwrap();
@@ -79,9 +70,27 @@ where
     }
 }
 
-impl<T: IdOrdItem> Drop for RefMut<'_, T>
+impl<'a, T: IdOrdItem> RefMut<'a, T>
 where
     for<'k> T::Key<'k>: Hash,
+{
+    /// Borrows self into a shorter-lived `RefMut`.
+    ///
+    /// This `RefMut` will also check hash equality on drop.
+    ///
+    /// Note: currently, due to limitations in the Rust borrow checker, this
+    /// effectively requires that `T: 'static`. Relaxing this requirement should
+    /// be possible in principle.
+    pub fn reborrow<'b>(&'b mut self) -> RefMut<'b, T> {
+        let inner = self.inner.as_mut().unwrap();
+        let borrowed = &mut *inner.borrowed;
+        RefMut::new(inner.hash.clone(), borrowed)
+    }
+}
+
+impl<'a, T: IdOrdItem> Drop for RefMut<'a, T>
+where
+    T::Key<'a>: Hash,
 {
     fn drop(&mut self) {
         if let Some(inner) = self.inner.take() {
@@ -90,9 +99,9 @@ where
     }
 }
 
-impl<T: IdOrdItem> Deref for RefMut<'_, T>
+impl<'a, T: IdOrdItem> Deref for RefMut<'a, T>
 where
-    for<'k> T::Key<'k>: Hash,
+    T::Key<'a>: Hash,
 {
     type Target = T;
 
@@ -101,18 +110,18 @@ where
     }
 }
 
-impl<T: IdOrdItem> DerefMut for RefMut<'_, T>
+impl<'a, T: IdOrdItem> DerefMut for RefMut<'a, T>
 where
-    for<'k> T::Key<'k>: Hash,
+    T::Key<'a>: Hash,
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.inner.as_mut().unwrap().borrowed
     }
 }
 
-impl<T: IdOrdItem + fmt::Debug> fmt::Debug for RefMut<'_, T>
+impl<'a, T: IdOrdItem + fmt::Debug> fmt::Debug for RefMut<'a, T>
 where
-    for<'k> T::Key<'k>: Hash,
+    T::Key<'a>: Hash,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.inner {
@@ -131,10 +140,15 @@ struct RefMutInner<'a, T: IdOrdItem> {
 
 impl<'a, T: IdOrdItem> RefMutInner<'a, T>
 where
-    for<'k> T::Key<'k>: Hash,
+    T::Key<'a>: Hash,
 {
     fn into_ref(self) -> &'a T {
-        if !self.hash.is_same_hash(self.borrowed.key()) {
+        let key: T::Key<'_> = self.borrowed.key();
+        // SAFETY: The key is borrowed, then dropped immediately. T is valid for
+        // 'a so T::Key is valid for 'a.
+        let key: T::Key<'a> =
+            unsafe { std::mem::transmute::<T::Key<'_>, T::Key<'a>>(key) };
+        if !self.hash.is_same_hash(&key) {
             panic!("key changed during RefMut borrow");
         }
 

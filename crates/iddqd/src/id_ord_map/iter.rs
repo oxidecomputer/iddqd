@@ -1,5 +1,7 @@
 use super::{IdOrdItem, RefMut, tables::IdOrdMapTables};
-use crate::support::{alloc::Global, btree_table, item_set::ItemSet};
+use crate::support::{
+    alloc::Global, borrow::DormantMutRef, btree_table, item_set::ItemSet,
+};
 use core::{hash::Hash, iter::FusedIterator};
 
 /// An iterator over the elements of an [`IdOrdMap`] by shared reference.
@@ -54,7 +56,7 @@ impl<T: IdOrdItem> FusedIterator for Iter<'_, T> {}
 #[derive(Debug)]
 pub struct IterMut<'a, T: IdOrdItem>
 where
-    for<'k> T::Key<'k>: Hash,
+    T::Key<'a>: Hash,
 {
     items: &'a mut ItemSet<T, Global>,
     tables: &'a IdOrdMapTables,
@@ -63,7 +65,7 @@ where
 
 impl<'a, T: IdOrdItem> IterMut<'a, T>
 where
-    for<'k> T::Key<'k>: Hash,
+    T::Key<'a>: Hash,
 {
     pub(super) fn new(
         items: &'a mut ItemSet<T, Global>,
@@ -75,15 +77,15 @@ where
 
 impl<'a, T: IdOrdItem + 'a> Iterator for IterMut<'a, T>
 where
-    for<'k> T::Key<'k>: Hash,
+    T::Key<'a>: Hash,
 {
     type Item = RefMut<'a, T>;
 
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         let index = self.iter.next()?;
+
         let item = &mut self.items[index];
-        let hash = self.tables.make_hash(item);
 
         // SAFETY: This lifetime extension from self to 'a is safe based on two
         // things:
@@ -111,13 +113,24 @@ where
         // [1]:
         //     https://doc.rust-lang.org/std/ptr/index.html#pointer-to-reference-conversion
         let item = unsafe { core::mem::transmute::<&mut T, &'a mut T>(item) };
+
+        let (hash, dormant) = {
+            let (item, dormant) = DormantMutRef::new(item);
+            let hash = self.tables.make_hash(item);
+            (hash, dormant)
+        };
+
+        // SAFETY: item is dropped above, and self is no longer used after this
+        // point.
+        let item = unsafe { dormant.awaken() };
+
         Some(RefMut::new(hash, item))
     }
 }
 
 impl<'a, T: IdOrdItem + 'a> ExactSizeIterator for IterMut<'a, T>
 where
-    for<'k> T::Key<'k>: Hash,
+    T::Key<'a>: Hash,
 {
     #[inline]
     fn len(&self) -> usize {
@@ -127,7 +140,7 @@ where
 
 // hash_map::IterMut is a FusedIterator, so IterMut is as well.
 impl<'a, T: IdOrdItem + 'a> FusedIterator for IterMut<'a, T> where
-    for<'k> T::Key<'k>: Hash
+    T::Key<'a>: Hash
 {
 }
 
