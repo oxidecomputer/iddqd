@@ -12,6 +12,12 @@ workspace = true
 [dev-dependencies]
 bumpalo.workspace = true
 iddqd = { workspace = true, features = ["allocator-api2", "default-hasher", "serde"] }
+# Not actually required, but works around a Cargo bug that repros with (Rust
+# 1.87):
+#
+# % git checkout caf605b74da0ea8641fff06bce143c591a578ad4
+# (repo root)% cargo test
+iddqd-test-utils = { workspace = true, features = ["serde"] }
 serde.workspace = true
 serde_json.workspace = true
 typify.workspace = true

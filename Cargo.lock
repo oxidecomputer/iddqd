@@ -218,6 +218,7 @@ version = "0.1.0"
 dependencies = [
  "bumpalo",
  "iddqd",
+ "iddqd-test-utils",
  "serde",
  "serde_json",
  "typify",
