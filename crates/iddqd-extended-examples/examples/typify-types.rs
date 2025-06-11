@@ -12,7 +12,7 @@ import_types!(
     // Add iddqd to your dependency list, and specify that you have the "iddqd"
     // crate available.
     crates = {
-        "iddqd" = "0.3.6",
+        "iddqd" = "0.3.7",
     },
 );
 
