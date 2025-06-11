@@ -2,7 +2,6 @@
 
 use alloc::{
     boxed::Box,
-    collections::BTreeMap,
     string::{String, ToString},
 };
 
@@ -57,7 +56,7 @@ where
 pub(crate) fn make_extension_table<T>(
     path: &'static str,
     generator: &mut schemars::gen::SchemaGenerator,
-) -> BTreeMap<String, serde_json::Value>
+) -> schemars::Map<String, serde_json::Value>
 where
     T: schemars::JsonSchema,
 {
