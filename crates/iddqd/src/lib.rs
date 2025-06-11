@@ -356,6 +356,7 @@
 #![no_std]
 #![cfg_attr(doc_cfg, feature(doc_auto_cfg))]
 #![warn(missing_docs)]
+#![feature(btree_set_entry)]
 
 #[cfg_attr(not(feature = "std"), macro_use)] // for `format!`
 extern crate alloc;
