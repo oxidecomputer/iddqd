@@ -10,10 +10,12 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, JsonSchema)]
 struct TestUser {
+    // This is in alphabetical order to ensure that the same fixture gets
+    // generated with or without the `schemars/preserve_order` feature.
+    age: u32,
+    email: String,
     id: u32,
     name: String,
-    email: String,
-    age: u32,
 }
 
 impl IdHashItem for TestUser {
@@ -108,10 +110,12 @@ fn container_fixtures() {
     #[derive(JsonSchema)]
     #[expect(unused)]
     struct Container {
-        users_hash: IdHashMap<TestUser>,
+        // This is in alphabetical order to ensure that the same fixture gets
+        // generated with or without the `schemars/preserve_order` feature.
         users_bi: BiHashMap<TestUser>,
-        users_tri: TriHashMap<TestUser>,
+        users_hash: IdHashMap<TestUser>,
         users_ord: IdOrdMap<TestUser>,
+        users_tri: TriHashMap<TestUser>,
     }
 
     // Verify the container can generate a schema.

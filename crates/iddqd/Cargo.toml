@@ -49,6 +49,9 @@ schemars08 = ["dep:schemars", "dep:serde_json", "serde"]
 serde = ["dep:serde", "iddqd-test-utils/serde"]
 std = ["dep:foldhash", "iddqd-test-utils/std", "rustc-hash/std"]
 
+# Internal-only feature for testing that schemars/preserve_order works.
+internal-schemars08-preserve-order = ["schemars08", "schemars/preserve_order"]
+
 [package.metadata.cargo-sync-rdme.badge.badges]
 license = true
 crates-io = true
