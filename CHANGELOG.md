@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.7] - 2025-06-11
+
+### Fixed
+
+- iddqd is now compatible with schemars's `preserve_order` feature. Thanks [Sh3Rm4n](https://github.com/Sh3Rm4n) for your first contribution!
+
 ## [0.3.6] - 2025-06-06
 
 ### Changed
@@ -102,6 +108,7 @@
 
 Initial release.
 
+[0.3.7]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.7
 [0.3.6]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.6
 [0.3.5]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.5
 [0.3.4]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.4
