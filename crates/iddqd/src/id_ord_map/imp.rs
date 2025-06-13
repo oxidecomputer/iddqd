@@ -950,7 +950,7 @@ where
             let key = item.key();
 
             // SAFETY:
-            // 
+            //
             // * Lifetime extension: for a type T and two lifetime params 'a and
             //   'b, T<'a> and T<'b> aren't guaranteed to have the same layout,
             //   but (a) that is true today and (b) it would be shocking and
