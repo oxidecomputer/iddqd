@@ -7,6 +7,9 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 rust-version = "1.81"
 
+[workspace.lints.clippy]
+undocumented_unsafe_blocks = { level = "warn" }
+
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = ["cfg(doc_cfg)"] }
 

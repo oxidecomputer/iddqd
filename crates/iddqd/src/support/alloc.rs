@@ -22,6 +22,7 @@ mod inner {
     #[derive(Clone, Copy, Default)]
     pub(crate) struct AllocWrapper<T>(pub(crate) T);
 
+    // SAFETY: These functions just forward to the wrapped allocator.
     unsafe impl<T: Allocator> allocator_api2::alloc::Allocator for AllocWrapper<T> {
         #[inline]
         fn allocate(
@@ -61,6 +62,7 @@ mod inner {
     #[doc(hidden)]
     pub struct Global(allocator_api2::alloc::Global);
 
+    // SAFETY: These functions just forward to the wrapped allocator.
     unsafe impl Allocator for Global {
         #[inline]
         fn allocate(
@@ -79,6 +81,7 @@ mod inner {
     #[derive(Clone, Copy, Default)]
     pub(crate) struct AllocWrapper<T>(pub(crate) T);
 
+    // SAFETY: These functions just forward to the wrapped allocator.
     unsafe impl<T: Allocator> allocator_api2::alloc::Allocator for AllocWrapper<T> {
         #[inline]
         fn allocate(
