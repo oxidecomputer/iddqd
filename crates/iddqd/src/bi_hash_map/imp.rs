@@ -1591,12 +1591,15 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
                     unsafe { VacantEntry::new(dormant_map, hashes) },
                 )
             }
-            (index1, index2) => Entry::Occupied(unsafe {
-                OccupiedEntry::new(
-                    dormant_map,
-                    EntryIndexes::NonUnique { index1, index2 },
-                )
-            }),
+            (index1, index2) => Entry::Occupied(
+                // SAFETY: `map` is not used after this point.
+                unsafe {
+                    OccupiedEntry::new(
+                        dormant_map,
+                        EntryIndexes::NonUnique { index1, index2 },
+                    )
+                },
+            ),
         }
     }
 
@@ -1875,9 +1878,16 @@ where
             let key: KeyMap<'_, T> =
                 KeyMap { key1: item.key1(), key2: item.key2() };
 
-            // SAFETY: We only use key within the scope of this block before
-            // immediately dropping it -- map.entry calls key.fmt() without
-            // holding a reference to it.
+            // SAFETY:
+            //
+            // * Lifetime extension: for a type T and two lifetime params 'a and
+            //   'b, T<'a> and T<'b> aren't guaranteed to have the same layout,
+            //   but (a) that is true today and (b) it would be shocking and
+            //   break half the Rust ecosystem if that were to change in the
+            //   future.
+            // * We only use key within the scope of this block before immediately
+            //   dropping it. In particular, map.entry calls key.fmt() without
+            //   holding a reference to it.
             let key: KeyMap<'a, T> = unsafe {
                 core::mem::transmute::<KeyMap<'_, T>, KeyMap<'a, T>>(key)
             };

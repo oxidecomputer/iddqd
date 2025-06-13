@@ -20,7 +20,12 @@ pub(crate) struct DormantMutRef<'a, T> {
     _marker: PhantomData<&'a mut T>,
 }
 
+// SAFETY: DormantMutRef<'a, T> stores exactly a reference to T. The "where"
+// clause is that &mut T implements Sync.
 unsafe impl<'a, T> Sync for DormantMutRef<'a, T> where &'a mut T: Sync {}
+
+// SAFETY: DormantMutRef<'a, T> stores exactly a reference to T. The "where"
+// clause is that &mut T implements Send.
 unsafe impl<'a, T> Send for DormantMutRef<'a, T> where &'a mut T: Send {}
 
 impl<'a, T> DormantMutRef<'a, T> {

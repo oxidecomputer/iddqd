@@ -333,10 +333,9 @@ impl<'a> CmpDropGuard<'a> {
         // None once this scope is left.
         let ret = Self { _marker: PhantomData };
 
+        // SAFETY: This is safe because we are not storing the reference
+        // anywhere, and it is only used for the lifetime of this CmpDropGuard.
         let as_static = unsafe {
-            // SAFETY: This is safe because we are not storing the reference
-            // anywhere, and it is only used for the lifetime of this
-            // CmpDropGuard.
             std::mem::transmute::<
                 &'a dyn Fn(Index, Index) -> Ordering,
                 &'static dyn Fn(Index, Index) -> Ordering,
