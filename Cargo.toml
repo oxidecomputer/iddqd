@@ -25,7 +25,7 @@ foldhash = "0.1.5"
 # without it. (The alternative would be to define everything twice: if
 # allocator-api2 is turned on, then for e.g. IdHashMap<T, S, A>, otherwise
 # IdHashMap<T, S>.)
-hashbrown = { version = "0.15.2", default-features = false, features = ["allocator-api2", "inline-more"] }
+hashbrown = { version = "0.15.4", default-features = false, features = ["allocator-api2", "inline-more"] }
 hugealloc = "0.1.1"
 iddqd = { path = "crates/iddqd", default-features = false }
 iddqd-test-utils = { path = "crates/iddqd-test-utils" }
