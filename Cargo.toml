@@ -29,7 +29,7 @@ hashbrown = { version = "0.15.2", default-features = false, features = ["allocat
 hugealloc = "0.1.1"
 iddqd = { path = "crates/iddqd", default-features = false }
 iddqd-test-utils = { path = "crates/iddqd-test-utils" }
-proptest = "1.6.0"
+proptest = "1.7.0"
 ref-cast = "1.0.24"
 rustc-hash = { version = "2.1.1", default-features = false }
 schemars = "0.8.22"
