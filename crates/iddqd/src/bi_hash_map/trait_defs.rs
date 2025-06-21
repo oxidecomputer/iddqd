@@ -82,6 +82,51 @@ pub trait BiHashItem {
     ) -> Self::K2<'short>;
 }
 
+impl<A, B> BiHashItem for (A, B)
+where
+    A: Eq + Hash,
+    B: Eq + Hash,
+{
+    type K1<'a>
+        = &'a A
+    where
+        A: 'a,
+        B: 'a;
+    type K2<'a>
+        = &'a B
+    where
+        A: 'a,
+        B: 'a;
+
+    fn key1(&self) -> Self::K1<'_> {
+        &self.0
+    }
+
+    fn key2(&self) -> Self::K2<'_> {
+        &self.1
+    }
+
+    fn upcast_key1<'short, 'long: 'short>(
+        long: Self::K1<'long>,
+    ) -> Self::K1<'short>
+    where
+        A: 'long,
+        B: 'long,
+    {
+        long
+    }
+
+    fn upcast_key2<'short, 'long: 'short>(
+        long: Self::K2<'long>,
+    ) -> Self::K2<'short>
+    where
+        A: 'long,
+        B: 'long,
+    {
+        long
+    }
+}
+
 macro_rules! impl_for_ref {
     ($type:ty) => {
         impl<'b, T: 'b + ?Sized + BiHashItem> BiHashItem for $type {
