@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.8] - 2025-06-22
+
+### Added
+
+- New `proptest` feature adds strategy and `Arbitrary` implementations for map types.
+
 ## [0.3.7] - 2025-06-11
 
 ### Fixed
@@ -108,6 +114,7 @@
 
 Initial release.
 
+[0.3.8]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.8
 [0.3.7]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.7
 [0.3.6]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.6
 [0.3.5]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.5
