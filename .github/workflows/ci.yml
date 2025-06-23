@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        partition: ["1", "2", "3", "4", "5", "6"]
+        partition: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
     env:
       RUSTFLAGS: -D warnings
     steps:
@@ -48,7 +48,7 @@ jobs:
         os: [ubuntu-latest]
         # 1.81 is the MSRV
         rust-version: ["1.81", "stable"]
-        partition: ["1", "2", "3", "4", "5", "6"]
+        partition: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
       fail-fast: false
     env:
       RUSTFLAGS: -D warnings

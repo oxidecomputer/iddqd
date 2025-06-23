@@ -495,6 +495,26 @@ mod macro_tests {
     }
 }
 
+#[cfg(feature = "proptest")]
+#[proptest(cases = 16)]
+fn proptest_arbitrary_map(map: IdHashMap<TestItem, HashBuilder, Alloc>) {
+    // Test that the arbitrarily generated map is valid.
+    map.validate(ValidateCompact::NonCompact).expect("map should be valid");
+
+    // Test that we can perform basic operations on the generated map.
+    let len = map.len();
+    assert_eq!(map.is_empty(), len == 0);
+
+    // Test that we can iterate over the map.
+    let mut count = 0;
+    for item in &map {
+        count += 1;
+        // Each item should be findable by its key.
+        assert_eq!(map.get(&item.key()), Some(item));
+    }
+    assert_eq!(count, len);
+}
+
 #[cfg(feature = "serde")]
 mod serde_tests {
     use iddqd::IdHashMap;

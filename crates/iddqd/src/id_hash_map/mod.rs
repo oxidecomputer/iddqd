@@ -7,6 +7,8 @@ mod daft_impls;
 mod entry;
 pub(crate) mod imp;
 mod iter;
+#[cfg(feature = "proptest")]
+mod proptest_impls;
 mod ref_mut;
 #[cfg(feature = "schemars08")]
 mod schemars_impls;
@@ -20,5 +22,12 @@ pub use daft_impls::Diff;
 pub use entry::{Entry, OccupiedEntry, VacantEntry};
 pub use imp::IdHashMap;
 pub use iter::{IntoIter, Iter, IterMut};
+#[cfg(all(feature = "proptest", feature = "default-hasher"))]
+pub use proptest_impls::prop_strategy;
+#[cfg(feature = "proptest")]
+pub use proptest_impls::{
+    IdHashMapStrategy, IdHashMapValueTree, prop_strategy_with_hasher,
+    prop_strategy_with_hasher_in,
+};
 pub use ref_mut::RefMut;
 pub use trait_defs::IdHashItem;

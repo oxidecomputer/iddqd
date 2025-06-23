@@ -8,6 +8,8 @@ mod entry;
 mod entry_indexes;
 pub(crate) mod imp;
 mod iter;
+#[cfg(feature = "proptest")]
+mod proptest_impls;
 mod ref_mut;
 #[cfg(feature = "schemars08")]
 mod schemars_impls;
@@ -23,5 +25,12 @@ pub use entry::{
 };
 pub use imp::BiHashMap;
 pub use iter::{IntoIter, Iter, IterMut};
+#[cfg(all(feature = "proptest", feature = "default-hasher"))]
+pub use proptest_impls::prop_strategy;
+#[cfg(feature = "proptest")]
+pub use proptest_impls::{
+    BiHashMapStrategy, BiHashMapValueTree, prop_strategy_with_hasher,
+    prop_strategy_with_hasher_in,
+};
 pub use ref_mut::RefMut;
 pub use trait_defs::BiHashItem;
