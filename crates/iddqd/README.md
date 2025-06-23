@@ -281,7 +281,7 @@ platform-specific notion of thread locals, would suffice to make
 * `default-hasher`: Enables the `DefaultHashBuilder` type. Disable this
   feature to require a hash builder type parameter to be passed into
   [`IdHashMap`](https://docs.rs/iddqd/0.3.7/iddqd/id_hash_map/imp/struct.IdHashMap.html), [`BiHashMap`](https://docs.rs/iddqd/0.3.7/iddqd/bi_hash_map/imp/struct.BiHashMap.html), and [`TriHashMap`](https://docs.rs/iddqd/0.3.7/iddqd/tri_hash_map/imp/struct.TriHashMap.html). *Enabled by default.*
-* `proptest`: Enables [`proptest`](https://docs.rs/proptest/1.6.0/proptest/index.html) support for all ID map types, providing
+* `proptest`: Enables [`proptest`](https://docs.rs/proptest/1.7.0/proptest/index.html) support for all ID map types, providing
   [`Arbitrary`] implementations and strategies for property-based testing.
   *Not enabled by default.*
 * `schemars08`: Enables [`schemars`] support for all ID map types,
@@ -321,7 +321,7 @@ code](https://doomwiki.org/wiki/Doom_cheat_codes) in the classic video game
 *Doom*. It has `id` in the name, and is short and memorable.
 
 [`Borrow`]: https://doc.rust-lang.org/nightly/core/borrow/trait.Borrow.html
-[`Arbitrary`]: https://docs.rs/proptest/1.6.0/proptest/arbitrary/traits/trait.Arbitrary.html
+[`Arbitrary`]: https://docs.rs/proptest/1.7.0/proptest/arbitrary/traits/trait.Arbitrary.html
 [`schemars`]: https://crates.io/crates/schemars
 [automatic replacement]: https://github.com/oxidecomputer/iddqd/blob/main/crates/iddqd-extended-examples/examples/typify-types.rs
 [`typify`]: https://crates.io/crates/typify
