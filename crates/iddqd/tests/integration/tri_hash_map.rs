@@ -588,3 +588,25 @@ mod serde_tests {
         );
     }
 }
+
+#[cfg(feature = "proptest")]
+#[proptest(cases = 16)]
+fn proptest_arbitrary_map(map: TriHashMap<TestItem, HashBuilder, Alloc>) {
+    // Test that the arbitrarily generated map is valid.
+    map.validate(ValidateCompact::NonCompact).expect("map should be valid");
+
+    // Test that we can perform basic operations on the generated map.
+    let len = map.len();
+    assert_eq!(map.is_empty(), len == 0);
+
+    // Test that we can iterate over the map.
+    let mut count = 0;
+    for item in &map {
+        count += 1;
+        // Each item should be findable by all three keys.
+        assert_eq!(map.get1(&item.key1()), Some(item));
+        assert_eq!(map.get2(&item.key2()), Some(item));
+        assert_eq!(map.get3(&item.key3()), Some(item));
+    }
+    assert_eq!(count, len);
+}

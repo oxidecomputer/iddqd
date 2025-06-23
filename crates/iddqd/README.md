@@ -272,21 +272,24 @@ platform-specific notion of thread locals, would suffice to make
 
 ## Optional features
 
-* `serde`: Enables serde support for all ID map types. *Not enabled by
-  default.*
-* `schemars08`: Enables [`schemars`] support for all ID map types,
-  including support for [automatic replacement] through [`typify`] or
-  [`dropshot`]. *Not enabled by default.*
-* `daft`: Enables [`daft`](https://docs.rs/daft/0.1.3/daft/index.html) support for all ID map types. *Not enabled by
-  default.*
-* `std`: Enables std support. *Enabled by default.*
-* `default-hasher`: Enables the `DefaultHashBuilder` type. Disable this
-  feature to require a hash builder type parameter to be passed into
-  [`IdHashMap`](https://docs.rs/iddqd/0.3.7/iddqd/id_hash_map/imp/struct.IdHashMap.html), [`BiHashMap`](https://docs.rs/iddqd/0.3.7/iddqd/bi_hash_map/imp/struct.BiHashMap.html), and [`TriHashMap`](https://docs.rs/iddqd/0.3.7/iddqd/tri_hash_map/imp/struct.TriHashMap.html). *Enabled by default.*
 * `allocator-api2`: Enables support for custom allocators via the
   [`allocator_api2`](https://docs.rs/allocator-api2/0.2.21/allocator_api2/index.html) crate. Both global and scoped/arena allocators
   (such as `bumpalo`) are supported. Custom allocators are not currently
   supported by `IdOrdMap`.
+* `daft`: Enables [`daft`](https://docs.rs/daft/0.1.3/daft/index.html) support for all ID map types. *Not enabled by
+  default.*
+* `default-hasher`: Enables the `DefaultHashBuilder` type. Disable this
+  feature to require a hash builder type parameter to be passed into
+  [`IdHashMap`](https://docs.rs/iddqd/0.3.7/iddqd/id_hash_map/imp/struct.IdHashMap.html), [`BiHashMap`](https://docs.rs/iddqd/0.3.7/iddqd/bi_hash_map/imp/struct.BiHashMap.html), and [`TriHashMap`](https://docs.rs/iddqd/0.3.7/iddqd/tri_hash_map/imp/struct.TriHashMap.html). *Enabled by default.*
+* `proptest`: Enables [`proptest`](https://docs.rs/proptest/1.6.0/proptest/index.html) support for all ID map types, providing
+  [`Arbitrary`] implementations and strategies for property-based testing.
+  *Not enabled by default.*
+* `schemars08`: Enables [`schemars`] support for all ID map types,
+  including support for [automatic replacement] through [`typify`] or
+  [`dropshot`]. *Not enabled by default.*
+* `serde`: Enables serde support for all ID map types. *Not enabled by
+  default.*
+* `std`: Enables std support. *Enabled by default.*
 
 ## Related work
 
@@ -318,6 +321,7 @@ code](https://doomwiki.org/wiki/Doom_cheat_codes) in the classic video game
 *Doom*. It has `id` in the name, and is short and memorable.
 
 [`Borrow`]: https://doc.rust-lang.org/nightly/core/borrow/trait.Borrow.html
+[`Arbitrary`]: https://docs.rs/proptest/1.6.0/proptest/arbitrary/traits/trait.Arbitrary.html
 [`schemars`]: https://crates.io/crates/schemars
 [automatic replacement]: https://github.com/oxidecomputer/iddqd/blob/main/crates/iddqd-extended-examples/examples/typify-types.rs
 [`typify`]: https://crates.io/crates/typify
