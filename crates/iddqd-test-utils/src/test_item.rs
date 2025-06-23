@@ -805,7 +805,7 @@ pub fn test_item_permutation_strategy<M: ItemMap<TestItem>>(
                 return (set, set2);
             }
             for i in 0..set2.len() - 2 {
-                let j = rng.gen_range(i..set2.len());
+                let j = rng.random_range(i..set2.len());
                 set2.swap(i, j);
             }
 
