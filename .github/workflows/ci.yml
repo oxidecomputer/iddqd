@@ -35,7 +35,9 @@ jobs:
         run: just rustdoc
       # Pin to a specific nightly for compatibility with cargo-sync-rdme.
       - name: Install nightly toolchain for cargo-sync-rdme
-        uses: dtolnay/rust-toolchain@nightly-2025-06-21
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly-2025-06-21
       - name: Regenerate readmes
         run: just generate-readmes
       - name: Check for differences
