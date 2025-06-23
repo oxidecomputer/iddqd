@@ -28,7 +28,7 @@ jobs:
         with:
           tool: just,cargo-hack,cargo-sync-rdme
       - name: Lint (clippy)
-        run: just powerset --partition ${{ matrix.partition }}/6 clippy --all-targets
+        run: just powerset --partition ${{ matrix.partition }}/10 clippy --all-targets
       - name: Lint (rustfmt)
         run: cargo xfmt --check
       - name: Run rustdoc
@@ -64,11 +64,11 @@ jobs:
       - uses: taiki-e/install-action@just
       - uses: taiki-e/install-action@nextest
       - name: Build
-        run: just powerset --partition ${{ matrix.partition }}/6 build
+        run: just powerset --partition ${{ matrix.partition }}/10 build
       - name: Run tests
-        run: just powerset --partition ${{ matrix.partition }}/6 nextest run
+        run: just powerset --partition ${{ matrix.partition }}/10 nextest run
       - name: Doctests
-        run: just powerset --partition ${{ matrix.partition }}/6 test --doc
+        run: just powerset --partition ${{ matrix.partition }}/10 test --doc
         
   build-no-std:
     name: Build on no-std
