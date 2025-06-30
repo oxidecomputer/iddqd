@@ -49,5 +49,5 @@ fn main() {
 
     // Get the user from the `IdHashMap`.
     let user = container.users.get("Alice").unwrap();
-    println!("user: {:?}", user);
+    println!("user: {user:?}");
 }

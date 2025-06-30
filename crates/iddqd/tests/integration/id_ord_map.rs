@@ -145,7 +145,7 @@ fn test_insert_unique() {
 
     // Test that the RefMut Debug impl looks good.
     assert!(
-        format!("{:?}", e1).starts_with(
+        format!("{e1:?}").starts_with(
             r#"TestItem { key1: 5, key2: 'a', key3: "y", value: "v""#,
         ),
         "RefMut Debug impl should forward to TestItem",
@@ -493,7 +493,7 @@ fn borrowed_item() {
     // (supporting this requires a little bit of unsafe code to get the
     // lifetimes to line up).
     fn fmt_debug(map: &IdOrdMap<BorrowedItem<'_>>) -> String {
-        format!("{:?}", map)
+        format!("{map:?}")
     }
 
     static DEBUG_OUTPUT: &str = "{\"bar\": BorrowedItem { \
@@ -501,7 +501,7 @@ fn borrowed_item() {
         \"foo\": BorrowedItem { \
         key1: \"foo\", key2: [102, 111, 111], key3: \"foo\" }}";
 
-    assert_eq!(format!("{:?}", map), DEBUG_OUTPUT);
+    assert_eq!(format!("{map:?}"), DEBUG_OUTPUT);
     assert_eq!(fmt_debug(&map), DEBUG_OUTPUT);
 
     // Try using the entry API against the borrowed item.

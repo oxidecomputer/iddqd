@@ -39,7 +39,7 @@ impl fmt::Display for ValidationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Table { name, error } => {
-                write!(f, "validation error in table {}: {}", name, error)
+                write!(f, "validation error in table {name}: {error}")
             }
             Self::General(msg) => msg.fmt(f),
         }

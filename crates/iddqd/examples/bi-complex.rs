@@ -80,7 +80,7 @@ fn main() {
 
     // While iterating over the map, items will be returned in arbitrary order.
     for item in map.iter() {
-        println!("{:?}", item);
+        println!("{item:?}");
     }
 
     // This matches by key1 but not key2.
@@ -105,12 +105,12 @@ fn main() {
             Entry::Occupied(entry) => {
                 // Get the entry's item.
                 let item = entry.get();
-                println!("occupied: {:?}", item);
+                println!("occupied: {item:?}");
             }
             Entry::Vacant(entry) => {
                 // Insert a new item.
                 let item_ref = entry.insert(item);
-                println!("inserted: {:?}", item_ref);
+                println!("inserted: {item_ref:?}");
             }
         }
     }

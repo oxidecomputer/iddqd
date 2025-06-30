@@ -85,7 +85,7 @@ fn main() {
 
     // While iterating over the map, items will be sorted by their key.
     for item in map.iter() {
-        println!("{:?}", item);
+        println!("{item:?}");
     }
 
     let item3 = MyStruct {
@@ -101,12 +101,12 @@ fn main() {
             Entry::Occupied(entry) => {
                 // Get the entry's item.
                 let item = entry.get();
-                println!("occupied: {:?}", item);
+                println!("occupied: {item:?}");
             }
             Entry::Vacant(entry) => {
                 // Insert a new item.
                 let item_ref = entry.insert_ref(item);
-                println!("inserted: {:?}", item_ref);
+                println!("inserted: {item_ref:?}");
             }
         }
     }

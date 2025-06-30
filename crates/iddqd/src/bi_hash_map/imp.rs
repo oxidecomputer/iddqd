@@ -794,21 +794,18 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
 
             let Some(ix1) = self.find1_index(&key1) else {
                 return Err(ValidationError::general(format!(
-                    "item at index {} has no key1 index",
-                    ix
+                    "item at index {ix} has no key1 index"
                 )));
             };
             let Some(ix2) = self.find2_index(&key2) else {
                 return Err(ValidationError::general(format!(
-                    "item at index {} has no key2 index",
-                    ix
+                    "item at index {ix} has no key2 index"
                 )));
             };
 
             if ix1 != ix || ix2 != ix {
                 return Err(ValidationError::general(format!(
-                    "item at index {} has inconsistent indexes: {}/{}",
-                    ix, ix1, ix2
+                    "item at index {ix} has inconsistent indexes: {ix1}/{ix2}"
                 )));
             }
         }

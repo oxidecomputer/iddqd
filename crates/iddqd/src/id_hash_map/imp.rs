@@ -684,8 +684,7 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
 
             if ix1 != ix {
                 return Err(ValidationError::General(format!(
-                    "item at index {} has mismatched indexes: ix1: {}",
-                    ix, ix1,
+                    "item at index {ix} has mismatched indexes: ix1: {ix1}",
                 )));
             }
         }
