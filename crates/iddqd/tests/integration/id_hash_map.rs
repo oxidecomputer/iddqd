@@ -96,7 +96,7 @@ fn test_insert_unique() {
 
     // Test that the RefMut Debug impl looks good.
     assert!(
-        format!("{:?}", e1).starts_with(
+        format!("{e1:?}").starts_with(
             r#"TestItem { key1: 5, key2: 'a', key3: "y", value: "v""#,
         ),
         "RefMut Debug impl should forward to TestItem",
@@ -414,14 +414,14 @@ fn borrowed_item() {
     fn fmt_debug(
         map: &IdHashMap<BorrowedItem<'_>, HashBuilder, Alloc>,
     ) -> String {
-        format!("{:?}", map)
+        format!("{map:?}")
     }
 
     static DEBUG_OUTPUT: &str = "{\"foo\": BorrowedItem { \
         key1: \"foo\", key2: [102, 111, 111], key3: \"foo\" }, \
         \"bar\": BorrowedItem { \
         key1: \"bar\", key2: [98, 97, 114], key3: \"bar\" }}";
-    assert_eq!(format!("{:?}", map), DEBUG_OUTPUT);
+    assert_eq!(format!("{map:?}"), DEBUG_OUTPUT);
     assert_eq!(fmt_debug(&map), DEBUG_OUTPUT);
 }
 

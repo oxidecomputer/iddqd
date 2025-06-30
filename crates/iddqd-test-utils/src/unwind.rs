@@ -6,7 +6,7 @@ pub fn catch_panic<T>(f: impl FnOnce() -> T) -> Option<T> {
         Ok(value) => Some(value),
         Err(err) => {
             if let Some(err) = err.downcast_ref::<&str>() {
-                eprintln!("caught panic: {}", err);
+                eprintln!("caught panic: {err}");
             } else {
                 eprintln!("caught unknown panic");
             }
