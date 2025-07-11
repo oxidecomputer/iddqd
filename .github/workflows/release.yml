@@ -10,6 +10,7 @@ jobs:
   iddqd-release:
     if: github.repository_owner == 'oxidecomputer' && startsWith(github.ref_name, 'iddqd-0')
     runs-on: ubuntu-latest
+    environment: release
     permissions:
       id-token: write     # Required for OIDC token exchange
     steps:
