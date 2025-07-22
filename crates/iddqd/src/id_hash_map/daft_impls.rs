@@ -111,12 +111,13 @@ pub struct Diff<
     pub removed: IdHashMap<&'daft T, S, A>,
 }
 
-impl<'a, T, S: Clone + BuildHasher, A: Allocator> fmt::Debug
-    for Diff<'a, T, S, A>
+impl<'a, 'daft, T, S: Clone + BuildHasher, A: Allocator> fmt::Debug
+    for Diff<'daft, T, S, A>
 where
     T: ?Sized + IdHashItem + fmt::Debug,
     T::Key<'a>: fmt::Debug,
     T: 'a,
+    'daft: 'a,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Diff")
@@ -141,7 +142,7 @@ impl<'daft, T: ?Sized + IdHashItem, S: Default, A: Allocator + Default> Default
 
 #[cfg(all(feature = "default-hasher", feature = "allocator-api2"))]
 impl<'daft, T: ?Sized + IdHashItem> Diff<'daft, T> {
-    /// Creates a new, empty `IdHashMapDiff`
+    /// Creates a new, empty `Diff`.
     pub fn new() -> Self {
         Self {
             common: IdHashMap::new(),
@@ -153,7 +154,7 @@ impl<'daft, T: ?Sized + IdHashItem> Diff<'daft, T> {
 
 #[cfg(feature = "allocator-api2")]
 impl<'daft, T: ?Sized + IdHashItem, S: Clone + BuildHasher> Diff<'daft, T, S> {
-    /// Creates a new `IdHashMapDiff` with the given hasher.
+    /// Creates a new, empty `Diff` with the given hasher.
     pub fn with_hasher(hasher: S) -> Self {
         Self {
             common: IdHashMap::with_hasher(hasher.clone()),
@@ -170,7 +171,7 @@ impl<
     A: Clone + Allocator,
 > Diff<'daft, T, S, A>
 {
-    /// Creates a new `IdHashMapDiff` with the given hasher and allocator.
+    /// Creates a new, empty `Diff` with the given hasher and allocator.
     pub fn with_hasher_in(hasher: S, alloc: A) -> Self {
         Self {
             common: IdHashMap::with_hasher_in(hasher.clone(), alloc.clone()),

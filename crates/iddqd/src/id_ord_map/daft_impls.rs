@@ -88,11 +88,12 @@ pub struct Diff<'daft, T: ?Sized + IdOrdItem> {
     pub removed: IdOrdMap<&'daft T>,
 }
 
-impl<'a, T> fmt::Debug for Diff<'a, T>
+impl<'a, 'daft, T> fmt::Debug for Diff<'daft, T>
 where
     T: ?Sized + IdOrdItem + fmt::Debug,
     T::Key<'a>: fmt::Debug,
     T: 'a,
+    'daft: 'a,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Diff")
@@ -104,7 +105,7 @@ where
 }
 
 impl<'daft, T: ?Sized + IdOrdItem> Diff<'daft, T> {
-    /// Creates a new `IdOrdMapDiff` from two maps.
+    /// Creates a new, empty `Diff`.
     pub fn new() -> Self {
         Self {
             common: IdOrdMap::new(),
