@@ -4,7 +4,7 @@
 
 ### Added
 
-- For the optional `daft` feature, the map `Diff` types now implement `daft::Diffable`.
+- For the optional `daft` feature, the map `Diff` types now implement `fmt::Debug`.
 
 ### Miscellaneous
 
