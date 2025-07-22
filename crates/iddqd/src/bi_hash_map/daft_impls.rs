@@ -240,12 +240,13 @@ impl<'daft, T: ?Sized + BiHashItem, S: Default, A: Allocator + Default> Default
     }
 }
 
-impl<'a, T, S, A> fmt::Debug for Diff<'a, T, S, A>
+impl<'a, 'daft, T, S, A> fmt::Debug for Diff<'daft, T, S, A>
 where
     T: ?Sized + BiHashItem + fmt::Debug,
     T::K1<'a>: fmt::Debug,
     T::K2<'a>: fmt::Debug,
     T: 'a,
+    'daft: 'a,
     A: Allocator,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -259,7 +260,7 @@ where
 
 #[cfg(all(feature = "default-hasher", feature = "allocator-api2"))]
 impl<'daft, T: ?Sized + BiHashItem> Diff<'daft, T> {
-    /// Creates a new `BiHashMapDiff` from two maps.
+    /// Creates a new, empty `Diff`.
     pub fn new() -> Self {
         Self {
             common: BiHashMap::new(),
@@ -271,7 +272,7 @@ impl<'daft, T: ?Sized + BiHashItem> Diff<'daft, T> {
 
 #[cfg(feature = "allocator-api2")]
 impl<'daft, T: ?Sized + BiHashItem, S: Clone + BuildHasher> Diff<'daft, T, S> {
-    /// Creates a new `BiHashMapDiff` with the given hasher.
+    /// Creates a new, empty `Diff` with the given hasher.
     pub fn with_hasher(hasher: S) -> Self {
         Self {
             common: BiHashMap::with_hasher(hasher.clone()),
@@ -288,7 +289,7 @@ impl<
     A: Clone + Allocator,
 > Diff<'daft, T, S, A>
 {
-    /// Creates a new `BiHashMapDiff` with the given hasher and allocator.
+    /// Creates a new, empty `Diff` with the given hasher and allocator.
     pub fn with_hasher_in(hasher: S, alloc: A) -> Self {
         Self {
             common: BiHashMap::with_hasher_in(hasher.clone(), alloc.clone()),
