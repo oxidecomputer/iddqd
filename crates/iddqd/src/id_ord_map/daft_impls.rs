@@ -2,6 +2,7 @@
 
 use super::{IdOrdItem, IdOrdMap};
 use crate::support::daft_utils::IdLeaf;
+use core::fmt;
 use daft::Diffable;
 use equivalent::Comparable;
 
@@ -85,6 +86,21 @@ pub struct Diff<'daft, T: ?Sized + IdOrdItem> {
 
     /// Removed entries.
     pub removed: IdOrdMap<&'daft T>,
+}
+
+impl<'a, T> fmt::Debug for Diff<'a, T>
+where
+    T: ?Sized + IdOrdItem + fmt::Debug,
+    T::Key<'a>: fmt::Debug,
+    T: 'a,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Diff")
+            .field("common", &self.common)
+            .field("added", &self.added)
+            .field("removed", &self.removed)
+            .finish()
+    }
 }
 
 impl<'daft, T: ?Sized + IdOrdItem> Diff<'daft, T> {

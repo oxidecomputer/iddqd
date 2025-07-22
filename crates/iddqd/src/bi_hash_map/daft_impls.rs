@@ -240,6 +240,23 @@ impl<'daft, T: ?Sized + BiHashItem, S: Default, A: Allocator + Default> Default
     }
 }
 
+impl<'a, T, S, A> fmt::Debug for Diff<'a, T, S, A>
+where
+    T: ?Sized + BiHashItem + fmt::Debug,
+    T::K1<'a>: fmt::Debug,
+    T::K2<'a>: fmt::Debug,
+    T: 'a,
+    A: Allocator,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Diff")
+            .field("common", &self.common)
+            .field("added", &self.added)
+            .field("removed", &self.removed)
+            .finish()
+    }
+}
+
 #[cfg(all(feature = "default-hasher", feature = "allocator-api2"))]
 impl<'daft, T: ?Sized + BiHashItem> Diff<'daft, T> {
     /// Creates a new `BiHashMapDiff` from two maps.

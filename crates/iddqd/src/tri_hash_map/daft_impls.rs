@@ -301,6 +301,23 @@ impl<'daft, T: ?Sized + TriHashItem, S: Default, A: Allocator + Default> Default
     }
 }
 
+impl<'a, T, S, A: Allocator> fmt::Debug for Diff<'a, T, S, A>
+where
+    T: ?Sized + TriHashItem + fmt::Debug,
+    T::K1<'a>: fmt::Debug,
+    T::K2<'a>: fmt::Debug,
+    T::K3<'a>: fmt::Debug,
+    T: 'a,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Diff")
+            .field("common", &self.common)
+            .field("added", &self.added)
+            .field("removed", &self.removed)
+            .finish()
+    }
+}
+
 #[cfg(all(feature = "default-hasher", feature = "allocator-api2"))]
 impl<'daft, T: ?Sized + TriHashItem> Diff<'daft, T> {
     /// Creates a new `TriHashMapDiff` from two maps.

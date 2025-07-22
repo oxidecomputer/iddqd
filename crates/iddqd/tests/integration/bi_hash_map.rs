@@ -57,6 +57,39 @@ fn debug_impls() {
 }
 
 #[test]
+fn debug_impls_borrowed() {
+    let before = bi_hash_map! {
+        HashBuilder;
+        BorrowedItem { key1: "a", key2: b"b0", key3: Path::new("path0") },
+        BorrowedItem { key1: "b", key2: b"b1", key3: Path::new("path1") },
+        BorrowedItem { key1: "c", key2: b"b2", key3: Path::new("path2") },
+    };
+
+    assert_eq!(
+        format!("{before:?}"),
+        r#"{{k1: "a", k2: [98, 48]}: BorrowedItem { key1: "a", key2: [98, 48], key3: "path0" }, {k1: "c", k2: [98, 50]}: BorrowedItem { key1: "c", key2: [98, 50], key3: "path2" }, {k1: "b", k2: [98, 49]}: BorrowedItem { key1: "b", key2: [98, 49], key3: "path1" }}"#
+    );
+
+    #[cfg(feature = "daft")]
+    {
+        use daft::Diffable;
+
+        let after = bi_hash_map! {
+            HashBuilder;
+            BorrowedItem { key1: "a", key2: b"b0", key3: Path::new("path0") },
+            BorrowedItem { key1: "c", key2: b"b3", key3: Path::new("path3") },
+            BorrowedItem { key1: "d", key2: b"b4", key3: Path::new("path4") },
+        };
+
+        let diff = before.diff(&after).by_unique();
+        assert_eq!(
+            format!("{diff:?}"),
+            r#"Diff { common: {{k1: "a", k2: [98, 48]}: IdLeaf { before: BorrowedItem { key1: "a", key2: [98, 48], key3: "path0" }, after: BorrowedItem { key1: "a", key2: [98, 48], key3: "path0" } }}, added: {{k1: "d", k2: [98, 52]}: BorrowedItem { key1: "d", key2: [98, 52], key3: "path4" }, {k1: "c", k2: [98, 51]}: BorrowedItem { key1: "c", key2: [98, 51], key3: "path3" }}, removed: {{k1: "c", k2: [98, 50]}: BorrowedItem { key1: "c", key2: [98, 50], key3: "path2" }, {k1: "b", k2: [98, 49]}: BorrowedItem { key1: "b", key2: [98, 49], key3: "path1" }} }"#
+        );
+    }
+}
+
+#[test]
 fn with_capacity() {
     let map = BiHashMap::<TestItem, HashBuilder>::with_capacity_and_hasher(
         1024,

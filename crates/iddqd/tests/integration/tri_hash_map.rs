@@ -64,6 +64,39 @@ fn debug_impls() {
 }
 
 #[test]
+fn debug_impls_borrowed() {
+    let before = tri_hash_map! {
+        HashBuilder;
+        BorrowedItem { key1: "a", key2: b"b0", key3: Path::new("path0") },
+        BorrowedItem { key1: "b", key2: b"b1", key3: Path::new("path1") },
+        BorrowedItem { key1: "c", key2: b"b2", key3: Path::new("path2") },
+    };
+
+    assert_eq!(
+        format!("{before:?}"),
+        r#"{{k1: "a", k2: [98, 48], k3: "path0"}: BorrowedItem { key1: "a", key2: [98, 48], key3: "path0" }, {k1: "c", k2: [98, 50], k3: "path2"}: BorrowedItem { key1: "c", key2: [98, 50], key3: "path2" }, {k1: "b", k2: [98, 49], k3: "path1"}: BorrowedItem { key1: "b", key2: [98, 49], key3: "path1" }}"#
+    );
+
+    #[cfg(feature = "daft")]
+    {
+        use daft::Diffable;
+
+        let after = tri_hash_map! {
+            HashBuilder;
+            BorrowedItem { key1: "a", key2: b"b0", key3: Path::new("path0") },
+            BorrowedItem { key1: "c", key2: b"b3", key3: Path::new("path3") },
+            BorrowedItem { key1: "d", key2: b"b4", key3: Path::new("path4") },
+        };
+
+        let diff = before.diff(&after).by_unique();
+        assert_eq!(
+            format!("{diff:?}"),
+            r#"Diff { common: {{k1: "a", k2: [98, 48], k3: "path0"}: IdLeaf { before: BorrowedItem { key1: "a", key2: [98, 48], key3: "path0" }, after: BorrowedItem { key1: "a", key2: [98, 48], key3: "path0" } }}, added: {{k1: "d", k2: [98, 52], k3: "path4"}: BorrowedItem { key1: "d", key2: [98, 52], key3: "path4" }, {k1: "c", k2: [98, 51], k3: "path3"}: BorrowedItem { key1: "c", key2: [98, 51], key3: "path3" }}, removed: {{k1: "c", k2: [98, 50], k3: "path2"}: BorrowedItem { key1: "c", key2: [98, 50], key3: "path2" }, {k1: "b", k2: [98, 49], k3: "path1"}: BorrowedItem { key1: "b", key2: [98, 49], key3: "path1" }} }"#
+        );
+    }
+}
+
+#[test]
 fn test_extend() {
     let mut map = TriHashMap::<TestItem, HashBuilder, Alloc>::make_new();
     let items = vec![

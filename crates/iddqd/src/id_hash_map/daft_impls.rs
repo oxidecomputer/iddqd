@@ -8,7 +8,10 @@ use crate::{
         daft_utils::IdLeaf,
     },
 };
-use core::hash::{BuildHasher, Hash};
+use core::{
+    fmt,
+    hash::{BuildHasher, Hash},
+};
 use daft::Diffable;
 use equivalent::Equivalent;
 
@@ -106,6 +109,22 @@ pub struct Diff<
 
     /// Removed entries.
     pub removed: IdHashMap<&'daft T, S, A>,
+}
+
+impl<'a, T, S: Clone + BuildHasher, A: Allocator> fmt::Debug
+    for Diff<'a, T, S, A>
+where
+    T: ?Sized + IdHashItem + fmt::Debug,
+    T::Key<'a>: fmt::Debug,
+    T: 'a,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Diff")
+            .field("common", &self.common)
+            .field("added", &self.added)
+            .field("removed", &self.removed)
+            .finish()
+    }
 }
 
 impl<'daft, T: ?Sized + IdHashItem, S: Default, A: Allocator + Default> Default
