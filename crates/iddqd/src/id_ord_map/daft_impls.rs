@@ -184,7 +184,7 @@ impl<T: IdOrdItem> IdOrdItem for IdLeaf<T> {
         if before_key != self.after().key() {
             panic!("key is different between before and after");
         }
-        self.before().key()
+        before_key
     }
 
     #[inline]

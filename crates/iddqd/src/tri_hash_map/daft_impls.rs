@@ -505,7 +505,7 @@ impl<T: TriHashItem> TriHashItem for IdLeaf<T> {
         if before_key != self.after().key1() {
             panic!("key1 is different between before and after");
         }
-        self.before().key1()
+        before_key
     }
 
     fn key2(&self) -> Self::K2<'_> {
@@ -513,7 +513,7 @@ impl<T: TriHashItem> TriHashItem for IdLeaf<T> {
         if before_key != self.after().key2() {
             panic!("key2 is different between before and after");
         }
-        self.before().key2()
+        before_key
     }
 
     fn key3(&self) -> Self::K3<'_> {
@@ -521,7 +521,7 @@ impl<T: TriHashItem> TriHashItem for IdLeaf<T> {
         if before_key != self.after().key3() {
             panic!("key3 is different between before and after");
         }
-        self.before().key3()
+        before_key
     }
 
     #[inline]
