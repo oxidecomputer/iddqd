@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.9] - 2025-07-21
+
+### Added
+
+- For the optional `daft` feature, the map `Diff` types now implement `daft::Diffable`.
+
+### Miscellaneous
+
+- Several documentation fixes.
+
 ## [0.3.8] - 2025-06-22
 
 ### Added
@@ -114,6 +124,7 @@
 
 Initial release.
 
+[0.3.9]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.9
 [0.3.8]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.8
 [0.3.7]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.7
 [0.3.6]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.6
