@@ -402,7 +402,7 @@ impl<T: BiHashItem> BiHashItem for IdLeaf<T> {
         if before_key != self.after().key1() {
             panic!("key is different between before and after");
         }
-        self.before().key1()
+        before_key
     }
 
     fn key2(&self) -> Self::K2<'_> {
@@ -410,7 +410,7 @@ impl<T: BiHashItem> BiHashItem for IdLeaf<T> {
         if before_key != self.after().key2() {
             panic!("key is different between before and after");
         }
-        self.before().key2()
+        before_key
     }
 
     #[inline]
