@@ -168,7 +168,7 @@ dependencies = [
 
 [[package]]
 name = "iddqd"
-version = "0.3.8"
+version = "0.3.9"
 dependencies = [
  "allocator-api2",
  "daft",
