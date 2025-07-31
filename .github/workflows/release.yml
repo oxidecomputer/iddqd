@@ -23,7 +23,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
       - name: Install cargo release
-        uses: taiki-e/install-action@17ad3887d7be310c190b1ed4188b1e0ccc9c9804 # v2
+        uses: taiki-e/install-action@e8c1cf74a696e981aec979a6703471e61b400895 # v2
         with:
           tool: cargo-release@0.25.17,just
       - uses: taiki-e/create-gh-release-action@26b80501670402f1999aff4b934e1574ef2d3705 # v1
