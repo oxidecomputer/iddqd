@@ -16,6 +16,7 @@ unexpected_cfgs = { level = "warn", check-cfg = ["cfg(doc_cfg)"] }
 [workspace.dependencies]
 allocator-api2 = { version = "0.2.21", default-features = false, features = ["alloc"] }
 bumpalo = { version = "3.18.1", features = ["allocator-api2", "collections"] }
+criterion = "0.7.0"
 daft = { version = "0.1.3", default-features = false }
 equivalent = "1.0.2"
 expectorate = "1.2.0"
