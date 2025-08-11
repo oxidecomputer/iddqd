@@ -546,7 +546,7 @@ fn borrowed_item() {
     static DEBUG_OUTPUT: &str = "{\"bar\": BorrowedItem { \
         key1: \"bar\", key2: [98, 97, 114], key3: \"bar\" }, \
         \"foo\": BorrowedItem { \
-        key1: \"foo\", key2: [102, 111, 111], key3: \"foo\" }}";
+        key1: \"foo\", key2: [102, 111, 111, 51], key3: \"foo2\" }}";
 
     assert_eq!(format!("{map:?}"), DEBUG_OUTPUT);
     assert_eq!(fmt_debug(&map), DEBUG_OUTPUT);
