@@ -2,7 +2,7 @@ use super::IdOrdItem;
 use crate::support::map_hash::MapHash;
 use core::{
     fmt,
-    hash::Hash,
+    hash::{Hash, Hasher},
     ops::{Deref, DerefMut},
 };
 
@@ -59,7 +59,15 @@ where
         hash: MapHash<foldhash::fast::RandomState>,
         borrowed: &'a mut T,
     ) -> Self {
-        let inner = RefMutInner { hash, borrowed };
+        Self::new_inner(hash.build_hasher(), hash.hash(), borrowed)
+    }
+
+    fn new_inner(
+        hasher: foldhash::fast::FoldHasher,
+        hash: u64,
+        borrowed: &'a mut T,
+    ) -> Self {
+        let inner = RefMutInner { hasher, hash, borrowed };
         Self { inner: Some(inner) }
     }
 
@@ -84,7 +92,7 @@ where
     pub fn reborrow<'b>(&'b mut self) -> RefMut<'b, T> {
         let inner = self.inner.as_mut().unwrap();
         let borrowed = &mut *inner.borrowed;
-        RefMut::new(inner.hash.clone(), borrowed)
+        RefMut::new_inner(inner.hasher.clone(), inner.hash, borrowed)
     }
 }
 
@@ -134,7 +142,8 @@ where
 }
 
 struct RefMutInner<'a, T: IdOrdItem> {
-    hash: MapHash<foldhash::fast::RandomState>,
+    hasher: foldhash::fast::FoldHasher,
+    hash: u64,
     borrowed: &'a mut T,
 }
 
@@ -148,7 +157,11 @@ where
         // 'a so T::Key is valid for 'a.
         let key: T::Key<'a> =
             unsafe { std::mem::transmute::<T::Key<'_>, T::Key<'a>>(key) };
-        if !self.hash.is_same_hash(&key) {
+
+        let mut hasher = self.hasher;
+        key.hash(&mut hasher);
+        let after_hash = hasher.finish();
+        if after_hash != self.hash {
             panic!("key changed during RefMut borrow");
         }
 
