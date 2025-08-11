@@ -21,8 +21,8 @@ impl<S> fmt::Debug for MapHash<S> {
 impl<S: BuildHasher> MapHash<S> {
     #[cfg(feature = "std")]
     #[inline]
-    pub(crate) fn build_hasher(&self) -> S::Hasher {
-        self.state.build_hasher()
+    pub(crate) fn into_state(self) -> S {
+        self.state
     }
 
     #[cfg(feature = "std")]

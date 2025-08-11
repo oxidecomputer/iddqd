@@ -2,7 +2,7 @@ use super::IdOrdItem;
 use crate::support::map_hash::MapHash;
 use core::{
     fmt,
-    hash::{Hash, Hasher},
+    hash::{BuildHasher, Hash},
     ops::{Deref, DerefMut},
 };
 
@@ -56,7 +56,10 @@ where
         hash: MapHash<foldhash::fast::RandomState>,
         borrowed: &'a mut T,
     ) -> Self {
-        let inner = RefMutInner { hash, hash_fn: T::Key::hash, borrowed };
+        let hash_value = hash.hash();
+        let state = hash.into_state();
+        let hash_one_fn = foldhash::fast::RandomState::hash_one::<T::Key<'a>>;
+        let inner = RefMutInner { hash_value, state, hash_one_fn, borrowed };
         Self { inner: Some(inner) }
     }
 
@@ -76,8 +79,24 @@ impl<'a, T: IdOrdItem> RefMut<'a, T> {
         T::Key<'b>: Hash,
     {
         let inner = self.inner.as_mut().unwrap();
+
+        // SAFETY: A hash_one that works for T::Key<'a> will also work for
+        // T::Key<'b>.
+        let hash_one_fn = unsafe {
+            core::mem::transmute::<
+                fn(&foldhash::fast::RandomState, T::Key<'a>) -> u64,
+                fn(&foldhash::fast::RandomState, T::Key<'b>) -> u64,
+            >(inner.hash_one_fn)
+        };
+
         let borrowed = &mut *inner.borrowed;
-        RefMut::new(inner.hash.clone(), borrowed)
+        let inner = RefMutInner {
+            hash_value: inner.hash_value,
+            state: inner.state,
+            hash_one_fn,
+            borrowed,
+        };
+        RefMut { inner: Some(inner) }
     }
 }
 
@@ -115,7 +134,7 @@ impl<'a, T: IdOrdItem + fmt::Debug> fmt::Debug for RefMut<'a, T> {
 }
 
 struct RefMutInner<'a, T: IdOrdItem> {
-    hash: MapHash<foldhash::fast::RandomState>,
+    hash_value: u64,
     // Store the hash function here so that type signatures aren't polluted with
     // T::Key<'a>: Hash everywhere. (A Drop impl, which is where the hash is
     // checked, cannot have stricter trait bounds than the type declaration.)
@@ -123,7 +142,8 @@ struct RefMutInner<'a, T: IdOrdItem> {
     // We do pay the cost of dynamic dispatch here (i.e. not being able to
     // inline the hash function), but not having to say `T::Key<'a>: Hash`
     // everywhere allows `reborrow` to work against a non-'static T.
-    hash_fn: fn(&T::Key<'a>, &mut foldhash::fast::FoldHasher),
+    state: foldhash::fast::RandomState,
+    hash_one_fn: fn(&foldhash::fast::RandomState, T::Key<'a>) -> u64,
     borrowed: &'a mut T,
 }
 
@@ -135,11 +155,10 @@ impl<'a, T: IdOrdItem> RefMutInner<'a, T> {
         let key: T::Key<'a> =
             unsafe { std::mem::transmute::<T::Key<'_>, T::Key<'a>>(key) };
 
-        let mut hasher = self.hash.build_hasher();
-        (self.hash_fn)(&key, &mut hasher);
-        let hash = hasher.finish();
+        let state = self.state;
+        let hash = (self.hash_one_fn)(&state, key);
 
-        if self.hash.hash() != hash {
+        if self.hash_value != hash {
             panic!("key changed during RefMut borrow");
         }
 
