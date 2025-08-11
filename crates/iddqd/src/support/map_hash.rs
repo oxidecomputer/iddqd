@@ -19,6 +19,16 @@ impl<S> fmt::Debug for MapHash<S> {
 }
 
 impl<S: BuildHasher> MapHash<S> {
+    #[inline]
+    pub(crate) fn build_hasher(&self) -> S::Hasher {
+        self.state.build_hasher()
+    }
+
+    #[inline]
+    pub(crate) fn hash(&self) -> u64 {
+        self.hash
+    }
+
     pub(crate) fn is_same_hash<K: Hash>(&self, key: K) -> bool {
         self.hash == self.state.hash_one(key)
     }

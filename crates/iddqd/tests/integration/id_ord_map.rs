@@ -518,6 +518,20 @@ fn borrowed_item() {
     assert_eq!(map.get("foo").unwrap().key1, "foo");
     assert_eq!(map.get("bar").unwrap().key1, "bar");
 
+    // Check that we can mutably retrieve them.
+    {
+        let mut item1 = map.get_mut("foo").unwrap();
+        item1.key2 = b"foo2";
+
+        // Including reborrows.
+        {
+            let mut item1_reborrowed = item1.reborrow();
+            item1_reborrowed.key3 = Path::new("foo2");
+        }
+
+        item1.key2 = b"foo3";
+    }
+
     // Check that we can iterate over them.
     let keys: Vec<_> = map.iter().map(|item| item.key()).collect();
     assert_eq!(keys, vec!["bar", "foo"]);

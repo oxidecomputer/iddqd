@@ -2,7 +2,7 @@ use super::IdOrdItem;
 use crate::support::map_hash::MapHash;
 use core::{
     fmt,
-    hash::Hash,
+    hash::{Hash, Hasher},
     ops::{Deref, DerefMut},
 };
 
@@ -44,10 +44,7 @@ use core::{
 ///
 /// [`IdOrdMap`]: crate::IdOrdMap
 /// [birthday problem]: https://en.wikipedia.org/wiki/Birthday_problem#Probability_table
-pub struct RefMut<'a, T: IdOrdItem>
-where
-    T::Key<'a>: Hash,
-{
+pub struct RefMut<'a, T: IdOrdItem> {
     inner: Option<RefMutInner<'a, T>>,
 }
 
@@ -59,7 +56,7 @@ where
         hash: MapHash<foldhash::fast::RandomState>,
         borrowed: &'a mut T,
     ) -> Self {
-        let inner = RefMutInner { hash, borrowed };
+        let inner = RefMutInner { hash, hash_fn: T::Key::hash, borrowed };
         Self { inner: Some(inner) }
     }
 
@@ -70,28 +67,21 @@ where
     }
 }
 
-impl<'a, T: IdOrdItem> RefMut<'a, T>
-where
-    for<'k> T::Key<'k>: Hash,
-{
+impl<'a, T: IdOrdItem> RefMut<'a, T> {
     /// Borrows self into a shorter-lived `RefMut`.
     ///
     /// This `RefMut` will also check hash equality on drop.
-    ///
-    /// Note: currently, due to limitations in the Rust borrow checker, this
-    /// effectively requires that `T: 'static`. Relaxing this requirement should
-    /// be possible in principle.
-    pub fn reborrow<'b>(&'b mut self) -> RefMut<'b, T> {
+    pub fn reborrow<'b>(&'b mut self) -> RefMut<'b, T>
+    where
+        T::Key<'b>: Hash,
+    {
         let inner = self.inner.as_mut().unwrap();
         let borrowed = &mut *inner.borrowed;
         RefMut::new(inner.hash.clone(), borrowed)
     }
 }
 
-impl<'a, T: IdOrdItem> Drop for RefMut<'a, T>
-where
-    T::Key<'a>: Hash,
-{
+impl<'a, T: IdOrdItem> Drop for RefMut<'a, T> {
     fn drop(&mut self) {
         if let Some(inner) = self.inner.take() {
             inner.into_ref();
@@ -99,10 +89,7 @@ where
     }
 }
 
-impl<'a, T: IdOrdItem> Deref for RefMut<'a, T>
-where
-    T::Key<'a>: Hash,
-{
+impl<'a, T: IdOrdItem> Deref for RefMut<'a, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -110,19 +97,13 @@ where
     }
 }
 
-impl<'a, T: IdOrdItem> DerefMut for RefMut<'a, T>
-where
-    T::Key<'a>: Hash,
-{
+impl<'a, T: IdOrdItem> DerefMut for RefMut<'a, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.inner.as_mut().unwrap().borrowed
     }
 }
 
-impl<'a, T: IdOrdItem + fmt::Debug> fmt::Debug for RefMut<'a, T>
-where
-    T::Key<'a>: Hash,
-{
+impl<'a, T: IdOrdItem + fmt::Debug> fmt::Debug for RefMut<'a, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.inner {
             Some(ref inner) => inner.fmt(f),
@@ -135,20 +116,30 @@ where
 
 struct RefMutInner<'a, T: IdOrdItem> {
     hash: MapHash<foldhash::fast::RandomState>,
+    // Store the hash function here so that type signatures aren't polluted with
+    // T::Key<'a>: Hash everywhere. (A Drop impl, which is where the hash is
+    // checked, cannot have stricter trait bounds than the type declaration.)
+    //
+    // We do pay the cost of dynamic dispatch here (i.e. not being able to
+    // inline the hash function), but not having to say `T::Key<'a>: Hash`
+    // everywhere allows `reborrow` to work against a non-'static T.
+    hash_fn: fn(&T::Key<'a>, &mut foldhash::fast::FoldHasher),
     borrowed: &'a mut T,
 }
 
-impl<'a, T: IdOrdItem> RefMutInner<'a, T>
-where
-    T::Key<'a>: Hash,
-{
+impl<'a, T: IdOrdItem> RefMutInner<'a, T> {
     fn into_ref(self) -> &'a T {
         let key: T::Key<'_> = self.borrowed.key();
         // SAFETY: The key is borrowed, then dropped immediately. T is valid for
         // 'a so T::Key is valid for 'a.
         let key: T::Key<'a> =
             unsafe { std::mem::transmute::<T::Key<'_>, T::Key<'a>>(key) };
-        if !self.hash.is_same_hash(&key) {
+
+        let mut hasher = self.hash.build_hasher();
+        (self.hash_fn)(&key, &mut hasher);
+        let hash = hasher.finish();
+
+        if self.hash.hash() != hash {
             panic!("key changed during RefMut borrow");
         }
 
