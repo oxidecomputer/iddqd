@@ -128,7 +128,6 @@ mod sealed {
 pub trait IdOrdItemMut<'a>:
     IdOrdItem<Key<'a>: Hash> + sealed::Sealed<'a> + 'a
 {
-    // do stuff using `Self::Key: Hash`
 }
 
 impl<'a, T> IdOrdItemMut<'a> for T where T: 'a + IdOrdItem<Key<'a>: Hash> {}
