@@ -70,17 +70,10 @@ where
     }
 }
 
-impl<'a, T: IdOrdItem> RefMut<'a, T>
-where
-    for<'k> T::Key<'k>: Hash,
-{
+impl<'a, T: for<'k> IdOrdItemMut<'k>> RefMut<'a, T> {
     /// Borrows self into a shorter-lived `RefMut`.
     ///
     /// This `RefMut` will also check hash equality on drop.
-    ///
-    /// Note: currently, due to limitations in the Rust borrow checker, this
-    /// effectively requires that `T: 'static`. Relaxing this requirement should
-    /// be possible in principle.
     pub fn reborrow<'b>(&'b mut self) -> RefMut<'b, T> {
         let inner = self.inner.as_mut().unwrap();
         let borrowed = &mut *inner.borrowed;
@@ -161,3 +154,16 @@ impl<T: IdOrdItem + fmt::Debug> fmt::Debug for RefMutInner<'_, T> {
         self.borrowed.fmt(f)
     }
 }
+
+/// A trait for mutable access to items in an [`IdOrdMap`].
+///
+/// This is a non-public trait used to work around a Rust borrow checker
+/// limitation. [This will produce a documentation warning if it becomes
+/// public].
+///
+/// This is automatically implemented whenever `T::Key` implements [`Hash`].
+///
+/// [`IdOrdMap`]: crate::IdOrdMap
+pub trait IdOrdItemMut<'a>: IdOrdItem<Key<'a>: Hash> + 'a {}
+
+impl<'a, T> IdOrdItemMut<'a> for T where T: 'a + IdOrdItem<Key<'a>: Hash> {}
