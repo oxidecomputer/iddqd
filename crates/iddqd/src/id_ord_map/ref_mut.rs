@@ -149,10 +149,7 @@ where
     }
 }
 
-impl<'a, T: IdOrdItem + fmt::Debug> fmt::Debug for RefMutInner<'a, T>
-where
-    T::Key<'a>: Hash,
-{
+impl<T: IdOrdItem + fmt::Debug> fmt::Debug for RefMutInner<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.borrowed.fmt(f)
     }
