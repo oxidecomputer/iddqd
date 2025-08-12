@@ -25,4 +25,4 @@ pub use iter::{IntoIter, Iter, IterMut};
 #[cfg(feature = "proptest")]
 pub use proptest_impls::{IdOrdMapStrategy, IdOrdMapValueTree, prop_strategy};
 pub use ref_mut::RefMut;
-pub use trait_defs::{IdOrdItem, IdOrdItemMut};
+pub use trait_defs::IdOrdItem;

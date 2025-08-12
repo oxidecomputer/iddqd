@@ -1,7 +1,8 @@
-use super::{IdOrdItem, IdOrdItemMut};
+use super::IdOrdItem;
 use crate::support::map_hash::MapHash;
 use core::{
     fmt,
+    hash::Hash,
     ops::{Deref, DerefMut},
 };
 
@@ -43,11 +44,17 @@ use core::{
 ///
 /// [`IdOrdMap`]: crate::IdOrdMap
 /// [birthday problem]: https://en.wikipedia.org/wiki/Birthday_problem#Probability_table
-pub struct RefMut<'a, T: IdOrdItemMut<'a>> {
+pub struct RefMut<'a, T: IdOrdItem>
+where
+    T::Key<'a>: Hash,
+{
     inner: Option<RefMutInner<'a, T>>,
 }
 
-impl<'a, T: IdOrdItemMut<'a>> RefMut<'a, T> {
+impl<'a, T: IdOrdItem> RefMut<'a, T>
+where
+    T::Key<'a>: Hash,
+{
     pub(super) fn new(
         hash: MapHash<foldhash::fast::RandomState>,
         borrowed: &'a mut T,
@@ -74,7 +81,10 @@ impl<'a, T: for<'k> IdOrdItemMut<'k>> RefMut<'a, T> {
     }
 }
 
-impl<'a, T: IdOrdItemMut<'a>> Drop for RefMut<'a, T> {
+impl<'a, T: IdOrdItem> Drop for RefMut<'a, T>
+where
+    T::Key<'a>: Hash,
+{
     fn drop(&mut self) {
         if let Some(inner) = self.inner.take() {
             inner.into_ref();
@@ -82,7 +92,10 @@ impl<'a, T: IdOrdItemMut<'a>> Drop for RefMut<'a, T> {
     }
 }
 
-impl<'a, T: IdOrdItemMut<'a>> Deref for RefMut<'a, T> {
+impl<'a, T: IdOrdItem> Deref for RefMut<'a, T>
+where
+    T::Key<'a>: Hash,
+{
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -90,13 +103,19 @@ impl<'a, T: IdOrdItemMut<'a>> Deref for RefMut<'a, T> {
     }
 }
 
-impl<'a, T: IdOrdItemMut<'a>> DerefMut for RefMut<'a, T> {
+impl<'a, T: IdOrdItem> DerefMut for RefMut<'a, T>
+where
+    T::Key<'a>: Hash,
+{
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.inner.as_mut().unwrap().borrowed
     }
 }
 
-impl<'a, T: IdOrdItemMut<'a> + fmt::Debug> fmt::Debug for RefMut<'a, T> {
+impl<'a, T: IdOrdItem + fmt::Debug> fmt::Debug for RefMut<'a, T>
+where
+    T::Key<'a>: Hash,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.inner {
             Some(ref inner) => inner.fmt(f),
@@ -107,12 +126,15 @@ impl<'a, T: IdOrdItemMut<'a> + fmt::Debug> fmt::Debug for RefMut<'a, T> {
     }
 }
 
-struct RefMutInner<'a, T: IdOrdItemMut<'a>> {
+struct RefMutInner<'a, T: IdOrdItem> {
     hash: MapHash<foldhash::fast::RandomState>,
     borrowed: &'a mut T,
 }
 
-impl<'a, T: IdOrdItemMut<'a>> RefMutInner<'a, T> {
+impl<'a, T: IdOrdItem> RefMutInner<'a, T>
+where
+    T::Key<'a>: Hash,
+{
     fn into_ref(self) -> &'a T {
         let key: T::Key<'_> = self.borrowed.key();
         // SAFETY: The key is borrowed, then dropped immediately. T is valid for
@@ -127,8 +149,24 @@ impl<'a, T: IdOrdItemMut<'a>> RefMutInner<'a, T> {
     }
 }
 
-impl<'a, T: IdOrdItemMut<'a> + fmt::Debug> fmt::Debug for RefMutInner<'a, T> {
+impl<'a, T: IdOrdItem + fmt::Debug> fmt::Debug for RefMutInner<'a, T>
+where
+    T::Key<'a>: Hash,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.borrowed.fmt(f)
     }
 }
+
+/// A trait for mutable access to items in an [`IdOrdMap`].
+///
+/// This is a non-public trait used to work around a Rust borrow checker
+/// limitation. [This will produce a documentation warning if it becomes
+/// public].
+///
+/// This is automatically implemented whenever `T::Key` implements [`Hash`].
+///
+/// [`IdOrdMap`]: crate::IdOrdMap
+pub trait IdOrdItemMut<'a>: IdOrdItem<Key<'a>: Hash> + 'a {}
+
+impl<'a, T> IdOrdItemMut<'a> for T where T: 'a + IdOrdItem<Key<'a>: Hash> {}

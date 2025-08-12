@@ -391,10 +391,7 @@ pub use equivalent::Comparable;
 pub use equivalent::Equivalent;
 pub use id_hash_map::{imp::IdHashMap, trait_defs::IdHashItem};
 #[cfg(feature = "std")]
-pub use id_ord_map::{
-    imp::IdOrdMap,
-    trait_defs::{IdOrdItem, IdOrdItemMut},
-};
+pub use id_ord_map::{imp::IdOrdMap, trait_defs::IdOrdItem};
 #[cfg(feature = "daft")]
 pub use support::daft_utils::IdLeaf;
 pub use support::hash_builder::DefaultHashBuilder;
