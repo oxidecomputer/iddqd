@@ -1,5 +1,5 @@
-use super::IdOrdItem;
-use crate::{id_ord_map::trait_defs::IdOrdItemMut, support::map_hash::MapHash};
+use super::{IdOrdItem, IdOrdItemMut};
+use crate::support::map_hash::MapHash;
 use core::{
     fmt,
     ops::{Deref, DerefMut},
