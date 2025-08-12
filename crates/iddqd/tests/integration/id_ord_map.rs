@@ -673,9 +673,8 @@ fn proptest_arbitrary_map(map: IdOrdMap<TestItem>) {
 }
 
 mod static_breakage {
-    use std::hash::Hash;
-
     use super::*;
+    use std::hash::Hash;
 
     struct Item {
         id: String,
