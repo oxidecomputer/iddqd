@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.10] - 2025-08-12
+
+### Fixed
+
+`id_ord_map::RefMut`'s `reborrow` method now works if the underlying `IdOrdItem` is non-`'static`.
+
 ## [0.3.9] - 2025-07-21
 
 ### Added
@@ -124,6 +130,7 @@
 
 Initial release.
 
+[0.3.10]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.10
 [0.3.9]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.9
 [0.3.8]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.8
 [0.3.7]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.7
