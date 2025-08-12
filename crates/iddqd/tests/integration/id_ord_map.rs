@@ -671,3 +671,56 @@ fn proptest_arbitrary_map(map: IdOrdMap<TestItem>) {
     }
     assert_eq!(count, len);
 }
+
+mod static_breakage {
+    use std::hash::Hash;
+
+    use super::*;
+
+    struct Item {
+        id: String,
+    }
+
+    impl IdOrdItem for Item {
+        type Key<'a> = Id<'a>;
+
+        fn key(&self) -> Self::Key<'_> {
+            Id(&self.id)
+        }
+
+        id_upcast!();
+    }
+
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+    struct Id<'a>(&'a str);
+
+    impl Hash for Id<'static> {
+        fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+            self.0.hash(state);
+        }
+    }
+
+    #[test]
+    fn static_breakage() {
+        let mut map = IdOrdMap::new();
+        map.insert_overwrite(Item { id: "test".to_string() });
+
+        let map: &'static mut IdOrdMap<Item> = Box::leak(Box::new(map));
+
+        {
+            let item: id_ord_map::RefMut<'static, Item> =
+                map.get_mut(&Id("test")).unwrap();
+
+            let s = "test".to_owned();
+            let foo = Foo { item, s: &s };
+            // This drops the item, which calls the hash function above.
+            drop(foo);
+        }
+    }
+
+    #[expect(dead_code)]
+    struct Foo<'a> {
+        item: id_ord_map::RefMut<'a, Item>,
+        s: &'a str,
+    }
+}

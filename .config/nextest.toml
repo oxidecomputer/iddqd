@@ -1,3 +1,18 @@
+experimental = ["wrapper-scripts"]
+
 [profile.default-miri]
 # proptests are too slow to be run through miri
 default-filter = "not test(proptest)"
+
+[[profile.default-miri.scripts]]
+# This test deliberately leaks memory, and freeing it within the test requires
+# unsafe code (we're deliberately restricting the test to safe Rust to
+# demonstrate how purely safe Rust can introduce a bug).
+filter = "test(static_breakage)"
+platform = "cfg(unix)"
+run-wrapper = "miri-ignore-leaks"
+
+[scripts.wrapper.miri-ignore-leaks]
+command = { command-line = "scripts/miri-ignore-leaks.sh", relative-to = "workspace-root" }
+# The target runner is Miri in this case.
+target-runner = "within-wrapper"

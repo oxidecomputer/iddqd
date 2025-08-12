@@ -59,6 +59,11 @@ where
         let hash_value = hash.hash();
         let state = hash.into_state();
         let hash_one_fn = foldhash::fast::RandomState::hash_one::<T::Key<'a>>;
+
+        // SAFETY: We cast this back to 'a, or to a lifetime shorter than that,
+        // before using it.
+        let hash_one_fn = hash_one_fn as *const ();
+
         let inner = RefMutInner { hash_value, state, hash_one_fn, borrowed };
         Self { inner: Some(inner) }
     }
@@ -77,23 +82,18 @@ impl<'a, T: IdOrdItem> RefMut<'a, T> {
     pub fn reborrow<'b>(&'b mut self) -> RefMut<'b, T>
     where
         T::Key<'b>: Hash,
+        // Note: 'a: 'b is implicit because Self has the 'a parameter. (See
+        // https://doc.rust-lang.org/nomicon/dropck.html.) We make
+        // it explicit to be clear, though.
+        'a: 'b,
     {
         let inner = self.inner.as_mut().unwrap();
-
-        // SAFETY: A hash_one that works for T::Key<'a> will also work for
-        // T::Key<'b>.
-        let hash_one_fn = unsafe {
-            core::mem::transmute::<
-                fn(&foldhash::fast::RandomState, T::Key<'a>) -> u64,
-                fn(&foldhash::fast::RandomState, T::Key<'b>) -> u64,
-            >(inner.hash_one_fn)
-        };
 
         let borrowed = &mut *inner.borrowed;
         let inner = RefMutInner {
             hash_value: inner.hash_value,
             state: inner.state,
-            hash_one_fn,
+            hash_one_fn: inner.hash_one_fn,
             borrowed,
         };
         RefMut { inner: Some(inner) }
@@ -135,7 +135,7 @@ impl<'a, T: IdOrdItem + fmt::Debug> fmt::Debug for RefMut<'a, T> {
 
 struct RefMutInner<'a, T: IdOrdItem> {
     hash_value: u64,
-    // Store the hash function here so that type signatures aren't polluted with
+    // Store the hash_one function here so that type signatures aren't polluted with
     // T::Key<'a>: Hash everywhere. (A Drop impl, which is where the hash is
     // checked, cannot have stricter trait bounds than the type declaration.)
     //
@@ -143,7 +143,9 @@ struct RefMutInner<'a, T: IdOrdItem> {
     // inline the hash function), but not having to say `T::Key<'a>: Hash`
     // everywhere allows `reborrow` to work against a non-'static T.
     state: foldhash::fast::RandomState,
-    hash_one_fn: fn(&foldhash::fast::RandomState, T::Key<'a>) -> u64,
+    // In reality, this is a HashOneFn<'a, T>. But we store a raw pointer here
+    // to avoid making 'a invariant.
+    hash_one_fn: *const (),
     borrowed: &'a mut T,
 }
 
@@ -156,7 +158,23 @@ impl<'a, T: IdOrdItem> RefMutInner<'a, T> {
             unsafe { std::mem::transmute::<T::Key<'_>, T::Key<'a>>(key) };
 
         let state = self.state;
-        let hash = (self.hash_one_fn)(&state, key);
+
+        // SAFETY: We created hash_one_fn from one of:
+        //
+        // * a HashOneFn<'a, T>, or:
+        // * a HashOneFn<'b, T> for some shorter lifetime 'b, through
+        //   covariance.
+        // * a HashOneFn<'b, T> for some shorter lifetime 'b, through the
+        //   reborrow method.
+        //
+        // In all cases, the hash_one_fn is valid for the lifetime.
+        let hash_one_fn = unsafe {
+            core::mem::transmute::<*const (), HashOneFn<'a, T>>(
+                self.hash_one_fn,
+            )
+        };
+
+        let hash = (hash_one_fn)(&state, key);
 
         if self.hash_value != hash {
             panic!("key changed during RefMut borrow");
@@ -171,3 +189,6 @@ impl<T: IdOrdItem + fmt::Debug> fmt::Debug for RefMutInner<'_, T> {
         self.borrowed.fmt(f)
     }
 }
+
+type HashOneFn<'a, T> =
+    fn(&foldhash::fast::RandomState, <T as IdOrdItem>::Key<'a>) -> u64;
