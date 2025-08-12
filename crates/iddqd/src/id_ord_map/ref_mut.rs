@@ -1,8 +1,7 @@
 use super::IdOrdItem;
-use crate::support::map_hash::MapHash;
+use crate::{id_ord_map::trait_defs::IdOrdItemMut, support::map_hash::MapHash};
 use core::{
     fmt,
-    hash::Hash,
     ops::{Deref, DerefMut},
 };
 
@@ -44,17 +43,11 @@ use core::{
 ///
 /// [`IdOrdMap`]: crate::IdOrdMap
 /// [birthday problem]: https://en.wikipedia.org/wiki/Birthday_problem#Probability_table
-pub struct RefMut<'a, T: IdOrdItem>
-where
-    T::Key<'a>: Hash,
-{
+pub struct RefMut<'a, T: IdOrdItemMut<'a>> {
     inner: Option<RefMutInner<'a, T>>,
 }
 
-impl<'a, T: IdOrdItem> RefMut<'a, T>
-where
-    T::Key<'a>: Hash,
-{
+impl<'a, T: IdOrdItemMut<'a>> RefMut<'a, T> {
     pub(super) fn new(
         hash: MapHash<foldhash::fast::RandomState>,
         borrowed: &'a mut T,
@@ -70,17 +63,10 @@ where
     }
 }
 
-impl<'a, T: IdOrdItem> RefMut<'a, T>
-where
-    for<'k> T::Key<'k>: Hash,
-{
+impl<'a, T: for<'k> IdOrdItemMut<'k>> RefMut<'a, T> {
     /// Borrows self into a shorter-lived `RefMut`.
     ///
     /// This `RefMut` will also check hash equality on drop.
-    ///
-    /// Note: currently, due to limitations in the Rust borrow checker, this
-    /// effectively requires that `T: 'static`. Relaxing this requirement should
-    /// be possible in principle.
     pub fn reborrow<'b>(&'b mut self) -> RefMut<'b, T> {
         let inner = self.inner.as_mut().unwrap();
         let borrowed = &mut *inner.borrowed;
@@ -88,10 +74,7 @@ where
     }
 }
 
-impl<'a, T: IdOrdItem> Drop for RefMut<'a, T>
-where
-    T::Key<'a>: Hash,
-{
+impl<'a, T: IdOrdItemMut<'a>> Drop for RefMut<'a, T> {
     fn drop(&mut self) {
         if let Some(inner) = self.inner.take() {
             inner.into_ref();
@@ -99,10 +82,7 @@ where
     }
 }
 
-impl<'a, T: IdOrdItem> Deref for RefMut<'a, T>
-where
-    T::Key<'a>: Hash,
-{
+impl<'a, T: IdOrdItemMut<'a>> Deref for RefMut<'a, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -110,19 +90,13 @@ where
     }
 }
 
-impl<'a, T: IdOrdItem> DerefMut for RefMut<'a, T>
-where
-    T::Key<'a>: Hash,
-{
+impl<'a, T: IdOrdItemMut<'a>> DerefMut for RefMut<'a, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.inner.as_mut().unwrap().borrowed
     }
 }
 
-impl<'a, T: IdOrdItem + fmt::Debug> fmt::Debug for RefMut<'a, T>
-where
-    T::Key<'a>: Hash,
-{
+impl<'a, T: IdOrdItemMut<'a> + fmt::Debug> fmt::Debug for RefMut<'a, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.inner {
             Some(ref inner) => inner.fmt(f),
@@ -133,15 +107,12 @@ where
     }
 }
 
-struct RefMutInner<'a, T: IdOrdItem> {
+struct RefMutInner<'a, T: IdOrdItemMut<'a>> {
     hash: MapHash<foldhash::fast::RandomState>,
     borrowed: &'a mut T,
 }
 
-impl<'a, T: IdOrdItem> RefMutInner<'a, T>
-where
-    T::Key<'a>: Hash,
-{
+impl<'a, T: IdOrdItemMut<'a>> RefMutInner<'a, T> {
     fn into_ref(self) -> &'a T {
         let key: T::Key<'_> = self.borrowed.key();
         // SAFETY: The key is borrowed, then dropped immediately. T is valid for
@@ -156,7 +127,7 @@ where
     }
 }
 
-impl<T: IdOrdItem + fmt::Debug> fmt::Debug for RefMutInner<'_, T> {
+impl<'a, T: IdOrdItemMut<'a> + fmt::Debug> fmt::Debug for RefMutInner<'a, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.borrowed.fmt(f)
     }

@@ -1,6 +1,7 @@
 //! Trait definitions for `IdOrdMap`.
 
 use alloc::{boxed::Box, rc::Rc, sync::Arc};
+use core::hash::Hash;
 
 /// An element stored in an [`IdOrdMap`].
 ///
@@ -108,3 +109,27 @@ macro_rules! impl_for_box {
 impl_for_box!(Box<T>);
 impl_for_box!(Rc<T>);
 impl_for_box!(Arc<T>);
+
+mod sealed {
+    pub trait Sealed<'a> {}
+}
+
+/// A trait for mutable access to items in an [`IdOrdMap`].
+///
+/// Mutable access to items within an [`IdOrdMap`] requires that the key type
+/// implement [`Hash`], so that hash equality is checked on drop. For more
+/// information, see [`RefMut`].
+///
+/// This is a sealed trait that's automatically implemented whenever `T::Key`
+/// implements [`Hash`].
+///
+/// [`IdOrdMap`]: crate::IdOrdMap
+/// [`RefMut`]: crate::id_ord_map::RefMut
+pub trait IdOrdItemMut<'a>:
+    IdOrdItem<Key<'a>: Hash> + sealed::Sealed<'a> + 'a
+{
+    // do stuff using `Self::Key: Hash`
+}
+
+impl<'a, T> IdOrdItemMut<'a> for T where T: 'a + IdOrdItem<Key<'a>: Hash> {}
+impl<'a, T> sealed::Sealed<'a> for T where T: 'a + IdOrdItem<Key<'a>: Hash> {}
