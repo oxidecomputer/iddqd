@@ -674,7 +674,7 @@ fn proptest_arbitrary_map(map: IdOrdMap<TestItem>) {
 
 mod static_breakage {
     use super::*;
-    use std::hash::Hash;
+    use std::{hash::Hash, sync::OnceLock};
 
     struct Item {
         id: String,
@@ -695,6 +695,20 @@ mod static_breakage {
 
     impl Hash for Id<'static> {
         fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+            static STATIC_STR: OnceLock<&'static str> = OnceLock::new();
+
+            // XXX This depends on Id being 'static! But we're shortening the
+            // lifetime of Id below so this function can be called with a
+            // shorter 'a lifetime.
+            //
+            // However, note that in reality, we could have only constructed a
+            // RefMut from a &'static mut IdOrdMap<Item>, due to the requirement
+            // on `get_mut` that `T::Key<'a>: Hash`. This means that no matter
+            // what the lifetime of Id<'a> currently is, it originally
+            // must have been 'static. There might be more creative ways to
+            // break this invariant, though.
+            STATIC_STR.get_or_init(|| self.0);
+
             self.0.hash(state);
         }
     }
