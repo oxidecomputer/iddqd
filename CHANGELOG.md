@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.11] - 2025-08-14
+
+### Fixed
+
+The type definitions for `IdHashMap`, `BiHashMap`, `TriHashMap`, and `IdOrdMap` no longer require `IdHashItem`, `BiHashItem`, `TriHashItem`, and `IdOrdItem`, respectively. This matches the standard library's `HashMap` and `BTreeMap` type definitions which don't require `Hash + Eq` or `Ord` bounds.
+
+Thanks to [aatifsyed](https://github.com/aatifsyed) for your first contribution!
+
 ## [0.3.10] - 2025-08-12
 
 ### Fixed
@@ -130,6 +138,7 @@
 
 Initial release.
 
+[0.3.11]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.11
 [0.3.10]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.10
 [0.3.9]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.9
 [0.3.8]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.8
