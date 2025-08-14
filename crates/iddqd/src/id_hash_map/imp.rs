@@ -64,11 +64,7 @@ use hashbrown::hash_table;
 /// # }
 /// ```
 #[derive(Clone)]
-pub struct IdHashMap<
-    T: IdHashItem,
-    S = DefaultHashBuilder,
-    A: Allocator = Global,
-> {
+pub struct IdHashMap<T, S = DefaultHashBuilder, A: Allocator = Global> {
     pub(super) items: ItemSet<T, A>,
     tables: IdHashMapTables<S, A>,
 }
