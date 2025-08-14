@@ -57,7 +57,7 @@ use equivalent::{Comparable, Equivalent};
 /// # }
 /// ```
 #[derive(Clone)]
-pub struct IdOrdMap<T: IdOrdItem> {
+pub struct IdOrdMap<T> {
     // We don't expose an allocator trait here because it isn't stable with
     // std's BTreeMap.
     pub(super) items: ItemSet<T, Global>,
