@@ -20,7 +20,7 @@ criterion = "0.7.0"
 daft = { version = "0.1.3", default-features = false }
 equivalent = "1.0.2"
 expectorate = "1.2.0"
-foldhash = "0.1.5"
+foldhash = "0.2.0"
 # We have to turn on hashbrown's allocator-api2 feature even if we don't expose
 # it in our public API. There's no way to refer to the hashbrown Allocator trait
 # without it. (The alternative would be to define everything twice: if
