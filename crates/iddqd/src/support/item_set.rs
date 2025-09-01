@@ -3,6 +3,7 @@ use crate::{
     internal::{ValidateCompact, ValidationError},
     support::alloc::Allocator,
 };
+use allocator_api2::alloc::Global;
 use core::{
     fmt,
     ops::{Index, IndexMut},
@@ -37,7 +38,22 @@ impl<T: fmt::Debug, A: Allocator> fmt::Debug for ItemSet<T, A> {
     }
 }
 
+impl<T> ItemSet<T, Global> {
+    #[inline]
+    pub(crate) const fn new() -> Self {
+        Self::new_in(Global)
+    }
+}
+
 impl<T, A: Allocator> ItemSet<T, A> {
+    #[inline]
+    pub(crate) const fn new_in(alloc: A) -> Self {
+        Self {
+            items: HashMap::with_hasher_in(FxBuildHasher, AllocWrapper(alloc)),
+            next_index: 0,
+        }
+    }
+
     pub(crate) fn with_capacity_in(capacity: usize, alloc: A) -> Self {
         Self {
             items: HashMap::with_capacity_and_hasher_in(

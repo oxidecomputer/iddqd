@@ -101,8 +101,8 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     /// assert_eq!(map.len(), 0);
     /// ```
     #[inline]
-    pub fn new() -> Self {
-        Self { items: ItemSet::default(), tables: IdOrdMapTables::new() }
+    pub const fn new() -> Self {
+        Self { items: ItemSet::new(), tables: IdOrdMapTables::new() }
     }
 
     /// Creates a new `IdOrdMap` with the given capacity.

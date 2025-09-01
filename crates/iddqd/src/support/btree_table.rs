@@ -72,10 +72,19 @@ pub(crate) struct MapBTreeTable {
     // We use foldhash directly here because we allow compiling with std but
     // without the default-hasher. std turns on foldhash but not the default
     // hasher.
-    hash_state: foldhash::fast::RandomState,
+    hash_state: foldhash::fast::FixedState,
 }
 
 impl MapBTreeTable {
+    pub(crate) const fn new() -> Self {
+        Self {
+            items: BTreeSet::new(),
+            // FixedState::with_seed XORs the passed in seed with a fixed
+            // high-entropy value.
+            hash_state: foldhash::fast::FixedState::with_seed(0),
+        }
+    }
+
     #[doc(hidden)]
     pub(crate) fn len(&self) -> usize {
         self.items.len()
@@ -216,7 +225,7 @@ impl MapBTreeTable {
     pub(crate) fn compute_hash<K: Hash>(
         &self,
         key: K,
-    ) -> MapHash<foldhash::fast::RandomState> {
+    ) -> MapHash<foldhash::fast::FixedState> {
         MapHash { state: self.hash_state, hash: self.hash_state.hash_one(key) }
     }
 }

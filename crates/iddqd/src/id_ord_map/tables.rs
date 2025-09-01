@@ -11,8 +11,8 @@ pub(super) struct IdOrdMapTables {
 }
 
 impl IdOrdMapTables {
-    pub(super) fn new() -> Self {
-        Self::default()
+    pub(super) const fn new() -> Self {
+        Self { key_to_item: MapBTreeTable::new() }
     }
 
     #[doc(hidden)]
@@ -31,7 +31,7 @@ impl IdOrdMapTables {
     pub(super) fn make_hash<'a, T>(
         &self,
         item: &'a T,
-    ) -> MapHash<foldhash::fast::RandomState>
+    ) -> MapHash<foldhash::fast::FixedState>
     where
         T::Key<'a>: Hash,
         T: 'a + IdOrdItem,
