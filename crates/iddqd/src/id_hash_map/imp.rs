@@ -111,7 +111,7 @@ impl<T: IdHashItem> IdHashMap<T> {
     /// ```
     #[inline]
     pub fn new() -> Self {
-        Self { items: ItemSet::default(), tables: IdHashMapTables::default() }
+        Self { items: ItemSet::new(), tables: IdHashMapTables::default() }
     }
 
     /// Creates a new `IdHashMap` with the given capacity.
@@ -182,7 +182,7 @@ impl<T: IdHashItem, S: Clone + BuildHasher> IdHashMap<T, S> {
     /// ```
     pub fn with_hasher(hasher: S) -> Self {
         Self {
-            items: ItemSet::default(),
+            items: ItemSet::new(),
             tables: IdHashMapTables::with_capacity_and_hasher_in(
                 0,
                 hasher,

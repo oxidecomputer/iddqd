@@ -22,12 +22,6 @@ pub(crate) struct ItemSet<T, A: Allocator> {
     next_index: usize,
 }
 
-impl<T, A: Allocator + Default> Default for ItemSet<T, A> {
-    fn default() -> Self {
-        Self::with_capacity_in(0, A::default())
-    }
-}
-
 impl<T: fmt::Debug, A: Allocator> fmt::Debug for ItemSet<T, A> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ItemSet")
