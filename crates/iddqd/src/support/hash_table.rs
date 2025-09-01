@@ -33,6 +33,10 @@ impl<S: fmt::Debug, A: Allocator> fmt::Debug for MapHashTable<S, A> {
 }
 
 impl<S: Clone + BuildHasher, A: Allocator> MapHashTable<S, A> {
+    pub(crate) const fn with_hasher_in(hasher: S, alloc: A) -> Self {
+        Self { state: hasher, items: HashTable::new_in(AllocWrapper(alloc)) }
+    }
+
     pub(crate) fn with_capacity_and_hasher_in(
         capacity: usize,
         hasher: S,

@@ -180,14 +180,10 @@ impl<T: IdHashItem, S: Clone + BuildHasher> IdHashMap<T, S> {
     /// let map: IdHashMap<Item, _> = IdHashMap::with_hasher(hasher);
     /// assert!(map.is_empty());
     /// ```
-    pub fn with_hasher(hasher: S) -> Self {
+    pub const fn with_hasher(hasher: S) -> Self {
         Self {
             items: ItemSet::new(),
-            tables: IdHashMapTables::with_capacity_and_hasher_in(
-                0,
-                hasher,
-                global_alloc(),
-            ),
+            tables: IdHashMapTables::with_hasher_in(hasher, global_alloc()),
         }
     }
 
@@ -364,10 +360,8 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Clone + Allocator>
     /// ```
     pub fn with_hasher_in(hasher: S, alloc: A) -> Self {
         Self {
-            items: ItemSet::with_capacity_in(0, alloc.clone()),
-            tables: IdHashMapTables::with_capacity_and_hasher_in(
-                0, hasher, alloc,
-            ),
+            items: ItemSet::new_in(alloc.clone()),
+            tables: IdHashMapTables::with_hasher_in(hasher, alloc),
         }
     }
 

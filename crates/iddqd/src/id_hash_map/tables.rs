@@ -17,6 +17,10 @@ impl<S: Clone + BuildHasher, A: Allocator> IdHashMapTables<S, A> {
         self.key_to_item.state()
     }
 
+    pub(super) const fn with_hasher_in(hasher: S, alloc: A) -> Self {
+        Self { key_to_item: MapHashTable::with_hasher_in(hasher, alloc) }
+    }
+
     pub(super) fn with_capacity_and_hasher_in(
         capacity: usize,
         hasher: S,

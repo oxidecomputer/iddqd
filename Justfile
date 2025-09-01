@@ -19,7 +19,7 @@ rustdoc *args:
 
 # Generate README.md files using `cargo-sync-rdme`.
 generate-readmes:
-    cargo sync-rdme --toolchain nightly-2025-06-21 --workspace --all-features
+    cargo sync-rdme --toolchain nightly-2025-08-31 --workspace --all-features
 
 # Run cargo release in CI.
 ci-cargo-release:
