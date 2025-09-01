@@ -1,9 +1,8 @@
 use super::alloc::AllocWrapper;
 use crate::{
     internal::{ValidateCompact, ValidationError},
-    support::alloc::Allocator,
+    support::alloc::{Allocator, Global, global_alloc},
 };
-use allocator_api2::alloc::Global;
 use core::{
     fmt,
     ops::{Index, IndexMut},
@@ -41,7 +40,7 @@ impl<T: fmt::Debug, A: Allocator> fmt::Debug for ItemSet<T, A> {
 impl<T> ItemSet<T, Global> {
     #[inline]
     pub(crate) const fn new() -> Self {
-        Self::new_in(Global)
+        Self::new_in(global_alloc())
     }
 }
 

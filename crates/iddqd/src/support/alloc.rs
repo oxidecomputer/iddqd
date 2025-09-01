@@ -15,7 +15,7 @@ mod inner {
     use core::ptr::NonNull;
 
     #[inline]
-    pub(crate) fn global_alloc() -> Global {
+    pub(crate) const fn global_alloc() -> Global {
         Global
     }
 
@@ -47,8 +47,8 @@ mod inner {
     use core::ptr::NonNull;
 
     #[inline]
-    pub(crate) fn global_alloc() -> Global {
-        Global::default()
+    pub(crate) const fn global_alloc() -> Global {
+        Global::new()
     }
 
     #[allow(clippy::missing_safety_doc)] // not exposed outside of this crate
@@ -61,6 +61,13 @@ mod inner {
     #[derive(Copy, Clone, Default)]
     #[doc(hidden)]
     pub struct Global(allocator_api2::alloc::Global);
+
+    impl Global {
+        #[inline]
+        pub const fn new() -> Self {
+            Global(allocator_api2::alloc::Global)
+        }
+    }
 
     // SAFETY: These functions just forward to the wrapped allocator.
     unsafe impl Allocator for Global {
