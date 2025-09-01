@@ -37,7 +37,7 @@ jobs:
       - name: Install nightly toolchain for cargo-sync-rdme
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: nightly-2025-06-21
+          toolchain: nightly-2025-08-31
       - name: Regenerate readmes
         run: just generate-readmes
       - name: Check for differences

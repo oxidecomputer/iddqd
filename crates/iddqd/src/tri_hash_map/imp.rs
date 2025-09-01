@@ -142,7 +142,7 @@ impl<T: TriHashItem> TriHashMap<T> {
     /// ```
     #[inline]
     pub fn new() -> Self {
-        Self { items: ItemSet::default(), tables: TriHashMapTables::default() }
+        Self { items: ItemSet::new(), tables: TriHashMapTables::default() }
     }
 
     /// Creates a new `TriHashMap` with the given capacity.
@@ -235,7 +235,7 @@ impl<T: TriHashItem, S: Clone + BuildHasher> TriHashMap<T, S> {
     /// ```
     pub fn with_hasher(hasher: S) -> Self {
         Self {
-            items: ItemSet::default(),
+            items: ItemSet::new(),
             tables: TriHashMapTables::with_capacity_and_hasher_in(
                 0,
                 hasher.clone(),

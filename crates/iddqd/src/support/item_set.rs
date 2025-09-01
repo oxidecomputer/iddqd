@@ -1,7 +1,7 @@
 use super::alloc::AllocWrapper;
 use crate::{
     internal::{ValidateCompact, ValidationError},
-    support::alloc::Allocator,
+    support::alloc::{Allocator, Global, global_alloc},
 };
 use core::{
     fmt,
@@ -22,12 +22,6 @@ pub(crate) struct ItemSet<T, A: Allocator> {
     next_index: usize,
 }
 
-impl<T, A: Allocator + Default> Default for ItemSet<T, A> {
-    fn default() -> Self {
-        Self::with_capacity_in(0, A::default())
-    }
-}
-
 impl<T: fmt::Debug, A: Allocator> fmt::Debug for ItemSet<T, A> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ItemSet")
@@ -37,7 +31,22 @@ impl<T: fmt::Debug, A: Allocator> fmt::Debug for ItemSet<T, A> {
     }
 }
 
+impl<T> ItemSet<T, Global> {
+    #[inline]
+    pub(crate) const fn new() -> Self {
+        Self::new_in(global_alloc())
+    }
+}
+
 impl<T, A: Allocator> ItemSet<T, A> {
+    #[inline]
+    pub(crate) const fn new_in(alloc: A) -> Self {
+        Self {
+            items: HashMap::with_hasher_in(FxBuildHasher, AllocWrapper(alloc)),
+            next_index: 0,
+        }
+    }
+
     pub(crate) fn with_capacity_in(capacity: usize, alloc: A) -> Self {
         Self {
             items: HashMap::with_capacity_and_hasher_in(

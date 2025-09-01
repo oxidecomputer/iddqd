@@ -131,7 +131,7 @@ impl<T: BiHashItem> BiHashMap<T> {
     /// ```
     #[inline]
     pub fn new() -> Self {
-        Self { items: ItemSet::default(), tables: BiHashMapTables::default() }
+        Self { items: ItemSet::new(), tables: BiHashMapTables::default() }
     }
 
     /// Creates a new `BiHashMap` with the given capacity.
@@ -214,7 +214,7 @@ impl<T: BiHashItem, S: Clone + BuildHasher> BiHashMap<T, S> {
     /// ```
     pub fn with_hasher(hasher: S) -> Self {
         Self {
-            items: ItemSet::default(),
+            items: ItemSet::new(),
             tables: BiHashMapTables::with_capacity_and_hasher_in(
                 0,
                 hasher,
