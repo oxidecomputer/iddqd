@@ -1,6 +1,6 @@
 [package]
 name = "iddqd"
-version = "0.3.11"
+version = "0.3.12"
 description = "Maps where keys borrow from values, including bijective and trijective maps."
 readme = "README.md"
 documentation = "https://docs.rs/iddqd"
