@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.12] - 2025-09-12
+
+### Added
+
+The following methods are now `const fn`:
+
+- `IdOrdMap::new`
+- `IdHashMap::with_hasher`
+
 ## [0.3.11] - 2025-08-14
 
 ### Fixed
@@ -138,6 +147,7 @@ Thanks to [aatifsyed](https://github.com/aatifsyed) for your first contribution!
 
 Initial release.
 
+[0.3.12]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.12
 [0.3.11]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.11
 [0.3.10]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.10
 [0.3.9]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.9
