@@ -40,7 +40,7 @@ issues encountered using Rust’s default map types in practice at Oxide.
 * There’s no `insert` method; insertion must be through either
   `insert_overwrite` or `insert_unique`. You must pick an insertion
   behavior.
-* For hash maps, the default hasher is [`foldhash`](https://docs.rs/foldhash/0.1.5/foldhash/index.html), which is much faster
+* For hash maps, the default hasher is [`foldhash`](https://docs.rs/foldhash/0.2.0/foldhash/index.html), which is much faster
   than SipHash. However, foldhash does *not provide the same level of HashDoS
   resistance* as SipHash. If that is important to you, you can use a different
   hasher. (Disable the `default-hasher` feature to require a hash
