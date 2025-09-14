@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.13] - 2025-09-14
+
+### Changed
+
+- iddqd now depends on `serde_core` rather than `serde`. This allows iddqd's compilation to be parallelized with `serde_derive`.
+- Internal dependency updates: `foldhash` updated to 0.2, and `hashbrown` updated to 0.16.
+
 ## [0.3.12] - 2025-09-12
 
 ### Added
@@ -147,6 +154,7 @@ Thanks to [aatifsyed](https://github.com/aatifsyed) for your first contribution!
 
 Initial release.
 
+[0.3.13]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.13
 [0.3.12]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.12
 [0.3.11]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.11
 [0.3.10]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.10
