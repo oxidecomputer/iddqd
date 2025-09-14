@@ -31,7 +31,7 @@ hashbrown.workspace = true
 ref-cast = { workspace = true, optional = true }
 rustc-hash.workspace = true
 schemars = { workspace = true, optional = true }
-serde = { workspace = true, optional = true }
+serde_core = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
 proptest = { workspace = true, optional = true }
 
@@ -39,6 +39,7 @@ proptest = { workspace = true, optional = true }
 expectorate.workspace = true
 iddqd-test-utils.workspace = true
 proptest.workspace = true
+serde.workspace = true
 test-strategy.workspace = true
 
 [features]
@@ -48,7 +49,7 @@ default = ["allocator-api2", "std", "default-hasher"]
 default-hasher = ["dep:foldhash", "iddqd-test-utils/default-hasher"]
 proptest = ["dep:proptest"]
 schemars08 = ["dep:schemars", "dep:serde_json", "serde"]
-serde = ["dep:serde", "iddqd-test-utils/serde"]
+serde = ["dep:serde_core", "iddqd-test-utils/serde"]
 std = ["dep:foldhash", "iddqd-test-utils/std", "rustc-hash/std"]
 
 # Internal-only feature for testing that schemars/preserve_order works.

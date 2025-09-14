@@ -1,7 +1,7 @@
 use crate::{BiHashItem, BiHashMap, support::alloc::Allocator};
 use core::{fmt, hash::BuildHasher, marker::PhantomData};
-use serde::{
-    Deserialize, Serialize, Serializer,
+use serde_core::{
+    Deserialize, Deserializer, Serialize, Serializer,
     de::{SeqAccess, Visitor},
 };
 
@@ -91,7 +91,7 @@ impl<
 where
     T: Deserialize<'de>,
 {
-    fn deserialize<D: serde::Deserializer<'de>>(
+    fn deserialize<D: Deserializer<'de>>(
         deserializer: D,
     ) -> Result<Self, D::Error> {
         deserializer.deserialize_seq(SeqVisitor {
@@ -111,7 +111,7 @@ impl<
 {
     /// Deserializes from a list of items, allocating new storage within the
     /// provided allocator.
-    pub fn deserialize_in<D: serde::Deserializer<'de>>(
+    pub fn deserialize_in<D: Deserializer<'de>>(
         deserializer: D,
         alloc: A,
     ) -> Result<Self, D::Error>
@@ -127,7 +127,7 @@ impl<
 
     /// Deserializes from a list of items, with the given hasher, using the
     /// default allocator.
-    pub fn deserialize_with_hasher<D: serde::Deserializer<'de>>(
+    pub fn deserialize_with_hasher<D: Deserializer<'de>>(
         deserializer: D,
         hasher: S,
     ) -> Result<Self, D::Error>
@@ -143,7 +143,7 @@ impl<
 
     /// Deserializes from a list of items, with the given hasher, and allocating
     /// new storage within the provided allocator.
-    pub fn deserialize_with_hasher_in<D: serde::Deserializer<'de>>(
+    pub fn deserialize_with_hasher_in<D: Deserializer<'de>>(
         deserializer: D,
         hasher: S,
         alloc: A,
@@ -191,7 +191,8 @@ where
         };
 
         while let Some(element) = seq.next_element()? {
-            map.insert_unique(element).map_err(serde::de::Error::custom)?;
+            map.insert_unique(element)
+                .map_err(serde_core::de::Error::custom)?;
         }
 
         Ok(map)
