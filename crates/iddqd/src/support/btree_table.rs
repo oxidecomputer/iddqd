@@ -226,7 +226,10 @@ impl MapBTreeTable {
         &self,
         key: K,
     ) -> MapHash<foldhash::fast::FixedState> {
-        MapHash { state: self.hash_state, hash: self.hash_state.hash_one(key) }
+        MapHash {
+            state: self.hash_state.clone(),
+            hash: self.hash_state.hash_one(key),
+        }
     }
 }
 
