@@ -199,12 +199,12 @@ impl<T, A: Allocator> ItemSet<T, A> {
 mod serde_impls {
     use super::ItemSet;
     use crate::support::alloc::Allocator;
-    use serde::Serialize;
+    use serde_core::{Serialize, Serializer};
 
     impl<T: Serialize, A: Allocator> Serialize for ItemSet<T, A> {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where
-            S: serde::Serializer,
+            S: Serializer,
         {
             // Serialize just the items -- don't serialize the map keys. We'll
             // rebuild the map keys on deserialization.

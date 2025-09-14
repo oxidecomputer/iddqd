@@ -1,6 +1,6 @@
 use super::{IdOrdItem, IdOrdMap};
 use core::{fmt, marker::PhantomData};
-use serde::{
+use serde_core::{
     Deserialize, Deserializer, Serialize, Serializer,
     de::{SeqAccess, Visitor},
     ser::SerializeSeq,
@@ -115,7 +115,8 @@ where
         };
 
         while let Some(element) = seq.next_element()? {
-            map.insert_unique(element).map_err(serde::de::Error::custom)?;
+            map.insert_unique(element)
+                .map_err(serde_core::de::Error::custom)?;
         }
 
         Ok(map)
