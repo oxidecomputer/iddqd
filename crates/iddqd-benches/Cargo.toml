@@ -8,6 +8,7 @@ publish = false
 
 [dependencies]
 criterion.workspace = true
+foldhash.workspace = true
 iddqd = { workspace = true, features = ["std"] }
 iddqd-test-utils = { workspace = true, features = ["std"] }
 

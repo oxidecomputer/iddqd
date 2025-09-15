@@ -378,6 +378,7 @@ name = "iddqd-benches"
 version = "0.1.0"
 dependencies = [
  "criterion",
+ "foldhash 0.2.0",
  "iddqd",
  "iddqd-test-utils",
 ]
