@@ -68,6 +68,13 @@ where
         let inner = self.inner.take().unwrap();
         inner.into_ref()
     }
+
+    /// Opt-out of the change-detection provided by [`RefMut`].
+    ///
+    /// It is a logic error to alter [`T::Key`](IdOrdItem::Key) of the returned item.
+    pub fn into_mut_unchecked(mut self) -> &'a mut T {
+        self.inner.take().unwrap().borrowed
+    }
 }
 
 impl<'a, T: for<'k> IdOrdItemMut<'k>> RefMut<'a, T> {
