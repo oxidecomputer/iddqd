@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.14] - 2025-09-29
+
+### Fixed
+
+Replaced obsolete `doc_auto_cfg` with `doc_cfg`, to fix Rust nightly builds with the `doc_cfg` flag enabled.
+
 ## [0.3.13] - 2025-09-14
 
 ### Changed
@@ -154,6 +160,7 @@ Thanks to [aatifsyed](https://github.com/aatifsyed) for your first contribution!
 
 Initial release.
 
+[0.3.14]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.14
 [0.3.13]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.13
 [0.3.12]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.12
 [0.3.11]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.11
