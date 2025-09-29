@@ -358,7 +358,7 @@
 //! [`Arbitrary`]: proptest::arbitrary::Arbitrary
 
 #![no_std]
-#![cfg_attr(doc_cfg, feature(doc_auto_cfg))]
+#![cfg_attr(doc_cfg, feature(doc_cfg))]
 #![warn(missing_docs)]
 
 #[cfg_attr(not(feature = "std"), macro_use)] // for `format!`
