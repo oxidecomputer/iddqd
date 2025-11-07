@@ -160,6 +160,7 @@ impl MapBTreeTable {
         self.items.first().map(|ix| ix.0)
     }
 
+    #[inline]
     pub(crate) fn last(&self) -> Option<usize> {
         self.items.last().map(|ix| ix.0)
     }

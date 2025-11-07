@@ -857,6 +857,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     /// let empty_map: IdOrdMap<Item> = IdOrdMap::new();
     /// assert!(empty_map.first().is_none());
     /// ```
+    #[inline]
     pub fn first(&self) -> Option<&T> {
         self.tables.key_to_item.first().map(|index| &self.items[index])
     }
@@ -993,6 +994,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     /// let empty_map: IdOrdMap<Item> = IdOrdMap::new();
     /// assert!(empty_map.last().is_none());
     /// ```
+    #[inline]
     pub fn last(&self) -> Option<&T> {
         self.tables.key_to_item.last().map(|index| &self.items[index])
     }
