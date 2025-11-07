@@ -155,6 +155,16 @@ impl MapBTreeTable {
         Ok(())
     }
 
+    #[inline]
+    pub(crate) fn first(&self) -> Option<usize> {
+        self.items.first().map(|ix| ix.0)
+    }
+
+    #[inline]
+    pub(crate) fn last(&self) -> Option<usize> {
+        self.items.last().map(|ix| ix.0)
+    }
+
     pub(crate) fn find_index<K, Q, F>(
         &self,
         key: &Q,

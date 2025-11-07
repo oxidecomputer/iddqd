@@ -105,6 +105,66 @@ impl NaiveMap {
     pub fn iter(&self) -> impl Iterator<Item = &TestItem> {
         self.items.iter()
     }
+
+    pub fn first(&self) -> Option<&TestItem> {
+        self.items.iter().min_by_key(|e| e.key1)
+    }
+
+    pub fn last(&self) -> Option<&TestItem> {
+        self.items.iter().max_by_key(|e| e.key1)
+    }
+
+    pub fn pop_first(&mut self) -> Option<TestItem> {
+        if self.items.is_empty() {
+            return None;
+        }
+        let index = self
+            .items
+            .iter()
+            .enumerate()
+            .min_by_key(|(_, e)| e.key1)
+            .map(|(i, _)| i)?;
+        Some(self.items.remove(index))
+    }
+
+    pub fn pop_last(&mut self) -> Option<TestItem> {
+        if self.items.is_empty() {
+            return None;
+        }
+        let index = self
+            .items
+            .iter()
+            .enumerate()
+            .max_by_key(|(_, e)| e.key1)
+            .map(|(i, _)| i)?;
+        Some(self.items.remove(index))
+    }
+
+    pub fn first_mut(&mut self) -> Option<&mut TestItem> {
+        if self.items.is_empty() {
+            return None;
+        }
+        let index = self
+            .items
+            .iter()
+            .enumerate()
+            .min_by_key(|(_, e)| e.key1)
+            .map(|(i, _)| i)?;
+        Some(&mut self.items[index])
+    }
+
+    pub fn last_mut(&mut self) -> Option<&mut TestItem> {
+        if self.items.is_empty() {
+            return None;
+        }
+        let index = self
+            .items
+            .iter()
+            .enumerate()
+            .max_by_key(|(_, e)| e.key1)
+            .map(|(i, _)| i)?;
+        Some(&mut self.items[index])
+    }
 }
 
 /// Which keys to check uniqueness against.

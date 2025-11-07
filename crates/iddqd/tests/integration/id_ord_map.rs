@@ -191,21 +191,35 @@ fn test_insert_unique() {
 #[derive(Debug, Arbitrary)]
 enum Operation {
     // Make inserts a bit more common to try and fill up the map.
-    #[weight(3)]
+    #[weight(5)]
     InsertUnique(TestItem),
-    #[weight(2)]
+    #[weight(3)]
     InsertOverwrite(TestItem),
     Get(u8),
     Remove(u8),
+    First,
+    Last,
+    PopFirst,
+    PopLast,
+    FirstEntryModify(String),
+    LastEntryModify(String),
 }
 
 impl Operation {
     fn remains_compact(&self) -> bool {
         match self {
-            Operation::InsertUnique(_) | Operation::Get(_) => true,
+            Operation::InsertUnique(_)
+            | Operation::Get(_)
+            | Operation::First
+            | Operation::Last
+            | Operation::FirstEntryModify(_)
+            | Operation::LastEntryModify(_) => true,
             // The act of removing items, including calls to insert_overwrite,
             // can make the map non-compact.
-            Operation::InsertOverwrite(_) | Operation::Remove(_) => false,
+            Operation::InsertOverwrite(_)
+            | Operation::Remove(_)
+            | Operation::PopFirst
+            | Operation::PopLast => false,
         }
     }
 }
@@ -267,6 +281,80 @@ fn proptest_ops(
                 let naive_res = naive_map.remove1(key);
 
                 assert_eq!(map_res, naive_res);
+                map.validate(compactness, ValidateChaos::No)
+                    .expect("map should be valid");
+            }
+            Operation::First => {
+                let map_res = map.first();
+                let naive_res = naive_map.first();
+
+                assert_eq!(map_res, naive_res);
+            }
+            Operation::Last => {
+                let map_res = map.last();
+                let naive_res = naive_map.last();
+
+                assert_eq!(map_res, naive_res);
+            }
+            Operation::PopFirst => {
+                let map_res = map.pop_first();
+                let naive_res = naive_map.pop_first();
+
+                assert_eq!(map_res, naive_res);
+                map.validate(compactness, ValidateChaos::No)
+                    .expect("map should be valid");
+            }
+            Operation::PopLast => {
+                let map_res = map.pop_last();
+                let naive_res = naive_map.pop_last();
+
+                assert_eq!(map_res, naive_res);
+                map.validate(compactness, ValidateChaos::No)
+                    .expect("map should be valid");
+            }
+            Operation::FirstEntryModify(new_value) => {
+                match (map.first_entry(), naive_map.first_mut()) {
+                    (Some(mut entry), Some(item)) => {
+                        let key1 = entry.get().key1;
+                        entry.get_mut().value = new_value.clone();
+                        item.value = new_value.clone();
+                        assert_eq!(
+                            map.get(&TestKey1::new(&key1)).unwrap().value,
+                            new_value
+                        );
+                    }
+                    (None, None) => {
+                        // Both empty, this is fine.
+                    }
+                    _ => {
+                        panic!(
+                            "map and naive_map should agree on first_entry/first_mut"
+                        );
+                    }
+                }
+                map.validate(compactness, ValidateChaos::No)
+                    .expect("map should be valid");
+            }
+            Operation::LastEntryModify(new_value) => {
+                match (map.last_entry(), naive_map.last_mut()) {
+                    (Some(mut entry), Some(item)) => {
+                        let key1 = entry.get().key1;
+                        entry.get_mut().value = new_value.clone();
+                        item.value = new_value.clone();
+                        assert_eq!(
+                            map.get(&TestKey1::new(&key1)).unwrap().value,
+                            new_value
+                        );
+                    }
+                    (None, None) => {
+                        // Both empty, this is fine.
+                    }
+                    _ => {
+                        panic!(
+                            "map and naive_map should agree on last_entry/last_mut"
+                        );
+                    }
+                }
                 map.validate(compactness, ValidateChaos::No)
                     .expect("map should be valid");
             }
