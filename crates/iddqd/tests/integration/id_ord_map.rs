@@ -313,41 +313,47 @@ fn proptest_ops(
                     .expect("map should be valid");
             }
             Operation::FirstEntryModify(new_value) => {
-                if let Some(mut entry) = map.first_entry() {
-                    // Get the key before modifying to verify against naive map
-                    let key1 = entry.get().key1;
-                    entry.get_mut().value = new_value.clone();
-
-                    // Apply the same modification to the naive map
-                    if let Some(item) = naive_map.first_mut() {
+                match (map.first_entry(), naive_map.first_mut()) {
+                    (Some(mut entry), Some(item)) => {
+                        let key1 = entry.get().key1;
+                        entry.get_mut().value = new_value.clone();
                         item.value = new_value.clone();
+                        assert_eq!(
+                            map.get(&TestKey1::new(&key1)).unwrap().value,
+                            new_value
+                        );
                     }
-
-                    // Verify the modification was applied correctly
-                    assert_eq!(
-                        map.get(&TestKey1::new(&key1)).unwrap().value,
-                        new_value
-                    );
+                    (None, None) => {
+                        // Both empty, this is fine.
+                    }
+                    _ => {
+                        panic!(
+                            "map and naive_map should agree on first_entry/first_mut"
+                        );
+                    }
                 }
                 map.validate(compactness, ValidateChaos::No)
                     .expect("map should be valid");
             }
             Operation::LastEntryModify(new_value) => {
-                if let Some(mut entry) = map.last_entry() {
-                    // Get the key before modifying to verify against naive map
-                    let key1 = entry.get().key1;
-                    entry.get_mut().value = new_value.clone();
-
-                    // Apply the same modification to the naive map
-                    if let Some(item) = naive_map.last_mut() {
+                match (map.last_entry(), naive_map.last_mut()) {
+                    (Some(mut entry), Some(item)) => {
+                        let key1 = entry.get().key1;
+                        entry.get_mut().value = new_value.clone();
                         item.value = new_value.clone();
+                        assert_eq!(
+                            map.get(&TestKey1::new(&key1)).unwrap().value,
+                            new_value
+                        );
                     }
-
-                    // Verify the modification was applied correctly
-                    assert_eq!(
-                        map.get(&TestKey1::new(&key1)).unwrap().value,
-                        new_value
-                    );
+                    (None, None) => {
+                        // Both empty, this is fine.
+                    }
+                    _ => {
+                        panic!(
+                            "map and naive_map should agree on last_entry/last_mut"
+                        );
+                    }
                 }
                 map.validate(compactness, ValidateChaos::No)
                     .expect("map should be valid");
