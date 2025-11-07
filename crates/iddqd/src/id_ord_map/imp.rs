@@ -819,6 +819,278 @@ impl<T: IdOrdItem> IdOrdMap<T> {
         )
     }
 
+    /// Returns the first item in the map. The key of this item is the minimum
+    /// key in the map.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use iddqd::{IdOrdItem, IdOrdMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdOrdItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let mut map = IdOrdMap::new();
+    /// map.insert_unique(Item { id: "charlie".to_string(), value: 30 }).unwrap();
+    /// map.insert_unique(Item { id: "alice".to_string(), value: 42 }).unwrap();
+    /// map.insert_unique(Item { id: "bob".to_string(), value: 99 }).unwrap();
+    ///
+    /// // First item has the minimum key.
+    /// let first = map.first().unwrap();
+    /// assert_eq!(first.id, "alice");
+    /// assert_eq!(first.value, 42);
+    ///
+    /// // Empty map returns None.
+    /// let empty_map: IdOrdMap<Item> = IdOrdMap::new();
+    /// assert!(empty_map.first().is_none());
+    /// ```
+    pub fn first(&self) -> Option<&T> {
+        self.tables.key_to_item.first().map(|index| &self.items[index])
+    }
+
+    /// Returns the first entry in the map for in-place manipulation. The key of
+    /// this entry is the minimum key in the map.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use iddqd::{IdOrdItem, IdOrdMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdOrdItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let mut map = IdOrdMap::new();
+    /// map.insert_unique(Item { id: "charlie".to_string(), value: 30 }).unwrap();
+    /// map.insert_unique(Item { id: "alice".to_string(), value: 42 }).unwrap();
+    /// map.insert_unique(Item { id: "bob".to_string(), value: 99 }).unwrap();
+    ///
+    /// // Modify the first entry.
+    /// if let Some(mut entry) = map.first_entry() {
+    ///     entry.get_mut().value = 100;
+    /// }
+    ///
+    /// assert_eq!(map.get("alice").unwrap().value, 100);
+    /// ```
+    pub fn first_entry(&mut self) -> Option<OccupiedEntry<'_, T>> {
+        let index = self.tables.key_to_item.first()?;
+        let (_, dormant_map) = DormantMutRef::new(self);
+        Some(
+            // SAFETY: `map` is dropped immediately while creating the
+            // DormantMutRef.
+            unsafe { OccupiedEntry::new(dormant_map, index) },
+        )
+    }
+
+    /// Removes and returns the first element in the map. The key of this
+    /// element is the minimum key in the map.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use iddqd::{IdOrdItem, IdOrdMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdOrdItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let mut map = IdOrdMap::new();
+    /// map.insert_unique(Item { id: "charlie".to_string(), value: 30 }).unwrap();
+    /// map.insert_unique(Item { id: "alice".to_string(), value: 42 }).unwrap();
+    /// map.insert_unique(Item { id: "bob".to_string(), value: 99 }).unwrap();
+    ///
+    /// // Remove the first element.
+    /// let first = map.pop_first().unwrap();
+    /// assert_eq!(first.id, "alice");
+    /// assert_eq!(first.value, 42);
+    /// assert_eq!(map.len(), 2);
+    ///
+    /// // Remove the next element.
+    /// let first = map.pop_first().unwrap();
+    /// assert_eq!(first.id, "bob");
+    ///
+    /// // Empty map returns None.
+    /// map.pop_first();
+    /// assert!(map.pop_first().is_none());
+    /// ```
+    pub fn pop_first(&mut self) -> Option<T> {
+        let index = self.tables.key_to_item.first()?;
+        self.remove_by_index(index)
+    }
+
+    /// Returns the last item in the map. The key of this item is the maximum
+    /// key in the map.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use iddqd::{IdOrdItem, IdOrdMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdOrdItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let mut map = IdOrdMap::new();
+    /// map.insert_unique(Item { id: "charlie".to_string(), value: 30 }).unwrap();
+    /// map.insert_unique(Item { id: "alice".to_string(), value: 42 }).unwrap();
+    /// map.insert_unique(Item { id: "bob".to_string(), value: 99 }).unwrap();
+    ///
+    /// // Last item has the maximum key.
+    /// let last = map.last().unwrap();
+    /// assert_eq!(last.id, "charlie");
+    /// assert_eq!(last.value, 30);
+    ///
+    /// // Empty map returns None.
+    /// let empty_map: IdOrdMap<Item> = IdOrdMap::new();
+    /// assert!(empty_map.last().is_none());
+    /// ```
+    pub fn last(&self) -> Option<&T> {
+        self.tables.key_to_item.last().map(|index| &self.items[index])
+    }
+
+    /// Returns the last entry in the map for in-place manipulation. The key of
+    /// this entry is the maximum key in the map.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use iddqd::{IdOrdItem, IdOrdMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdOrdItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let mut map = IdOrdMap::new();
+    /// map.insert_unique(Item { id: "charlie".to_string(), value: 30 }).unwrap();
+    /// map.insert_unique(Item { id: "alice".to_string(), value: 42 }).unwrap();
+    /// map.insert_unique(Item { id: "bob".to_string(), value: 99 }).unwrap();
+    ///
+    /// // Modify the last entry.
+    /// if let Some(mut entry) = map.last_entry() {
+    ///     entry.get_mut().value = 200;
+    /// }
+    ///
+    /// assert_eq!(map.get("charlie").unwrap().value, 200);
+    /// ```
+    pub fn last_entry(&mut self) -> Option<OccupiedEntry<'_, T>> {
+        let index = self.tables.key_to_item.last()?;
+        let (_, dormant_map) = DormantMutRef::new(self);
+        Some(
+            // SAFETY: `map` is dropped immediately while creating the
+            // DormantMutRef.
+            unsafe { OccupiedEntry::new(dormant_map, index) },
+        )
+    }
+
+    /// Removes and returns the last element in the map. The key of this
+    /// element is the maximum key in the map.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use iddqd::{IdOrdItem, IdOrdMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdOrdItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let mut map = IdOrdMap::new();
+    /// map.insert_unique(Item { id: "charlie".to_string(), value: 30 }).unwrap();
+    /// map.insert_unique(Item { id: "alice".to_string(), value: 42 }).unwrap();
+    /// map.insert_unique(Item { id: "bob".to_string(), value: 99 }).unwrap();
+    ///
+    /// // Remove the last element.
+    /// let last = map.pop_last().unwrap();
+    /// assert_eq!(last.id, "charlie");
+    /// assert_eq!(last.value, 30);
+    /// assert_eq!(map.len(), 2);
+    ///
+    /// // Remove the next element.
+    /// let last = map.pop_last().unwrap();
+    /// assert_eq!(last.id, "bob");
+    ///
+    /// // Empty map returns None.
+    /// map.pop_last();
+    /// assert!(map.pop_last().is_none());
+    /// ```
+    pub fn pop_last(&mut self) -> Option<T> {
+        let index = self.tables.key_to_item.last()?;
+        self.remove_by_index(index)
+    }
+
     fn find<'a, Q>(&'a self, k: &Q) -> Option<&'a T>
     where
         Q: ?Sized + Comparable<T::Key<'a>>,
