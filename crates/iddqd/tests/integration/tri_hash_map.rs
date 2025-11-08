@@ -234,6 +234,8 @@ enum Operation {
     Remove1(u8),
     Remove2(char),
     Remove3(String),
+    RetainValueContains(char, bool),
+    RetainModulo(#[strategy(0..3_u8)] u8, #[strategy(1..4_u8)] u8, bool),
 }
 
 impl Operation {
@@ -248,7 +250,9 @@ impl Operation {
             Operation::InsertOverwrite(_)
             | Operation::Remove1(_)
             | Operation::Remove2(_)
-            | Operation::Remove3(_) => false,
+            | Operation::Remove3(_)
+            | Operation::RetainValueContains(_, _)
+            | Operation::RetainModulo(_, _, _) => false,
         }
     }
 }
@@ -283,7 +287,13 @@ fn proptest_ops(
                 if let Err(map_err) = map_res {
                     let naive_err = naive_res.unwrap_err();
                     assert_eq!(map_err.new_item(), naive_err.new_item());
-                    assert_eq!(map_err.duplicates(), naive_err.duplicates(),);
+                    // The duplicates may be in any order, so sort them before
+                    // comparing.
+                    let mut map_err_dups = map_err.duplicates().to_vec();
+                    let mut naive_err_dups = naive_err.duplicates().to_vec();
+                    map_err_dups.sort();
+                    naive_err_dups.sort();
+                    assert_eq!(map_err_dups, naive_err_dups);
                 }
 
                 map.validate(compactness).expect("map should be valid");
@@ -337,6 +347,30 @@ fn proptest_ops(
                 let naive_res = naive_map.remove3(&key3);
 
                 assert_eq!(map_res, naive_res);
+                map.validate(compactness).expect("map should be valid");
+            }
+            Operation::RetainValueContains(ch, equals) => {
+                map.retain(|item| {
+                    let contains = item.value.contains(ch);
+                    if equals { contains } else { !contains }
+                });
+                naive_map.retain(|item| {
+                    let contains = item.value.contains(ch);
+                    if equals { contains } else { !contains }
+                });
+                map.validate(compactness).expect("map should be valid");
+            }
+            Operation::RetainModulo(a, b, equals) => {
+                let modulo = a + b;
+                let remainder = a;
+                map.retain(|item| {
+                    let matches = item.key1 % modulo == remainder;
+                    if equals { matches } else { !matches }
+                });
+                naive_map.retain(|item| {
+                    let matches = item.key1 % modulo == remainder;
+                    if equals { matches } else { !matches }
+                });
                 map.validate(compactness).expect("map should be valid");
             }
         }
@@ -502,6 +536,135 @@ fn borrowed_item() {
 
     assert_eq!(format!("{map:?}"), DEBUG_OUTPUT);
     assert_eq!(fmt_debug(&map), DEBUG_OUTPUT);
+}
+
+#[test]
+fn test_retain_all() {
+    let mut map = TriHashMap::<TestItem, HashBuilder, Alloc>::make_new();
+    map.insert_unique(TestItem::new(1, 'a', "x", "foo")).unwrap();
+    map.insert_unique(TestItem::new(2, 'b', "y", "bar")).unwrap();
+    map.insert_unique(TestItem::new(3, 'c', "z", "baz")).unwrap();
+
+    let original_len = map.len();
+    map.retain(|_| true);
+
+    assert_eq!(map.len(), original_len);
+    assert_eq!(map.len(), 3);
+    map.get1(&TestKey1::new(&1)).expect("key1=1 should be present");
+    map.get1(&TestKey1::new(&2)).expect("key1=2 should be present");
+    map.get1(&TestKey1::new(&3)).expect("key1=3 should be present");
+}
+
+#[test]
+fn test_retain_none() {
+    let mut map = TriHashMap::<TestItem, HashBuilder, Alloc>::make_new();
+    map.insert_unique(TestItem::new(1, 'a', "x", "foo")).unwrap();
+    map.insert_unique(TestItem::new(2, 'b', "y", "bar")).unwrap();
+    map.insert_unique(TestItem::new(3, 'c', "z", "baz")).unwrap();
+
+    map.retain(|_| false);
+
+    assert_eq!(map.len(), 0);
+    assert!(map.is_empty());
+}
+
+#[test]
+fn test_retain_value_contains() {
+    let mut map = TriHashMap::<TestItem, HashBuilder, Alloc>::make_new();
+    map.insert_unique(TestItem::new(1, 'a', "x", "foo")).unwrap();
+    map.insert_unique(TestItem::new(2, 'b', "y", "bar")).unwrap();
+    map.insert_unique(TestItem::new(3, 'c', "z", "baz")).unwrap();
+    map.insert_unique(TestItem::new(4, 'd', "w", "qux")).unwrap();
+
+    map.retain(|item| item.value.contains('a'));
+
+    assert_eq!(map.len(), 2);
+    map.get1(&TestKey1::new(&2)).expect("key1=2 (bar) should be present");
+    map.get1(&TestKey1::new(&3)).expect("key1=3 (baz) should be present");
+    assert!(
+        map.get1(&TestKey1::new(&1)).is_none(),
+        "key1=1 (foo) should be removed"
+    );
+    assert!(
+        map.get1(&TestKey1::new(&4)).is_none(),
+        "key1=4 (qux) should be removed"
+    );
+}
+
+#[test]
+fn test_retain_modulo() {
+    let mut map = TriHashMap::<TestItem, HashBuilder, Alloc>::make_new();
+    map.insert_unique(TestItem::new(0, 'a', "x", "v0")).unwrap();
+    map.insert_unique(TestItem::new(1, 'b', "y", "v1")).unwrap();
+    map.insert_unique(TestItem::new(2, 'c', "z", "v2")).unwrap();
+    map.insert_unique(TestItem::new(3, 'd', "w", "v3")).unwrap();
+    map.insert_unique(TestItem::new(4, 'e', "u", "v4")).unwrap();
+    map.insert_unique(TestItem::new(5, 'f', "t", "v5")).unwrap();
+
+    map.retain(|item| item.key1 % 3 == 1);
+
+    assert_eq!(map.len(), 2);
+    map.get1(&TestKey1::new(&1)).expect("key1=1 should be present");
+    map.get1(&TestKey1::new(&4)).expect("key1=4 should be present");
+    assert!(map.get1(&TestKey1::new(&0)).is_none(), "key1=0 should be removed");
+    assert!(map.get1(&TestKey1::new(&2)).is_none(), "key1=2 should be removed");
+    assert!(map.get1(&TestKey1::new(&3)).is_none(), "key1=3 should be removed");
+    assert!(map.get1(&TestKey1::new(&5)).is_none(), "key1=5 should be removed");
+
+    // Test with a larger map for miri coverage.
+    let mut large_map = TriHashMap::<TestItem, HashBuilder, Alloc>::make_new();
+    for i in 0..32_u8 {
+        large_map
+            .insert_unique(TestItem::new(
+                i,
+                char::from(b'a' + i),
+                format!("k{}", i),
+                "z",
+            ))
+            .unwrap();
+    }
+
+    large_map.retain(|item| item.key1 % 7 == 3);
+
+    for i in 0..32_u8 {
+        if i % 7 == 3 {
+            large_map
+                .get1(&TestKey1::new(&i))
+                .unwrap_or_else(|| panic!("key1={} should be present", i));
+        } else {
+            assert!(
+                large_map.get1(&TestKey1::new(&i)).is_none(),
+                "key1={} should be removed",
+                i
+            );
+        }
+    }
+}
+
+#[test]
+fn test_retain_empty_map() {
+    let mut map = TriHashMap::<TestItem, HashBuilder, Alloc>::make_new();
+    map.retain(|_| true);
+    assert!(map.is_empty());
+}
+
+#[test]
+fn test_retain_verifies_all_keys() {
+    let mut map = TriHashMap::<TestItem, HashBuilder, Alloc>::make_new();
+    map.insert_unique(TestItem::new(1, 'a', "x", "foo")).unwrap();
+    map.insert_unique(TestItem::new(2, 'b', "y", "bar")).unwrap();
+    map.insert_unique(TestItem::new(3, 'c', "z", "baz")).unwrap();
+
+    // Retain only key1=2
+    map.retain(|item| item.key1 == 2);
+
+    // Verify all three keys work
+    map.get1(&TestKey1::new(&2)).expect("key1=2 should be present");
+    map.get2(&TestKey2::new('b')).expect("key2='b' should be present");
+    map.get3(&TestKey3::new("y")).expect("key3=\"y\" should be present");
+    assert!(map.get1(&TestKey1::new(&1)).is_none());
+    assert!(map.get2(&TestKey2::new('a')).is_none());
+    assert!(map.get3(&TestKey3::new("x")).is_none());
 }
 
 mod macro_tests {

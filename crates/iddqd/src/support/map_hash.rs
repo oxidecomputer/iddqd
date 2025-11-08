@@ -10,6 +10,16 @@ pub(crate) struct MapHash<S> {
     pub(super) hash: u64,
 }
 
+impl<S> MapHash<S> {
+    pub(crate) fn new(state: S, hash: u64) -> Self {
+        Self { state, hash }
+    }
+
+    pub(crate) fn hash(&self) -> u64 {
+        self.hash
+    }
+}
+
 impl<S> fmt::Debug for MapHash<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("MapHash")

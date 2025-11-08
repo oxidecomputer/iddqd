@@ -165,6 +165,17 @@ impl NaiveMap {
             .map(|(i, _)| i)?;
         Some(&mut self.items[index])
     }
+
+    pub fn retain<F>(&mut self, f: F)
+    where
+        F: FnMut(&mut TestItem) -> bool,
+    {
+        // Sort items by key1 to match IdOrdMap iteration order
+        self.items.sort_by_key(|e| e.key1);
+
+        // Retain items matching the predicate
+        self.items.retain_mut(f);
+    }
 }
 
 /// Which keys to check uniqueness against.

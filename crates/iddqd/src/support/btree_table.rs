@@ -224,12 +224,25 @@ impl MapBTreeTable {
         drop(guard);
     }
 
+    pub(crate) fn retain<F>(&mut self, mut f: F)
+    where
+        F: FnMut(usize) -> bool,
+    {
+        // We don't need to set up a comparator in the environment because
+        // `retain` doesn't do any comparisons as part of its operation.
+        self.items.retain(|index| f(index.0));
+    }
+
     pub(crate) fn iter(&self) -> Iter<'_> {
         Iter::new(self.items.iter())
     }
 
     pub(crate) fn into_iter(self) -> IntoIter {
         IntoIter::new(self.items.into_iter())
+    }
+
+    pub(crate) fn state(&self) -> &foldhash::fast::FixedState {
+        &self.hash_state
     }
 
     pub(crate) fn compute_hash<K: Hash>(
