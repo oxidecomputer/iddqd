@@ -14,6 +14,7 @@ use crate::{
         borrow::DormantMutRef,
         fmt_utils::StrDisplayAsDebug,
         item_set::ItemSet,
+        map_hash::MapHash,
     },
 };
 use alloc::{collections::BTreeSet, vec::Vec};
@@ -1594,6 +1595,130 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
                 },
             ),
         }
+    }
+
+    /// Retains only the elements specified by the predicate.
+    ///
+    /// In other words, remove all items `T` for which `f(RefMut<T>)` returns
+    /// false. The elements are visited in an arbitrary order.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{BiHashItem, BiHashMap, bi_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, Hash)]
+    /// struct Item {
+    ///     id: u32,
+    ///     name: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl BiHashItem for Item {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.name
+    ///     }
+    ///
+    ///     bi_upcast!();
+    /// }
+    ///
+    /// let mut map = BiHashMap::new();
+    /// map.insert_unique(Item { id: 1, name: "foo".to_string(), value: 42 })
+    ///     .unwrap();
+    /// map.insert_unique(Item { id: 2, name: "bar".to_string(), value: 20 })
+    ///     .unwrap();
+    /// map.insert_unique(Item { id: 3, name: "baz".to_string(), value: 99 })
+    ///     .unwrap();
+    ///
+    /// // Retain only items where value is greater than 30
+    /// map.retain(|item| item.value > 30);
+    ///
+    /// assert_eq!(map.len(), 2);
+    /// assert_eq!(map.get1(&1).unwrap().value, 42);
+    /// assert_eq!(map.get1(&3).unwrap().value, 99);
+    /// assert!(map.get1(&2).is_none());
+    /// # }
+    /// ```
+    pub fn retain<'a, F>(&'a mut self, mut f: F)
+    where
+        F: FnMut(RefMut<'a, T, S>) -> bool,
+    {
+        let hash1_state = self.tables.k1_to_item.state().clone();
+        let hash2_state = self.tables.k2_to_item.state().clone();
+        let (_, mut dormant_items) = DormantMutRef::new(&mut self.items);
+
+        self.tables.k1_to_item.retain(|index| {
+            let (item, dormant_items) = {
+                // SAFETY: All uses of `items` ended in the previous iteration.
+                let items = unsafe { dormant_items.reborrow() };
+                let (items, dormant_items) = DormantMutRef::new(items);
+                let item: &'a mut T = items
+                    .get_mut(index)
+                    .expect("all indexes are present in self.items");
+                (item, dormant_items)
+            };
+
+            let (hashes, dormant_item) = {
+                let (item, dormant_item): (&'a mut T, _) =
+                    DormantMutRef::new(item);
+                // Use T::k1(item) rather than item.key() to force the key
+                // trait function to be called for T rather than &mut T.
+                let key1 = T::key1(item);
+                let key2 = T::key2(item);
+                let hash1 = hash1_state.hash_one(key1);
+                let hash2 = hash2_state.hash_one(key2);
+                (
+                    [
+                        MapHash::new(hash1_state.clone(), hash1),
+                        MapHash::new(hash2_state.clone(), hash2),
+                    ],
+                    dormant_item,
+                )
+            };
+
+            // SAFETY: The original items is no longer used after the first
+            // block above.
+            let items = unsafe { dormant_items.awaken() };
+            // SAFETY: The original item is no longer used after the second
+            // block above.
+            let item = unsafe { dormant_item.awaken() };
+
+            let hash2 = hashes[1].hash();
+
+            let ref_mut = RefMut::new(hashes, item);
+            if f(ref_mut) {
+                true
+            } else {
+                items.remove(index);
+                let k2_entry = self
+                    .tables
+                    .k2_to_item
+                    .find_entry_by_hash(hash2, |map2_index| {
+                        map2_index == index
+                    });
+                match k2_entry {
+                    Ok(entry) => {
+                        entry.remove();
+                    }
+                    Err(_) => {
+                        // This happening means there's an inconsistency between
+                        // the maps.
+                        panic!(
+                            "inconsistency between k1_to_item and k2_to_item"
+                        );
+                    }
+                }
+
+                false
+            }
+        });
     }
 
     fn find1<'a, Q>(&'a self, k: &Q) -> Option<&'a T>

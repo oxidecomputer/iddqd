@@ -162,6 +162,8 @@ enum Operation {
     InsertOverwrite(TestItem),
     Get(u8),
     Remove(u8),
+    RetainValueContains(char, bool),
+    RetainModulo(#[strategy(0..3_u8)] u8, #[strategy(1..4_u8)] u8, bool),
 }
 
 impl Operation {
@@ -170,7 +172,10 @@ impl Operation {
             Operation::InsertUnique(_) | Operation::Get(_) => true,
             // The act of removing items, including calls to insert_overwrite,
             // can make the map non-compact.
-            Operation::InsertOverwrite(_) | Operation::Remove(_) => false,
+            Operation::InsertOverwrite(_)
+            | Operation::Remove(_)
+            | Operation::RetainValueContains(_, _)
+            | Operation::RetainModulo(_, _, _) => false,
         }
     }
 }
@@ -230,6 +235,30 @@ fn proptest_ops(
                 let naive_res = naive_map.remove1(key);
 
                 assert_eq!(map_res, naive_res);
+                map.validate(compactness).expect("map should be valid");
+            }
+            Operation::RetainValueContains(ch, equals) => {
+                map.retain(|item| {
+                    let contains = item.value.contains(ch);
+                    if equals { contains } else { !contains }
+                });
+                naive_map.retain(|item| {
+                    let contains = item.value.contains(ch);
+                    if equals { contains } else { !contains }
+                });
+                map.validate(compactness).expect("map should be valid");
+            }
+            Operation::RetainModulo(a, b, equals) => {
+                let modulo = a + b;
+                let remainder = a;
+                map.retain(|item| {
+                    let matches = item.key1 % modulo == remainder;
+                    if equals { matches } else { !matches }
+                });
+                naive_map.retain(|item| {
+                    let matches = item.key1 % modulo == remainder;
+                    if equals { matches } else { !matches }
+                });
                 map.validate(compactness).expect("map should be valid");
             }
         }
@@ -456,6 +485,109 @@ fn borrowed_item() {
         key1: \"bar\", key2: [98, 97, 114], key3: \"bar\" }}";
     assert_eq!(format!("{map:?}"), DEBUG_OUTPUT);
     assert_eq!(fmt_debug(&map), DEBUG_OUTPUT);
+}
+
+#[test]
+fn test_retain_all() {
+    let mut map = IdHashMap::<TestItem, HashBuilder, Alloc>::make_new();
+    map.insert_unique(TestItem::new(1, 'a', "x", "foo")).unwrap();
+    map.insert_unique(TestItem::new(2, 'b', "y", "bar")).unwrap();
+    map.insert_unique(TestItem::new(3, 'c', "z", "baz")).unwrap();
+
+    let original_len = map.len();
+    map.retain(|_| true);
+
+    assert_eq!(map.len(), original_len);
+    assert_eq!(map.len(), 3);
+    map.get(&TestKey1::new(&1)).expect("key 1 should be present");
+    map.get(&TestKey1::new(&2)).expect("key 2 should be present");
+    map.get(&TestKey1::new(&3)).expect("key 3 should be present");
+}
+
+#[test]
+fn test_retain_none() {
+    let mut map = IdHashMap::<TestItem, HashBuilder, Alloc>::make_new();
+    map.insert_unique(TestItem::new(1, 'a', "x", "foo")).unwrap();
+    map.insert_unique(TestItem::new(2, 'b', "y", "bar")).unwrap();
+    map.insert_unique(TestItem::new(3, 'c', "z", "baz")).unwrap();
+
+    map.retain(|_| false);
+
+    assert_eq!(map.len(), 0);
+    assert!(map.is_empty());
+}
+
+#[test]
+fn test_retain_value_contains() {
+    let mut map = IdHashMap::<TestItem, HashBuilder, Alloc>::make_new();
+    map.insert_unique(TestItem::new(1, 'a', "x", "foo")).unwrap();
+    map.insert_unique(TestItem::new(2, 'b', "y", "bar")).unwrap();
+    map.insert_unique(TestItem::new(3, 'c', "z", "baz")).unwrap();
+    map.insert_unique(TestItem::new(4, 'd', "w", "qux")).unwrap();
+
+    map.retain(|item| item.value.contains('a'));
+
+    assert_eq!(map.len(), 2);
+    map.get(&TestKey1::new(&2)).expect("key 2 (bar) should be present");
+    map.get(&TestKey1::new(&3)).expect("key 3 (baz) should be present");
+    assert!(
+        map.get(&TestKey1::new(&1)).is_none(),
+        "key 1 (foo) should be removed"
+    );
+    assert!(
+        map.get(&TestKey1::new(&4)).is_none(),
+        "key 4 (qux) should be removed"
+    );
+}
+
+#[test]
+fn test_retain_modulo() {
+    let mut map = IdHashMap::<TestItem, HashBuilder, Alloc>::make_new();
+    map.insert_unique(TestItem::new(0, 'a', "x", "v0")).unwrap();
+    map.insert_unique(TestItem::new(1, 'b', "y", "v1")).unwrap();
+    map.insert_unique(TestItem::new(2, 'c', "z", "v2")).unwrap();
+    map.insert_unique(TestItem::new(3, 'd', "w", "v3")).unwrap();
+    map.insert_unique(TestItem::new(4, 'e', "u", "v4")).unwrap();
+    map.insert_unique(TestItem::new(5, 'f', "t", "v5")).unwrap();
+
+    map.retain(|item| item.key1 % 3 == 1);
+
+    assert_eq!(map.len(), 2);
+    map.get(&TestKey1::new(&1)).expect("key 1 should be present");
+    map.get(&TestKey1::new(&4)).expect("key 4 should be present");
+    assert!(map.get(&TestKey1::new(&0)).is_none(), "key 0 should be removed");
+    assert!(map.get(&TestKey1::new(&2)).is_none(), "key 2 should be removed");
+    assert!(map.get(&TestKey1::new(&3)).is_none(), "key 3 should be removed");
+    assert!(map.get(&TestKey1::new(&5)).is_none(), "key 5 should be removed");
+
+    // Test with a larger map for miri coverage.
+    let mut large_map = IdHashMap::<TestItem, HashBuilder, Alloc>::make_new();
+    for i in 0..32_u8 {
+        large_map.insert_unique(TestItem::new(i, 'x', "y", "z")).unwrap();
+    }
+
+    large_map.retain(|item| item.key1 % 7 == 3);
+
+    for i in 0..32_u8 {
+        if i % 7 == 3 {
+            large_map
+                .get(&TestKey1::new(&i))
+                .unwrap_or_else(|| panic!("key {} should be present", i));
+        } else {
+            assert!(
+                large_map.get(&TestKey1::new(&i)).is_none(),
+                "key {} should be removed",
+                i
+            );
+        }
+    }
+}
+
+#[test]
+fn test_retain_empty_map() {
+    let mut map = IdHashMap::<TestItem, HashBuilder, Alloc>::make_new();
+    map.retain(|_| true);
+    assert!(map.is_empty());
 }
 
 mod macro_tests {

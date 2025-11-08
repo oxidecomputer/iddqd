@@ -9,10 +9,14 @@ use crate::{
         alloc::{Global, global_alloc},
         borrow::DormantMutRef,
         item_set::ItemSet,
+        map_hash::MapHash,
     },
 };
 use alloc::collections::BTreeSet;
-use core::{fmt, hash::Hash};
+use core::{
+    fmt,
+    hash::{BuildHasher, Hash},
+};
 use equivalent::{Comparable, Equivalent};
 
 /// An ordered map where the keys are part of the values, based on a B-Tree.
@@ -1091,6 +1095,91 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     pub fn pop_last(&mut self) -> Option<T> {
         let index = self.tables.key_to_item.last()?;
         self.remove_by_index(index)
+    }
+
+    /// Retains only the elements specified by the predicate.
+    ///
+    /// In other words, remove all items `T` for which `f(RefMut<T>)` returns
+    /// false. The elements are visited in ascending key order.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use iddqd::{IdOrdItem, IdOrdMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdOrdItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let mut map = IdOrdMap::new();
+    /// map.insert_unique(Item { id: "foo".to_string(), value: 42 }).unwrap();
+    /// map.insert_unique(Item { id: "bar".to_string(), value: 20 }).unwrap();
+    /// map.insert_unique(Item { id: "baz".to_string(), value: 99 }).unwrap();
+    ///
+    /// // Retain only items where value is greater than 30
+    /// map.retain(|item| item.value > 30);
+    ///
+    /// assert_eq!(map.len(), 2);
+    /// assert_eq!(map.get("foo").unwrap().value, 42);
+    /// assert_eq!(map.get("baz").unwrap().value, 99);
+    /// assert!(map.get("bar").is_none());
+    /// ```
+    pub fn retain<'a, F>(&'a mut self, mut f: F)
+    where
+        F: FnMut(RefMut<'a, T>) -> bool,
+        T::Key<'a>: Hash,
+    {
+        let hash_state = self.tables.key_to_item.state().clone();
+        let (_, mut dormant_items) = DormantMutRef::new(&mut self.items);
+
+        self.tables.key_to_item.retain(|index| {
+            let (item, dormant_items) = {
+                // SAFETY: All uses of `items` ended in the previous iteration.
+                let items = unsafe { dormant_items.reborrow() };
+                let (items, dormant_items) = DormantMutRef::new(items);
+                let item: &'a mut T = items
+                    .get_mut(index)
+                    .expect("all indexes are present in self.items");
+                (item, dormant_items)
+            };
+
+            let (hash, dormant_item) = {
+                let (item, dormant_item): (&'a mut T, _) =
+                    DormantMutRef::new(item);
+                // Use T::key(item) rather than item.key() to force the key
+                // trait function to be called for T rather than &mut T.
+                let key = T::key(item);
+                let hash = hash_state.hash_one(key);
+                (MapHash::new(hash_state.clone(), hash), dormant_item)
+            };
+
+            // SAFETY: The original items is no longer used after the first
+            // block above.
+            let items = unsafe { dormant_items.awaken() };
+            // SAFETY: The original item is no longer used after the second
+            // block above.
+            let item = unsafe { dormant_item.awaken() };
+
+            let ref_mut = RefMut::new(hash, item);
+            if f(ref_mut) {
+                true
+            } else {
+                items.remove(index);
+                false
+            }
+        });
     }
 
     fn find<'a, Q>(&'a self, k: &Q) -> Option<&'a T>

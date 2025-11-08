@@ -2,7 +2,13 @@
   "permissions": {
     "allow": [
       "Bash(jj s:*)",
-      "Bash(cargo nextest run:*)"
+      "Bash(cargo nextest run:*)",
+      "Bash(cargo build:*)",
+      "Bash(cargo clippy:*)",
+      "Bash(cargo test:*)",
+      "Bash(cargo fmt:*)",
+      "Bash(rustc:*)",
+      "Bash(cargo --version:*)"
     ],
     "deny": [],
     "ask": []

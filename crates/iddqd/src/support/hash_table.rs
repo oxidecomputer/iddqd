@@ -48,7 +48,6 @@ impl<S: Clone + BuildHasher, A: Allocator> MapHashTable<S, A> {
         }
     }
 
-    #[cfg(feature = "daft")]
     pub(crate) fn state(&self) -> &S {
         &self.state
     }
@@ -150,5 +149,26 @@ impl<S: Clone + BuildHasher, A: Allocator> MapHashTable<S, A> {
     {
         let hash = self.state.hash_one(key);
         self.items.find_entry(hash, |index| lookup(*index).borrow() == key)
+    }
+
+    pub(crate) fn find_entry_by_hash<F>(
+        &mut self,
+        hash: u64,
+        mut f: F,
+    ) -> Result<
+        OccupiedEntry<'_, usize, AllocWrapper<A>>,
+        AbsentEntry<'_, usize, AllocWrapper<A>>,
+    >
+    where
+        F: FnMut(usize) -> bool,
+    {
+        self.items.find_entry(hash, |index| f(*index))
+    }
+
+    pub(crate) fn retain<F>(&mut self, mut f: F)
+    where
+        F: FnMut(usize) -> bool,
+    {
+        self.items.retain(|index| f(*index));
     }
 }
