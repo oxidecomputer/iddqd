@@ -233,6 +233,12 @@ impl MapBTreeTable {
         self.items.retain(|index| f(index.0));
     }
 
+    /// Clears the B-tree table, removing all items.
+    #[inline]
+    pub(crate) fn clear(&mut self) {
+        self.items.clear();
+    }
+
     pub(crate) fn iter(&self) -> Iter<'_> {
         Iter::new(self.items.iter())
     }

@@ -188,34 +188,72 @@ fn test_insert_unique() {
     assert_eq!(*e2, v1);
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CompactnessChange {
+    /// The operation makes the map non-compact.
+    NoLongerCompact,
+    /// The operation makes the map compact.
+    BecomesCompact,
+    /// The operation doesn't change compactness.
+    NoChange,
+}
+
+impl CompactnessChange {
+    /// Applies this compactness change to the given compactness state.
+    fn apply(self, compactness: ValidateCompact) -> ValidateCompact {
+        match (compactness, self) {
+            (ValidateCompact::Compact, CompactnessChange::NoLongerCompact) => {
+                ValidateCompact::NonCompact
+            }
+            (
+                ValidateCompact::NonCompact,
+                CompactnessChange::BecomesCompact,
+            ) => ValidateCompact::Compact,
+            _ => compactness,
+        }
+    }
+}
+
 #[derive(Debug, Arbitrary)]
 enum Operation {
     // Make inserts a bit more common to try and fill up the map.
-    #[weight(5)]
+    #[weight(6)]
     InsertUnique(TestItem),
-    #[weight(3)]
+    #[weight(4)]
     InsertOverwrite(TestItem),
+    #[weight(2)]
     Get(u8),
+    #[weight(2)]
     Remove(u8),
+    #[weight(2)]
     First,
+    #[weight(2)]
     Last,
+    #[weight(2)]
     PopFirst,
+    #[weight(2)]
     PopLast,
+    #[weight(2)]
     FirstEntryModify(String),
+    #[weight(2)]
     LastEntryModify(String),
+    #[weight(2)]
     RetainValueContains(char, bool),
+    #[weight(2)]
     RetainModulo(#[strategy(0..3_u8)] u8, #[strategy(1..4_u8)] u8, bool),
+    // clear is set to a lower weight since it makes the map empty.
+    Clear,
 }
 
 impl Operation {
-    fn remains_compact(&self) -> bool {
+    fn compactness_change(&self) -> CompactnessChange {
         match self {
             Operation::InsertUnique(_)
             | Operation::Get(_)
             | Operation::First
             | Operation::Last
             | Operation::FirstEntryModify(_)
-            | Operation::LastEntryModify(_) => true,
+            | Operation::LastEntryModify(_) => CompactnessChange::NoChange,
             // The act of removing items, including calls to insert_overwrite,
             // can make the map non-compact.
             Operation::InsertOverwrite(_)
@@ -223,7 +261,11 @@ impl Operation {
             | Operation::PopFirst
             | Operation::PopLast
             | Operation::RetainValueContains(_, _)
-            | Operation::RetainModulo(_, _, _) => false,
+            | Operation::RetainModulo(_, _, _) => {
+                CompactnessChange::NoLongerCompact
+            }
+            // Clear always makes the map compact (empty).
+            Operation::Clear => CompactnessChange::BecomesCompact,
         }
     }
 }
@@ -241,9 +283,7 @@ fn proptest_ops(
 
     // Now perform the operations on both maps.
     for op in ops {
-        if compactness == ValidateCompact::Compact && !op.remains_compact() {
-            compactness = ValidateCompact::NonCompact;
-        }
+        compactness = op.compactness_change().apply(compactness);
 
         match op {
             Operation::InsertUnique(item) => {
@@ -385,6 +425,12 @@ fn proptest_ops(
                     let matches = item.key1 % modulo == remainder;
                     if equals { matches } else { !matches }
                 });
+                map.validate(compactness, ValidateChaos::No)
+                    .expect("map should be valid");
+            }
+            Operation::Clear => {
+                map.clear();
+                naive_map.clear();
                 map.validate(compactness, ValidateChaos::No)
                     .expect("map should be valid");
             }
@@ -739,6 +785,36 @@ fn test_retain_empty_map() {
     let mut map = IdOrdMap::<TestItem>::make_new();
     map.retain(|_| true);
     assert!(map.is_empty());
+}
+
+#[test]
+fn test_clear_empty_map() {
+    let mut map = IdOrdMap::<TestItem>::make_new();
+    map.clear();
+    assert!(map.is_empty());
+    map.validate(ValidateCompact::Compact, ValidateChaos::No)
+        .expect("empty cleared map should be compact");
+}
+
+#[test]
+fn test_clear_makes_compact() {
+    let mut map = IdOrdMap::<TestItem>::make_new();
+
+    // Add items.
+    map.insert_unique(TestItem::new(1, 'a', "x", "v1")).unwrap();
+    map.insert_unique(TestItem::new(2, 'b', "y", "v2")).unwrap();
+    map.insert_unique(TestItem::new(3, 'c', "z", "v3")).unwrap();
+
+    // Remove an item to make it non-compact.
+    map.remove(&TestKey1::new(&2));
+    map.validate(ValidateCompact::NonCompact, ValidateChaos::No)
+        .expect("map should be valid but non-compact");
+
+    // Clear should make it compact again.
+    map.clear();
+    assert!(map.is_empty());
+    map.validate(ValidateCompact::Compact, ValidateChaos::No)
+        .expect("cleared map should be compact");
 }
 
 #[test]

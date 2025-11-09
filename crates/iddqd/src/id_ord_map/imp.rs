@@ -314,6 +314,43 @@ impl<T: IdOrdItem> IdOrdMap<T> {
         self.items.len()
     }
 
+    /// Clears the map, removing all items.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use iddqd::{IdOrdItem, IdOrdMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdOrdItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let mut map = IdOrdMap::new();
+    /// map.insert_unique(Item { id: "foo".to_string(), value: 42 }).unwrap();
+    /// map.insert_unique(Item { id: "bar".to_string(), value: 99 }).unwrap();
+    /// assert_eq!(map.len(), 2);
+    ///
+    /// map.clear();
+    /// assert!(map.is_empty());
+    /// assert_eq!(map.len(), 0);
+    /// ```
+    pub fn clear(&mut self) {
+        self.items.clear();
+        self.tables.key_to_item.clear();
+    }
+
     /// Iterates over the items in the map.
     ///
     /// Similar to [`BTreeMap`], the iteration is ordered by [`T::Key`].

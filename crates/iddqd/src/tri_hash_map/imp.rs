@@ -747,6 +747,61 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
         self.items.len()
     }
 
+    /// Clears the map, removing all items.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Person {
+    ///     id: u32,
+    ///     email: String,
+    ///     phone: String,
+    ///     name: String,
+    /// }
+    ///
+    /// impl TriHashItem for Person {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///     type K3<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.email
+    ///     }
+    ///     fn key3(&self) -> Self::K3<'_> {
+    ///         &self.phone
+    ///     }
+    ///     tri_upcast!();
+    /// }
+    ///
+    /// let mut map = TriHashMap::new();
+    /// map.insert_unique(Person {
+    ///     id: 1,
+    ///     email: "alice@example.com".to_string(),
+    ///     phone: "555-1234".to_string(),
+    ///     name: "Alice".to_string(),
+    /// })
+    /// .unwrap();
+    /// assert_eq!(map.len(), 1);
+    ///
+    /// map.clear();
+    /// assert!(map.is_empty());
+    /// assert_eq!(map.len(), 0);
+    /// # }
+    /// ```
+    pub fn clear(&mut self) {
+        self.items.clear();
+        self.tables.k1_to_item.clear();
+        self.tables.k2_to_item.clear();
+        self.tables.k3_to_item.clear();
+    }
+
     /// Iterates over the items in the map.
     ///
     /// Similar to [`HashMap`], the iteration order is arbitrary and not

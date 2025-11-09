@@ -176,6 +176,10 @@ impl NaiveMap {
         // Retain items matching the predicate
         self.items.retain_mut(f);
     }
+
+    pub fn clear(&mut self) {
+        self.items.clear();
+    }
 }
 
 /// Which keys to check uniqueness against.

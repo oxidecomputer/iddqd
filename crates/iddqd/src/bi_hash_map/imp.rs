@@ -665,6 +665,52 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
         self.items.len()
     }
 
+    /// Clears the map, removing all items.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{BiHashItem, BiHashMap, bi_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Item {
+    ///     id: u32,
+    ///     name: String,
+    ///     value: i32,
+    /// }
+    ///
+    /// impl BiHashItem for Item {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.name
+    ///     }
+    ///     bi_upcast!();
+    /// }
+    ///
+    /// let mut map = BiHashMap::new();
+    /// map.insert_unique(Item { id: 1, name: "foo".to_string(), value: 42 })
+    ///     .unwrap();
+    /// map.insert_unique(Item { id: 2, name: "bar".to_string(), value: 99 })
+    ///     .unwrap();
+    /// assert_eq!(map.len(), 2);
+    ///
+    /// map.clear();
+    /// assert!(map.is_empty());
+    /// assert_eq!(map.len(), 0);
+    /// # }
+    /// ```
+    pub fn clear(&mut self) {
+        self.items.clear();
+        self.tables.k1_to_item.clear();
+        self.tables.k2_to_item.clear();
+    }
+
     /// Returns an iterator over all items in the map.
     ///
     /// Similar to [`HashMap`], the iteration order is arbitrary and not

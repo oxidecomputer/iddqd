@@ -165,4 +165,10 @@ impl<A: Allocator> MapHashTable<A> {
     {
         self.items.retain(|index| f(*index));
     }
+
+    /// Clears the hash table, removing all items.
+    #[inline]
+    pub(crate) fn clear(&mut self) {
+        self.items.clear();
+    }
 }
