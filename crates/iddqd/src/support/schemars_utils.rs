@@ -4,6 +4,10 @@ use alloc::{
     boxed::Box,
     string::{String, ToString},
 };
+use schemars::schema::{
+    ArrayValidation, InstanceType, Metadata, ObjectValidation, Schema,
+    SchemaObject, SingleOrVec,
+};
 
 /// The crate name for iddqd, used in the x-rust-type extensions.
 pub(crate) static IDDQD_CRATE_NAME: &str = "iddqd";
@@ -22,8 +26,6 @@ pub(crate) fn array_validation<T>(
 where
     T: schemars::JsonSchema,
 {
-    use schemars::schema::{ArrayValidation, SingleOrVec};
-
     Box::new(ArrayValidation {
         items: Some(SingleOrVec::Single(Box::new(
             generator.subschema_for::<T>(),
@@ -82,8 +84,6 @@ pub(crate) fn create_map_schema<T>(
 where
     T: schemars::JsonSchema,
 {
-    use schemars::schema::{InstanceType, Metadata, Schema, SchemaObject};
-
     Schema::Object(SchemaObject {
         instance_type: Some(InstanceType::Array.into()),
         array: Some(array_validation::<T>(generator)),
@@ -92,6 +92,41 @@ where
             ..Default::default()
         })),
         extensions: make_extension_table::<T>(rust_type_path, generator),
+        ..Default::default()
+    })
+}
+
+/// Helper function to create object validation for map types serialized as objects.
+pub(crate) fn object_validation<V>(
+    generator: &mut schemars::gen::SchemaGenerator,
+) -> Box<schemars::schema::ObjectValidation>
+where
+    V: schemars::JsonSchema,
+{
+    Box::new(ObjectValidation {
+        additional_properties: Some(Box::new(generator.subschema_for::<V>())),
+        ..Default::default()
+    })
+}
+
+/// Creates a schema object for iddqd map types serialized as JSON objects.
+/// This is used by the AsMap wrapper types.
+pub(crate) fn create_object_schema<V>(
+    title: &str,
+    rust_type_path: &'static str,
+    generator: &mut schemars::gen::SchemaGenerator,
+) -> schemars::schema::Schema
+where
+    V: schemars::JsonSchema,
+{
+    Schema::Object(SchemaObject {
+        instance_type: Some(InstanceType::Object.into()),
+        object: Some(object_validation::<V>(generator)),
+        metadata: Some(Box::new(Metadata {
+            title: Some(title.to_string()),
+            ..Default::default()
+        })),
+        extensions: make_extension_table::<V>(rust_type_path, generator),
         ..Default::default()
     })
 }

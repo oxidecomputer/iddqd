@@ -1,8 +1,12 @@
-use crate::{BiHashItem, BiHashMap, support::alloc::Allocator};
+use crate::{
+    BiHashItem, BiHashMap, DefaultHashBuilder,
+    support::alloc::{Allocator, Global},
+};
 use core::{fmt, hash::BuildHasher, marker::PhantomData};
 use serde_core::{
     Deserialize, Deserializer, Serialize, Serializer,
-    de::{SeqAccess, Visitor},
+    de::{MapAccess, SeqAccess, Visitor},
+    ser::SerializeMap,
 };
 
 /// A `BiHashMap` serializes to the list of items. Items are serialized in
@@ -10,6 +14,8 @@ use serde_core::{
 ///
 /// Serializing as a list of items rather than as a map works around the lack of
 /// non-string keys in formats like JSON.
+///
+/// To serialize as a map instead, see [`BiHashMapAsMap`].
 ///
 /// # Examples
 ///
@@ -78,8 +84,13 @@ where
     }
 }
 
-/// The `Deserialize` impl for `BiHashMap` deserializes the list of items while
-/// rebuilding the indexes, producing an error if there are any duplicates.
+/// The `Deserialize` impl for `BiHashMap` deserializes from either a sequence
+/// or a map of items, rebuilding the indexes and producing an error if there
+/// are any duplicates.
+///
+/// In case a map is deserialized, the key is not deserialized or verified
+/// against the value. (In general, verification is not possible because the key
+/// type has a lifetime parameter embedded in it.)
 ///
 /// The `fmt::Debug` bound on `T` ensures better error reporting.
 impl<
@@ -94,7 +105,7 @@ where
     fn deserialize<D: Deserializer<'de>>(
         deserializer: D,
     ) -> Result<Self, D::Error> {
-        deserializer.deserialize_seq(SeqVisitor {
+        deserializer.deserialize_any(SeqVisitor {
             _marker: PhantomData,
             hasher: S::default(),
             alloc: A::default(),
@@ -118,7 +129,7 @@ impl<
     where
         S: Default,
     {
-        deserializer.deserialize_seq(SeqVisitor {
+        deserializer.deserialize_any(SeqVisitor {
             _marker: PhantomData,
             hasher: S::default(),
             alloc,
@@ -134,7 +145,7 @@ impl<
     where
         A: Default,
     {
-        deserializer.deserialize_seq(SeqVisitor {
+        deserializer.deserialize_any(SeqVisitor {
             _marker: PhantomData,
             hasher,
             alloc: A::default(),
@@ -148,7 +159,7 @@ impl<
         hasher: S,
         alloc: A,
     ) -> Result<Self, D::Error> {
-        deserializer.deserialize_seq(SeqVisitor {
+        deserializer.deserialize_any(SeqVisitor {
             _marker: PhantomData,
             hasher,
             alloc,
@@ -171,7 +182,8 @@ where
     type Value = BiHashMap<T, S, A>;
 
     fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("a sequence of items representing a BiHashMap")
+        formatter
+            .write_str("a sequence or map of items representing a BiHashMap")
     }
 
     fn visit_seq<Access>(
@@ -196,5 +208,175 @@ where
         }
 
         Ok(map)
+    }
+
+    fn visit_map<Access>(
+        self,
+        mut map_access: Access,
+    ) -> Result<Self::Value, Access::Error>
+    where
+        Access: MapAccess<'de>,
+    {
+        let mut map = match map_access.size_hint() {
+            Some(size) => BiHashMap::with_capacity_and_hasher_in(
+                size,
+                self.hasher,
+                self.alloc,
+            ),
+            None => BiHashMap::with_hasher_in(self.hasher, self.alloc),
+        };
+
+        while let Some((_, value)) =
+            map_access.next_entry::<serde_core::de::IgnoredAny, T>()?
+        {
+            map.insert_unique(value).map_err(serde_core::de::Error::custom)?;
+        }
+
+        Ok(map)
+    }
+}
+
+/// Marker type for `BiHashMap` serialized as a map. This type can be used with
+/// serde's `with` attribute.
+///
+/// # Examples
+///
+/// Use with serde's `with` attribute:
+///
+/// ```
+/// use iddqd::{
+///     BiHashItem, BiHashMap, bi_hash_map::BiHashMapAsMap, bi_upcast,
+/// };
+/// use serde::{Deserialize, Serialize};
+///
+/// #[derive(Debug, Serialize, Deserialize)]
+/// struct Item {
+///     id: u32,
+///     name: String,
+/// }
+///
+/// impl BiHashItem for Item {
+///     type K1<'a> = u32;
+///     type K2<'a> = &'a str;
+///     fn key1(&self) -> Self::K1<'_> {
+///         self.id
+///     }
+///     fn key2(&self) -> Self::K2<'_> {
+///         &self.name
+///     }
+///     bi_upcast!();
+/// }
+///
+/// #[derive(Serialize, Deserialize)]
+/// struct Config {
+///     #[serde(with = "BiHashMapAsMap")]
+///     items: BiHashMap<Item>,
+/// }
+/// ```
+///
+/// # Requirements
+///
+/// - For serialization, the key type `K1` must implement `Serialize`.
+/// - For JSON serialization, `K1` should be string-like or convertible to a string key.
+pub struct BiHashMapAsMap<T, S = DefaultHashBuilder, A: Allocator = Global> {
+    #[expect(clippy::type_complexity)]
+    _marker: PhantomData<fn() -> (T, S, A)>,
+}
+
+struct MapVisitorAsMap<T, S, A> {
+    _marker: PhantomData<fn() -> T>,
+    hasher: S,
+    alloc: A,
+}
+
+impl<'de, T, S, A> Visitor<'de> for MapVisitorAsMap<T, S, A>
+where
+    T: BiHashItem + Deserialize<'de> + fmt::Debug,
+    S: Clone + BuildHasher,
+    A: Clone + Allocator,
+{
+    type Value = BiHashMap<T, S, A>;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("a map with items representing a BiHashMap")
+    }
+
+    fn visit_map<Access>(
+        self,
+        mut map_access: Access,
+    ) -> Result<Self::Value, Access::Error>
+    where
+        Access: MapAccess<'de>,
+    {
+        let mut map = match map_access.size_hint() {
+            Some(size) => BiHashMap::with_capacity_and_hasher_in(
+                size,
+                self.hasher,
+                self.alloc,
+            ),
+            None => BiHashMap::with_hasher_in(self.hasher, self.alloc),
+        };
+
+        while let Some((_, value)) =
+            map_access.next_entry::<serde_core::de::IgnoredAny, T>()?
+        {
+            map.insert_unique(value).map_err(serde_core::de::Error::custom)?;
+        }
+
+        Ok(map)
+    }
+}
+
+impl<T, S, A> BiHashMapAsMap<T, S, A>
+where
+    S: Clone + BuildHasher,
+    A: Allocator,
+{
+    /// Serializes a `BiHashMap` as a JSON object/map using `key1()` as keys.
+    pub fn serialize<'a, Ser>(
+        map: &BiHashMap<T, S, A>,
+        serializer: Ser,
+    ) -> Result<Ser::Ok, Ser::Error>
+    where
+        T: BiHashItem + Serialize,
+        T: 'a,
+        T::K1<'a>: Serialize,
+        Ser: Serializer,
+    {
+        let mut ser_map = serializer.serialize_map(Some(map.len()))?;
+        for item in map.iter() {
+            let key1 = item.key1();
+            // SAFETY:
+            //
+            // * Lifetime extension: for a type T and two lifetime params 'a and
+            //   'b, T<'a> and T<'b> aren't guaranteed to have the same layout,
+            //   but (a) that is true today and (b) it would be shocking and
+            //   break half the Rust ecosystem if that were to change in the
+            //   future.
+            // * We only use key within the scope of this block before
+            //   immediately dropping it. In particular, ser_map.serialize_entry
+            //   serializes the key without holding a reference to it.
+            let key1 =
+                unsafe { core::mem::transmute::<T::K1<'_>, T::K1<'a>>(key1) };
+            ser_map.serialize_entry(&key1, item)?;
+        }
+        ser_map.end()
+    }
+
+    /// Deserializes a `BiHashMap` from a JSON object/map.
+    pub fn deserialize<'de, D>(
+        deserializer: D,
+    ) -> Result<BiHashMap<T, S, A>, D::Error>
+    where
+        T: BiHashItem + Deserialize<'de> + fmt::Debug,
+        S: Default,
+        A: Clone + Default,
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_map(MapVisitorAsMap {
+            _marker: PhantomData,
+            hasher: S::default(),
+            alloc: A::default(),
+        })
     }
 }

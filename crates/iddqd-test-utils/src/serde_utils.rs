@@ -3,10 +3,12 @@
 use crate::test_item::{ItemMap, MapKind, TestItem};
 use iddqd::internal::ValidateCompact;
 use serde::Serialize;
+use std::collections::BTreeMap;
 
-pub fn assert_serialize_roundtrip<M>(values: Vec<TestItem>)
+pub fn assert_serialize_roundtrip<'a, M>(values: Vec<TestItem>)
 where
-    M: ItemMap<TestItem> + Serialize,
+    M: 'a + ItemMap<TestItem> + Serialize,
+    M::K1<'a>: Serialize,
 {
     let mut map = M::make_new();
     let mut first_error = None;
@@ -22,16 +24,32 @@ where
     }
 
     let serialized = serde_json::to_string(&map).unwrap();
+    let serialized_as_map = M::serialize_as_map(&map).unwrap();
     let deserialized: M = M::make_deserialize_in(
         &mut serde_json::Deserializer::from_str(&serialized),
     )
     .unwrap();
+    let deserialized_from_map: M = M::make_deserialize_in(
+        &mut serde_json::Deserializer::from_str(&serialized_as_map),
+    )
+    .unwrap();
+    // Also check that we can deserialize into a BTreeMap (this ensures that
+    // serialized_as_map is a map type).
+    let deserialized_btree_map: BTreeMap<u8, TestItem> =
+        serde_json::from_str(&serialized_as_map).unwrap();
     deserialized
         .validate_(ValidateCompact::Compact)
         .expect("deserialized map is valid");
+    deserialized_from_map
+        .validate_(ValidateCompact::Compact)
+        .expect("deserialized map from map is valid");
 
     let mut map_items = map.iter().collect::<Vec<_>>();
     let mut deserialized_items = deserialized.iter().collect::<Vec<_>>();
+    let mut deserialized_from_map_items =
+        deserialized_from_map.iter().collect::<Vec<_>>();
+    let deserialized_from_btree_map_items =
+        deserialized_btree_map.values().collect::<Vec<_>>();
 
     match M::map_kind() {
         MapKind::Ord => {
@@ -41,9 +59,16 @@ where
             // Sort the items, since we don't care about the order.
             map_items.sort();
             deserialized_items.sort();
+            deserialized_from_map_items.sort();
+            // The B-Tree map would already be sorted.
         }
     }
     assert_eq!(map_items, deserialized_items, "items match");
+    assert_eq!(deserialized_items, deserialized_from_map_items, "items match");
+    assert_eq!(
+        deserialized_from_map_items, deserialized_from_btree_map_items,
+        "items match"
+    );
 
     // Try deserializing the full list of values directly, and see that the
     // error reported is the same as first_error.

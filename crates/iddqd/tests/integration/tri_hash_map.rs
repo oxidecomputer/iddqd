@@ -12,7 +12,7 @@ use iddqd_test_utils::{
     },
 };
 use proptest::prelude::*;
-use std::path::Path;
+use std::{borrow::Cow, path::Path};
 use test_strategy::{Arbitrary, proptest};
 
 #[derive(Clone, Debug)]
@@ -67,9 +67,9 @@ fn debug_impls() {
 fn debug_impls_borrowed() {
     let before = tri_hash_map! {
         HashBuilder;
-        BorrowedItem { key1: "a", key2: b"b0", key3: Path::new("path0") },
-        BorrowedItem { key1: "b", key2: b"b1", key3: Path::new("path1") },
-        BorrowedItem { key1: "c", key2: b"b2", key3: Path::new("path2") },
+        BorrowedItem { key1: "a", key2: Cow::Borrowed(b"b0"), key3: Path::new("path0") },
+        BorrowedItem { key1: "b", key2: Cow::Borrowed(b"b1"), key3: Path::new("path1") },
+        BorrowedItem { key1: "c", key2: Cow::Borrowed(b"b2"), key3: Path::new("path2") },
     };
 
     assert_eq!(
@@ -83,9 +83,9 @@ fn debug_impls_borrowed() {
 
         let after = tri_hash_map! {
             HashBuilder;
-            BorrowedItem { key1: "a", key2: b"b0", key3: Path::new("path0") },
-            BorrowedItem { key1: "c", key2: b"b3", key3: Path::new("path3") },
-            BorrowedItem { key1: "d", key2: b"b4", key3: Path::new("path4") },
+            BorrowedItem { key1: "a", key2: Cow::Borrowed(b"b0"), key3: Path::new("path0") },
+            BorrowedItem { key1: "c", key2: Cow::Borrowed(b"b3"), key3: Path::new("path3") },
+            BorrowedItem { key1: "d", key2: Cow::Borrowed(b"b4"), key3: Path::new("path4") },
         };
 
         let diff = before.diff(&after).by_unique();
@@ -545,10 +545,16 @@ fn get_mut_panics_if_key3_changes() {
 #[test]
 fn borrowed_item() {
     let mut map = TriHashMap::<BorrowedItem, HashBuilder, Alloc>::default();
-    let item1 =
-        BorrowedItem { key1: "foo", key2: b"foo", key3: Path::new("foo") };
-    let item2 =
-        BorrowedItem { key1: "bar", key2: b"bar", key3: Path::new("bar") };
+    let item1 = BorrowedItem {
+        key1: "foo",
+        key2: Cow::Borrowed(b"foo"),
+        key3: Path::new("foo"),
+    };
+    let item2 = BorrowedItem {
+        key1: "bar",
+        key2: Cow::Borrowed(b"bar"),
+        key3: Path::new("bar"),
+    };
 
     // Insert items.
     map.insert_unique(item1.clone()).unwrap();
@@ -571,6 +577,17 @@ fn borrowed_item() {
         format!("{map:?}")
     }
 
+    #[cfg(feature = "serde")]
+    fn serialize_as_map(
+        map: &TriHashMap<BorrowedItem<'_>, HashBuilder, Alloc>,
+    ) -> Result<String, iddqd_test_utils::serde_json::Error> {
+        let mut out: Vec<u8> = Vec::new();
+        let mut ser = iddqd_test_utils::serde_json::Serializer::new(&mut out);
+        tri_hash_map::TriHashMapAsMap::serialize(map, &mut ser)?;
+        Ok(String::from_utf8(out)
+            .expect("serde_json should always emit valid UTF-8"))
+    }
+
     static DEBUG_OUTPUT: &str = "{{k1: \"foo\", k2: [102, 111, 111], k3: \"foo\"}: BorrowedItem { \
         key1: \"foo\", key2: [102, 111, 111], key3: \"foo\" }, \
         {k1: \"bar\", k2: [98, 97, 114], k3: \"bar\"}: BorrowedItem { \
@@ -578,6 +595,14 @@ fn borrowed_item() {
 
     assert_eq!(format!("{map:?}"), DEBUG_OUTPUT);
     assert_eq!(fmt_debug(&map), DEBUG_OUTPUT);
+
+    #[cfg(feature = "serde")]
+    {
+        let map_string = serialize_as_map(&map).unwrap();
+        let deserialized: TriHashMap<BorrowedItem<'_>, HashBuilder, Alloc> =
+            iddqd_test_utils::serde_json::from_str(&map_string).unwrap();
+        assert_eq!(map, deserialized);
+    }
 }
 
 #[test]
