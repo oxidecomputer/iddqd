@@ -239,6 +239,7 @@ where
 /// Use with serde's `with` attribute:
 ///
 /// ```
+/// # #[cfg(feature = "default-hasher")] {
 /// use iddqd::{
 ///     IdHashItem, IdHashMap, id_hash_map::IdHashMapAsMap, id_upcast,
 /// };
@@ -263,6 +264,7 @@ where
 ///     #[serde(with = "IdHashMapAsMap")]
 ///     items: IdHashMap<Item>,
 /// }
+/// # }
 /// ```
 ///
 /// # Requirements

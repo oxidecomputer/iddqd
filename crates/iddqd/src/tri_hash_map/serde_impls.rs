@@ -248,6 +248,7 @@ where
 /// Use with serde's `with` attribute:
 ///
 /// ```
+/// # #[cfg(feature = "default-hasher")] {
 /// use iddqd::{
 ///     TriHashItem, TriHashMap, tri_hash_map::TriHashMapAsMap, tri_upcast,
 /// };
@@ -281,6 +282,7 @@ where
 ///     #[serde(with = "TriHashMapAsMap")]
 ///     items: TriHashMap<Item>,
 /// }
+/// # }
 /// ```
 ///
 /// # Requirements

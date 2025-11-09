@@ -244,6 +244,7 @@ where
 /// Use with serde's `with` attribute:
 ///
 /// ```
+/// # #[cfg(feature = "default-hasher")] {
 /// use iddqd::{
 ///     BiHashItem, BiHashMap, bi_hash_map::BiHashMapAsMap, bi_upcast,
 /// };
@@ -272,6 +273,7 @@ where
 ///     #[serde(with = "BiHashMapAsMap")]
 ///     items: BiHashMap<Item>,
 /// }
+/// # }
 /// ```
 ///
 /// # Requirements
