@@ -1,5 +1,4 @@
-use iddqd::IdOrdMap;
-use iddqd::{BiHashMap, IdHashMap, TriHashMap};
+use iddqd::{BiHashMap, IdHashMap, IdOrdMap, TriHashMap};
 use iddqd_test_utils::test_item::TestItem;
 use std::collections::hash_map::RandomState;
 
