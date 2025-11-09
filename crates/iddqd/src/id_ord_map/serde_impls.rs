@@ -142,8 +142,8 @@ where
     }
 }
 
-/// Marker type for `IdOrdMap` serialized as a map. This type can be used with
-/// serde's `with` attribute.
+/// Marker type for [`IdOrdMap`] serialized as a map, for use with serde's
+/// `with` attribute.
 ///
 /// # Examples
 ///
@@ -176,7 +176,7 @@ where
 ///
 /// # Requirements
 ///
-/// - The key type must implement `Serialize`.
+/// - For serialization, the key type must implement [`Serialize`].
 /// - For JSON serialization, the key should be string-like or convertible to a string key.
 pub struct IdOrdMapAsMap<T> {
     _marker: PhantomData<fn() -> T>,
