@@ -19,7 +19,7 @@ fn test_map_sizes() {
         "IdHashMap<TestItem, RandomState>: {}\n",
         id_hash_map_random_size
     ));
-    output.push_str("\n");
+    output.push('\n');
 
     let bi_hash_map_default_size = std::mem::size_of::<BiHashMap<TestItem>>();
     output.push_str(&format!(
@@ -33,7 +33,7 @@ fn test_map_sizes() {
         "BiHashMap<TestItem, RandomState>: {}\n",
         bi_hash_map_random_size
     ));
-    output.push_str("\n");
+    output.push('\n');
 
     let tri_hash_map_default_size = std::mem::size_of::<TriHashMap<TestItem>>();
     output.push_str(&format!(
@@ -47,7 +47,7 @@ fn test_map_sizes() {
         "TriHashMap<TestItem, RandomState>: {}\n",
         tri_hash_map_random_size
     ));
-    output.push_str("\n");
+    output.push('\n');
 
     let id_ord_map_size = std::mem::size_of::<IdOrdMap<TestItem>>();
     output.push_str(&format!("IdOrdMap<TestItem>: {}\n", id_ord_map_size));
