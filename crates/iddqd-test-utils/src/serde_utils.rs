@@ -70,7 +70,7 @@ where
             deserialized_items.sort();
             deserialized_from_map_items.sort();
             deserialized_as_map_items.sort();
-            // The B-Tree map would already be sorted.  
+            // The B-Tree map would already be sorted.
         }
     }
     assert_eq!(map_items, deserialized_items, "items match");
