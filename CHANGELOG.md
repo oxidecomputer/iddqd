@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.3.16] - 2025-11-09
+
+### Added
+
+- `clear` methods for all map types to remove all items from the map.
+- Optionally, serialize ID maps as maps (JSON objects) rather than sequences (JSON arrays):
+  - New `IdHashMapAsMap`, `BiHashMapAsMap`, `TriHashMapAsMap`, and `IdOrdMapAsMap` marker types to use with `#[serde(with = ...)]`.
+  - The default deserializer for each map now accepts both maps and sequences.
+
+### Changed
+
+- Documentation improvements for serde implementations.
+
 ## [0.3.15] - 2025-11-08
 
 ### Added
@@ -172,6 +185,7 @@ Thanks to [aatifsyed](https://github.com/aatifsyed) for your first contribution!
 
 Initial release.
 
+[0.3.16]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.16
 [0.3.15]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.15
 [0.3.14]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.14
 [0.3.13]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.13

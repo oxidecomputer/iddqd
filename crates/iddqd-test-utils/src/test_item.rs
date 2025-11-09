@@ -382,6 +382,11 @@ pub trait ItemMap<T>: Clone {
         T: 'a + serde::Serialize,
         Self::K1<'a>: serde::Serialize;
     #[cfg(feature = "serde")]
+    fn deserialize_as_map<'a, D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'a>,
+        T: fmt::Debug + serde::de::Deserialize<'a>;
+    #[cfg(feature = "serde")]
     fn make_deserialize_in<'a, D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::de::Deserializer<'a>,
@@ -457,6 +462,15 @@ impl<T: Clone + BiHashItem> ItemMap<T> for BiHashMap<T, HashBuilder, Alloc> {
         bi_hash_map::BiHashMapAsMap::serialize(self, &mut ser)?;
         Ok(String::from_utf8(out)
             .expect("serde_json should always emit valid UTF-8"))
+    }
+
+    #[cfg(feature = "serde")]
+    fn deserialize_as_map<'a, D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'a>,
+        T: fmt::Debug + serde::de::Deserialize<'a>,
+    {
+        bi_hash_map::BiHashMapAsMap::deserialize(deserializer)
     }
 
     #[cfg(all(feature = "serde", feature = "allocator-api2"))]
@@ -569,6 +583,15 @@ where
             .expect("serde_json should always emit valid UTF-8"))
     }
 
+    #[cfg(feature = "serde")]
+    fn deserialize_as_map<'a, D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'a>,
+        T: fmt::Debug + serde::de::Deserialize<'a>,
+    {
+        id_hash_map::IdHashMapAsMap::deserialize(deserializer)
+    }
+
     #[cfg(all(feature = "serde", feature = "allocator-api2"))]
     fn make_deserialize_in<'a, D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -663,6 +686,15 @@ where
         id_ord_map::IdOrdMapAsMap::serialize(self, &mut ser)?;
         Ok(String::from_utf8(out)
             .expect("serde_json should always emit valid UTF-8"))
+    }
+
+    #[cfg(feature = "serde")]
+    fn deserialize_as_map<'a, D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'a>,
+        T: fmt::Debug + serde::de::Deserialize<'a>,
+    {
+        id_ord_map::IdOrdMapAsMap::deserialize(deserializer)
     }
 
     #[cfg(feature = "serde")]
@@ -764,6 +796,15 @@ where
         tri_hash_map::TriHashMapAsMap::serialize(self, &mut ser)?;
         Ok(String::from_utf8(out)
             .expect("serde_json should always emit valid UTF-8"))
+    }
+
+    #[cfg(feature = "serde")]
+    fn deserialize_as_map<'a, D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'a>,
+        T: fmt::Debug + serde::de::Deserialize<'a>,
+    {
+        tri_hash_map::TriHashMapAsMap::deserialize(deserializer)
     }
 
     #[cfg(all(feature = "serde", feature = "allocator-api2"))]

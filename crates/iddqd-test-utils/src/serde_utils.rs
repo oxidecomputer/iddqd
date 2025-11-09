@@ -33,6 +33,10 @@ where
         &mut serde_json::Deserializer::from_str(&serialized_as_map),
     )
     .unwrap();
+    let deserialized_as_map = M::deserialize_as_map(
+        &mut serde_json::Deserializer::from_str(&serialized_as_map),
+    )
+    .unwrap();
     // Also check that we can deserialize into a BTreeMap (this ensures that
     // serialized_as_map is a map type).
     let deserialized_btree_map: BTreeMap<u8, TestItem> =
@@ -43,11 +47,16 @@ where
     deserialized_from_map
         .validate_(ValidateCompact::Compact)
         .expect("deserialized map from map is valid");
+    deserialized_as_map
+        .validate_(ValidateCompact::Compact)
+        .expect("deserialized map from map is valid");
 
     let mut map_items = map.iter().collect::<Vec<_>>();
     let mut deserialized_items = deserialized.iter().collect::<Vec<_>>();
     let mut deserialized_from_map_items =
         deserialized_from_map.iter().collect::<Vec<_>>();
+    let mut deserialized_as_map_items =
+        deserialized_as_map.iter().collect::<Vec<_>>();
     let deserialized_from_btree_map_items =
         deserialized_btree_map.values().collect::<Vec<_>>();
 
@@ -60,13 +69,18 @@ where
             map_items.sort();
             deserialized_items.sort();
             deserialized_from_map_items.sort();
-            // The B-Tree map would already be sorted.
+            deserialized_as_map_items.sort();
+            // The B-Tree map would already be sorted.  
         }
     }
     assert_eq!(map_items, deserialized_items, "items match");
     assert_eq!(deserialized_items, deserialized_from_map_items, "items match");
     assert_eq!(
         deserialized_from_map_items, deserialized_from_btree_map_items,
+        "items match"
+    );
+    assert_eq!(
+        deserialized_from_btree_map_items, deserialized_as_map_items,
         "items match"
     );
 
