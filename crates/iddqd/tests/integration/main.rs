@@ -8,6 +8,7 @@ mod schemars_tests;
     feature = "std",
     feature = "default-hasher",
     target_pointer_width = "64",
+    not(miri)
 ))]
 mod size_tests;
 mod tri_hash_map;
