@@ -70,9 +70,7 @@ pub struct IterMut<
     inner: hash_map::ValuesMut<'a, usize, T>,
 }
 
-impl<'a, T: IdHashItem, S: Clone + BuildHasher, A: Allocator>
-    IterMut<'a, T, S, A>
-{
+impl<'a, T: IdHashItem, S: BuildHasher, A: Allocator> IterMut<'a, T, S, A> {
     pub(super) fn new(
         tables: &'a IdHashMapTables<S, A>,
         items: &'a mut ItemSet<T, A>,
@@ -90,7 +88,7 @@ impl<'a, T: IdHashItem, S: Clone + BuildHasher, A: Allocator> Iterator
     fn next(&mut self) -> Option<Self::Item> {
         let next = self.inner.next()?;
         let hashes = self.tables.make_hash(next);
-        Some(RefMut::new(hashes, next))
+        Some(RefMut::new(self.tables.state.clone(), hashes, next))
     }
 }
 

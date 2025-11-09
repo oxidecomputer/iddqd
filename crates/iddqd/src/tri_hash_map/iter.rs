@@ -90,7 +90,7 @@ impl<'a, T: TriHashItem, S: Clone + BuildHasher, A: Allocator> Iterator
     fn next(&mut self) -> Option<Self::Item> {
         let next = self.inner.next()?;
         let hashes = self.tables.make_hashes(next);
-        Some(RefMut::new(hashes, next))
+        Some(RefMut::new(self.tables.state.clone(), hashes, next))
     }
 }
 

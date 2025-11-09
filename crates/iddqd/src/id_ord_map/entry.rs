@@ -107,7 +107,7 @@ impl<'a, T: IdOrdItem> Entry<'a, T> {
         match self {
             Entry::Occupied(mut entry) => {
                 {
-                    let (hash, dormant) = {
+                    let (state, hash, dormant) = {
                         // SAFETY: The safety assumption behind
                         // `OccupiedEntry::new` guarantees that the original
                         // reference to the map is not used at this point.
@@ -119,12 +119,13 @@ impl<'a, T: IdOrdItem> Entry<'a, T> {
 
                         let (item, dormant) = DormantMutRef::new(item);
                         let hash = map.tables.make_hash(item);
-                        (hash, dormant)
+                        let state = map.tables.state().clone();
+                        (state, hash, dormant)
                     };
 
                     // SAFETY: the item above is not used after this point.
                     let awakened_item = unsafe { dormant.awaken() };
-                    let ref_mut = RefMut::new(hash, awakened_item);
+                    let ref_mut = RefMut::new(state, hash, awakened_item);
                     f(ref_mut);
                 }
                 Entry::Occupied(entry)

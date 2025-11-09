@@ -81,7 +81,7 @@ pub struct BiHashMap<T, S = DefaultHashBuilder, A: Allocator = Global> {
     pub(super) items: ItemSet<T, A>,
     // Invariant: the values (usize) in these tables are valid indexes into
     // `items`, and are a 1:1 mapping.
-    tables: BiHashMapTables<S, A>,
+    pub(super) tables: BiHashMapTables<S, A>,
 }
 
 impl<T: BiHashItem, S: Default, A: Allocator + Default> Default
@@ -180,7 +180,7 @@ impl<T: BiHashItem> BiHashMap<T> {
     }
 }
 
-impl<T: BiHashItem, S: Clone + BuildHasher> BiHashMap<T, S> {
+impl<T: BiHashItem, S: BuildHasher> BiHashMap<T, S> {
     /// Creates a new `BiHashMap` with the given hasher.
     ///
     /// # Examples
@@ -213,14 +213,10 @@ impl<T: BiHashItem, S: Clone + BuildHasher> BiHashMap<T, S> {
     /// let map: BiHashMap<Item, RandomState> = BiHashMap::with_hasher(hasher);
     /// assert!(map.is_empty());
     /// ```
-    pub fn with_hasher(hasher: S) -> Self {
+    pub const fn with_hasher(hasher: S) -> Self {
         Self {
             items: ItemSet::new(),
-            tables: BiHashMapTables::with_capacity_and_hasher_in(
-                0,
-                hasher,
-                global_alloc(),
-            ),
+            tables: BiHashMapTables::with_hasher(hasher),
         }
     }
 
@@ -1070,9 +1066,10 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
         // SAFETY: `map` is not used after this point.
         let awakened_map = unsafe { dormant_map.awaken() };
         let item = &mut awakened_map.items[index];
+        let state = awakened_map.tables.state.clone();
         let hashes =
             awakened_map.tables.make_hashes::<T>(&item.key1(), &item.key2());
-        Some(RefMut::new(hashes, item))
+        Some(RefMut::new(state, hashes, item))
     }
 
     /// Removes the item uniquely identified by `key1` and `key2`, if it exists.
@@ -1206,9 +1203,10 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
         // SAFETY: `map` is not used after this point.
         let awakened_map = unsafe { dormant_map.awaken() };
         let item = &mut awakened_map.items[index];
+        let state = awakened_map.tables.state.clone();
         let hashes =
             awakened_map.tables.make_hashes::<T>(&item.key1(), &item.key2());
-        Some(RefMut::new(hashes, item))
+        Some(RefMut::new(state, hashes, item))
     }
 
     /// Removes an item from the map by its `key1`.
@@ -1412,9 +1410,10 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
         // SAFETY: `map` is not used after this point.
         let awakened_map = unsafe { dormant_map.awaken() };
         let item = &mut awakened_map.items[index];
+        let state = awakened_map.tables.state.clone();
         let hashes =
             awakened_map.tables.make_hashes::<T>(&item.key1(), &item.key2());
-        Some(RefMut::new(hashes, item))
+        Some(RefMut::new(state, hashes, item))
     }
 
     /// Removes an item from the map by its `key2`.
@@ -1553,14 +1552,16 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
         let (index1, index2) = {
             // index1 and index2 are explicitly typed to show that it has a
             // trivial Drop impl that doesn't capture anything from map.
-            let index1: Option<usize> = map
-                .tables
-                .k1_to_item
-                .find_index(&key1, |index| map.items[index].key1());
-            let index2: Option<usize> = map
-                .tables
-                .k2_to_item
-                .find_index(&key2, |index| map.items[index].key2());
+            let index1: Option<usize> = map.tables.k1_to_item.find_index(
+                &map.tables.state,
+                &key1,
+                |index| map.items[index].key1(),
+            );
+            let index2: Option<usize> = map.tables.k2_to_item.find_index(
+                &map.tables.state,
+                &key2,
+                |index| map.items[index].key2(),
+            );
             (index1, index2)
         };
 
@@ -1650,8 +1651,7 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
     where
         F: FnMut(RefMut<'a, T, S>) -> bool,
     {
-        let hash1_state = self.tables.k1_to_item.state().clone();
-        let hash2_state = self.tables.k2_to_item.state().clone();
+        let hash_state = self.tables.state.clone();
         let (_, mut dormant_items) = DormantMutRef::new(&mut self.items);
 
         self.tables.k1_to_item.retain(|index| {
@@ -1672,15 +1672,9 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
                 // trait function to be called for T rather than &mut T.
                 let key1 = T::key1(item);
                 let key2 = T::key2(item);
-                let hash1 = hash1_state.hash_one(key1);
-                let hash2 = hash2_state.hash_one(key2);
-                (
-                    [
-                        MapHash::new(hash1_state.clone(), hash1),
-                        MapHash::new(hash2_state.clone(), hash2),
-                    ],
-                    dormant_item,
-                )
+                let hash1 = hash_state.hash_one(key1);
+                let hash2 = hash_state.hash_one(key2);
+                ([MapHash::new(hash1), MapHash::new(hash2)], dormant_item)
             };
 
             // SAFETY: The original items is no longer used after the first
@@ -1692,7 +1686,7 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
 
             let hash2 = hashes[1].hash();
 
-            let ref_mut = RefMut::new(hashes, item);
+            let ref_mut = RefMut::new(hash_state.clone(), hashes, item);
             if f(ref_mut) {
                 true
             } else {
@@ -1732,7 +1726,9 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
     where
         Q: Hash + Equivalent<T::K1<'a>> + ?Sized,
     {
-        self.tables.k1_to_item.find_index(k, |index| self.items[index].key1())
+        self.tables
+            .k1_to_item
+            .find_index(&self.tables.state, k, |index| self.items[index].key1())
     }
 
     fn find2<'a, Q>(&'a self, k: &Q) -> Option<&'a T>
@@ -1746,7 +1742,9 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
     where
         Q: Hash + Equivalent<T::K2<'a>> + ?Sized,
     {
-        self.tables.k2_to_item.find_index(k, |index| self.items[index].key2())
+        self.tables
+            .k2_to_item
+            .find_index(&self.tables.state, k, |index| self.items[index].key2())
     }
 
     pub(super) fn get_by_entry_index(
@@ -1774,31 +1772,35 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
         match indexes.disjoint_keys() {
             DisjointKeys::Unique(index) => {
                 let item = self.items.get_mut(index).expect("index is valid");
+                let state = self.tables.state.clone();
                 let hashes =
                     self.tables.make_hashes::<T>(&item.key1(), &item.key2());
-                OccupiedEntryMut::Unique(RefMut::new(hashes, item))
+                OccupiedEntryMut::Unique(RefMut::new(state, hashes, item))
             }
             DisjointKeys::Key1(index1) => {
                 let item =
                     self.items.get_mut(index1).expect("key1 index is valid");
+                let state = self.tables.state.clone();
                 let hashes =
                     self.tables.make_hashes::<T>(&item.key1(), &item.key2());
                 OccupiedEntryMut::NonUnique {
-                    by_key1: Some(RefMut::new(hashes, item)),
+                    by_key1: Some(RefMut::new(state, hashes, item)),
                     by_key2: None,
                 }
             }
             DisjointKeys::Key2(index2) => {
                 let item =
                     self.items.get_mut(index2).expect("key2 index is valid");
+                let state = self.tables.state.clone();
                 let hashes =
                     self.tables.make_hashes::<T>(&item.key1(), &item.key2());
                 OccupiedEntryMut::NonUnique {
                     by_key1: None,
-                    by_key2: Some(RefMut::new(hashes, item)),
+                    by_key2: Some(RefMut::new(state, hashes, item)),
                 }
             }
             DisjointKeys::Key12(indexes) => {
+                let state = self.tables.state.clone();
                 let mut items = self.items.get_disjoint_mut(indexes);
                 let item1 = items[0].take().expect("key1 index is valid");
                 let item2 = items[1].take().expect("key2 index is valid");
@@ -1808,8 +1810,8 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
                     self.tables.make_hashes::<T>(&item2.key1(), &item2.key2());
 
                 OccupiedEntryMut::NonUnique {
-                    by_key1: Some(RefMut::new(hashes1, item1)),
-                    by_key2: Some(RefMut::new(hashes2, item2)),
+                    by_key1: Some(RefMut::new(state.clone(), hashes1, item1)),
+                    by_key2: Some(RefMut::new(state, hashes2, item2)),
                 }
             }
         }
@@ -1820,10 +1822,11 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
         index: usize,
     ) -> Option<RefMut<'_, T, S>> {
         let borrowed = self.items.get_mut(index)?;
+        let state = self.tables.state.clone();
         let hashes =
             self.tables.make_hashes::<T>(&borrowed.key1(), &borrowed.key2());
         let item = &mut self.items[index];
-        Some(RefMut::new(hashes, item))
+        Some(RefMut::new(state, hashes, item))
     }
 
     pub(super) fn insert_unique_impl(
@@ -1835,6 +1838,7 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
         // Check for duplicates *before* inserting the new item, because we
         // don't want to partially insert the new item and then have to roll
         // back.
+        let state = &self.tables.state;
         let (e1, e2) = {
             let k1 = value.key1();
             let k2 = value.key2();
@@ -1842,13 +1846,13 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
             let e1 = detect_dup_or_insert(
                 self.tables
                     .k1_to_item
-                    .entry(k1, |index| self.items[index].key1()),
+                    .entry(state, k1, |index| self.items[index].key1()),
                 &mut duplicates,
             );
             let e2 = detect_dup_or_insert(
                 self.tables
                     .k2_to_item
-                    .entry(k2, |index| self.items[index].key2()),
+                    .entry(state, k2, |index| self.items[index].key2()),
                 &mut duplicates,
             );
             (e1, e2)
@@ -1903,8 +1907,9 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
         let value = self.items.remove(remove_index)?;
 
         // Remove the value from the tables.
+        let state = &self.tables.state;
         let Ok(item1) =
-            self.tables.k1_to_item.find_entry(&value.key1(), |index| {
+            self.tables.k1_to_item.find_entry(state, &value.key1(), |index| {
                 if index == remove_index {
                     value.key1()
                 } else {
@@ -1916,7 +1921,7 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
             panic!("remove_index {remove_index} not found in k1_to_item");
         };
         let Ok(item2) =
-            self.tables.k2_to_item.find_entry(&value.key2(), |index| {
+            self.tables.k2_to_item.find_entry(state, &value.key2(), |index| {
                 if index == remove_index {
                     value.key2()
                 } else {

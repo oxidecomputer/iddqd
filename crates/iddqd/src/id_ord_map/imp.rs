@@ -679,6 +679,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
         // SAFETY: `map` is not used after this point.
         let awakened_map = unsafe { dormant_map.awaken() };
         let item = &mut awakened_map.items[index];
+        let state = awakened_map.tables.state().clone();
         let (hash, dormant) = {
             let (item, dormant) = DormantMutRef::new(item);
             let hash = awakened_map.tables.make_hash(item);
@@ -687,7 +688,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
 
         // SAFETY: the original item is not used after this point.
         let item = unsafe { dormant.awaken() };
-        Some(RefMut::new(hash, item))
+        Some(RefMut::new(state, hash, item))
     }
 
     /// Removes an item from the map by its `key`.
@@ -1141,7 +1142,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
         F: FnMut(RefMut<'a, T>) -> bool,
         T::Key<'a>: Hash,
     {
-        let hash_state = self.tables.key_to_item.state().clone();
+        let hash_state = self.tables.state().clone();
         let (_, mut dormant_items) = DormantMutRef::new(&mut self.items);
 
         self.tables.key_to_item.retain(|index| {
@@ -1162,7 +1163,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
                 // trait function to be called for T rather than &mut T.
                 let key = T::key(item);
                 let hash = hash_state.hash_one(key);
-                (MapHash::new(hash_state.clone(), hash), dormant_item)
+                (MapHash::new(hash), dormant_item)
             };
 
             // SAFETY: The original items is no longer used after the first
@@ -1172,7 +1173,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
             // block above.
             let item = unsafe { dormant_item.awaken() };
 
-            let ref_mut = RefMut::new(hash, item);
+            let ref_mut = RefMut::new(hash_state.clone(), hash, item);
             if f(ref_mut) {
                 true
             } else {
@@ -1216,6 +1217,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     where
         T::Key<'a>: Hash,
     {
+        let state = self.tables.state().clone();
         let (hash, dormant) = {
             let item: &'a mut T = self.items.get_mut(index)?;
             let (item, dormant) = DormantMutRef::new(item);
@@ -1225,7 +1227,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
 
         // SAFETY: item is no longer used after the above point.
         let item = unsafe { dormant.awaken() };
-        Some(RefMut::new(hash, item))
+        Some(RefMut::new(state, hash, item))
     }
 
     pub(super) fn insert_unique_impl(

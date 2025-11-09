@@ -51,8 +51,12 @@ pub struct RefMut<
 }
 
 impl<'a, T: BiHashItem, S: Clone + BuildHasher> RefMut<'a, T, S> {
-    pub(super) fn new(hashes: [MapHash<S>; 2], borrowed: &'a mut T) -> Self {
-        Self { inner: Some(RefMutInner { hashes, borrowed }) }
+    pub(super) fn new(
+        state: S,
+        hashes: [MapHash; 2],
+        borrowed: &'a mut T,
+    ) -> Self {
+        Self { inner: Some(RefMutInner { state, hashes, borrowed }) }
     }
 
     /// Borrows self into a shorter-lived `RefMut`.
@@ -61,7 +65,7 @@ impl<'a, T: BiHashItem, S: Clone + BuildHasher> RefMut<'a, T, S> {
     pub fn reborrow(&mut self) -> RefMut<'_, T, S> {
         let inner = self.inner.as_mut().unwrap();
         let borrowed = &mut *inner.borrowed;
-        RefMut::new(inner.hashes.clone(), borrowed)
+        RefMut::new(inner.state.clone(), inner.hashes.clone(), borrowed)
     }
 
     /// Converts this `RefMut` into a `&'a T`.
@@ -107,16 +111,17 @@ impl<T: BiHashItem + fmt::Debug, S: Clone + BuildHasher> fmt::Debug
 }
 
 struct RefMutInner<'a, T: BiHashItem, S> {
-    hashes: [MapHash<S>; 2],
+    state: S,
+    hashes: [MapHash; 2],
     borrowed: &'a mut T,
 }
 
 impl<'a, T: BiHashItem, S: BuildHasher> RefMutInner<'a, T, S> {
     fn into_ref(self) -> &'a T {
-        if !self.hashes[0].is_same_hash(self.borrowed.key1()) {
+        if !self.hashes[0].is_same_hash(&self.state, self.borrowed.key1()) {
             panic!("key1 changed during RefMut borrow");
         }
-        if !self.hashes[1].is_same_hash(self.borrowed.key2()) {
+        if !self.hashes[1].is_same_hash(&self.state, self.borrowed.key2()) {
             panic!("key2 changed during RefMut borrow");
         }
 
