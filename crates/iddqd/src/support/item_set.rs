@@ -185,6 +185,13 @@ impl<T, A: Allocator> ItemSet<T, A> {
         entry
     }
 
+    /// Clears the item set, removing all items.
+    #[inline]
+    pub(crate) fn clear(&mut self) {
+        self.items.clear();
+        self.next_index = 0;
+    }
+
     // This method assumes that value has the same ID. It also asserts that
     // `index` is valid (and panics if it isn't).
     #[inline]
