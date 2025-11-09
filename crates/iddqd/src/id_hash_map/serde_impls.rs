@@ -231,8 +231,8 @@ where
     }
 }
 
-/// Marker type for `IdHashMap` serialized as a map. This type can be used with
-/// serde's `with` attribute.
+/// Marker type for [`IdHashMap`] serialized as a map, for use with serde's
+/// `with` attribute.
 ///
 /// # Examples
 ///
@@ -269,7 +269,7 @@ where
 ///
 /// # Requirements
 ///
-/// - For serialization, the key type must implement `Serialize`.
+/// - For serialization, the key type must implement [`Serialize`].
 /// - For JSON serialization, the key should be string-like or convertible to a string key.
 pub struct IdHashMapAsMap<T, S = DefaultHashBuilder, A: Allocator = Global> {
     #[expect(clippy::type_complexity)]

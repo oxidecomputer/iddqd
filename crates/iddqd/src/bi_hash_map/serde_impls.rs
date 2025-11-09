@@ -236,8 +236,10 @@ where
     }
 }
 
-/// Marker type for `BiHashMap` serialized as a map. This type can be used with
-/// serde's `with` attribute.
+/// Marker type for [`BiHashMap`] serialized as a map, for use with serde's
+/// `with` attribute.
+///
+/// The key type [`Self::K1`](BiHashItem::K1) is used as the map key.
 ///
 /// # Examples
 ///
@@ -278,7 +280,7 @@ where
 ///
 /// # Requirements
 ///
-/// - For serialization, the key type `K1` must implement `Serialize`.
+/// - For serialization, the key type `K1` must implement [`Serialize`].
 /// - For JSON serialization, `K1` should be string-like or convertible to a string key.
 pub struct BiHashMapAsMap<T, S = DefaultHashBuilder, A: Allocator = Global> {
     #[expect(clippy::type_complexity)]
