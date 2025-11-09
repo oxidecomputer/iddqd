@@ -245,14 +245,8 @@ impl MapBTreeTable {
         &self.hash_state
     }
 
-    pub(crate) fn compute_hash<K: Hash>(
-        &self,
-        key: K,
-    ) -> MapHash<foldhash::fast::FixedState> {
-        MapHash {
-            state: self.hash_state.clone(),
-            hash: self.hash_state.hash_one(key),
-        }
+    pub(crate) fn compute_hash<K: Hash>(&self, key: K) -> MapHash {
+        MapHash { hash: self.hash_state.hash_one(key) }
     }
 }
 

@@ -90,7 +90,7 @@ impl<'a, T: BiHashItem, S: Clone + BuildHasher, A: Allocator> Iterator
     fn next(&mut self) -> Option<Self::Item> {
         let next = self.inner.next()?;
         let hashes = self.tables.make_hashes::<T>(&next.key1(), &next.key2());
-        Some(RefMut::new(hashes, next))
+        Some(RefMut::new(self.tables.state.clone(), hashes, next))
     }
 }
 

@@ -18,38 +18,25 @@ use hashbrown::{
 };
 
 #[derive(Clone, Default)]
-pub(crate) struct MapHashTable<S, A: Allocator> {
-    pub(super) state: S,
+pub(crate) struct MapHashTable<A: Allocator> {
     pub(super) items: HashTable<usize, AllocWrapper<A>>,
 }
 
-impl<S: fmt::Debug, A: Allocator> fmt::Debug for MapHashTable<S, A> {
+impl<A: Allocator> fmt::Debug for MapHashTable<A> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("MapHashTable")
-            .field("state", &self.state)
-            .field("items", &self.items)
-            .finish()
+        f.debug_struct("MapHashTable").field("items", &self.items).finish()
     }
 }
 
-impl<S: Clone + BuildHasher, A: Allocator> MapHashTable<S, A> {
-    pub(crate) const fn with_hasher_in(hasher: S, alloc: A) -> Self {
-        Self { state: hasher, items: HashTable::new_in(AllocWrapper(alloc)) }
+impl<A: Allocator> MapHashTable<A> {
+    pub(crate) const fn new_in(alloc: A) -> Self {
+        Self { items: HashTable::new_in(AllocWrapper(alloc)) }
     }
 
-    pub(crate) fn with_capacity_and_hasher_in(
-        capacity: usize,
-        hasher: S,
-        alloc: A,
-    ) -> Self {
+    pub(crate) fn with_capacity_in(capacity: usize, alloc: A) -> Self {
         Self {
-            state: hasher,
             items: HashTable::with_capacity_in(capacity, AllocWrapper(alloc)),
         }
-    }
-
-    pub(crate) fn state(&self) -> &S {
-        &self.state
     }
 
     pub(crate) fn len(&self) -> usize {
@@ -100,13 +87,18 @@ impl<S: Clone + BuildHasher, A: Allocator> MapHashTable<S, A> {
         Ok(())
     }
 
-    pub(crate) fn compute_hash<K: Hash + Eq>(&self, key: K) -> MapHash<S> {
-        MapHash { state: self.state.clone(), hash: self.state.hash_one(key) }
+    pub(crate) fn compute_hash<S: BuildHasher, K: Hash + Eq>(
+        &self,
+        state: &S,
+        key: K,
+    ) -> MapHash {
+        MapHash { hash: state.hash_one(key) }
     }
 
     // Ensure that K has a consistent hash.
-    pub(crate) fn find_index<K, Q, F>(
+    pub(crate) fn find_index<S: BuildHasher, K, Q, F>(
         &self,
+        state: &S,
         key: &Q,
         lookup: F,
     ) -> Option<usize>
@@ -114,28 +106,30 @@ impl<S: Clone + BuildHasher, A: Allocator> MapHashTable<S, A> {
         F: Fn(usize) -> K,
         Q: ?Sized + Hash + Equivalent<K>,
     {
-        let hash = self.state.hash_one(key);
+        let hash = state.hash_one(key);
         self.items.find(hash, |index| key.equivalent(&lookup(*index))).copied()
     }
 
-    pub(crate) fn entry<K: Hash + Eq, F>(
+    pub(crate) fn entry<S: BuildHasher, K: Hash + Eq, F>(
         &mut self,
+        state: &S,
         key: K,
         lookup: F,
     ) -> Entry<'_, usize, AllocWrapper<A>>
     where
         F: Fn(usize) -> K,
     {
-        let hash = self.state.hash_one(&key);
+        let hash = state.hash_one(&key);
         self.items.entry(
             hash,
             |index| lookup(*index) == key,
-            |v| self.state.hash_one(lookup(*v)),
+            |v| state.hash_one(lookup(*v)),
         )
     }
 
-    pub(crate) fn find_entry<K, Q, F>(
+    pub(crate) fn find_entry<S: BuildHasher, K, Q, F>(
         &mut self,
+        state: &S,
         key: &Q,
         lookup: F,
     ) -> Result<
@@ -147,7 +141,7 @@ impl<S: Clone + BuildHasher, A: Allocator> MapHashTable<S, A> {
         K: Hash + Eq + Borrow<Q>,
         Q: ?Sized + Hash + Eq,
     {
-        let hash = self.state.hash_one(key);
+        let hash = state.hash_one(key);
         self.items.find_entry(hash, |index| lookup(*index).borrow() == key)
     }
 

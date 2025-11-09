@@ -196,7 +196,7 @@ impl<T: TriHashItem> TriHashMap<T> {
     }
 }
 
-impl<T: TriHashItem, S: Clone + BuildHasher> TriHashMap<T, S> {
+impl<T: TriHashItem, S: BuildHasher> TriHashMap<T, S> {
     /// Creates a new, empty `TriHashMap` with the given hasher.
     ///
     /// # Examples
@@ -234,14 +234,10 @@ impl<T: TriHashItem, S: Clone + BuildHasher> TriHashMap<T, S> {
     ///     TriHashMap::with_hasher(RandomState::new());
     /// assert!(map.is_empty());
     /// ```
-    pub fn with_hasher(hasher: S) -> Self {
+    pub const fn with_hasher(hasher: S) -> Self {
         Self {
             items: ItemSet::new(),
-            tables: TriHashMapTables::with_capacity_and_hasher_in(
-                0,
-                hasher.clone(),
-                global_alloc(),
-            ),
+            tables: TriHashMapTables::with_hasher(hasher),
         }
     }
 
@@ -1103,6 +1099,7 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
         // Check for duplicates *before* inserting the new item, because we
         // don't want to partially insert the new item and then have to roll
         // back.
+        let state = &self.tables.state;
         let (e1, e2, e3) = {
             let k1 = value.key1();
             let k2 = value.key2();
@@ -1111,19 +1108,19 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
             let e1 = detect_dup_or_insert(
                 self.tables
                     .k1_to_item
-                    .entry(k1, |index| self.items[index].key1()),
+                    .entry(state, k1, |index| self.items[index].key1()),
                 &mut duplicates,
             );
             let e2 = detect_dup_or_insert(
                 self.tables
                     .k2_to_item
-                    .entry(k2, |index| self.items[index].key2()),
+                    .entry(state, k2, |index| self.items[index].key2()),
                 &mut duplicates,
             );
             let e3 = detect_dup_or_insert(
                 self.tables
                     .k3_to_item
-                    .entry(k3, |index| self.items[index].key3()),
+                    .entry(state, k3, |index| self.items[index].key3()),
                 &mut duplicates,
             );
             (e1, e2, e3)
@@ -1367,8 +1364,9 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
         // SAFETY: `map` is not used after this point.
         let awakened_map = unsafe { dormant_map.awaken() };
         let item = &mut awakened_map.items[index];
+        let state = awakened_map.tables.state.clone();
         let hashes = awakened_map.tables.make_hashes(&item);
-        Some(RefMut::new(hashes, item))
+        Some(RefMut::new(state, hashes, item))
     }
 
     /// Removes the item uniquely identified by `key1`, `key2`, and `key3`, if
@@ -1622,8 +1620,9 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
         // SAFETY: `map` is not used after this point.
         let awakened_map = unsafe { dormant_map.awaken() };
         let item = &mut awakened_map.items[index];
+        let state = awakened_map.tables.state.clone();
         let hashes = awakened_map.tables.make_hashes(&item);
-        Some(RefMut::new(hashes, item))
+        Some(RefMut::new(state, hashes, item))
     }
 
     /// Removes an item from the map by its `key1`.
@@ -1858,8 +1857,9 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
         // SAFETY: `map` is not used after this point.
         let awakened_map = unsafe { dormant_map.awaken() };
         let item = &mut awakened_map.items[index];
+        let state = awakened_map.tables.state.clone();
         let hashes = awakened_map.tables.make_hashes(&item);
-        Some(RefMut::new(hashes, item))
+        Some(RefMut::new(state, hashes, item))
     }
 
     /// Removes an item from the map by its `key2`.
@@ -2094,8 +2094,9 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
         // SAFETY: `map` is not used after this point.
         let awakened_map = unsafe { dormant_map.awaken() };
         let item = &mut awakened_map.items[index];
+        let state = awakened_map.tables.state.clone();
         let hashes = awakened_map.tables.make_hashes(&item);
-        Some(RefMut::new(hashes, item))
+        Some(RefMut::new(state, hashes, item))
     }
 
     /// Removes an item from the map by its `key3`.
@@ -2244,9 +2245,7 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     where
         F: FnMut(RefMut<'a, T, S>) -> bool,
     {
-        let hash1_state = self.tables.k1_to_item.state().clone();
-        let hash2_state = self.tables.k2_to_item.state().clone();
-        let hash3_state = self.tables.k3_to_item.state().clone();
+        let hash_state = self.tables.state.clone();
         let (_, mut dormant_items) = DormantMutRef::new(&mut self.items);
 
         self.tables.k1_to_item.retain(|index| {
@@ -2268,14 +2267,14 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
                 let key1 = T::key1(item);
                 let key2 = T::key2(item);
                 let key3 = T::key3(item);
-                let hash1 = hash1_state.hash_one(key1);
-                let hash2 = hash2_state.hash_one(key2);
-                let hash3 = hash3_state.hash_one(key3);
+                let hash1 = hash_state.hash_one(key1);
+                let hash2 = hash_state.hash_one(key2);
+                let hash3 = hash_state.hash_one(key3);
                 (
                     [
-                        MapHash::new(hash1_state.clone(), hash1),
-                        MapHash::new(hash2_state.clone(), hash2),
-                        MapHash::new(hash3_state.clone(), hash3),
+                        MapHash::new(hash1),
+                        MapHash::new(hash2),
+                        MapHash::new(hash3),
                     ],
                     dormant_item,
                 )
@@ -2291,7 +2290,7 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
             let hash2 = hashes[1].hash();
             let hash3 = hashes[2].hash();
 
-            let ref_mut = RefMut::new(hashes, item);
+            let ref_mut = RefMut::new(hash_state.clone(), hashes, item);
             if f(ref_mut) {
                 true
             } else {
@@ -2344,7 +2343,9 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     where
         Q: Hash + Equivalent<T::K1<'a>> + ?Sized,
     {
-        self.tables.k1_to_item.find_index(k, |index| self.items[index].key1())
+        self.tables
+            .k1_to_item
+            .find_index(&self.tables.state, k, |index| self.items[index].key1())
     }
 
     fn find2<'a, Q>(&'a self, k: &Q) -> Option<&'a T>
@@ -2358,7 +2359,9 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     where
         Q: Hash + Equivalent<T::K2<'a>> + ?Sized,
     {
-        self.tables.k2_to_item.find_index(k, |index| self.items[index].key2())
+        self.tables
+            .k2_to_item
+            .find_index(&self.tables.state, k, |index| self.items[index].key2())
     }
 
     fn find3<'a, Q>(&'a self, k: &Q) -> Option<&'a T>
@@ -2372,15 +2375,18 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     where
         Q: Hash + Equivalent<T::K3<'a>> + ?Sized,
     {
-        self.tables.k3_to_item.find_index(k, |index| self.items[index].key3())
+        self.tables
+            .k3_to_item
+            .find_index(&self.tables.state, k, |index| self.items[index].key3())
     }
 
     pub(super) fn remove_by_index(&mut self, remove_index: usize) -> Option<T> {
         let value = self.items.remove(remove_index)?;
 
         // Remove the value from the tables.
+        let state = &self.tables.state;
         let Ok(item1) =
-            self.tables.k1_to_item.find_entry(&value.key1(), |index| {
+            self.tables.k1_to_item.find_entry(state, &value.key1(), |index| {
                 if index == remove_index {
                     value.key1()
                 } else {
@@ -2392,7 +2398,7 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
             panic!("remove_index {remove_index} not found in k1_to_item");
         };
         let Ok(item2) =
-            self.tables.k2_to_item.find_entry(&value.key2(), |index| {
+            self.tables.k2_to_item.find_entry(state, &value.key2(), |index| {
                 if index == remove_index {
                     value.key2()
                 } else {
@@ -2404,7 +2410,7 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
             panic!("remove_index {remove_index} not found in k2_to_item")
         };
         let Ok(item3) =
-            self.tables.k3_to_item.find_entry(&value.key3(), |index| {
+            self.tables.k3_to_item.find_entry(state, &value.key3(), |index| {
                 if index == remove_index {
                     value.key3()
                 } else {

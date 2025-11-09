@@ -66,7 +66,7 @@ use hashbrown::hash_table;
 #[derive(Clone)]
 pub struct IdHashMap<T, S = DefaultHashBuilder, A: Allocator = Global> {
     pub(super) items: ItemSet<T, A>,
-    tables: IdHashMapTables<S, A>,
+    pub(super) tables: IdHashMapTables<S, A>,
 }
 
 impl<T: IdHashItem, S: Default, A: Allocator + Default> Default
@@ -153,7 +153,7 @@ impl<T: IdHashItem> IdHashMap<T> {
     }
 }
 
-impl<T: IdHashItem, S: Clone + BuildHasher> IdHashMap<T, S> {
+impl<T: IdHashItem, S: BuildHasher> IdHashMap<T, S> {
     /// Creates a new, empty `IdHashMap` with the given hasher.
     ///
     /// # Examples
@@ -318,9 +318,7 @@ impl<T: IdHashItem, A: Clone + Allocator> IdHashMap<T, DefaultHashBuilder, A> {
     }
 }
 
-impl<T: IdHashItem, S: Clone + BuildHasher, A: Clone + Allocator>
-    IdHashMap<T, S, A>
-{
+impl<T: IdHashItem, S: BuildHasher, A: Clone + Allocator> IdHashMap<T, S, A> {
     /// Creates a new, empty `IdHashMap` with the given hasher and allocator.
     ///
     /// Requires the `allocator-api2` feature to be enabled.
@@ -904,8 +902,9 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
         // SAFETY: `map` is not used after this point.
         let awakened_map = unsafe { dormant_map.awaken() };
         let item = &mut awakened_map.items[index];
+        let state = awakened_map.tables.state.clone();
         let hashes = awakened_map.tables.make_hash(item);
-        Some(RefMut::new(hashes, item))
+        Some(RefMut::new(state, hashes, item))
     }
 
     /// Removes an item from the map by its key.
@@ -960,15 +959,18 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
             .expect("items missing key1 that was just retrieved");
 
         // Remove the value from the tables.
-        let Ok(item1) =
-            awakened_map.tables.key_to_item.find_entry(&value.key(), |index| {
+        let state = &awakened_map.tables.state;
+        let Ok(item1) = awakened_map.tables.key_to_item.find_entry(
+            state,
+            &value.key(),
+            |index| {
                 if index == remove_index {
                     value.key()
                 } else {
                     awakened_map.items[index].key()
                 }
-            })
-        else {
+            },
+        ) else {
             // The item was not found.
             panic!("we just looked this item up");
         };
@@ -1032,10 +1034,11 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
         {
             // index is explicitly typed to show that it has a trivial Drop impl
             // that doesn't capture anything from map.
-            let index: Option<usize> = map
-                .tables
-                .key_to_item
-                .find_index(&key, |index| map.items[index].key());
+            let index: Option<usize> = map.tables.key_to_item.find_index(
+                &map.tables.state,
+                &key,
+                |index| map.items[index].key(),
+            );
             if let Some(index) = index {
                 drop(key);
                 return Entry::Occupied(
@@ -1096,7 +1099,7 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
     where
         F: FnMut(RefMut<'a, T, S>) -> bool,
     {
-        let hash_state = self.tables.key_to_item.state().clone();
+        let hash_state = self.tables.state.clone();
         let (_, mut dormant_items) = DormantMutRef::new(&mut self.items);
 
         self.tables.key_to_item.retain(|index| {
@@ -1117,7 +1120,7 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
                 // trait function to be called for T rather than &mut T.
                 let key = T::key(item);
                 let hash = hash_state.hash_one(key);
-                (MapHash::new(hash_state.clone(), hash), dormant_item)
+                (MapHash::new(hash), dormant_item)
             };
 
             // SAFETY: The original items is no longer used after the first
@@ -1127,7 +1130,7 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
             // block above.
             let item = unsafe { dormant_item.awaken() };
 
-            let ref_mut = RefMut::new(hash, item);
+            let ref_mut = RefMut::new(hash_state.clone(), hash, item);
             if f(ref_mut) {
                 true
             } else {
@@ -1141,14 +1144,16 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
     where
         Q: Hash + Equivalent<T::Key<'a>> + ?Sized,
     {
-        self.tables.key_to_item.find_index(k, |index| self.items[index].key())
+        self.tables
+            .key_to_item
+            .find_index(&self.tables.state, k, |index| self.items[index].key())
     }
 
-    fn make_hash(&self, item: &T) -> MapHash<S> {
+    fn make_hash(&self, item: &T) -> MapHash {
         self.tables.make_hash(item)
     }
 
-    fn make_key_hash(&self, key: &T::Key<'_>) -> MapHash<S> {
+    fn make_key_hash(&self, key: &T::Key<'_>) -> MapHash {
         self.tables.make_key_hash::<T>(key)
     }
 
@@ -1160,9 +1165,10 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
         &mut self,
         index: usize,
     ) -> Option<RefMut<'_, T, S>> {
+        let state = self.tables.state.clone();
         let hashes = self.make_hash(&self.items[index]);
         let item = &mut self.items[index];
-        Some(RefMut::new(hashes, item))
+        Some(RefMut::new(state, hashes, item))
     }
 
     pub(super) fn insert_unique_impl(
@@ -1175,11 +1181,12 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
         // don't want to partially insert the new item and then have to roll
         // back.
         let key = value.key();
+        let state = &self.tables.state;
 
         let entry = match self
             .tables
             .key_to_item
-            .entry(key, |index| self.items[index].key())
+            .entry(state, key, |index| self.items[index].key())
         {
             hash_table::Entry::Occupied(slot) => {
                 duplicates.insert(*slot.get());
@@ -1205,8 +1212,9 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
         let value = self.items.remove(remove_index)?;
 
         // Remove the value from the tables.
+        let state = &self.tables.state;
         let Ok(item) =
-            self.tables.key_to_item.find_entry(&value.key(), |index| {
+            self.tables.key_to_item.find_entry(state, &value.key(), |index| {
                 if index == remove_index {
                     value.key()
                 } else {

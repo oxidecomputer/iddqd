@@ -7,18 +7,18 @@ use core::hash::BuildHasher;
 
 #[derive(Clone, Debug, Default)]
 pub(super) struct IdHashMapTables<S, A: Allocator> {
-    pub(super) key_to_item: MapHashTable<S, A>,
+    pub(super) state: S,
+    pub(super) key_to_item: MapHashTable<A>,
 }
 
-impl<S: Clone + BuildHasher, A: Allocator> IdHashMapTables<S, A> {
+impl<S: BuildHasher, A: Allocator> IdHashMapTables<S, A> {
     #[cfg(feature = "daft")]
     pub(crate) fn hasher(&self) -> &S {
-        // TODO: store hasher here
-        self.key_to_item.state()
+        &self.state
     }
 
     pub(super) const fn with_hasher_in(hasher: S, alloc: A) -> Self {
-        Self { key_to_item: MapHashTable::with_hasher_in(hasher, alloc) }
+        Self { state: hasher, key_to_item: MapHashTable::new_in(alloc) }
     }
 
     pub(super) fn with_capacity_and_hasher_in(
@@ -27,9 +27,8 @@ impl<S: Clone + BuildHasher, A: Allocator> IdHashMapTables<S, A> {
         alloc: A,
     ) -> Self {
         Self {
-            key_to_item: MapHashTable::with_capacity_and_hasher_in(
-                capacity, hasher, alloc,
-            ),
+            state: hasher,
+            key_to_item: MapHashTable::with_capacity_in(capacity, alloc),
         }
     }
 
@@ -45,15 +44,15 @@ impl<S: Clone + BuildHasher, A: Allocator> IdHashMapTables<S, A> {
         Ok(())
     }
 
-    pub(super) fn make_hash<T: IdHashItem>(&self, item: &T) -> MapHash<S> {
+    pub(super) fn make_hash<T: IdHashItem>(&self, item: &T) -> MapHash {
         let k1 = item.key();
-        self.key_to_item.compute_hash(k1)
+        self.key_to_item.compute_hash(&self.state, k1)
     }
 
     pub(super) fn make_key_hash<T: IdHashItem>(
         &self,
         key: &T::Key<'_>,
-    ) -> MapHash<S> {
-        self.key_to_item.compute_hash(key)
+    ) -> MapHash {
+        self.key_to_item.compute_hash(&self.state, key)
     }
 }

@@ -1,33 +1,41 @@
 use crate::{
     BiHashItem,
     internal::{ValidateCompact, ValidationError},
-    support::{alloc::Allocator, hash_table::MapHashTable, map_hash::MapHash},
+    support::{
+        alloc::{Allocator, Global, global_alloc},
+        hash_table::MapHashTable,
+        map_hash::MapHash,
+    },
 };
 use core::hash::BuildHasher;
 
 #[derive(Clone, Debug, Default)]
 pub(super) struct BiHashMapTables<S, A: Allocator> {
-    pub(super) k1_to_item: MapHashTable<S, A>,
-    pub(super) k2_to_item: MapHashTable<S, A>,
+    pub(super) state: S,
+    pub(super) k1_to_item: MapHashTable<A>,
+    pub(super) k2_to_item: MapHashTable<A>,
 }
 
-impl<S: Clone + BuildHasher, A: Clone + Allocator> BiHashMapTables<S, A> {
+impl<S: BuildHasher> BiHashMapTables<S, Global> {
+    pub(super) const fn with_hasher(hasher: S) -> Self {
+        Self {
+            state: hasher,
+            k1_to_item: MapHashTable::new_in(global_alloc()),
+            k2_to_item: MapHashTable::new_in(global_alloc()),
+        }
+    }
+}
+
+impl<S: BuildHasher, A: Clone + Allocator> BiHashMapTables<S, A> {
     pub(super) fn with_capacity_and_hasher_in(
         capacity: usize,
         hasher: S,
         alloc: A,
     ) -> Self {
         Self {
-            k1_to_item: MapHashTable::with_capacity_and_hasher_in(
-                capacity,
-                hasher.clone(),
-                alloc.clone(),
-            ),
-            k2_to_item: MapHashTable::with_capacity_and_hasher_in(
-                capacity,
-                hasher.clone(),
-                alloc,
-            ),
+            state: hasher,
+            k1_to_item: MapHashTable::with_capacity_in(capacity, alloc.clone()),
+            k2_to_item: MapHashTable::with_capacity_in(capacity, alloc),
         }
     }
 }
@@ -35,7 +43,7 @@ impl<S: Clone + BuildHasher, A: Clone + Allocator> BiHashMapTables<S, A> {
 impl<S: Clone + BuildHasher, A: Allocator> BiHashMapTables<S, A> {
     #[cfg(feature = "daft")]
     pub(super) fn hasher(&self) -> &S {
-        self.k1_to_item.state()
+        &self.state
     }
 
     pub(super) fn validate(
@@ -58,9 +66,9 @@ impl<S: Clone + BuildHasher, A: Allocator> BiHashMapTables<S, A> {
         &self,
         k1: &T::K1<'_>,
         k2: &T::K2<'_>,
-    ) -> [MapHash<S>; 2] {
-        let h1 = self.k1_to_item.compute_hash(k1);
-        let h2 = self.k2_to_item.compute_hash(k2);
+    ) -> [MapHash; 2] {
+        let h1 = self.k1_to_item.compute_hash(&self.state, k1);
+        let h2 = self.k2_to_item.compute_hash(&self.state, k2);
 
         [h1, h2]
     }

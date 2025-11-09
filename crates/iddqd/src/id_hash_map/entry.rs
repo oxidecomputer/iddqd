@@ -93,7 +93,7 @@ pub struct VacantEntry<
     A: Allocator = Global,
 > {
     map: DormantMutRef<'a, IdHashMap<T, S, A>>,
-    hash: MapHash<S>,
+    hash: MapHash,
 }
 
 impl<'a, T: IdHashItem, S, A: Allocator> fmt::Debug
@@ -111,7 +111,7 @@ impl<'a, T: IdHashItem, S: Clone + BuildHasher, A: Allocator>
 {
     pub(super) unsafe fn new(
         map: DormantMutRef<'a, IdHashMap<T, S, A>>,
-        hash: MapHash<S>,
+        hash: MapHash,
     ) -> Self {
         VacantEntry { map, hash }
     }
@@ -119,13 +119,13 @@ impl<'a, T: IdHashItem, S: Clone + BuildHasher, A: Allocator>
     /// Sets the entry to a new value, returning a mutable reference to the
     /// value.
     pub fn insert(self, value: T) -> RefMut<'a, T, S> {
-        if !self.hash.is_same_hash(value.key()) {
-            panic!("key hashes do not match");
-        }
-
         // SAFETY: The safety assumption behind `Self::new` guarantees that the
         // original reference to the map is not used at this point.
         let map = unsafe { self.map.awaken() };
+        let state = &map.tables.state;
+        if !self.hash.is_same_hash(state, value.key()) {
+            panic!("key hashes do not match");
+        }
         let Ok(index) = map.insert_unique_impl(value) else {
             panic!("key already present in map");
         };
@@ -135,14 +135,14 @@ impl<'a, T: IdHashItem, S: Clone + BuildHasher, A: Allocator>
     /// Sets the value of the entry, and returns an `OccupiedEntry`.
     #[inline]
     pub fn insert_entry(mut self, value: T) -> OccupiedEntry<'a, T, S, A> {
-        if !self.hash.is_same_hash(value.key()) {
-            panic!("key hashes do not match");
-        }
-
         let index = {
             // SAFETY: The safety assumption behind `Self::new` guarantees that the
             // original reference to the map is not used at this point.
             let map = unsafe { self.map.reborrow() };
+            let state = &map.tables.state;
+            if !self.hash.is_same_hash(state, value.key()) {
+                panic!("key hashes do not match");
+            }
             let Ok(index) = map.insert_unique_impl(value) else {
                 panic!("key already present in map");
             };

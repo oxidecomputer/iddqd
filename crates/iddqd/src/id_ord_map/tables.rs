@@ -15,6 +15,10 @@ impl IdOrdMapTables {
         Self { key_to_item: MapBTreeTable::new() }
     }
 
+    pub(super) fn state(&self) -> &foldhash::fast::FixedState {
+        self.key_to_item.state()
+    }
+
     #[doc(hidden)]
     pub(super) fn validate(
         &self,
@@ -28,10 +32,7 @@ impl IdOrdMapTables {
         Ok(())
     }
 
-    pub(super) fn make_hash<'a, T>(
-        &self,
-        item: &'a T,
-    ) -> MapHash<foldhash::fast::FixedState>
+    pub(super) fn make_hash<'a, T>(&self, item: &'a T) -> MapHash
     where
         T::Key<'a>: Hash,
         T: 'a + IdOrdItem,

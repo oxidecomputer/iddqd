@@ -56,10 +56,11 @@ where
     T::Key<'a>: Hash,
 {
     pub(super) fn new(
-        hash: MapHash<foldhash::fast::FixedState>,
+        state: foldhash::fast::FixedState,
+        hash: MapHash,
         borrowed: &'a mut T,
     ) -> Self {
-        let inner = RefMutInner { hash, borrowed };
+        let inner = RefMutInner { state, hash, borrowed };
         Self { inner: Some(inner) }
     }
 
@@ -77,7 +78,7 @@ impl<'a, T: for<'k> IdOrdItemMut<'k>> RefMut<'a, T> {
     pub fn reborrow<'b>(&'b mut self) -> RefMut<'b, T> {
         let inner = self.inner.as_mut().unwrap();
         let borrowed = &mut *inner.borrowed;
-        RefMut::new(inner.hash.clone(), borrowed)
+        RefMut::new(inner.state.clone(), inner.hash.clone(), borrowed)
     }
 }
 
@@ -127,7 +128,8 @@ where
 }
 
 struct RefMutInner<'a, T: IdOrdItem> {
-    hash: MapHash<foldhash::fast::FixedState>,
+    state: foldhash::fast::FixedState,
+    hash: MapHash,
     borrowed: &'a mut T,
 }
 
@@ -141,7 +143,7 @@ where
         // 'a so T::Key is valid for 'a.
         let key: T::Key<'a> =
             unsafe { std::mem::transmute::<T::Key<'_>, T::Key<'a>>(key) };
-        if !self.hash.is_same_hash(&key) {
+        if !self.hash.is_same_hash(&self.state, &key) {
             panic!("key changed during RefMut borrow");
         }
 

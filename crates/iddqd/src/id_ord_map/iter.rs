@@ -124,7 +124,7 @@ where
         // point.
         let item = unsafe { dormant.awaken() };
 
-        Some(RefMut::new(hash, item))
+        Some(RefMut::new(self.tables.state().clone(), hash, item))
     }
 }
 

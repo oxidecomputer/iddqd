@@ -100,7 +100,7 @@ pub struct VacantEntry<
     A: Allocator = Global,
 > {
     map: DormantMutRef<'a, BiHashMap<T, S, A>>,
-    hashes: [MapHash<S>; 2],
+    hashes: [MapHash; 2],
 }
 
 impl<'a, T: BiHashItem, S, A: Allocator> fmt::Debug
@@ -118,7 +118,7 @@ impl<'a, T: BiHashItem, S: Clone + BuildHasher, A: Allocator>
 {
     pub(super) unsafe fn new(
         map: DormantMutRef<'a, BiHashMap<T, S, A>>,
-        hashes: [MapHash<S>; 2],
+        hashes: [MapHash; 2],
     ) -> Self {
         VacantEntry { map, hashes }
     }
@@ -126,16 +126,16 @@ impl<'a, T: BiHashItem, S: Clone + BuildHasher, A: Allocator>
     /// Sets the entry to a new value, returning a mutable reference to the
     /// value.
     pub fn insert(self, value: T) -> RefMut<'a, T, S> {
-        if !self.hashes[0].is_same_hash(value.key1()) {
-            panic!("key1 hashes do not match");
-        }
-        if !self.hashes[1].is_same_hash(value.key2()) {
-            panic!("key2 hashes do not match");
-        }
-
         // SAFETY: The safety assumption behind `Self::new` guarantees that the
         // original reference to the map is not used at this point.
         let map = unsafe { self.map.awaken() };
+        let state = &map.tables.state;
+        if !self.hashes[0].is_same_hash(state, value.key1()) {
+            panic!("key1 hashes do not match");
+        }
+        if !self.hashes[1].is_same_hash(state, value.key2()) {
+            panic!("key2 hashes do not match");
+        }
         let Ok(index) = map.insert_unique_impl(value) else {
             panic!("key already present in map");
         };
@@ -145,17 +145,17 @@ impl<'a, T: BiHashItem, S: Clone + BuildHasher, A: Allocator>
     /// Sets the value of the entry, and returns an `OccupiedEntry`.
     #[inline]
     pub fn insert_entry(mut self, value: T) -> OccupiedEntry<'a, T, S, A> {
-        if !self.hashes[0].is_same_hash(value.key1()) {
-            panic!("key1 hashes do not match");
-        }
-        if !self.hashes[1].is_same_hash(value.key2()) {
-            panic!("key2 hashes do not match");
-        }
-
         let index = {
             // SAFETY: The safety assumption behind `Self::new` guarantees that the
             // original reference to the map is not used at this point.
             let map = unsafe { self.map.reborrow() };
+            let state = &map.tables.state;
+            if !self.hashes[0].is_same_hash(state, value.key1()) {
+                panic!("key1 hashes do not match");
+            }
+            if !self.hashes[1].is_same_hash(state, value.key2()) {
+                panic!("key2 hashes do not match");
+            }
             let Ok(index) = map.insert_unique_impl(value) else {
                 panic!("key already present in map");
             };
