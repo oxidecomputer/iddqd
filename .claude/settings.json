@@ -1,6 +1,7 @@
 {
   "permissions": {
     "allow": [
+      "Bash(jj diff:*)",
       "Bash(jj s:*)",
       "Bash(cargo nextest run:*)",
       "Bash(cargo build:*)",

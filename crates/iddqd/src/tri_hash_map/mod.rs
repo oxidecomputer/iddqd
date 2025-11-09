@@ -28,4 +28,6 @@ pub use proptest_impls::{
     prop_strategy_with_hasher_in,
 };
 pub use ref_mut::RefMut;
+#[cfg(feature = "serde")]
+pub use serde_impls::TriHashMapAsMap;
 pub use trait_defs::TriHashItem;

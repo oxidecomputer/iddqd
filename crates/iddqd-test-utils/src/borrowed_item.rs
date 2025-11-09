@@ -3,12 +3,13 @@ use iddqd::IdOrdItem;
 use iddqd::{
     BiHashItem, IdHashItem, TriHashItem, bi_upcast, id_upcast, tri_upcast,
 };
-use std::path::Path;
+use std::{borrow::Cow, path::Path};
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BorrowedItem<'a> {
     pub key1: &'a str,
-    pub key2: &'a [u8],
+    pub key2: Cow<'a, [u8]>,
     pub key3: &'a Path,
 }
 
@@ -45,7 +46,7 @@ impl<'a> BiHashItem for BorrowedItem<'a> {
     where
         Self: 'k;
     type K2<'k>
-        = &'a [u8]
+        = &'k [u8]
     where
         Self: 'k;
 
@@ -54,7 +55,7 @@ impl<'a> BiHashItem for BorrowedItem<'a> {
     }
 
     fn key2(&self) -> Self::K2<'_> {
-        self.key2
+        &*self.key2
     }
 
     bi_upcast!();
@@ -66,7 +67,7 @@ impl<'a> TriHashItem for BorrowedItem<'a> {
     where
         Self: 'k;
     type K2<'k>
-        = &'a [u8]
+        = &'k [u8]
     where
         Self: 'k;
     type K3<'k>
@@ -79,7 +80,7 @@ impl<'a> TriHashItem for BorrowedItem<'a> {
     }
 
     fn key2(&self) -> Self::K2<'_> {
-        self.key2
+        &*self.key2
     }
 
     fn key3(&self) -> Self::K3<'_> {

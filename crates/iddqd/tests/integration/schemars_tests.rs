@@ -1,10 +1,11 @@
 use expectorate::assert_contents;
 use iddqd::{
     BiHashItem, BiHashMap, IdHashItem, IdHashMap, TriHashItem, TriHashMap,
-    bi_upcast, id_upcast, tri_upcast,
+    bi_hash_map::BiHashMapAsMap, bi_upcast, id_hash_map::IdHashMapAsMap,
+    id_upcast, tri_hash_map::TriHashMapAsMap, tri_upcast,
 };
 #[cfg(feature = "std")]
-use iddqd::{IdOrdItem, IdOrdMap};
+use iddqd::{IdOrdItem, IdOrdMap, id_ord_map::IdOrdMapAsMap};
 use schemars::{JsonSchema, schema_for};
 use serde::{Deserialize, Serialize};
 
@@ -82,11 +83,23 @@ fn schema_fixtures() {
         &to_string_pretty_ln(&schema),
     );
 
+    let schema = schema_for!(IdHashMapAsMap<TestUser>);
+    assert_contents(
+        "tests/output/id_hash_map_as_map_schema.json",
+        &to_string_pretty_ln(&schema),
+    );
+
     #[cfg(feature = "std")]
     {
         let schema = schema_for!(IdOrdMap<TestUser>);
         assert_contents(
             "tests/output/id_ord_map_schema.json",
+            &to_string_pretty_ln(&schema),
+        );
+
+        let schema = schema_for!(IdOrdMapAsMap<TestUser>);
+        assert_contents(
+            "tests/output/id_ord_map_as_map_schema.json",
             &to_string_pretty_ln(&schema),
         );
     }
@@ -97,9 +110,21 @@ fn schema_fixtures() {
         &to_string_pretty_ln(&schema),
     );
 
+    let schema = schema_for!(BiHashMapAsMap<TestUser>);
+    assert_contents(
+        "tests/output/bi_hash_map_as_map_schema.json",
+        &to_string_pretty_ln(&schema),
+    );
+
     let schema = schema_for!(TriHashMap<TestUser>);
     assert_contents(
         "tests/output/tri_hash_map_schema.json",
+        &to_string_pretty_ln(&schema),
+    );
+
+    let schema = schema_for!(TriHashMapAsMap<TestUser>);
+    assert_contents(
+        "tests/output/tri_hash_map_as_map_schema.json",
         &to_string_pretty_ln(&schema),
     );
 }
@@ -136,6 +161,28 @@ fn container_fixtures() {
     let schema = schema_for!(SimpleContainer);
     assert_contents(
         "tests/output/simple_container_schema.json",
+        &to_string_pretty_ln(&schema),
+    );
+
+    // Container using the AsMap types with serde's `with` attribute.
+    #[derive(JsonSchema)]
+    #[expect(unused)]
+    struct ContainerAsMap {
+        // This is in alphabetical order to ensure that the same fixture gets
+        // generated with or without the `schemars/preserve_order` feature.
+        #[serde(with = "BiHashMapAsMap::<TestUser>")]
+        users_bi: BiHashMap<TestUser>,
+        #[serde(with = "IdHashMapAsMap::<TestUser>")]
+        users_hash: IdHashMap<TestUser>,
+        #[serde(with = "IdOrdMapAsMap::<TestUser>")]
+        users_ord: IdOrdMap<TestUser>,
+        #[serde(with = "TriHashMapAsMap::<TestUser>")]
+        users_tri: TriHashMap<TestUser>,
+    }
+
+    let schema = schema_for!(ContainerAsMap);
+    assert_contents(
+        "tests/output/container_as_map_schema.json",
         &to_string_pretty_ln(&schema),
     );
 }

@@ -1,8 +1,12 @@
-use crate::{IdHashItem, IdHashMap, support::alloc::Allocator};
+use crate::{
+    DefaultHashBuilder, IdHashItem, IdHashMap,
+    support::alloc::{Allocator, Global},
+};
 use core::{fmt, hash::BuildHasher, marker::PhantomData};
 use serde_core::{
     Deserialize, Deserializer, Serialize, Serializer,
-    de::{SeqAccess, Visitor},
+    de::{MapAccess, SeqAccess, Visitor},
+    ser::SerializeMap,
 };
 
 /// An `IdHashMap` serializes to the list of items. Items are serialized in
@@ -10,6 +14,8 @@ use serde_core::{
 ///
 /// Serializing as a list of items rather than as a map works around the lack of
 /// non-string keys in formats like JSON.
+///
+/// To serialize as a map instead, see [`IdHashMapAsMap`].
 ///
 /// # Examples
 ///
@@ -72,8 +78,13 @@ where
     }
 }
 
-/// The `Deserialize` impl for `IdHashMap` deserializes the list of items and
-/// then rebuilds the indexes, producing an error if there are any duplicates.
+/// The `Deserialize` impl for `IdHashMap` deserializes from either a sequence
+/// or a map of items, then rebuilds the indexes and produces an error if there
+/// are any duplicates.
+///
+/// In case a map is deserialized, the key is not deserialized or verified
+/// against the value. (In general, verification is not possible because the key
+/// type has a lifetime parameter embedded in it.)
 ///
 /// The `fmt::Debug` bound on `T` ensures better error reporting.
 impl<
@@ -88,7 +99,7 @@ where
     fn deserialize<D: Deserializer<'de>>(
         deserializer: D,
     ) -> Result<Self, D::Error> {
-        deserializer.deserialize_seq(SeqVisitor {
+        deserializer.deserialize_any(SeqVisitor {
             _marker: PhantomData,
             hasher: S::default(),
             alloc: A::default(),
@@ -112,7 +123,7 @@ impl<
     where
         S: Default,
     {
-        deserializer.deserialize_seq(SeqVisitor {
+        deserializer.deserialize_any(SeqVisitor {
             _marker: PhantomData,
             hasher: S::default(),
             alloc,
@@ -128,7 +139,7 @@ impl<
     where
         A: Default,
     {
-        deserializer.deserialize_seq(SeqVisitor {
+        deserializer.deserialize_any(SeqVisitor {
             _marker: PhantomData,
             hasher,
             alloc: A::default(),
@@ -143,7 +154,7 @@ impl<
         alloc: A,
     ) -> Result<Self, D::Error> {
         // First, deserialize the items.
-        deserializer.deserialize_seq(SeqVisitor {
+        deserializer.deserialize_any(SeqVisitor {
             _marker: PhantomData,
             hasher,
             alloc,
@@ -166,7 +177,8 @@ where
     type Value = IdHashMap<T, S, A>;
 
     fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("a sequence of items representing an IdHashMap")
+        formatter
+            .write_str("a sequence or map of items representing an IdHashMap")
     }
 
     fn visit_seq<Access>(
@@ -191,5 +203,172 @@ where
         }
 
         Ok(map)
+    }
+
+    fn visit_map<Access>(
+        self,
+        mut map_access: Access,
+    ) -> Result<Self::Value, Access::Error>
+    where
+        Access: MapAccess<'de>,
+    {
+        let mut map = match map_access.size_hint() {
+            Some(size) => IdHashMap::with_capacity_and_hasher_in(
+                size,
+                self.hasher,
+                self.alloc,
+            ),
+            None => IdHashMap::with_hasher_in(self.hasher, self.alloc),
+        };
+
+        while let Some((_, value)) =
+            map_access.next_entry::<serde_core::de::IgnoredAny, T>()?
+        {
+            map.insert_unique(value).map_err(serde_core::de::Error::custom)?;
+        }
+
+        Ok(map)
+    }
+}
+
+/// Marker type for `IdHashMap` serialized as a map. This type can be used with
+/// serde's `with` attribute.
+///
+/// # Examples
+///
+/// Use with serde's `with` attribute:
+///
+/// ```
+/// # #[cfg(feature = "default-hasher")] {
+/// use iddqd::{
+///     IdHashItem, IdHashMap, id_hash_map::IdHashMapAsMap, id_upcast,
+/// };
+/// use serde::{Deserialize, Serialize};
+///
+/// #[derive(Debug, Serialize, Deserialize)]
+/// struct Item {
+///     id: u32,
+///     name: String,
+/// }
+///
+/// impl IdHashItem for Item {
+///     type Key<'a> = u32;
+///     fn key(&self) -> Self::Key<'_> {
+///         self.id
+///     }
+///     id_upcast!();
+/// }
+///
+/// #[derive(Serialize, Deserialize)]
+/// struct Config {
+///     #[serde(with = "IdHashMapAsMap")]
+///     items: IdHashMap<Item>,
+/// }
+/// # }
+/// ```
+///
+/// # Requirements
+///
+/// - For serialization, the key type must implement `Serialize`.
+/// - For JSON serialization, the key should be string-like or convertible to a string key.
+pub struct IdHashMapAsMap<T, S = DefaultHashBuilder, A: Allocator = Global> {
+    #[expect(clippy::type_complexity)]
+    _marker: PhantomData<fn() -> (T, S, A)>,
+}
+
+struct MapVisitorAsMap<T, S, A> {
+    _marker: PhantomData<fn() -> T>,
+    hasher: S,
+    alloc: A,
+}
+
+impl<'de, T, S, A> Visitor<'de> for MapVisitorAsMap<T, S, A>
+where
+    T: IdHashItem + Deserialize<'de> + fmt::Debug,
+    S: Clone + BuildHasher,
+    A: Clone + Allocator,
+{
+    type Value = IdHashMap<T, S, A>;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("a map with items representing an IdHashMap")
+    }
+
+    fn visit_map<Access>(
+        self,
+        mut map_access: Access,
+    ) -> Result<Self::Value, Access::Error>
+    where
+        Access: MapAccess<'de>,
+    {
+        let mut map = match map_access.size_hint() {
+            Some(size) => IdHashMap::with_capacity_and_hasher_in(
+                size,
+                self.hasher,
+                self.alloc,
+            ),
+            None => IdHashMap::with_hasher_in(self.hasher, self.alloc),
+        };
+
+        while let Some((_, value)) =
+            map_access.next_entry::<serde_core::de::IgnoredAny, T>()?
+        {
+            map.insert_unique(value).map_err(serde_core::de::Error::custom)?;
+        }
+
+        Ok(map)
+    }
+}
+
+impl<T, S, A> IdHashMapAsMap<T, S, A>
+where
+    S: Clone + BuildHasher,
+    A: Allocator,
+{
+    /// Serializes an `IdHashMap` as a JSON object/map using `key()` as keys.
+    pub fn serialize<'a, Ser>(
+        map: &IdHashMap<T, S, A>,
+        serializer: Ser,
+    ) -> Result<Ser::Ok, Ser::Error>
+    where
+        T: 'a + IdHashItem + Serialize,
+        T::Key<'a>: Serialize,
+        Ser: Serializer,
+    {
+        let mut ser_map = serializer.serialize_map(Some(map.len()))?;
+        for item in map.iter() {
+            let key = item.key();
+            // SAFETY:
+            //
+            // * Lifetime extension: for a type T and two lifetime params 'a and
+            //   'b, T<'a> and T<'b> aren't guaranteed to have the same layout,
+            //   but (a) that is true today and (b) it would be shocking and
+            //   break half the Rust ecosystem if that were to change in the
+            //   future.
+            // * We only use key within the scope of this block before
+            //   immediately dropping it. In particular, ser_map.serialize_entry
+            //   serializes the key without holding a reference to it.
+            let key1 =
+                unsafe { core::mem::transmute::<T::Key<'_>, T::Key<'a>>(key) };
+            ser_map.serialize_entry(&key1, item)?;
+        }
+        ser_map.end()
+    }
+
+    /// Deserializes an `IdHashMap` from a JSON object/map.
+    pub fn deserialize<'de, D>(
+        deserializer: D,
+    ) -> Result<IdHashMap<T, S, A>, D::Error>
+    where
+        T: IdHashItem + Deserialize<'de> + fmt::Debug,
+        S: Default,
+        A: Clone + Default,
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_map(MapVisitorAsMap {
+            _marker: PhantomData,
+            hasher: S::default(),
+            alloc: A::default(),
+        })
     }
 }

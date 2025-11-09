@@ -240,6 +240,16 @@ impl<'a> TestKey1<'a> {
     }
 }
 
+#[cfg(feature = "serde")]
+impl<'a> serde::Serialize for TestKey1<'a> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_u8(*self.key)
+    }
+}
+
 impl_test_key_traits!(TestKey1<'_>);
 
 #[derive(Clone, Debug)]
@@ -347,6 +357,9 @@ pub enum MapKind {
 
 /// Represents a map of `TestEntry` values. Used for generic tests and assertions.
 pub trait ItemMap<T>: Clone {
+    type K1<'a>
+    where
+        T: 'a;
     type RefMut<'a>: IntoRef<'a, T>
     where
         Self: 'a;
@@ -363,6 +376,11 @@ pub trait ItemMap<T>: Clone {
     fn make_new() -> Self;
     fn make_with_capacity(capacity: usize) -> Self;
 
+    #[cfg(feature = "serde")]
+    fn serialize_as_map<'a>(&self) -> Result<String, serde_json::Error>
+    where
+        T: 'a + serde::Serialize,
+        Self::K1<'a>: serde::Serialize;
     #[cfg(feature = "serde")]
     fn make_deserialize_in<'a, D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -382,6 +400,10 @@ pub trait ItemMap<T>: Clone {
 }
 
 impl<T: Clone + BiHashItem> ItemMap<T> for BiHashMap<T, HashBuilder, Alloc> {
+    type K1<'a>
+        = T::K1<'a>
+    where
+        T: 'a;
     type RefMut<'a>
         = bi_hash_map::RefMut<'a, T, HashBuilder>
     where
@@ -422,6 +444,19 @@ impl<T: Clone + BiHashItem> ItemMap<T> for BiHashMap<T, HashBuilder, Alloc> {
     #[cfg(not(feature = "allocator-api2"))]
     fn make_with_capacity(capacity: usize) -> Self {
         BiHashMap::with_capacity_and_hasher(capacity, HashBuilder::default())
+    }
+
+    #[cfg(feature = "serde")]
+    fn serialize_as_map<'a>(&self) -> Result<String, serde_json::Error>
+    where
+        T: 'a + serde::Serialize,
+        Self::K1<'a>: serde::Serialize,
+    {
+        let mut out: Vec<u8> = Vec::new();
+        let mut ser = serde_json::Serializer::new(&mut out);
+        bi_hash_map::BiHashMapAsMap::serialize(self, &mut ser)?;
+        Ok(String::from_utf8(out)
+            .expect("serde_json should always emit valid UTF-8"))
     }
 
     #[cfg(all(feature = "serde", feature = "allocator-api2"))]
@@ -475,6 +510,10 @@ impl<T> ItemMap<T> for IdHashMap<T, HashBuilder, Alloc>
 where
     T: IdHashItem + Clone,
 {
+    type K1<'a>
+        = T::Key<'a>
+    where
+        T: 'a;
     type RefMut<'a>
         = id_hash_map::RefMut<'a, T, HashBuilder>
     where
@@ -515,6 +554,19 @@ where
     #[cfg(not(feature = "allocator-api2"))]
     fn make_with_capacity(capacity: usize) -> Self {
         IdHashMap::with_capacity_and_hasher(capacity, HashBuilder::default())
+    }
+
+    #[cfg(feature = "serde")]
+    fn serialize_as_map<'a>(&self) -> Result<String, serde_json::Error>
+    where
+        T: 'a + serde::Serialize,
+        Self::K1<'a>: serde::Serialize,
+    {
+        let mut out: Vec<u8> = Vec::new();
+        let mut ser = serde_json::Serializer::new(&mut out);
+        id_hash_map::IdHashMapAsMap::serialize(self, &mut ser)?;
+        Ok(String::from_utf8(out)
+            .expect("serde_json should always emit valid UTF-8"))
     }
 
     #[cfg(all(feature = "serde", feature = "allocator-api2"))]
@@ -570,6 +622,10 @@ where
     T: IdOrdItem + Clone,
     for<'k> T::Key<'k>: std::hash::Hash,
 {
+    type K1<'a>
+        = T::Key<'a>
+    where
+        T: 'a;
     type RefMut<'a>
         = id_ord_map::RefMut<'a, T>
     where
@@ -594,6 +650,19 @@ where
 
     fn make_with_capacity(capacity: usize) -> Self {
         IdOrdMap::with_capacity(capacity)
+    }
+
+    #[cfg(feature = "serde")]
+    fn serialize_as_map<'a>(&self) -> Result<String, serde_json::Error>
+    where
+        T: 'a + serde::Serialize,
+        Self::K1<'a>: serde::Serialize,
+    {
+        let mut out: Vec<u8> = Vec::new();
+        let mut ser = serde_json::Serializer::new(&mut out);
+        id_ord_map::IdOrdMapAsMap::serialize(self, &mut ser)?;
+        Ok(String::from_utf8(out)
+            .expect("serde_json should always emit valid UTF-8"))
     }
 
     #[cfg(feature = "serde")]
@@ -638,6 +707,10 @@ impl<T> ItemMap<T> for TriHashMap<T, HashBuilder, Alloc>
 where
     T: TriHashItem + Clone,
 {
+    type K1<'a>
+        = T::K1<'a>
+    where
+        T: 'a;
     type RefMut<'a>
         = tri_hash_map::RefMut<'a, T, HashBuilder>
     where
@@ -678,6 +751,19 @@ where
     #[cfg(not(feature = "allocator-api2"))]
     fn make_with_capacity(capacity: usize) -> Self {
         TriHashMap::with_capacity_and_hasher(capacity, HashBuilder::default())
+    }
+
+    #[cfg(feature = "serde")]
+    fn serialize_as_map<'a>(&self) -> Result<String, serde_json::Error>
+    where
+        T: 'a + serde::Serialize,
+        Self::K1<'a>: serde::Serialize,
+    {
+        let mut out: Vec<u8> = Vec::new();
+        let mut ser = serde_json::Serializer::new(&mut out);
+        tri_hash_map::TriHashMapAsMap::serialize(self, &mut ser)?;
+        Ok(String::from_utf8(out)
+            .expect("serde_json should always emit valid UTF-8"))
     }
 
     #[cfg(all(feature = "serde", feature = "allocator-api2"))]
