@@ -1,5 +1,25 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- Capacity management methods for all map types:
+  - `reserve(&mut self, additional: usize)` reserves capacity for at least `additional` more elements.
+  - `shrink_to_fit(&mut self)` shrinks capacity to fit the current length.
+  - `shrink_to(&mut self, min_capacity: usize)` shrinks capacity to at least `min_capacity`.
+  - `try_reserve(&mut self, additional: usize) -> Result<(), TryReserveError>`: fallible capacity reservation for hash maps (`IdHashMap`, `BiHashMap`, `TriHashMap`).
+- New `TryReserveError` type in the `errors` module for reporting allocation failures.
+
+#### Notes
+
+- For `IdOrdMap`, the reserve and shrink methods only affect item storage. The internal `BTreeSet` used for item ordering does not support capacity control.
+- `IdOrdMap` does not provide `try_reserve`, since the underlying `BTreeSet` does not expose fallible reservation operations.
+
+### Changed
+
+The `Extend` implementations now pre-reserve capacity based on the iterator's `size_hint`.
+
 ## [0.3.16] - 2025-11-09
 
 ### Added

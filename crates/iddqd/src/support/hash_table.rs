@@ -171,4 +171,31 @@ impl<A: Allocator> MapHashTable<A> {
     pub(crate) fn clear(&mut self) {
         self.items.clear();
     }
+
+    /// Reserves capacity for at least `additional` more items.
+    #[inline]
+    pub(crate) fn reserve(&mut self, additional: usize) {
+        self.items.reserve(additional, |_| 0);
+    }
+
+    /// Shrinks the capacity of the hash table as much as possible.
+    #[inline]
+    pub(crate) fn shrink_to_fit(&mut self) {
+        self.items.shrink_to_fit(|_| 0);
+    }
+
+    /// Shrinks the capacity of the hash table with a lower limit.
+    #[inline]
+    pub(crate) fn shrink_to(&mut self, min_capacity: usize) {
+        self.items.shrink_to(min_capacity, |_| 0);
+    }
+
+    /// Tries to reserve capacity for at least `additional` more items.
+    #[inline]
+    pub(crate) fn try_reserve(
+        &mut self,
+        additional: usize,
+    ) -> Result<(), hashbrown::TryReserveError> {
+        self.items.try_reserve(additional, |_| 0)
+    }
 }

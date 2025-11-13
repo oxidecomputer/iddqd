@@ -62,3 +62,54 @@ impl<T: fmt::Debug, D: fmt::Debug> fmt::Display for DuplicateItem<T, D> {
 }
 
 impl<T: fmt::Debug, D: fmt::Debug> core::error::Error for DuplicateItem<T, D> {}
+
+/// The error type for `try_reserve` methods.
+///
+/// This wraps the underlying allocation error from the hash table implementation.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct TryReserveError {
+    kind: TryReserveErrorKind,
+}
+
+#[derive(Clone, PartialEq, Eq, Debug)]
+enum TryReserveErrorKind {
+    /// Error due to the computed capacity exceeding the collection's maximum
+    /// (usually `isize::MAX` bytes).
+    CapacityOverflow,
+
+    /// The memory allocator returned an error
+    AllocError {
+        /// The layout of the allocation request that failed
+        layout: core::alloc::Layout,
+    },
+}
+
+impl TryReserveError {
+    /// Converts from a hashbrown `TryReserveError`.
+    pub(crate) fn from_hashbrown(error: hashbrown::TryReserveError) -> Self {
+        let kind = match error {
+            hashbrown::TryReserveError::CapacityOverflow => {
+                TryReserveErrorKind::CapacityOverflow
+            }
+            hashbrown::TryReserveError::AllocError { layout } => {
+                TryReserveErrorKind::AllocError { layout }
+            }
+        };
+        Self { kind }
+    }
+}
+
+impl fmt::Display for TryReserveError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match &self.kind {
+            TryReserveErrorKind::CapacityOverflow => {
+                write!(f, "capacity overflow")
+            }
+            TryReserveErrorKind::AllocError { .. } => {
+                write!(f, "memory allocation failed")
+            }
+        }
+    }
+}
+
+impl core::error::Error for TryReserveError {}

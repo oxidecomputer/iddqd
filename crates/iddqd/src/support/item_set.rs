@@ -200,6 +200,33 @@ impl<T, A: Allocator> ItemSet<T, A> {
             .insert(index, value)
             .unwrap_or_else(|| panic!("EntrySet index not found: {index}"))
     }
+
+    /// Reserves capacity for at least `additional` more items.
+    #[inline]
+    pub(crate) fn reserve(&mut self, additional: usize) {
+        self.items.reserve(additional);
+    }
+
+    /// Shrinks the capacity of the item set as much as possible.
+    #[inline]
+    pub(crate) fn shrink_to_fit(&mut self) {
+        self.items.shrink_to_fit();
+    }
+
+    /// Shrinks the capacity of the item set with a lower limit.
+    #[inline]
+    pub(crate) fn shrink_to(&mut self, min_capacity: usize) {
+        self.items.shrink_to(min_capacity);
+    }
+
+    /// Tries to reserve capacity for at least `additional` more items.
+    #[inline]
+    pub(crate) fn try_reserve(
+        &mut self,
+        additional: usize,
+    ) -> Result<(), hashbrown::TryReserveError> {
+        self.items.try_reserve(additional)
+    }
 }
 
 #[cfg(feature = "serde")]

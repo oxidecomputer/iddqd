@@ -802,6 +802,257 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
         self.tables.k3_to_item.clear();
     }
 
+    /// Reserves capacity for at least `additional` more elements to be inserted
+    /// in the `TriHashMap`. The collection may reserve more space to
+    /// speculatively avoid frequent reallocations. After calling `reserve`,
+    /// capacity will be greater than or equal to `self.len() + additional`.
+    /// Does nothing if capacity is already sufficient.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the new capacity overflows [`isize::MAX`] bytes, and
+    /// [`abort`]s the program in case of an allocation error. Use
+    /// [`try_reserve`](Self::try_reserve) instead if you want to handle memory
+    /// allocation failure.
+    ///
+    /// [`isize::MAX`]: https://doc.rust-lang.org/std/primitive.isize.html
+    /// [`abort`]: https://doc.rust-lang.org/alloc/alloc/fn.handle_alloc_error.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, Hash)]
+    /// struct Item {
+    ///     id: u32,
+    ///     name: String,
+    ///     email: String,
+    /// }
+    ///
+    /// impl TriHashItem for Item {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///     type K3<'a> = &'a str;
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.name
+    ///     }
+    ///     fn key3(&self) -> Self::K3<'_> {
+    ///         &self.email
+    ///     }
+    ///     tri_upcast!();
+    /// }
+    ///
+    /// let mut map: TriHashMap<Item> = TriHashMap::new();
+    /// map.reserve(100);
+    /// assert!(map.capacity() >= 100);
+    /// # }
+    /// ```
+    pub fn reserve(&mut self, additional: usize) {
+        self.items.reserve(additional);
+        self.tables.k1_to_item.reserve(additional);
+        self.tables.k2_to_item.reserve(additional);
+        self.tables.k3_to_item.reserve(additional);
+    }
+
+    /// Tries to reserve capacity for at least `additional` more elements to be
+    /// inserted in the `TriHashMap`. The collection may reserve more space to
+    /// speculatively avoid frequent reallocations. After calling `try_reserve`,
+    /// capacity will be greater than or equal to `self.len() + additional` if
+    /// it returns `Ok(())`. Does nothing if capacity is already sufficient.
+    ///
+    /// # Errors
+    ///
+    /// If the capacity overflows, or the allocator reports a failure, then an
+    /// error is returned.
+    ///
+    /// # Notes
+    ///
+    /// If reservation fails partway through, some internal structures may have
+    /// already increased their capacity. The map remains in a valid state but
+    /// may have uneven capacities across its internal structures.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, Hash)]
+    /// struct Item {
+    ///     id: u32,
+    ///     name: String,
+    ///     email: String,
+    /// }
+    ///
+    /// impl TriHashItem for Item {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///     type K3<'a> = &'a str;
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.name
+    ///     }
+    ///     fn key3(&self) -> Self::K3<'_> {
+    ///         &self.email
+    ///     }
+    ///     tri_upcast!();
+    /// }
+    ///
+    /// let mut map: TriHashMap<Item> = TriHashMap::new();
+    /// map.try_reserve(100).expect("allocation should succeed");
+    /// assert!(map.capacity() >= 100);
+    /// # }
+    /// ```
+    pub fn try_reserve(
+        &mut self,
+        additional: usize,
+    ) -> Result<(), crate::errors::TryReserveError> {
+        self.items
+            .try_reserve(additional)
+            .map_err(crate::errors::TryReserveError::from_hashbrown)?;
+        self.tables
+            .k1_to_item
+            .try_reserve(additional)
+            .map_err(crate::errors::TryReserveError::from_hashbrown)?;
+        self.tables
+            .k2_to_item
+            .try_reserve(additional)
+            .map_err(crate::errors::TryReserveError::from_hashbrown)?;
+        self.tables
+            .k3_to_item
+            .try_reserve(additional)
+            .map_err(crate::errors::TryReserveError::from_hashbrown)?;
+        Ok(())
+    }
+
+    /// Shrinks the capacity of the map as much as possible. It will drop
+    /// down as much as possible while maintaining the internal rules
+    /// and possibly leaving some space in accordance with the resize policy.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, Hash)]
+    /// struct Item {
+    ///     id: u32,
+    ///     name: String,
+    ///     email: String,
+    /// }
+    ///
+    /// impl TriHashItem for Item {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///     type K3<'a> = &'a str;
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.name
+    ///     }
+    ///     fn key3(&self) -> Self::K3<'_> {
+    ///         &self.email
+    ///     }
+    ///     tri_upcast!();
+    /// }
+    ///
+    /// let mut map: TriHashMap<Item> = TriHashMap::with_capacity(100);
+    /// map.insert_unique(Item {
+    ///     id: 1,
+    ///     name: "foo".to_string(),
+    ///     email: "foo@example.com".to_string(),
+    /// })
+    /// .unwrap();
+    /// map.insert_unique(Item {
+    ///     id: 2,
+    ///     name: "bar".to_string(),
+    ///     email: "bar@example.com".to_string(),
+    /// })
+    /// .unwrap();
+    /// assert!(map.capacity() >= 100);
+    /// map.shrink_to_fit();
+    /// assert!(map.capacity() >= 2);
+    /// # }
+    /// ```
+    pub fn shrink_to_fit(&mut self) {
+        self.items.shrink_to_fit();
+        self.tables.k1_to_item.shrink_to_fit();
+        self.tables.k2_to_item.shrink_to_fit();
+        self.tables.k3_to_item.shrink_to_fit();
+    }
+
+    /// Shrinks the capacity of the map with a lower limit. It will drop
+    /// down no lower than the supplied limit while maintaining the internal
+    /// rules and possibly leaving some space in accordance with the resize
+    /// policy.
+    ///
+    /// If the current capacity is less than the lower limit, this is a no-op.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, Hash)]
+    /// struct Item {
+    ///     id: u32,
+    ///     name: String,
+    ///     email: String,
+    /// }
+    ///
+    /// impl TriHashItem for Item {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///     type K3<'a> = &'a str;
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.name
+    ///     }
+    ///     fn key3(&self) -> Self::K3<'_> {
+    ///         &self.email
+    ///     }
+    ///     tri_upcast!();
+    /// }
+    ///
+    /// let mut map: TriHashMap<Item> = TriHashMap::with_capacity(100);
+    /// map.insert_unique(Item {
+    ///     id: 1,
+    ///     name: "foo".to_string(),
+    ///     email: "foo@example.com".to_string(),
+    /// })
+    /// .unwrap();
+    /// map.insert_unique(Item {
+    ///     id: 2,
+    ///     name: "bar".to_string(),
+    ///     email: "bar@example.com".to_string(),
+    /// })
+    /// .unwrap();
+    /// assert!(map.capacity() >= 100);
+    /// map.shrink_to(10);
+    /// assert!(map.capacity() >= 10);
+    /// map.shrink_to(0);
+    /// assert!(map.capacity() >= 2);
+    /// # }
+    /// ```
+    pub fn shrink_to(&mut self, min_capacity: usize) {
+        self.items.shrink_to(min_capacity);
+        self.tables.k1_to_item.shrink_to(min_capacity);
+        self.tables.k2_to_item.shrink_to(min_capacity);
+        self.tables.k3_to_item.shrink_to(min_capacity);
+    }
+
     /// Iterates over the items in the map.
     ///
     /// Similar to [`HashMap`], the iteration order is arbitrary and not
@@ -2615,6 +2866,17 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> Extend<T>
     for TriHashMap<T, S, A>
 {
     fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
+        // Keys may already be present in the map, or multiple times in the
+        // iterator. Reserve the entire hint lower bound if the map is empty.
+        // Otherwise reserve half the hint (rounded up), so the map will only
+        // resize twice in the worst case.
+        let iter = iter.into_iter();
+        let reserve = if self.is_empty() {
+            iter.size_hint().0
+        } else {
+            iter.size_hint().0.div_ceil(2)
+        };
+        self.reserve(reserve);
         for item in iter {
             self.insert_overwrite(item);
         }
