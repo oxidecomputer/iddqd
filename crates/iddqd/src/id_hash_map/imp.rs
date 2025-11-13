@@ -598,6 +598,187 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
         self.tables.key_to_item.clear();
     }
 
+    /// Reserves capacity for at least `additional` more elements to be inserted
+    /// in the `IdHashMap`. The collection may reserve more space to
+    /// speculatively avoid frequent reallocations. After calling `reserve`,
+    /// capacity will be greater than or equal to `self.len() + additional`.
+    /// Does nothing if capacity is already sufficient.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the new capacity overflows [`isize::MAX`] bytes, and
+    /// [`abort`]s the program in case of an allocation error. Use
+    /// [`try_reserve`](Self::try_reserve) instead if you want to handle memory
+    /// allocation failure.
+    ///
+    /// [`isize::MAX`]: https://doc.rust-lang.org/std/primitive.isize.html
+    /// [`abort`]: https://doc.rust-lang.org/alloc/alloc/fn.handle_alloc_error.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{IdHashItem, IdHashMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, Hash)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdHashItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let mut map: IdHashMap<Item> = IdHashMap::new();
+    /// map.reserve(100);
+    /// assert!(map.capacity() >= 100);
+    /// # }
+    /// ```
+    pub fn reserve(&mut self, additional: usize) {
+        self.items.reserve(additional);
+        self.tables.key_to_item.reserve(additional);
+    }
+
+    /// Tries to reserve capacity for at least `additional` more elements to be
+    /// inserted in the `IdHashMap`. The collection may reserve more space to
+    /// speculatively avoid frequent reallocations. After calling `try_reserve`,
+    /// capacity will be greater than or equal to `self.len() + additional` if
+    /// it returns `Ok(())`. Does nothing if capacity is already sufficient.
+    ///
+    /// # Errors
+    ///
+    /// If the capacity overflows, or the allocator reports a failure, then an
+    /// error is returned.
+    ///
+    /// # Notes
+    ///
+    /// If reservation fails partway through, some internal structures may have
+    /// already increased their capacity. The map remains in a valid state but
+    /// may have uneven capacities across its internal structures.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{IdHashItem, IdHashMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, Hash)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdHashItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let mut map: IdHashMap<Item> = IdHashMap::new();
+    /// map.try_reserve(100).expect("allocation should succeed");
+    /// assert!(map.capacity() >= 100);
+    /// # }
+    /// ```
+    pub fn try_reserve(
+        &mut self,
+        additional: usize,
+    ) -> Result<(), crate::errors::TryReserveError> {
+        self.tables
+            .key_to_item
+            .try_reserve(additional)
+            .map_err(crate::errors::TryReserveError::from_hashbrown)?;
+        self.items
+            .try_reserve(additional)
+            .map_err(crate::errors::TryReserveError::from_hashbrown)?;
+        Ok(())
+    }
+
+    /// Shrinks the capacity of the map as much as possible. It will drop
+    /// down as much as possible while maintaining the internal rules
+    /// and possibly leaving some space in accordance with the resize policy.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{IdHashItem, IdHashMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, Hash)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdHashItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let mut map: IdHashMap<Item> = IdHashMap::with_capacity(100);
+    /// map.insert_unique(Item { id: "foo".to_string(), value: 1 }).unwrap();
+    /// map.insert_unique(Item { id: "bar".to_string(), value: 2 }).unwrap();
+    /// assert!(map.capacity() >= 100);
+    /// map.shrink_to_fit();
+    /// assert!(map.capacity() >= 2);
+    /// # }
+    /// ```
+    pub fn shrink_to_fit(&mut self) {
+        self.items.shrink_to_fit();
+        self.tables.key_to_item.shrink_to_fit();
+    }
+
+    /// Shrinks the capacity of the map with a lower limit. It will drop
+    /// down no lower than the supplied limit while maintaining the internal
+    /// rules and possibly leaving some space in accordance with the resize
+    /// policy.
+    ///
+    /// If the current capacity is less than the lower limit, this is a no-op.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{IdHashItem, IdHashMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, Hash)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdHashItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let mut map: IdHashMap<Item> = IdHashMap::with_capacity(100);
+    /// map.insert_unique(Item { id: "foo".to_string(), value: 1 }).unwrap();
+    /// map.insert_unique(Item { id: "bar".to_string(), value: 2 }).unwrap();
+    /// assert!(map.capacity() >= 100);
+    /// map.shrink_to(10);
+    /// assert!(map.capacity() >= 10);
+    /// map.shrink_to(0);
+    /// assert!(map.capacity() >= 2);
+    /// # }
+    /// ```
+    pub fn shrink_to(&mut self, min_capacity: usize) {
+        self.items.shrink_to(min_capacity);
+        self.tables.key_to_item.shrink_to(min_capacity);
+    }
+
     /// Iterates over the items in the map.
     ///
     /// Similar to [`HashMap`], the iteration order is arbitrary and not
@@ -1409,6 +1590,17 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> Extend<T>
     for IdHashMap<T, S, A>
 {
     fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
+        // Keys may already be present in the map, or multiple times in the
+        // iterator. Reserve the entire hint lower bound if the map is empty.
+        // Otherwise reserve half the hint (rounded up), so the map will only
+        // resize twice in the worst case.
+        let iter = iter.into_iter();
+        let reserve = if self.is_empty() {
+            iter.size_hint().0
+        } else {
+            iter.size_hint().0.div_ceil(2)
+        };
+        self.reserve(reserve);
         for item in iter {
             self.insert_overwrite(item);
         }
