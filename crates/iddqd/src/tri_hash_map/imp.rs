@@ -966,8 +966,18 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     /// }
     ///
     /// let mut map: TriHashMap<Item> = TriHashMap::with_capacity(100);
-    /// map.insert_unique(Item { id: 1, name: "foo".to_string(), email: "foo@example.com".to_string() }).unwrap();
-    /// map.insert_unique(Item { id: 2, name: "bar".to_string(), email: "bar@example.com".to_string() }).unwrap();
+    /// map.insert_unique(Item {
+    ///     id: 1,
+    ///     name: "foo".to_string(),
+    ///     email: "foo@example.com".to_string(),
+    /// })
+    /// .unwrap();
+    /// map.insert_unique(Item {
+    ///     id: 2,
+    ///     name: "bar".to_string(),
+    ///     email: "bar@example.com".to_string(),
+    /// })
+    /// .unwrap();
     /// assert!(map.capacity() >= 100);
     /// map.shrink_to_fit();
     /// assert!(map.capacity() >= 2);
@@ -1017,8 +1027,18 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     /// }
     ///
     /// let mut map: TriHashMap<Item> = TriHashMap::with_capacity(100);
-    /// map.insert_unique(Item { id: 1, name: "foo".to_string(), email: "foo@example.com".to_string() }).unwrap();
-    /// map.insert_unique(Item { id: 2, name: "bar".to_string(), email: "bar@example.com".to_string() }).unwrap();
+    /// map.insert_unique(Item {
+    ///     id: 1,
+    ///     name: "foo".to_string(),
+    ///     email: "foo@example.com".to_string(),
+    /// })
+    /// .unwrap();
+    /// map.insert_unique(Item {
+    ///     id: 2,
+    ///     name: "bar".to_string(),
+    ///     email: "bar@example.com".to_string(),
+    /// })
+    /// .unwrap();
     /// assert!(map.capacity() >= 100);
     /// map.shrink_to(10);
     /// assert!(map.capacity() >= 10);
