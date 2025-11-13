@@ -690,11 +690,11 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
         &mut self,
         additional: usize,
     ) -> Result<(), crate::errors::TryReserveError> {
-        self.tables
-            .key_to_item
+        self.items
             .try_reserve(additional)
             .map_err(crate::errors::TryReserveError::from_hashbrown)?;
-        self.items
+        self.tables
+            .key_to_item
             .try_reserve(additional)
             .map_err(crate::errors::TryReserveError::from_hashbrown)?;
         Ok(())

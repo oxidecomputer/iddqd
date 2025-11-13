@@ -13,8 +13,8 @@
 
 #### Notes
 
-- For `IdOrdMap`, the reserve and shrink methods only affect item storage. The internal `BTreeSet` used for key-to-item mapping does not support capacity control.
-- `IdOrdMap` does not provide `try_reserve`, since the underlying `BTreeMap` does not expose fallible reservation operations.
+- For `IdOrdMap`, the reserve and shrink methods only affect item storage. The internal `BTreeSet` used for item ordering does not support capacity control.
+- `IdOrdMap` does not provide `try_reserve`, since the underlying `BTreeSet` does not expose fallible reservation operations.
 
 ### Changed
 

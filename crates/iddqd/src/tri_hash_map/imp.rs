@@ -914,6 +914,9 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
         &mut self,
         additional: usize,
     ) -> Result<(), crate::errors::TryReserveError> {
+        self.items
+            .try_reserve(additional)
+            .map_err(crate::errors::TryReserveError::from_hashbrown)?;
         self.tables
             .k1_to_item
             .try_reserve(additional)
@@ -924,9 +927,6 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
             .map_err(crate::errors::TryReserveError::from_hashbrown)?;
         self.tables
             .k3_to_item
-            .try_reserve(additional)
-            .map_err(crate::errors::TryReserveError::from_hashbrown)?;
-        self.items
             .try_reserve(additional)
             .map_err(crate::errors::TryReserveError::from_hashbrown)?;
         Ok(())
