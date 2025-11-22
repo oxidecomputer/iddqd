@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.3.17] - 2025-11-22
 
 ### Added
 
@@ -15,6 +15,10 @@
 
 - For `IdOrdMap`, the reserve and shrink methods only affect item storage. The internal `BTreeSet` used for item ordering does not support capacity control.
 - `IdOrdMap` does not provide `try_reserve`, since the underlying `BTreeSet` does not expose fallible reservation operations.
+
+### Fixed
+
+- Fixed an instance of potential unsoundness in `retain`.
 
 ### Changed
 
@@ -205,6 +209,7 @@ Thanks to [aatifsyed](https://github.com/aatifsyed) for your first contribution!
 
 Initial release.
 
+[0.3.17]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.17
 [0.3.16]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.16
 [0.3.15]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.15
 [0.3.14]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.14
