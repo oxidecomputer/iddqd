@@ -1927,19 +1927,24 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
                 ([MapHash::new(hash1), MapHash::new(hash2)], dormant_item)
             };
 
-            // SAFETY: The original items is no longer used after the first
-            // block above.
-            let items = unsafe { dormant_items.awaken() };
-            // SAFETY: The original item is no longer used after the second
-            // block above.
-            let item = unsafe { dormant_item.awaken() };
-
             let hash2 = hashes[1].hash();
+            let retain = {
+                // SAFETY: The original item is no longer used after the second
+                // block above. dormant_items, from which item is derived, is
+                // currently dormant.
+                let item = unsafe { dormant_item.awaken() };
 
-            let ref_mut = RefMut::new(hash_state.clone(), hashes, item);
-            if f(ref_mut) {
+                let ref_mut = RefMut::new(hash_state.clone(), hashes, item);
+                f(ref_mut)
+            };
+
+            if retain {
                 true
             } else {
+                // SAFETY: The original items is no longer used after the first
+                // block above, and item + dormant_item have been dropped after
+                // being used above.
+                let items = unsafe { dormant_items.awaken() };
                 items.remove(index);
                 let k2_entry = self
                     .tables
