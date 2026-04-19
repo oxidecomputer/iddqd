@@ -276,7 +276,7 @@ platform-specific notion of thread locals, would suffice to make
   [`allocator_api2`](https://docs.rs/allocator-api2/0.2.21/allocator_api2/index.html) crate. Both global and scoped/arena allocators
   (such as `bumpalo`) are supported. Custom allocators are not currently
   supported by `IdOrdMap`.
-* `daft`: Enables [`daft`](https://docs.rs/daft/0.1.3/daft/index.html) support for all ID map types. *Not enabled by
+* `daft`: Enables [`daft`](https://docs.rs/daft/0.1.5/daft/index.html) support for all ID map types. *Not enabled by
   default.*
 * `default-hasher`: Enables the `DefaultHashBuilder` type. Disable this
   feature to require a hash builder type parameter to be passed into
