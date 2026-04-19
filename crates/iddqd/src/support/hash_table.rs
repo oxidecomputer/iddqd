@@ -2,6 +2,7 @@
 
 use super::{
     alloc::{AllocWrapper, Allocator},
+    item_set::IndexRemap,
     map_hash::MapHash,
 };
 use crate::internal::{TableValidationError, ValidateCompact};
@@ -178,16 +179,37 @@ impl<A: Allocator> MapHashTable<A> {
         self.items.reserve(additional, |_| 0);
     }
 
+    /// Rewrites every stored index via `remap`.
+    ///
+    /// Called after [`ItemSet::shrink_to_fit`] / [`ItemSet::shrink_to`]
+    /// compacts the backing items buffer. We store hashes of *keys* (not of
+    /// indexes), so rewriting an index does not invalidate its hash and no
+    /// rehash is needed.
+    ///
+    /// [`ItemSet::shrink_to_fit`]: super::item_set::ItemSet::shrink_to_fit
+    /// [`ItemSet::shrink_to`]: super::item_set::ItemSet::shrink_to
+    pub(crate) fn remap_indexes(&mut self, remap: &IndexRemap) {
+        for slot in self.items.iter_mut() {
+            *slot = remap.remap(*slot);
+        }
+    }
+
     /// Shrinks the capacity of the hash table as much as possible.
     #[inline]
-    pub(crate) fn shrink_to_fit(&mut self) {
-        self.items.shrink_to_fit(|_| 0);
+    pub(crate) fn shrink_to_fit(&mut self, hasher: impl Fn(&usize) -> u64) {
+        self.items.shrink_to_fit(hasher);
     }
 
     /// Shrinks the capacity of the hash table with a lower limit.
+    ///
+    /// See [`Self::shrink_to_fit`] for the contract `hasher` must satisfy.
     #[inline]
-    pub(crate) fn shrink_to(&mut self, min_capacity: usize) {
-        self.items.shrink_to(min_capacity, |_| 0);
+    pub(crate) fn shrink_to(
+        &mut self,
+        min_capacity: usize,
+        hasher: impl Fn(&usize) -> u64,
+    ) {
+        self.items.shrink_to(min_capacity, hasher);
     }
 
     /// Tries to reserve capacity for at least `additional` more items.

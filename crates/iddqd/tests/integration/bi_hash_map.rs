@@ -44,11 +44,10 @@ fn debug_impls() {
 
     assert_eq!(
         format!("{map:?}"),
-        // This is a small-enough map that the order of iteration is
-        // deterministic.
+        // Iteration is in insertion order.
         "{{k1: 1, k2: 'a'}: SimpleItem { key1: 1, key2: 'a' }, \
-          {k1: 10, k2: 'c'}: SimpleItem { key1: 10, key2: 'c' }, \
-          {k1: 20, k2: 'b'}: SimpleItem { key1: 20, key2: 'b' }}",
+          {k1: 20, k2: 'b'}: SimpleItem { key1: 20, key2: 'b' }, \
+          {k1: 10, k2: 'c'}: SimpleItem { key1: 10, key2: 'c' }}",
     );
     assert_eq!(
         format!("{:?}", map.get1_mut(&1).unwrap()),
@@ -67,7 +66,7 @@ fn debug_impls_borrowed() {
 
     assert_eq!(
         format!("{before:?}"),
-        r#"{{k1: "a", k2: [98, 48]}: BorrowedItem { key1: "a", key2: [98, 48], key3: "path0" }, {k1: "c", k2: [98, 50]}: BorrowedItem { key1: "c", key2: [98, 50], key3: "path2" }, {k1: "b", k2: [98, 49]}: BorrowedItem { key1: "b", key2: [98, 49], key3: "path1" }}"#
+        r#"{{k1: "a", k2: [98, 48]}: BorrowedItem { key1: "a", key2: [98, 48], key3: "path0" }, {k1: "b", k2: [98, 49]}: BorrowedItem { key1: "b", key2: [98, 49], key3: "path1" }, {k1: "c", k2: [98, 50]}: BorrowedItem { key1: "c", key2: [98, 50], key3: "path2" }}"#
     );
 
     #[cfg(feature = "daft")]
@@ -84,7 +83,7 @@ fn debug_impls_borrowed() {
         let diff = before.diff(&after).by_unique();
         assert_eq!(
             format!("{diff:?}"),
-            r#"Diff { common: {{k1: "a", k2: [98, 48]}: IdLeaf { before: BorrowedItem { key1: "a", key2: [98, 48], key3: "path0" }, after: BorrowedItem { key1: "a", key2: [98, 48], key3: "path0" } }}, added: {{k1: "d", k2: [98, 52]}: BorrowedItem { key1: "d", key2: [98, 52], key3: "path4" }, {k1: "c", k2: [98, 51]}: BorrowedItem { key1: "c", key2: [98, 51], key3: "path3" }}, removed: {{k1: "c", k2: [98, 50]}: BorrowedItem { key1: "c", key2: [98, 50], key3: "path2" }, {k1: "b", k2: [98, 49]}: BorrowedItem { key1: "b", key2: [98, 49], key3: "path1" }} }"#
+            r#"Diff { common: {{k1: "a", k2: [98, 48]}: IdLeaf { before: BorrowedItem { key1: "a", key2: [98, 48], key3: "path0" }, after: BorrowedItem { key1: "a", key2: [98, 48], key3: "path0" } }}, added: {{k1: "c", k2: [98, 51]}: BorrowedItem { key1: "c", key2: [98, 51], key3: "path3" }, {k1: "d", k2: [98, 52]}: BorrowedItem { key1: "d", key2: [98, 52], key3: "path4" }}, removed: {{k1: "b", k2: [98, 49]}: BorrowedItem { key1: "b", key2: [98, 49], key3: "path1" }, {k1: "c", k2: [98, 50]}: BorrowedItem { key1: "c", key2: [98, 50], key3: "path2" }} }"#
         );
     }
 }
@@ -242,6 +241,13 @@ enum Operation {
     #[weight(2)]
     RetainModulo(#[strategy(0..3_u8)] u8, #[strategy(1..4_u8)] u8, bool),
     Clear,
+    // Rare because full compaction + table rewrite is expensive, but
+    // at weight 1 each these fire often enough per 1024-op run to
+    // exercise the remap path.
+    #[weight(1)]
+    ShrinkToFit,
+    #[weight(1)]
+    ShrinkTo(#[strategy(0..256_usize)] usize),
 }
 
 impl Operation {
@@ -259,8 +265,12 @@ impl Operation {
             | Operation::RetainModulo(_, _, _) => {
                 CompactnessChange::NoLongerCompact
             }
-            // Clear always makes the map compact (empty).
-            Operation::Clear => CompactnessChange::BecomesCompact,
+            // Clear always makes the map compact (empty). Shrink
+            // fully compacts the backing store, restoring the
+            // `Compact` invariant.
+            Operation::Clear
+            | Operation::ShrinkToFit
+            | Operation::ShrinkTo(_) => CompactnessChange::BecomesCompact,
         }
     }
 }
@@ -369,6 +379,14 @@ fn proptest_ops(
             Operation::Clear => {
                 map.clear();
                 naive_map.clear();
+                map.validate(compactness).expect("map should be valid");
+            }
+            Operation::ShrinkToFit => {
+                map.shrink_to_fit();
+                map.validate(compactness).expect("map should be valid");
+            }
+            Operation::ShrinkTo(min_capacity) => {
+                map.shrink_to(min_capacity);
                 map.validate(compactness).expect("map should be valid");
             }
         }

@@ -4,7 +4,7 @@
 //! integers (that are indexes corresponding to items), but use an external
 //! comparator.
 
-use super::map_hash::MapHash;
+use super::{item_set::IndexRemap, map_hash::MapHash};
 use crate::internal::{TableValidationError, ValidateCompact};
 use alloc::{
     collections::{BTreeSet, btree_set},
@@ -233,6 +233,38 @@ impl MapBTreeTable {
         self.items.retain(|index| f(index.0));
     }
 
+    /// Rewrites every stored index via `remap`.
+    ///
+    /// Called after [`ItemSet::shrink_to_fit`] /
+    /// [`ItemSet::shrink_to`] compacts the backing items buffer. std's
+    /// `BTreeSet` does not permit in-place key mutation, so we drain
+    /// the old set and rebuild. Because the remap is monotonically
+    /// non-decreasing in input order and preserves the relative order
+    /// of live items, the drained sequence is already in comparator
+    /// order for the rebuilt set.
+    ///
+    /// `lookup` must resolve *new* (post-compaction) indexes back to
+    /// their keys — callers arrange for items to be compacted before
+    /// this is invoked.
+    ///
+    /// [`ItemSet::shrink_to_fit`]: super::item_set::ItemSet::shrink_to_fit
+    /// [`ItemSet::shrink_to`]: super::item_set::ItemSet::shrink_to
+    pub(crate) fn remap_indexes<K, F>(&mut self, remap: &IndexRemap, lookup: F)
+    where
+        K: Ord,
+        F: Fn(usize) -> K,
+    {
+        let old = core::mem::take(&mut self.items);
+
+        let f = remap_cmp(lookup);
+        let guard = CmpDropGuard::new(&f);
+        for old_idx in old {
+            let new_idx = remap.remap(old_idx.0);
+            self.items.insert(Index::new(new_idx));
+        }
+        drop(guard);
+    }
+
     /// Clears the B-tree table, removing all items.
     #[inline]
     pub(crate) fn clear(&mut self) {
@@ -322,6 +354,26 @@ where
             (v, Index::SENTINEL_VALUE) => key.compare(&lookup(v)).reverse(),
             (a, b) => lookup(a).cmp(&lookup(b)),
         }
+    }
+}
+
+fn remap_cmp<'a, K, F>(lookup: F) -> impl Fn(Index, Index) -> Ordering + 'a
+where
+    F: 'a + Fn(usize) -> K,
+    K: Ord,
+{
+    move |a: Index, b: Index| {
+        if a.0 == b.0 {
+            return Ordering::Equal;
+        }
+        // Remap rebuild inserts only real (post-compaction) indexes —
+        // the sentinel is a lookup-time artifact and must not appear
+        // here.
+        debug_assert!(
+            a.0 != Index::SENTINEL_VALUE && b.0 != Index::SENTINEL_VALUE,
+            "sentinel value should not appear during remap"
+        );
+        lookup(a.0).cmp(&lookup(b.0))
     }
 }
 

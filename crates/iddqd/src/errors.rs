@@ -72,7 +72,7 @@ pub struct TryReserveError {
 }
 
 #[derive(Clone, PartialEq, Eq, Debug)]
-enum TryReserveErrorKind {
+pub(crate) enum TryReserveErrorKind {
     /// Error due to the computed capacity exceeding the collection's maximum
     /// (usually `isize::MAX` bytes).
     CapacityOverflow,
@@ -96,6 +96,29 @@ impl TryReserveError {
             }
         };
         Self { kind }
+    }
+
+    /// Converts from an `allocator_api2` `TryReserveError`.
+    pub(crate) fn from_allocator_api2(
+        error: allocator_api2::collections::TryReserveError,
+    ) -> Self {
+        use allocator_api2::collections::TryReserveErrorKind as Kind;
+        let kind = match error.kind() {
+            Kind::CapacityOverflow => TryReserveErrorKind::CapacityOverflow,
+            Kind::AllocError { layout, .. } => {
+                TryReserveErrorKind::AllocError { layout }
+            }
+        };
+        Self { kind }
+    }
+
+    #[doc(hidden)]
+    pub(crate) fn __from_kind(kind: TryReserveErrorKind) -> Self {
+        Self { kind }
+    }
+
+    pub(crate) fn kind(&self) -> &TryReserveErrorKind {
+        &self.kind
     }
 }
 

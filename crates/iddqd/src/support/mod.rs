@@ -5,6 +5,7 @@ pub(crate) mod btree_table;
 #[cfg(feature = "daft")]
 pub(crate) mod daft_utils;
 pub(crate) mod fmt_utils;
+pub(crate) mod free_list;
 pub(crate) mod hash_builder;
 pub(crate) mod hash_table;
 pub(crate) mod item_set;
