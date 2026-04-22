@@ -1,5 +1,6 @@
 use iddqd::{IdHashItem, IdOrdItem, id_upcast};
 
+#[derive(Debug)]
 pub struct RecordOwnedU32 {
     pub index: u32,
     pub data: String,
@@ -25,6 +26,7 @@ impl IdOrdItem for RecordOwnedU32 {
     id_upcast!();
 }
 
+#[derive(Debug)]
 pub struct RecordBorrowedU32 {
     pub index: u32,
     pub data: String,
