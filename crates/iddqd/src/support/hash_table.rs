@@ -173,29 +173,51 @@ impl<A: Allocator> MapHashTable<A> {
     }
 
     /// Reserves capacity for at least `additional` more items.
+    ///
+    /// `hasher` is invoked for every entry that hashbrown has to
+    /// re-slot during a growth rehash, and must return the same hash
+    /// that was used to insert that entry originally. Passing a
+    /// constant (for example `|_| 0`) silently corrupts the table:
+    /// all surviving entries land in the same bucket, and subsequent
+    /// lookups — which probe using the real key hash — miss.
     #[inline]
-    pub(crate) fn reserve(&mut self, additional: usize) {
-        self.items.reserve(additional, |_| 0);
+    pub(crate) fn reserve(
+        &mut self,
+        additional: usize,
+        hasher: impl Fn(&usize) -> u64,
+    ) {
+        self.items.reserve(additional, hasher);
     }
 
     /// Shrinks the capacity of the hash table as much as possible.
+    ///
+    /// See [`Self::reserve`] for the contract `hasher` must satisfy.
     #[inline]
-    pub(crate) fn shrink_to_fit(&mut self) {
-        self.items.shrink_to_fit(|_| 0);
+    pub(crate) fn shrink_to_fit(&mut self, hasher: impl Fn(&usize) -> u64) {
+        self.items.shrink_to_fit(hasher);
     }
 
     /// Shrinks the capacity of the hash table with a lower limit.
+    ///
+    /// See [`Self::reserve`] for the contract `hasher` must satisfy.
     #[inline]
-    pub(crate) fn shrink_to(&mut self, min_capacity: usize) {
-        self.items.shrink_to(min_capacity, |_| 0);
+    pub(crate) fn shrink_to(
+        &mut self,
+        min_capacity: usize,
+        hasher: impl Fn(&usize) -> u64,
+    ) {
+        self.items.shrink_to(min_capacity, hasher);
     }
 
     /// Tries to reserve capacity for at least `additional` more items.
+    ///
+    /// See [`Self::reserve`] for the contract `hasher` must satisfy.
     #[inline]
     pub(crate) fn try_reserve(
         &mut self,
         additional: usize,
+        hasher: impl Fn(&usize) -> u64,
     ) -> Result<(), hashbrown::TryReserveError> {
-        self.items.try_reserve(additional, |_| 0)
+        self.items.try_reserve(additional, hasher)
     }
 }

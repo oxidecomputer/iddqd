@@ -271,6 +271,13 @@ enum Operation {
     #[weight(2)]
     RetainModulo(#[strategy(0..3_u8)] u8, #[strategy(1..4_u8)] u8, bool),
     Clear,
+    // `additional` is kept modest so that reservations frequently exceed
+    // the current `growth_left` (triggering hashbrown's rehash path)
+    // without over-allocating during long proptest runs.
+    #[weight(1)]
+    Reserve(#[strategy(0..256_usize)] usize),
+    #[weight(1)]
+    TryReserve(#[strategy(0..256_usize)] usize),
 }
 
 impl Operation {
@@ -279,7 +286,9 @@ impl Operation {
             Operation::InsertUnique(_)
             | Operation::Get1(_)
             | Operation::Get2(_)
-            | Operation::Get3(_) => CompactnessChange::NoChange,
+            | Operation::Get3(_)
+            | Operation::Reserve(_)
+            | Operation::TryReserve(_) => CompactnessChange::NoChange,
             // The act of removing items, including calls to insert_overwrite,
             // can make the map non-compact.
             Operation::InsertOverwrite(_)
@@ -413,6 +422,23 @@ fn proptest_ops(
             Operation::Clear => {
                 map.clear();
                 naive_map.clear();
+                map.validate(compactness).expect("map should be valid");
+            }
+            Operation::Reserve(additional) => {
+                map.reserve(additional);
+                // `reserve` has no observable effect beyond capacity; the
+                // naive map has no equivalent. `validate` is the real
+                // check — it iterates items and asks `find_index` for
+                // each, which catches a hash-table left mis-bucketed by
+                // a regrowth rehash.
+                map.validate(compactness).expect("map should be valid");
+            }
+            Operation::TryReserve(additional) => {
+                // Mirror `Reserve`; we don't assert `Ok` because the
+                // allocator could (legitimately) refuse a large request,
+                // and bailing on that would mask the actual regression
+                // we care about (silent hash-table corruption).
+                let _ = map.try_reserve(additional);
                 map.validate(compactness).expect("map should be valid");
             }
         }
