@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.18] - 2026-04-22
+
+### Fixed
+
+- Fixed a rehashing bug in hash map reserve and shrink-to-fit methods. (Due to an oversight, these methods were previously not part of our property-based tests. Now they are. Sorry about that!)
+
 ## [0.3.17] - 2025-11-22
 
 ### Added
@@ -209,6 +215,7 @@ Thanks to [aatifsyed](https://github.com/aatifsyed) for your first contribution!
 
 Initial release.
 
+[0.3.18]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.18
 [0.3.17]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.17
 [0.3.16]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.16
 [0.3.15]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.15
