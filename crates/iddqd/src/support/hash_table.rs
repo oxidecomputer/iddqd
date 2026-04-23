@@ -174,12 +174,11 @@ impl<A: Allocator> MapHashTable<A> {
 
     /// Reserves capacity for at least `additional` more items.
     ///
-    /// `hasher` is invoked for every entry that hashbrown has to
-    /// re-slot during a growth rehash, and must return the same hash
-    /// that was used to insert that entry originally. Passing a
-    /// constant (for example `|_| 0`) silently corrupts the table:
-    /// all surviving entries land in the same bucket, and subsequent
-    /// lookups — which probe using the real key hash — miss.
+    /// `hasher` is invoked for every entry that hashbrown has to re-slot during
+    /// a growth rehash, and must return the same hash that was used to insert
+    /// that entry originally. Anything else silently corrupts the table: all
+    /// surviving entries land in the same bucket, and subsequent lookups —
+    /// which probe using the real key hash — miss.
     #[inline]
     pub(crate) fn reserve(
         &mut self,
