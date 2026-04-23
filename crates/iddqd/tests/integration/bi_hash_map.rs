@@ -242,14 +242,29 @@ enum Operation {
     #[weight(2)]
     RetainModulo(#[strategy(0..3_u8)] u8, #[strategy(1..4_u8)] u8, bool),
     Clear,
+    // `additional` is kept modest so that reservations frequently
+    // exceed the current `growth_left` and so trigger hashbrown's
+    // rehash path.
+    Reserve(#[strategy(0..256_usize)] usize),
+    TryReserve(#[strategy(0..256_usize)] usize),
+    ShrinkToFit,
+    ShrinkTo(#[strategy(0..256_usize)] usize),
 }
 
 impl Operation {
     fn compactness_change(&self) -> CompactnessChange {
         match self {
+            // `shrink_to_fit` / `shrink_to` flow through hashbrown's
+            // rehash path the same way `reserve` does; like `reserve`
+            // they touch the allocation, not the item set's index
+            // space, so compactness is unchanged.
             Operation::InsertUnique(_)
             | Operation::Get1(_)
-            | Operation::Get2(_) => CompactnessChange::NoChange,
+            | Operation::Get2(_)
+            | Operation::Reserve(_)
+            | Operation::TryReserve(_)
+            | Operation::ShrinkToFit
+            | Operation::ShrinkTo(_) => CompactnessChange::NoChange,
             // The act of removing items, including calls to insert_overwrite,
             // can make the map non-compact.
             Operation::InsertOverwrite(_)
@@ -364,6 +379,31 @@ fn proptest_ops(
                     let matches = item.key1 % modulo == remainder;
                     if equals { matches } else { !matches }
                 });
+                map.validate(compactness).expect("map should be valid");
+            }
+            Operation::Reserve(additional) => {
+                map.reserve(additional);
+                // `reserve` has no observable effect beyond capacity; the
+                // naive map has no equivalent. `validate` is the real
+                // check — it iterates items and asks `find_index` for
+                // each, which catches a hash-table left mis-bucketed by
+                // a regrowth rehash.
+                map.validate(compactness).expect("map should be valid");
+            }
+            Operation::TryReserve(additional) => {
+                // Mirror `Reserve`; we don't assert `Ok` because the
+                // allocator could (legitimately) refuse a large request,
+                // and bailing on that would mask the actual regression
+                // we care about (silent hash-table corruption).
+                let _ = map.try_reserve(additional);
+                map.validate(compactness).expect("map should be valid");
+            }
+            Operation::ShrinkToFit => {
+                map.shrink_to_fit();
+                map.validate(compactness).expect("map should be valid");
+            }
+            Operation::ShrinkTo(min_capacity) => {
+                map.shrink_to(min_capacity);
                 map.validate(compactness).expect("map should be valid");
             }
             Operation::Clear => {

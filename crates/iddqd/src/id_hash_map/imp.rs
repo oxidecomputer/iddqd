@@ -641,7 +641,11 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
     /// ```
     pub fn reserve(&mut self, additional: usize) {
         self.items.reserve(additional);
-        self.tables.key_to_item.reserve(additional);
+        let items = &self.items;
+        let state = &self.tables.state;
+        self.tables
+            .key_to_item
+            .reserve(additional, |ix| state.hash_one(items[*ix].key()));
     }
 
     /// Tries to reserve capacity for at least `additional` more elements to be
@@ -693,9 +697,11 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
         self.items
             .try_reserve(additional)
             .map_err(crate::errors::TryReserveError::from_hashbrown)?;
+        let items = &self.items;
+        let state = &self.tables.state;
         self.tables
             .key_to_item
-            .try_reserve(additional)
+            .try_reserve(additional, |ix| state.hash_one(items[*ix].key()))
             .map_err(crate::errors::TryReserveError::from_hashbrown)?;
         Ok(())
     }
@@ -734,7 +740,11 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
     /// ```
     pub fn shrink_to_fit(&mut self) {
         self.items.shrink_to_fit();
-        self.tables.key_to_item.shrink_to_fit();
+        let items = &self.items;
+        let state = &self.tables.state;
+        self.tables
+            .key_to_item
+            .shrink_to_fit(|ix| state.hash_one(items[*ix].key()));
     }
 
     /// Shrinks the capacity of the map with a lower limit. It will drop
@@ -776,7 +786,11 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
     /// ```
     pub fn shrink_to(&mut self, min_capacity: usize) {
         self.items.shrink_to(min_capacity);
-        self.tables.key_to_item.shrink_to(min_capacity);
+        let items = &self.items;
+        let state = &self.tables.state;
+        self.tables
+            .key_to_item
+            .shrink_to(min_capacity, |ix| state.hash_one(items[*ix].key()));
     }
 
     /// Iterates over the items in the map.

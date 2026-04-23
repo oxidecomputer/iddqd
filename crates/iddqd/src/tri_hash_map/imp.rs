@@ -854,9 +854,17 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     /// ```
     pub fn reserve(&mut self, additional: usize) {
         self.items.reserve(additional);
-        self.tables.k1_to_item.reserve(additional);
-        self.tables.k2_to_item.reserve(additional);
-        self.tables.k3_to_item.reserve(additional);
+        let items = &self.items;
+        let state = &self.tables.state;
+        self.tables
+            .k1_to_item
+            .reserve(additional, |ix| state.hash_one(items[*ix].key1()));
+        self.tables
+            .k2_to_item
+            .reserve(additional, |ix| state.hash_one(items[*ix].key2()));
+        self.tables
+            .k3_to_item
+            .reserve(additional, |ix| state.hash_one(items[*ix].key3()));
     }
 
     /// Tries to reserve capacity for at least `additional` more elements to be
@@ -917,17 +925,19 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
         self.items
             .try_reserve(additional)
             .map_err(crate::errors::TryReserveError::from_hashbrown)?;
+        let items = &self.items;
+        let state = &self.tables.state;
         self.tables
             .k1_to_item
-            .try_reserve(additional)
+            .try_reserve(additional, |ix| state.hash_one(items[*ix].key1()))
             .map_err(crate::errors::TryReserveError::from_hashbrown)?;
         self.tables
             .k2_to_item
-            .try_reserve(additional)
+            .try_reserve(additional, |ix| state.hash_one(items[*ix].key2()))
             .map_err(crate::errors::TryReserveError::from_hashbrown)?;
         self.tables
             .k3_to_item
-            .try_reserve(additional)
+            .try_reserve(additional, |ix| state.hash_one(items[*ix].key3()))
             .map_err(crate::errors::TryReserveError::from_hashbrown)?;
         Ok(())
     }
@@ -985,9 +995,17 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     /// ```
     pub fn shrink_to_fit(&mut self) {
         self.items.shrink_to_fit();
-        self.tables.k1_to_item.shrink_to_fit();
-        self.tables.k2_to_item.shrink_to_fit();
-        self.tables.k3_to_item.shrink_to_fit();
+        let items = &self.items;
+        let state = &self.tables.state;
+        self.tables
+            .k1_to_item
+            .shrink_to_fit(|ix| state.hash_one(items[*ix].key1()));
+        self.tables
+            .k2_to_item
+            .shrink_to_fit(|ix| state.hash_one(items[*ix].key2()));
+        self.tables
+            .k3_to_item
+            .shrink_to_fit(|ix| state.hash_one(items[*ix].key3()));
     }
 
     /// Shrinks the capacity of the map with a lower limit. It will drop
@@ -1048,9 +1066,17 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     /// ```
     pub fn shrink_to(&mut self, min_capacity: usize) {
         self.items.shrink_to(min_capacity);
-        self.tables.k1_to_item.shrink_to(min_capacity);
-        self.tables.k2_to_item.shrink_to(min_capacity);
-        self.tables.k3_to_item.shrink_to(min_capacity);
+        let items = &self.items;
+        let state = &self.tables.state;
+        self.tables
+            .k1_to_item
+            .shrink_to(min_capacity, |ix| state.hash_one(items[*ix].key1()));
+        self.tables
+            .k2_to_item
+            .shrink_to(min_capacity, |ix| state.hash_one(items[*ix].key2()));
+        self.tables
+            .k3_to_item
+            .shrink_to(min_capacity, |ix| state.hash_one(items[*ix].key3()));
     }
 
     /// Iterates over the items in the map.
