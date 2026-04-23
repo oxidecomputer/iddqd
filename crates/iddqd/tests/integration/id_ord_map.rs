@@ -241,6 +241,11 @@ enum Operation {
     RetainValueContains(char, bool),
     #[weight(2)]
     RetainModulo(#[strategy(0..3_u8)] u8, #[strategy(1..4_u8)] u8, bool),
+    #[weight(2)]
+    Extend(
+        #[strategy(prop::collection::vec(any::<TestItem>(), 0..16))]
+        Vec<TestItem>,
+    ),
     // clear is set to a lower weight since it makes the map empty.
     Clear,
 }
@@ -261,9 +266,8 @@ impl Operation {
             | Operation::PopFirst
             | Operation::PopLast
             | Operation::RetainValueContains(_, _)
-            | Operation::RetainModulo(_, _, _) => {
-                CompactnessChange::NoLongerCompact
-            }
+            | Operation::RetainModulo(_, _, _)
+            | Operation::Extend(_) => CompactnessChange::NoLongerCompact,
             // Clear always makes the map compact (empty).
             Operation::Clear => CompactnessChange::BecomesCompact,
         }
@@ -425,6 +429,12 @@ fn proptest_ops(
                     let matches = item.key1 % modulo == remainder;
                     if equals { matches } else { !matches }
                 });
+                map.validate(compactness, ValidateChaos::No)
+                    .expect("map should be valid");
+            }
+            Operation::Extend(items) => {
+                map.extend(items.clone());
+                naive_map.extend(items);
                 map.validate(compactness, ValidateChaos::No)
                     .expect("map should be valid");
             }
