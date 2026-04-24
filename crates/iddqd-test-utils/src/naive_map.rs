@@ -180,6 +180,14 @@ impl NaiveMap {
     pub fn clear(&mut self) {
         self.items.clear();
     }
+
+    pub fn extend<I: IntoIterator<Item = TestItem>>(&mut self, iter: I) {
+        // Mirrors `Extend` on the real maps: each item overwrites any
+        // pre-existing duplicates under the active uniqueness constraint.
+        for item in iter {
+            self.insert_overwrite(item);
+        }
+    }
 }
 
 /// Which keys to check uniqueness against.
