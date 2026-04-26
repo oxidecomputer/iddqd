@@ -11,7 +11,7 @@
 //! * `iter/...` — full iteration over a populated map.
 //! * `shrink_to_fit/...` — pre-fill, scatter ~50% holes, compact.
 //! * `ref_mut/id_ord_map` — `IdOrdMap`'s mutable-reference guard
-//!   overhead, isolated from the hash function.
+//!   overhead.
 
 use criterion::{
     BatchSize, BenchmarkId, Criterion, criterion_group, criterion_main,
@@ -44,9 +44,8 @@ fn record_borrowed(i: u32) -> RecordBorrowedU32 {
 
 // ---------- get ------------------------------------------------------------
 
-/// Sweep `GET_SIZES` for a `(build, get)` pair: on each iteration,
-/// rebuild a map of size `N` via `build`, then measure one invocation
-/// of `get`. Setup is excluded from the measurement.
+/// On each iteration, rebuild a map of size `N` via `build`, then measure one
+/// invocation of `get`. Setup is excluded from the measurement.
 fn bench_get<M>(
     c: &mut Criterion,
     name: &str,
@@ -62,7 +61,10 @@ fn bench_get<M>(
                 b.iter_batched_ref(
                     || build(size),
                     |m| get(m),
-                    BatchSize::SmallInput,
+                    // Using a single shared value across all benchmark
+                    // iterations is fine since this benchmark doesn't mutate
+                    // state.
+                    BatchSize::NumBatches(1),
                 );
             },
         );
@@ -189,9 +191,14 @@ fn bulk_insert_std_hash_map(c: &mut Criterion) {
                         for i in 0..size as u32 {
                             map.insert(i, record(i));
                         }
+                        // Returning the map here is important so it is dropped
+                        // outside the scope of the benchmark.
                         map
                     },
-                    BatchSize::SmallInput,
+                    // PerIteration means the map will be dropped after each
+                    // iteration. (This is similar to iter_with_large_drop,
+                    // except the latter will drop returned values in batches.)
+                    BatchSize::PerIteration,
                 );
             },
         );
@@ -213,9 +220,14 @@ fn bulk_insert_std_btree_map(c: &mut Criterion) {
                         for i in 0..size as u32 {
                             map.insert(i, record(i));
                         }
+                        // Returning the map here is important so it is dropped
+                        // outside the scope of the benchmark.
                         map
                     },
-                    BatchSize::SmallInput,
+                    // PerIteration means the map will be dropped after each
+                    // iteration. (This is similar to iter_with_large_drop,
+                    // except the latter will drop returned values in batches.)
+                    BatchSize::PerIteration,
                 );
             },
         );
@@ -237,9 +249,14 @@ fn bulk_insert_id_hash_map(c: &mut Criterion) {
                         for i in 0..size as u32 {
                             map.insert_unique(record(i)).unwrap();
                         }
+                        // Returning the map here is important so it is dropped
+                        // outside the scope of the benchmark.
                         map
                     },
-                    BatchSize::SmallInput,
+                    // PerIteration means the map will be dropped after each
+                    // iteration. (This is similar to iter_with_large_drop,
+                    // except the latter will drop returned values in batches.)
+                    BatchSize::PerIteration,
                 );
             },
         );
@@ -261,9 +278,14 @@ fn bulk_insert_id_ord_map(c: &mut Criterion) {
                         for i in 0..size as u32 {
                             map.insert_unique(record(i)).unwrap();
                         }
+                        // Returning the map here is important so it is dropped
+                        // outside the scope of the benchmark.
                         map
                     },
-                    BatchSize::SmallInput,
+                    // PerIteration means the map will be dropped after each
+                    // iteration. (This is similar to iter_with_large_drop,
+                    // except the latter will drop returned values in batches.)
+                    BatchSize::PerIteration,
                 );
             },
         );
@@ -300,7 +322,11 @@ fn churn_std_hash_map(c: &mut Criterion) {
                             map.insert(key, v);
                         }
                     },
-                    BatchSize::SmallInput,
+                    // We use 8 batches. The benchmark alters internal state so
+                    // that reusing one input for two long drifts away from the
+                    // initial state. The number here is an attempt to find a
+                    // balance between this concern and expensive setup.
+                    BatchSize::NumBatches(8),
                 );
             },
         );
@@ -331,7 +357,11 @@ fn churn_std_btree_map(c: &mut Criterion) {
                             map.insert(key, v);
                         }
                     },
-                    BatchSize::SmallInput,
+                    // We use 8 batches. The benchmark alters internal state so
+                    // that reusing one input for two long drifts away from the
+                    // initial state. The number here is an attempt to find a
+                    // balance between this concern and expensive setup.
+                    BatchSize::NumBatches(8),
                 );
             },
         );
@@ -362,7 +392,11 @@ fn churn_id_hash_map(c: &mut Criterion) {
                             map.insert_unique(v).unwrap();
                         }
                     },
-                    BatchSize::SmallInput,
+                    // We use 8 batches. The benchmark alters internal state so
+                    // that reusing one input for two long drifts away from the
+                    // initial state. The number here is an attempt to find a
+                    // balance between this concern and expensive setup.
+                    BatchSize::NumBatches(8),
                 );
             },
         );
@@ -393,7 +427,11 @@ fn churn_id_ord_map(c: &mut Criterion) {
                             map.insert_unique(v).unwrap();
                         }
                     },
-                    BatchSize::SmallInput,
+                    // We use 8 batches. The benchmark alters internal state so
+                    // that reusing one input for two long drifts away from the
+                    // initial state. The number here is an attempt to find a
+                    // balance between this concern and expensive setup.
+                    BatchSize::NumBatches(8),
                 );
             },
         );
@@ -528,9 +566,14 @@ fn shrink_to_fit_std_hash_map(c: &mut Criterion) {
                     },
                     |mut map| {
                         map.shrink_to_fit();
+                        // Returning the map here is important so it is dropped
+                        // outside the scope of the benchmark.
                         map
                     },
-                    BatchSize::SmallInput,
+                    // PerIteration means the map will be dropped after each
+                    // iteration. (This is similar to iter_with_large_drop,
+                    // except the latter will drop returned values in batches.)
+                    BatchSize::PerIteration,
                 );
             },
         );
@@ -558,9 +601,14 @@ fn shrink_to_fit_id_hash_map(c: &mut Criterion) {
                     },
                     |mut map| {
                         map.shrink_to_fit();
+                        // Returning the map here is important so it is dropped
+                        // outside the scope of the benchmark.
                         map
                     },
-                    BatchSize::SmallInput,
+                    // PerIteration means the map will be dropped after each
+                    // iteration. (This is similar to iter_with_large_drop,
+                    // except the latter will drop returned values in batches.)
+                    BatchSize::PerIteration,
                 );
             },
         );
@@ -588,9 +636,14 @@ fn shrink_to_fit_id_ord_map(c: &mut Criterion) {
                     },
                     |mut map| {
                         map.shrink_to_fit();
+                        // Returning the map here is important so it is dropped
+                        // outside the scope of the benchmark.
                         map
                     },
-                    BatchSize::SmallInput,
+                    // PerIteration means the map will be dropped after each
+                    // iteration. (This is similar to iter_with_large_drop,
+                    // except the latter will drop returned values in batches.)
+                    BatchSize::PerIteration,
                 );
             },
         );
@@ -600,9 +653,7 @@ fn shrink_to_fit_id_ord_map(c: &mut Criterion) {
 
 // ---------- ref_mut --------------------------------------------------------
 
-/// Benchmarks the overhead of `IdOrdMap::get_mut`'s `RefMut` guard
-/// with a trivial hash function, so the measurement isolates the
-/// guard cost from the hasher.
+/// Benchmarks the overhead of `IdOrdMap::get_mut`'s `RefMut` guard.
 fn ref_mut_id_ord_map(c: &mut Criterion) {
     c.bench_function("ref_mut/id_ord_map", |b| {
         b.iter_batched_ref(
@@ -616,7 +667,9 @@ fn ref_mut_id_ord_map(c: &mut Criterion) {
                 item.key2 = 'b';
                 drop(item);
             },
-            BatchSize::SmallInput,
+            // This benchmark doesn't alter the map in a way that affects
+            // `ref_mut`.
+            BatchSize::NumBatches(1),
         );
     });
 }
