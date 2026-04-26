@@ -139,6 +139,26 @@ fn test_insert_unique() {
     assert_eq!(*e2, v1);
 }
 
+// Test that the unsafe block within RefMut doesn't trip up miri.
+#[test]
+fn test_ref_mut_aliasing() {
+    let mut map = IdHashMap::<TestItem, HashBuilder, Alloc>::make_new();
+    for i in 0..16_u8 {
+        map.insert_unique(TestItem::new(i, 'a', "x", "v")).unwrap();
+    }
+
+    let mut items: Vec<_> = map.iter_mut().collect();
+    for (i, item) in items.iter_mut().enumerate() {
+        item.value = format!("written-{i}");
+    }
+    drop(items);
+
+    for i in 0..16_u8 {
+        let item = map.get(&TestKey1::new(&i)).unwrap();
+        assert!(item.value.starts_with("written-"));
+    }
+}
+
 #[test]
 fn test_extend() {
     let mut map = IdHashMap::<TestItem, HashBuilder, Alloc>::make_new();
