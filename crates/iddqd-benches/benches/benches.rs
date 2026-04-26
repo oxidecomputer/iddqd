@@ -17,7 +17,10 @@ use criterion::{
     BatchSize, BenchmarkId, Criterion, criterion_group, criterion_main,
 };
 use iddqd::{DefaultHashBuilder, IdHashMap, IdOrdMap};
-use iddqd_benches::{RecordBorrowedU32, RecordOwnedU32};
+use iddqd_benches::{
+    LARGE_RECORD_PAYLOAD, RecordBorrowedU32, RecordLargeBorrowedU32,
+    RecordLargeOwnedU32, RecordOwnedU32,
+};
 use iddqd_test_utils::test_item::{TestItem, TestKey1};
 use std::collections::{BTreeMap, HashMap};
 
@@ -34,12 +37,26 @@ const SIZES: &[usize] = &[100, 10_000, 100_000];
 /// Number of remove + reinsert pairs per churn iteration.
 const CHURN_OPS: usize = 1_000;
 
+/// Size sweep for the `*_large` benchmarks, which have a ~1 KiB inline payload
+/// per record. The larger batch sizes are enough to blow past L3 cache on every
+/// consumer-class CPU, and exercise the realloc-and-memcpy cost that resizing
+/// the backing storage incurs on a populated map.
+const LARGE_SIZES: &[usize] = &[1_000, 10_000, 100_000, 1_000_000];
+
 fn record(i: u32) -> RecordOwnedU32 {
     RecordOwnedU32 { index: i, data: String::new() }
 }
 
 fn record_borrowed(i: u32) -> RecordBorrowedU32 {
     RecordBorrowedU32 { index: i, data: String::new() }
+}
+
+fn record_large(i: u32) -> RecordLargeOwnedU32 {
+    RecordLargeOwnedU32 { index: i, data: [0u8; LARGE_RECORD_PAYLOAD] }
+}
+
+fn record_large_borrowed(i: u32) -> RecordLargeBorrowedU32 {
+    RecordLargeBorrowedU32 { index: i, data: [0u8; LARGE_RECORD_PAYLOAD] }
 }
 
 // ---------- get ------------------------------------------------------------
@@ -674,6 +691,355 @@ fn ref_mut_id_ord_map(c: &mut Criterion) {
     });
 }
 
+// ---------- *_large -------------------------------------------------------
+//
+// Variants of `get`, `bulk_insert`, and `iter` that store a 1 KiB inline
+// payload per record (`RecordLarge*U32`) and sweep up to 1 M items. These
+// expose costs that are invisible at the small-record sizes used above:
+// chiefly the per-element memcpy when the backing storage reallocs.
+
+fn bench_get_large<M>(
+    c: &mut Criterion,
+    name: &str,
+    build: impl Fn(usize) -> M,
+    get: impl Fn(&M),
+) {
+    let mut group = c.benchmark_group(name);
+    for &size in LARGE_SIZES {
+        group.bench_with_input(
+            BenchmarkId::from_parameter(size),
+            &size,
+            |b, &size| {
+                b.iter_batched_ref(
+                    || build(size),
+                    |m| get(m),
+                    // Using a single shared value across all benchmark
+                    // iterations is fine since this benchmark doesn't mutate
+                    // state.
+                    BatchSize::NumBatches(1),
+                );
+            },
+        );
+    }
+    group.finish();
+}
+
+fn get_hash_map_large(c: &mut Criterion) {
+    bench_get_large(
+        c,
+        "get_large/std_hash_map",
+        |n| {
+            let mut m = HashMap::with_hasher(DefaultHashBuilder::default());
+            for i in 0..n as u32 {
+                m.insert(i, record_large(i));
+            }
+            m
+        },
+        |m| {
+            m.get(&0);
+        },
+    );
+}
+
+fn get_btree_map_large(c: &mut Criterion) {
+    bench_get_large(
+        c,
+        "get_large/std_btree_map",
+        |n| {
+            let mut m = BTreeMap::new();
+            for i in 0..n as u32 {
+                m.insert(i, record_large(i));
+            }
+            m
+        },
+        |m| {
+            m.get(&0);
+        },
+    );
+}
+
+fn get_id_hash_map_large_owned(c: &mut Criterion) {
+    bench_get_large(
+        c,
+        "get_large/id_hash_map/owned",
+        |n| {
+            let mut m = IdHashMap::new();
+            for i in 0..n as u32 {
+                m.insert_overwrite(record_large(i));
+            }
+            m
+        },
+        |m| {
+            m.get(&0);
+        },
+    );
+}
+
+fn get_id_hash_map_large_borrowed(c: &mut Criterion) {
+    bench_get_large(
+        c,
+        "get_large/id_hash_map/borrowed",
+        |n| {
+            let mut m = IdHashMap::new();
+            for i in 0..n as u32 {
+                m.insert_overwrite(record_large_borrowed(i));
+            }
+            m
+        },
+        |m| {
+            m.get(&0);
+        },
+    );
+}
+
+fn get_id_ord_map_large_owned(c: &mut Criterion) {
+    bench_get_large(
+        c,
+        "get_large/id_ord_map/owned",
+        |n| {
+            let mut m = IdOrdMap::new();
+            for i in 0..n as u32 {
+                m.insert_overwrite(record_large(i));
+            }
+            m
+        },
+        |m| {
+            m.get(&0);
+        },
+    );
+}
+
+fn get_id_ord_map_large_borrowed(c: &mut Criterion) {
+    bench_get_large(
+        c,
+        "get_large/id_ord_map/borrowed",
+        |n| {
+            let mut m = IdOrdMap::new();
+            for i in 0..n as u32 {
+                m.insert_overwrite(record_large_borrowed(i));
+            }
+            m
+        },
+        |m| {
+            m.get(&0);
+        },
+    );
+}
+
+fn bulk_insert_std_hash_map_large(c: &mut Criterion) {
+    let mut group = c.benchmark_group("bulk_insert_large/std_hash_map");
+    for &size in LARGE_SIZES {
+        group.bench_with_input(
+            BenchmarkId::from_parameter(size),
+            &size,
+            |b, &size| {
+                b.iter_batched(
+                    || (),
+                    |_| {
+                        let mut map =
+                            HashMap::with_hasher(DefaultHashBuilder::default());
+                        for i in 0..size as u32 {
+                            map.insert(i, record_large(i));
+                        }
+                        // Returning the map here is important so it is dropped
+                        // outside the scope of the benchmark.
+                        map
+                    },
+                    // PerIteration means the map will be dropped after each
+                    // iteration. (This is similar to iter_with_large_drop,
+                    // except the latter will drop returned values in batches.)
+                    BatchSize::PerIteration,
+                );
+            },
+        );
+    }
+    group.finish();
+}
+
+fn bulk_insert_std_btree_map_large(c: &mut Criterion) {
+    let mut group = c.benchmark_group("bulk_insert_large/std_btree_map");
+    for &size in LARGE_SIZES {
+        group.bench_with_input(
+            BenchmarkId::from_parameter(size),
+            &size,
+            |b, &size| {
+                b.iter_batched(
+                    || (),
+                    |_| {
+                        let mut map = BTreeMap::new();
+                        for i in 0..size as u32 {
+                            map.insert(i, record_large(i));
+                        }
+                        // Returning the map here is important so it is dropped
+                        // outside the scope of the benchmark.
+                        map
+                    },
+                    // PerIteration means the map will be dropped after each
+                    // iteration. (This is similar to iter_with_large_drop,
+                    // except the latter will drop returned values in batches.)
+                    BatchSize::PerIteration,
+                );
+            },
+        );
+    }
+    group.finish();
+}
+
+fn bulk_insert_id_hash_map_large(c: &mut Criterion) {
+    let mut group = c.benchmark_group("bulk_insert_large/id_hash_map");
+    for &size in LARGE_SIZES {
+        group.bench_with_input(
+            BenchmarkId::from_parameter(size),
+            &size,
+            |b, &size| {
+                b.iter_batched(
+                    || (),
+                    |_| {
+                        let mut map = IdHashMap::new();
+                        for i in 0..size as u32 {
+                            map.insert_unique(record_large(i)).unwrap();
+                        }
+                        // Returning the map here is important so it is dropped
+                        // outside the scope of the benchmark.
+                        map
+                    },
+                    // PerIteration means the map will be dropped after each
+                    // iteration. (This is similar to iter_with_large_drop,
+                    // except the latter will drop returned values in batches.)
+                    BatchSize::PerIteration,
+                );
+            },
+        );
+    }
+    group.finish();
+}
+
+fn bulk_insert_id_ord_map_large(c: &mut Criterion) {
+    let mut group = c.benchmark_group("bulk_insert_large/id_ord_map");
+    for &size in LARGE_SIZES {
+        group.bench_with_input(
+            BenchmarkId::from_parameter(size),
+            &size,
+            |b, &size| {
+                b.iter_batched(
+                    || (),
+                    |_| {
+                        let mut map = IdOrdMap::new();
+                        for i in 0..size as u32 {
+                            map.insert_unique(record_large(i)).unwrap();
+                        }
+                        // Returning the map here is important so it is dropped
+                        // outside the scope of the benchmark.
+                        map
+                    },
+                    // PerIteration means the map will be dropped after each
+                    // iteration. (This is similar to iter_with_large_drop,
+                    // except the latter will drop returned values in batches.)
+                    BatchSize::PerIteration,
+                );
+            },
+        );
+    }
+    group.finish();
+}
+
+fn iter_std_hash_map_large(c: &mut Criterion) {
+    let mut group = c.benchmark_group("iter_large/std_hash_map");
+    for &size in LARGE_SIZES {
+        group.bench_with_input(
+            BenchmarkId::from_parameter(size),
+            &size,
+            |b, &size| {
+                let mut map =
+                    HashMap::with_hasher(DefaultHashBuilder::default());
+                for i in 0..size as u32 {
+                    map.insert(i, record_large(i));
+                }
+                b.iter(|| {
+                    let mut sum: u64 = 0;
+                    for r in map.values() {
+                        sum = sum.wrapping_add(r.index as u64);
+                    }
+                    sum
+                });
+            },
+        );
+    }
+    group.finish();
+}
+
+fn iter_std_btree_map_large(c: &mut Criterion) {
+    let mut group = c.benchmark_group("iter_large/std_btree_map");
+    for &size in LARGE_SIZES {
+        group.bench_with_input(
+            BenchmarkId::from_parameter(size),
+            &size,
+            |b, &size| {
+                let mut map = BTreeMap::new();
+                for i in 0..size as u32 {
+                    map.insert(i, record_large(i));
+                }
+                b.iter(|| {
+                    let mut sum: u64 = 0;
+                    for r in map.values() {
+                        sum = sum.wrapping_add(r.index as u64);
+                    }
+                    sum
+                });
+            },
+        );
+    }
+    group.finish();
+}
+
+fn iter_id_hash_map_large(c: &mut Criterion) {
+    let mut group = c.benchmark_group("iter_large/id_hash_map");
+    for &size in LARGE_SIZES {
+        group.bench_with_input(
+            BenchmarkId::from_parameter(size),
+            &size,
+            |b, &size| {
+                let mut map = IdHashMap::new();
+                for i in 0..size as u32 {
+                    map.insert_unique(record_large(i)).unwrap();
+                }
+                b.iter(|| {
+                    let mut sum: u64 = 0;
+                    for r in &map {
+                        sum = sum.wrapping_add(r.index as u64);
+                    }
+                    sum
+                });
+            },
+        );
+    }
+    group.finish();
+}
+
+fn iter_id_ord_map_large(c: &mut Criterion) {
+    let mut group = c.benchmark_group("iter_large/id_ord_map");
+    for &size in LARGE_SIZES {
+        group.bench_with_input(
+            BenchmarkId::from_parameter(size),
+            &size,
+            |b, &size| {
+                let mut map = IdOrdMap::new();
+                for i in 0..size as u32 {
+                    map.insert_unique(record_large(i)).unwrap();
+                }
+                b.iter(|| {
+                    let mut sum: u64 = 0;
+                    for r in &map {
+                        sum = sum.wrapping_add(r.index as u64);
+                    }
+                    sum
+                });
+            },
+        );
+    }
+    group.finish();
+}
+
 criterion_group!(
     benches,
     get_hash_map,
@@ -682,10 +1048,20 @@ criterion_group!(
     get_id_hash_map_borrowed,
     get_id_ord_map_owned,
     get_id_ord_map_borrowed,
+    get_hash_map_large,
+    get_btree_map_large,
+    get_id_hash_map_large_owned,
+    get_id_hash_map_large_borrowed,
+    get_id_ord_map_large_owned,
+    get_id_ord_map_large_borrowed,
     bulk_insert_std_hash_map,
     bulk_insert_std_btree_map,
     bulk_insert_id_hash_map,
     bulk_insert_id_ord_map,
+    bulk_insert_std_hash_map_large,
+    bulk_insert_std_btree_map_large,
+    bulk_insert_id_hash_map_large,
+    bulk_insert_id_ord_map_large,
     churn_std_hash_map,
     churn_std_btree_map,
     churn_id_hash_map,
@@ -694,6 +1070,10 @@ criterion_group!(
     iter_std_btree_map,
     iter_id_hash_map,
     iter_id_ord_map,
+    iter_std_hash_map_large,
+    iter_std_btree_map_large,
+    iter_id_hash_map_large,
+    iter_id_ord_map_large,
     shrink_to_fit_std_hash_map,
     shrink_to_fit_id_hash_map,
     shrink_to_fit_id_ord_map,
