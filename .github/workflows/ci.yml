@@ -95,10 +95,30 @@ jobs:
         run: cross check --target thumbv7em-none-eabi --no-default-features -p iddqd
 
   miri:
-    name: Run tests with miri
+    name: Run tests with miri (${{ matrix.aliasing-model }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Run miri under both Stacked and Tree Borrows.
+        # 
+        # * Stacked Borrows is the default and catches most issues,
+        #   but is known to have false positives under the eventual
+        #   Rust aliasing model.
+        # * Tree Borrows is generally more permissive than Stacked
+        #   Borrows, but is stricter for some things as well. In any
+        #   case, it is likely closer to the formal model Rust is moving
+        #   towards.
+        # 
+        # We ensure in CI that iddqd satisfies both models.
+        include:
+          - aliasing-model: stacked-borrows
+            miri-flags: ""
+          - aliasing-model: tree-borrows
+            miri-flags: "-Zmiri-tree-borrows"
     env:
       RUSTFLAGS: -D warnings
+      MIRIFLAGS: ${{ matrix.miri-flags }}
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
       - uses: dtolnay/rust-toolchain@master
@@ -106,6 +126,8 @@ jobs:
           toolchain: nightly
           components: miri
       - uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2.8.0
+        with:
+          key: miri-${{ matrix.aliasing-model }}
       - uses: taiki-e/install-action@cargo-hack
       - uses: taiki-e/install-action@nextest
       # Run tests for all crates containing unsafe code. Currently, that's just
