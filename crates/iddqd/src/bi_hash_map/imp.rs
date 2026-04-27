@@ -2179,39 +2179,39 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
     }
 
     pub(super) fn remove_by_index(&mut self, remove_index: usize) -> Option<T> {
-        let value = self.items.remove(remove_index)?;
-
-        // Remove the value from the tables.
+        // For panic safety, look up both table entries while `self.items` still
+        // holds the value, then remove from both tables and items in sequence.
+        // hashbrown's `find_entry` is panic-safe under user-`Hash`/`Eq` panics
+        // (the table is not mutated until `OccupiedEntry::remove` is called),
+        // so a panic during the lookups leaves items and both tables
+        // unmodified.
+        let item = self.items.get(remove_index)?;
+        let key1 = item.key1();
+        let key2 = item.key2();
         let state = &self.tables.state;
-        let Ok(item1) =
-            self.tables.k1_to_item.find_entry(state, &value.key1(), |index| {
-                if index == remove_index {
-                    value.key1()
-                } else {
-                    self.items[index].key1()
-                }
-            })
+        let Ok(entry1) =
+            self.tables
+                .k1_to_item
+                .find_entry(state, &key1, |index| self.items[index].key1())
         else {
-            // The item was not found.
             panic!("remove_index {remove_index} not found in k1_to_item");
         };
-        let Ok(item2) =
-            self.tables.k2_to_item.find_entry(state, &value.key2(), |index| {
-                if index == remove_index {
-                    value.key2()
-                } else {
-                    self.items[index].key2()
-                }
-            })
+        let Ok(entry2) =
+            self.tables
+                .k2_to_item
+                .find_entry(state, &key2, |index| self.items[index].key2())
         else {
-            // The item was not found.
-            panic!("remove_index {remove_index} not found in k2_to_item")
+            panic!("remove_index {remove_index} not found in k2_to_item");
         };
-
-        item1.remove();
-        item2.remove();
-
-        Some(value)
+        // Drop the keys so that `self.items` can be mutated below.
+        drop((key1, key2));
+        entry1.remove();
+        entry2.remove();
+        Some(
+            self.items
+                .remove(remove_index)
+                .expect("items[remove_index] was Occupied above"),
+        )
     }
 
     pub(super) fn replace_at_indexes(

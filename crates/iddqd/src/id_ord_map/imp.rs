@@ -1437,18 +1437,25 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     }
 
     pub(super) fn remove_by_index(&mut self, remove_index: usize) -> Option<T> {
-        let value = self.items.remove(remove_index)?;
-
-        // Remove the value from the table.
-        self.tables.key_to_item.remove(remove_index, value.key(), |index| {
-            if index == remove_index {
-                value.key()
-            } else {
-                self.items[index].key()
-            }
-        });
-
-        Some(value)
+        // For panic safety, read the key while self.items still holds the slot,
+        // then remove from the B-tree *before* mutating self.items.
+        //
+        // `BTreeSet::remove` is panic-safe under user-`Ord` panics, since
+        // comparator panics during the internal binary search abort the
+        // operation without modifying the tree. (This is not a documented
+        // guarantee, but really the only reasonable way to implement a
+        // panic-safe B-tree map.) This means that a panic at this point leaves
+        // both items and the B-tree unmodified. `items.remove` afterwards
+        // cannot panic.
+        let key = self.items.get(remove_index)?.key();
+        self.tables
+            .key_to_item
+            .remove(remove_index, key, |index| self.items[index].key());
+        Some(
+            self.items
+                .remove(remove_index)
+                .expect("items[remove_index] was Occupied above"),
+        )
     }
 
     pub(super) fn replace_at_index(&mut self, index: usize, value: T) -> T {

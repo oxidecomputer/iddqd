@@ -256,9 +256,13 @@ This crate is validated through a combination of:
 * Unit tests
 * Property-based tests using a naive map as an oracle
 * Chaos tests for several kinds of buggy `Eq` and `Ord` implementations
+* Explicit tests for panic safety in some scenarios
 * Miri tests for unsafe code
 
 If you see a gap in testing, new tests are welcome. Thank you!
+
+Note that **testing requires [cargo-nextest](https://nexte.st/)**: several
+tests depend on nextest’s process-per-test model.
 
 ## No-std compatibility
 

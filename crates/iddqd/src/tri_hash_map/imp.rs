@@ -2718,52 +2718,48 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     }
 
     pub(super) fn remove_by_index(&mut self, remove_index: usize) -> Option<T> {
-        let value = self.items.remove(remove_index)?;
-
-        // Remove the value from the tables.
+        // For panic safety, look up all three table entries while `self.items`
+        // still holds the value, then remove from all three tables and items
+        // in sequence. hashbrown's `find_entry` is panic-safe under
+        // user-`Hash`/`Eq` panics (the table is not mutated until
+        // `OccupiedEntry::remove` is called), so a panic during the lookups
+        // leaves items and all three tables unmodified.
+        let item = self.items.get(remove_index)?;
+        let key1 = item.key1();
+        let key2 = item.key2();
+        let key3 = item.key3();
         let state = &self.tables.state;
-        let Ok(item1) =
-            self.tables.k1_to_item.find_entry(state, &value.key1(), |index| {
-                if index == remove_index {
-                    value.key1()
-                } else {
-                    self.items[index].key1()
-                }
-            })
+        let Ok(entry1) =
+            self.tables
+                .k1_to_item
+                .find_entry(state, &key1, |index| self.items[index].key1())
         else {
-            // The item was not found.
             panic!("remove_index {remove_index} not found in k1_to_item");
         };
-        let Ok(item2) =
-            self.tables.k2_to_item.find_entry(state, &value.key2(), |index| {
-                if index == remove_index {
-                    value.key2()
-                } else {
-                    self.items[index].key2()
-                }
-            })
+        let Ok(entry2) =
+            self.tables
+                .k2_to_item
+                .find_entry(state, &key2, |index| self.items[index].key2())
         else {
-            // The item was not found.
-            panic!("remove_index {remove_index} not found in k2_to_item")
+            panic!("remove_index {remove_index} not found in k2_to_item");
         };
-        let Ok(item3) =
-            self.tables.k3_to_item.find_entry(state, &value.key3(), |index| {
-                if index == remove_index {
-                    value.key3()
-                } else {
-                    self.items[index].key3()
-                }
-            })
+        let Ok(entry3) =
+            self.tables
+                .k3_to_item
+                .find_entry(state, &key3, |index| self.items[index].key3())
         else {
-            // The item was not found.
-            panic!("remove_index {remove_index} not found in k3_to_item")
+            panic!("remove_index {remove_index} not found in k3_to_item");
         };
-
-        item1.remove();
-        item2.remove();
-        item3.remove();
-
-        Some(value)
+        // Drop the keys so that `self.items` can be mutated below.
+        drop((key1, key2, key3));
+        entry1.remove();
+        entry2.remove();
+        entry3.remove();
+        Some(
+            self.items
+                .remove(remove_index)
+                .expect("items[remove_index] was Occupied above"),
+        )
     }
 }
 
