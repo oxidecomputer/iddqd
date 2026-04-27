@@ -28,9 +28,10 @@ use core::{
 };
 
 thread_local! {
-    /// Counts down on each `PanickyKey` trait-method call. When zero,
-    /// the next call panics. `u32::MAX` = disarmed.
-    static PANIC_COUNTDOWN: Cell<u32> = const { Cell::new(u32::MAX) };
+    /// Counts down on each `PanickyKey` trait-method call while `Some`.
+    /// When the count reaches zero, the next call panics. `None` means
+    /// disarmed; calls pass through without affecting the countdown.
+    static PANIC_COUNTDOWN: Cell<Option<u32>> = const { Cell::new(None) };
     /// Total number of `PanickyKey` trait-method calls observed; used
     /// by tests to probe how many calls a lookup path performs.
     static OP_COUNT: Cell<u32> = const { Cell::new(0) };
@@ -46,11 +47,11 @@ impl PanickyKey {
     fn observe_call(label: &'static str) {
         OP_COUNT.with(|c| c.set(c.get() + 1));
         PANIC_COUNTDOWN.with(|c| {
-            let n = c.get();
+            let Some(n) = c.get() else { return };
             if n == 0 {
                 panic!("PanickyKey::{label} panic triggered");
             }
-            c.set(n - 1);
+            c.set(Some(n - 1));
         });
     }
 }
@@ -90,11 +91,11 @@ pub(crate) fn take_op_count() -> u32 {
 /// Arms the countdown: the next `n` `PanickyKey` operations succeed,
 /// and the call after that panics.
 pub(crate) fn arm_panic_after(n: u32) {
-    PANIC_COUNTDOWN.with(|c| c.set(n));
+    PANIC_COUNTDOWN.with(|c| c.set(Some(n)));
 }
 
 /// Disarms the countdown so subsequent `PanickyKey` operations don't
 /// panic — call before any post-panic validation.
 pub(crate) fn disarm_panic() {
-    PANIC_COUNTDOWN.with(|c| c.set(u32::MAX));
+    PANIC_COUNTDOWN.with(|c| c.set(None));
 }
