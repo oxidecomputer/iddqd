@@ -949,22 +949,20 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
     /// ```
     #[doc(alias = "insert")]
     pub fn insert_overwrite(&mut self, value: T) -> Option<T> {
-        // Trying to write this function for maximal efficiency can get very
-        // tricky, requiring delicate handling of indexes. We follow a very
-        // simple approach instead:
+        // Go through the entry API so all user code is called before any table
+        // mutation. A panic in user code therefore leaves the map in its
+        // pre-call state.
         //
-        // 1. Remove items corresponding to the key that is already in the map.
-        // 2. Add the item to the map.
-
-        let duplicate = self.remove(&value.key());
-
-        if self.insert_unique(value).is_err() {
-            // We should never get here, because we just removed all the
-            // duplicates.
-            panic!("insert_unique failed after removing duplicates");
+        // We use `vacant.insert_entry` rather than `vacant.insert` to avoid
+        // creating a `RefMut`, which would (unnecessarily) re-hash the key
+        // after the mutation when that `RefMut` is created.
+        match self.entry(value.key()) {
+            Entry::Occupied(mut occupied) => Some(occupied.insert(value)),
+            Entry::Vacant(vacant) => {
+                vacant.insert_entry(value);
+                None
+            }
         }
-
-        duplicate
     }
 
     /// Inserts a value into the set, returning an error if any duplicates were

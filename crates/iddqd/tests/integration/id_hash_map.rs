@@ -861,57 +861,148 @@ mod serde_tests {
 }
 
 #[cfg(feature = "default-hasher")]
-mod remove_panic_safety {
+#[derive(Clone, Debug)]
+struct PanickyHashItem {
+    key: u32,
+}
+
+#[cfg(feature = "default-hasher")]
+impl IdHashItem for PanickyHashItem {
+    type Key<'a> = crate::panic_safety::PanickyKey;
+    fn key(&self) -> Self::Key<'_> {
+        crate::panic_safety::PanickyKey(self.key)
+    }
+    id_upcast!();
+}
+
+#[cfg(feature = "default-hasher")]
+mod proptest_panic_safety {
     use super::*;
     use crate::panic_safety::{
-        PanickyKey, arm_panic_after, disarm_panic, take_op_count,
+        PanicSafety, PanickyKey, PanickyOp, assert_panic_fired_as_expected,
+        assert_post_op_invariants, run_armed, sorted_keys,
     };
-    use iddqd_test_utils::unwind::catch_panic;
 
-    #[derive(Clone, Debug)]
-    struct PanickyHashItem {
-        key: u32,
+    // Keys are kept in a small range so collisions, hits, and misses
+    // all happen frequently against a 16-ish-element map.
+    #[derive(Debug, Arbitrary)]
+    enum PanickyAction {
+        #[weight(4)]
+        InsertUnique(#[strategy(0..32_u32)] u32),
+        #[weight(3)]
+        InsertOverwrite(#[strategy(0..32_u32)] u32),
+        #[weight(2)]
+        Remove(#[strategy(0..32_u32)] u32),
+        #[weight(2)]
+        Get(#[strategy(0..32_u32)] u32),
+        #[weight(1)]
+        ContainsKey(#[strategy(0..32_u32)] u32),
+        #[weight(2)]
+        RetainModulo(
+            #[strategy(0..3_u32)] u32,
+            #[strategy(1..4_u32)] u32,
+            bool,
+        ),
+        #[weight(2)]
+        Extend(#[strategy(prop::collection::vec(0..32_u32, 0..8))] Vec<u32>),
+        Clear,
     }
 
-    impl IdHashItem for PanickyHashItem {
-        type Key<'a> = PanickyKey;
-        fn key(&self) -> Self::Key<'_> {
-            PanickyKey(self.key)
+    impl PanickyAction {
+        /// Classify panic safety for this action.
+        ///
+        /// * `RetainModulo` loops over per-step atomic mutations.
+        /// * `Extend` calls `HashTable::reserve` up front, which on a
+        ///   tombstone-heavy map drops into hashbrown's `rehash_in_place`.
+        ///   Hashbrown documents `rehash_in_place` as not panic-safe.
+        fn panic_safety(&self) -> PanicSafety {
+            match self {
+                PanickyAction::InsertUnique(_)
+                | PanickyAction::InsertOverwrite(_)
+                | PanickyAction::Remove(_)
+                | PanickyAction::Get(_)
+                | PanickyAction::ContainsKey(_) => PanicSafety::Atomic,
+                PanickyAction::RetainModulo(_, _, _) => PanicSafety::StepAtomic,
+                PanickyAction::Extend(_) => PanicSafety::MayCorruptOnPanic,
+                PanickyAction::Clear => PanicSafety::Atomic,
+            }
         }
-        id_upcast!();
+
+        fn run(self, map: &mut IdHashMap<PanickyHashItem>) {
+            match self {
+                PanickyAction::InsertUnique(key) => {
+                    let _ = map.insert_unique(PanickyHashItem { key });
+                }
+                PanickyAction::InsertOverwrite(key) => {
+                    let _ = map.insert_overwrite(PanickyHashItem { key });
+                }
+                PanickyAction::Remove(key) => {
+                    let _ = map.remove(&PanickyKey(key));
+                }
+                PanickyAction::Get(key) => {
+                    let _ = map.get(&PanickyKey(key));
+                }
+                PanickyAction::ContainsKey(key) => {
+                    let _ = map.contains_key(&PanickyKey(key));
+                }
+                PanickyAction::RetainModulo(rem, modulo, keep) => {
+                    map.retain(|item| {
+                        let matches = item.key % modulo == rem;
+                        if keep { matches } else { !matches }
+                    });
+                }
+                PanickyAction::Extend(keys) => {
+                    map.extend(
+                        keys.into_iter().map(|key| PanickyHashItem { key }),
+                    );
+                }
+                PanickyAction::Clear => map.clear(),
+            }
+        }
     }
 
-    #[test]
-    fn remove_panicking_in_user_hash_leaves_map_consistent() {
+    #[proptest(cases = 16)]
+    fn proptest_panic_ops(
+        #[strategy(prop::collection::vec(
+            any::<PanickyOp<PanickyAction>>(), 0..512,
+        ))]
+        ops: Vec<PanickyOp<PanickyAction>>,
+    ) {
         let mut map = IdHashMap::<PanickyHashItem>::new();
-        for i in 0..16u32 {
-            map.insert_unique(PanickyHashItem { key: i }).unwrap();
+
+        for (i, op) in ops.into_iter().enumerate() {
+            let action = op.action;
+            let action_label = format!("{action:?}");
+            let panic_safety = action.panic_safety();
+            let armed = match panic_safety {
+                PanicSafety::MayCorruptOnPanic => None,
+                PanicSafety::Atomic | PanicSafety::StepAtomic => op.armed,
+            };
+
+            let pre_state = sorted_keys(&map, |item| item.key);
+            let (panicked, ops) = run_armed(armed, || action.run(&mut map));
+            assert_panic_fired_as_expected(&action_label, armed, panicked, ops);
+
+            // `NonCompact` since step-atomic panics leave compactness
+            // in an indeterminate state.
+            map.validate(ValidateCompact::NonCompact).unwrap_or_else(|err| {
+                panic!(
+                    "map invalid after op {i} ({action_label}, \
+                     armed: {armed:?}, panicked: {panicked}): {err}"
+                )
+            });
+
+            let post_state = sorted_keys(&map, |item| item.key);
+            assert_post_op_invariants(
+                i,
+                &action_label,
+                armed,
+                panicked,
+                panic_safety,
+                &pre_state,
+                &post_state,
+                |&k| map.contains_key(&PanickyKey(k)),
+            );
         }
-
-        // Probe how many key-trait calls the lookup makes, so we can
-        // fire the panic on the call that follows the probe — i.e.
-        // inside `remove`'s own `find_entry` (which precedes any table
-        // mutation).
-        let _ = take_op_count();
-        assert!(map.contains_key(&PanickyKey(8)));
-        let probe_ops = take_op_count();
-        assert!(probe_ops > 0, "lookup should make at least one key call");
-
-        arm_panic_after(probe_ops);
-        let result = catch_panic(|| {
-            map.remove(&PanickyKey(8));
-        });
-        disarm_panic();
-        let panic_ops = take_op_count();
-
-        assert!(result.is_none(), "expected the remove to panic");
-        assert_eq!(
-            panic_ops,
-            probe_ops + 1,
-            "panic should fire on the (probe_ops + 1)-th key-trait call",
-        );
-
-        map.validate(ValidateCompact::Compact)
-            .expect("map should remain consistent after a panicking remove");
     }
 }
