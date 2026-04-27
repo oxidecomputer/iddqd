@@ -1069,80 +1069,187 @@ fn proptest_arbitrary_map(map: BiHashMap<TestItem, HashBuilder, Alloc>) {
 }
 
 #[cfg(feature = "default-hasher")]
-mod remove_panic_safety {
+#[derive(Clone, Debug)]
+struct PanickyHashItem {
+    key1: u32,
+    key2: u32,
+}
+
+#[cfg(feature = "default-hasher")]
+impl BiHashItem for PanickyHashItem {
+    type K1<'a> = crate::panic_safety::PanickyKey;
+    type K2<'a> = crate::panic_safety::PanickyKey;
+    fn key1(&self) -> Self::K1<'_> {
+        crate::panic_safety::PanickyKey(self.key1)
+    }
+    fn key2(&self) -> Self::K2<'_> {
+        crate::panic_safety::PanickyKey(self.key2)
+    }
+    bi_upcast!();
+}
+
+#[cfg(feature = "default-hasher")]
+mod proptest_panic_safety {
     use super::*;
     use crate::panic_safety::{
-        PanickyKey, arm_panic_after, disarm_panic, take_op_count,
+        PanicSafety, PanickyKey, PanickyOp, assert_panic_fired_as_expected,
+        assert_post_op_invariants, run_armed, sorted_keys,
     };
-    use iddqd_test_utils::unwind::catch_panic;
 
-    #[derive(Clone, Debug)]
-    struct PanickyHashItem {
-        key1: u32,
-        key2: u32,
+    // Keys are kept in a small range so hits and misses both happen
+    // frequently against a 16-ish-element map.
+    #[derive(Debug, Arbitrary)]
+    enum PanickyAction {
+        #[weight(4)]
+        InsertUnique(#[strategy(0..32_u32)] u32, #[strategy(0..32_u32)] u32),
+        #[weight(3)]
+        InsertOverwrite(#[strategy(0..32_u32)] u32, #[strategy(0..32_u32)] u32),
+        #[weight(2)]
+        Remove1(#[strategy(0..32_u32)] u32),
+        #[weight(2)]
+        Remove2(#[strategy(0..32_u32)] u32),
+        #[weight(1)]
+        Get1(#[strategy(0..32_u32)] u32),
+        #[weight(1)]
+        Get2(#[strategy(0..32_u32)] u32),
+        #[weight(1)]
+        ContainsKey1(#[strategy(0..32_u32)] u32),
+        #[weight(1)]
+        ContainsKey2(#[strategy(0..32_u32)] u32),
+        #[weight(2)]
+        RetainModulo(
+            #[strategy(0..3_u32)] u32,
+            #[strategy(1..4_u32)] u32,
+            bool,
+        ),
+        #[weight(2)]
+        Extend(
+            #[strategy(prop::collection::vec(
+                (0..32_u32, 0..32_u32), 0..8,
+            ))]
+            Vec<(u32, u32)>,
+        ),
+        Clear,
     }
 
-    impl BiHashItem for PanickyHashItem {
-        type K1<'a> = PanickyKey;
-        type K2<'a> = PanickyKey;
-        fn key1(&self) -> Self::K1<'_> {
-            PanickyKey(self.key1)
+    impl PanickyAction {
+        /// Classify panic safety for this action.
+        ///
+        /// * `BiHashMap::insert_overwrite` runs
+        ///   `remove1; remove2; insert_unique;` as sequential commits,
+        ///   so a mid-sequence panic can leave the map in a different
+        ///   (but still valid) state.
+        /// * `RetainModulo` loops over per-step atomic mutations.
+        /// * `Extend` calls `HashTable::reserve` up front, which on a
+        ///   tombstone-heavy map drops into hashbrown's
+        ///   `rehash_in_place` — documented as not panic-safe under a
+        ///   user `Hash` panic, so the proptest skips arming for it.
+        fn panic_safety(&self) -> PanicSafety {
+            match self {
+                PanickyAction::InsertUnique(_, _) => PanicSafety::Atomic,
+                PanickyAction::InsertOverwrite(_, _) => PanicSafety::StepAtomic,
+                PanickyAction::Remove1(_)
+                | PanickyAction::Remove2(_)
+                | PanickyAction::Get1(_)
+                | PanickyAction::Get2(_)
+                | PanickyAction::ContainsKey1(_)
+                | PanickyAction::ContainsKey2(_) => PanicSafety::Atomic,
+                PanickyAction::RetainModulo(_, _, _) => PanicSafety::StepAtomic,
+                PanickyAction::Extend(_) => PanicSafety::MayCorruptOnPanic,
+                PanickyAction::Clear => PanicSafety::Atomic,
+            }
         }
-        fn key2(&self) -> Self::K2<'_> {
-            PanickyKey(self.key2)
+
+        fn run(self, map: &mut BiHashMap<PanickyHashItem>) {
+            match self {
+                PanickyAction::InsertUnique(key1, key2) => {
+                    let _ = map.insert_unique(PanickyHashItem { key1, key2 });
+                }
+                PanickyAction::InsertOverwrite(key1, key2) => {
+                    let _ =
+                        map.insert_overwrite(PanickyHashItem { key1, key2 });
+                }
+                PanickyAction::Remove1(key1) => {
+                    let _ = map.remove1(&PanickyKey(key1));
+                }
+                PanickyAction::Remove2(key2) => {
+                    let _ = map.remove2(&PanickyKey(key2));
+                }
+                PanickyAction::Get1(key1) => {
+                    let _ = map.get1(&PanickyKey(key1));
+                }
+                PanickyAction::Get2(key2) => {
+                    let _ = map.get2(&PanickyKey(key2));
+                }
+                PanickyAction::ContainsKey1(key1) => {
+                    let _ = map.contains_key1(&PanickyKey(key1));
+                }
+                PanickyAction::ContainsKey2(key2) => {
+                    let _ = map.contains_key2(&PanickyKey(key2));
+                }
+                PanickyAction::RetainModulo(rem, modulo, keep) => {
+                    map.retain(|item| {
+                        let matches = item.key1 % modulo == rem;
+                        if keep { matches } else { !matches }
+                    });
+                }
+                PanickyAction::Extend(pairs) => {
+                    map.extend(
+                        pairs
+                            .into_iter()
+                            .map(|(key1, key2)| PanickyHashItem { key1, key2 }),
+                    );
+                }
+                PanickyAction::Clear => map.clear(),
+            }
         }
-        bi_upcast!();
     }
 
-    /// Run `remove1(&PanickyKey(8))` with the panic armed at the start
-    /// of the `target_lookup`-th `find_entry` inside `remove_by_index`
-    /// (1 = k1, 2 = k2).
-    fn run_remove1_panicking_at_lookup(target_lookup: u32) {
+    #[proptest(cases = 16)]
+    fn proptest_panic_ops(
+        #[strategy(prop::collection::vec(
+            any::<PanickyOp<PanickyAction>>(), 0..512,
+        ))]
+        ops: Vec<PanickyOp<PanickyAction>>,
+    ) {
         let mut map = BiHashMap::<PanickyHashItem>::new();
-        for i in 0..16u32 {
-            map.insert_unique(PanickyHashItem { key1: i, key2: 100 + i })
-                .unwrap();
+
+        for (i, op) in ops.into_iter().enumerate() {
+            let action = op.action;
+            let action_label = format!("{action:?}");
+            let panic_safety = action.panic_safety();
+            let armed = match panic_safety {
+                PanicSafety::MayCorruptOnPanic => None,
+                PanicSafety::Atomic | PanicSafety::StepAtomic => op.armed,
+            };
+
+            let pre_state = sorted_keys(&map, |item| (item.key1, item.key2));
+            let (panicked, ops) = run_armed(armed, || action.run(&mut map));
+            assert_panic_fired_as_expected(&action_label, armed, panicked, ops);
+
+            // `NonCompact` since step-atomic panics can leave compactness in an
+            // indeterminate state.
+            map.validate(ValidateCompact::NonCompact).unwrap_or_else(|err| {
+                panic!(
+                    "map invalid after op {i} ({action_label}, \
+                     armed: {armed:?}, panicked: {panicked}): {err}"
+                )
+            });
+
+            let post_state = sorted_keys(&map, |item| (item.key1, item.key2));
+            assert_post_op_invariants(
+                i,
+                &action_label,
+                armed,
+                panicked,
+                panic_safety,
+                &pre_state,
+                &post_state,
+                |&(k1, k2)| {
+                    map.contains_key1(&PanickyKey(k1))
+                        && map.contains_key2(&PanickyKey(k2))
+                },
+            );
         }
-
-        let _ = take_op_count();
-        assert!(map.contains_key1(&PanickyKey(8)));
-        let probe_k1 = take_op_count();
-        assert!(probe_k1 > 0, "k1 lookup should make at least one key call");
-
-        // Successive phase costs in `remove1`: find_index k1, then find_entry
-        // k1, then find_entry k2. Sum the list of probes that must succeed
-        // before the find_entry we're trying to test.
-        let phase_costs = [
-            /* find_index k1 */ probe_k1,
-            /* find_entry k1 */ probe_k1,
-        ];
-        let arm_count: u32 = phase_costs[..target_lookup as usize].iter().sum();
-
-        arm_panic_after(arm_count);
-        let result = catch_panic(|| {
-            map.remove1(&PanickyKey(8));
-        });
-        disarm_panic();
-        let panic_ops = take_op_count();
-
-        assert!(result.is_none(), "expected the remove to panic");
-        assert_eq!(
-            panic_ops,
-            arm_count + 1,
-            "panic should fire on the (arm_count + 1)-th key-trait call",
-        );
-
-        map.validate(ValidateCompact::Compact)
-            .expect("map should remain consistent after a panicking remove");
-    }
-
-    #[test]
-    fn remove_panicking_in_k1_lookup_leaves_map_consistent() {
-        run_remove1_panicking_at_lookup(1);
-    }
-
-    #[test]
-    fn remove_panicking_in_k2_lookup_leaves_map_consistent() {
-        run_remove1_panicking_at_lookup(2);
     }
 }
