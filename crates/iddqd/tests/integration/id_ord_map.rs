@@ -1041,3 +1041,57 @@ fn proptest_arbitrary_map(map: IdOrdMap<TestItem>) {
     }
     assert_eq!(count, len);
 }
+
+mod remove_panic_safety {
+    use super::*;
+    use crate::panic_safety::{
+        PanickyKey, arm_panic_after, disarm_panic, take_op_count,
+    };
+
+    #[derive(Clone, Debug)]
+    struct PanickyOrdItem {
+        key: u32,
+    }
+
+    impl IdOrdItem for PanickyOrdItem {
+        type Key<'a> = PanickyKey;
+        fn key(&self) -> Self::Key<'_> {
+            PanickyKey(self.key)
+        }
+        id_upcast!();
+    }
+
+    #[test]
+    fn remove_panicking_in_user_ord_leaves_map_consistent() {
+        let mut map = IdOrdMap::<PanickyOrdItem>::new();
+        for i in 0..16u32 {
+            map.insert_unique(PanickyOrdItem { key: i }).unwrap();
+        }
+
+        // Probe how many `cmp` calls `find_index` performs for this
+        // tree shape, so we can fire the panic on the call that
+        // follows the probe, i.e. inside the B-tree lookup that
+        // precedes any tree mutation.
+        let _ = take_op_count();
+        assert!(map.contains_key(&PanickyKey(8)));
+        let find_ops = take_op_count();
+        assert!(find_ops > 0, "find_index should make at least one cmp call");
+
+        arm_panic_after(find_ops);
+        let result = catch_panic(|| {
+            map.remove(&PanickyKey(8));
+        });
+        disarm_panic();
+        let panic_ops = take_op_count();
+
+        assert!(result.is_none(), "expected the remove to panic");
+        assert_eq!(
+            panic_ops,
+            find_ops + 1,
+            "panic should fire on the (find_ops + 1)-th key-trait call",
+        );
+
+        map.validate(ValidateCompact::Compact, ValidateChaos::No)
+            .expect("map should remain consistent after a panicking remove");
+    }
+}

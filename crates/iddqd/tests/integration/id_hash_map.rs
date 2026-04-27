@@ -859,3 +859,59 @@ mod serde_tests {
         );
     }
 }
+
+#[cfg(feature = "default-hasher")]
+mod remove_panic_safety {
+    use super::*;
+    use crate::panic_safety::{
+        PanickyKey, arm_panic_after, disarm_panic, take_op_count,
+    };
+    use iddqd_test_utils::unwind::catch_panic;
+
+    #[derive(Clone, Debug)]
+    struct PanickyHashItem {
+        key: u32,
+    }
+
+    impl IdHashItem for PanickyHashItem {
+        type Key<'a> = PanickyKey;
+        fn key(&self) -> Self::Key<'_> {
+            PanickyKey(self.key)
+        }
+        id_upcast!();
+    }
+
+    #[test]
+    fn remove_panicking_in_user_hash_leaves_map_consistent() {
+        let mut map = IdHashMap::<PanickyHashItem>::new();
+        for i in 0..16u32 {
+            map.insert_unique(PanickyHashItem { key: i }).unwrap();
+        }
+
+        // Probe how many key-trait calls the lookup makes, so we can
+        // fire the panic on the call that follows the probe — i.e.
+        // inside `remove`'s own `find_entry` (which precedes any table
+        // mutation).
+        let _ = take_op_count();
+        assert!(map.contains_key(&PanickyKey(8)));
+        let probe_ops = take_op_count();
+        assert!(probe_ops > 0, "lookup should make at least one key call");
+
+        arm_panic_after(probe_ops);
+        let result = catch_panic(|| {
+            map.remove(&PanickyKey(8));
+        });
+        disarm_panic();
+        let panic_ops = take_op_count();
+
+        assert!(result.is_none(), "expected the remove to panic");
+        assert_eq!(
+            panic_ops,
+            probe_ops + 1,
+            "panic should fire on the (probe_ops + 1)-th key-trait call",
+        );
+
+        map.validate(ValidateCompact::Compact)
+            .expect("map should remain consistent after a panicking remove");
+    }
+}

@@ -2,6 +2,8 @@ mod bi_hash_map;
 mod id_hash_map;
 #[cfg(feature = "std")]
 mod id_ord_map;
+#[cfg(any(feature = "std", feature = "default-hasher"))]
+mod panic_safety;
 #[cfg(feature = "schemars08")]
 mod schemars_tests;
 #[cfg(all(

@@ -1067,3 +1067,82 @@ fn proptest_arbitrary_map(map: BiHashMap<TestItem, HashBuilder, Alloc>) {
     }
     assert_eq!(count, len);
 }
+
+#[cfg(feature = "default-hasher")]
+mod remove_panic_safety {
+    use super::*;
+    use crate::panic_safety::{
+        PanickyKey, arm_panic_after, disarm_panic, take_op_count,
+    };
+    use iddqd_test_utils::unwind::catch_panic;
+
+    #[derive(Clone, Debug)]
+    struct PanickyHashItem {
+        key1: u32,
+        key2: u32,
+    }
+
+    impl BiHashItem for PanickyHashItem {
+        type K1<'a> = PanickyKey;
+        type K2<'a> = PanickyKey;
+        fn key1(&self) -> Self::K1<'_> {
+            PanickyKey(self.key1)
+        }
+        fn key2(&self) -> Self::K2<'_> {
+            PanickyKey(self.key2)
+        }
+        bi_upcast!();
+    }
+
+    /// Run `remove1(&PanickyKey(8))` with the panic armed at the start
+    /// of the `target_lookup`-th `find_entry` inside `remove_by_index`
+    /// (1 = k1, 2 = k2).
+    fn run_remove1_panicking_at_lookup(target_lookup: u32) {
+        let mut map = BiHashMap::<PanickyHashItem>::new();
+        for i in 0..16u32 {
+            map.insert_unique(PanickyHashItem { key1: i, key2: 100 + i })
+                .unwrap();
+        }
+
+        let _ = take_op_count();
+        assert!(map.contains_key1(&PanickyKey(8)));
+        let probe_k1 = take_op_count();
+        assert!(probe_k1 > 0, "k1 lookup should make at least one key call");
+
+        // Successive phase costs in `remove1`: find_index k1, then find_entry
+        // k1, then find_entry k2. Sum the list of probes that must succeed
+        // before the find_entry we're trying to test.
+        let phase_costs = [
+            /* find_index k1 */ probe_k1,
+            /* find_entry k1 */ probe_k1,
+        ];
+        let arm_count: u32 = phase_costs[..target_lookup as usize].iter().sum();
+
+        arm_panic_after(arm_count);
+        let result = catch_panic(|| {
+            map.remove1(&PanickyKey(8));
+        });
+        disarm_panic();
+        let panic_ops = take_op_count();
+
+        assert!(result.is_none(), "expected the remove to panic");
+        assert_eq!(
+            panic_ops,
+            arm_count + 1,
+            "panic should fire on the (arm_count + 1)-th key-trait call",
+        );
+
+        map.validate(ValidateCompact::Compact)
+            .expect("map should remain consistent after a panicking remove");
+    }
+
+    #[test]
+    fn remove_panicking_in_k1_lookup_leaves_map_consistent() {
+        run_remove1_panicking_at_lookup(1);
+    }
+
+    #[test]
+    fn remove_panicking_in_k2_lookup_leaves_map_consistent() {
+        run_remove1_panicking_at_lookup(2);
+    }
+}

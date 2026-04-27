@@ -1181,35 +1181,9 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
             let remove_index = map.find_index(key)?;
             (dormant_map, remove_index)
         };
-
         // SAFETY: `map` is not used after this point.
         let awakened_map = unsafe { dormant_map.awaken() };
-
-        let value = awakened_map
-            .items
-            .remove(remove_index)
-            .expect("items missing key1 that was just retrieved");
-
-        // Remove the value from the tables.
-        let state = &awakened_map.tables.state;
-        let Ok(item1) = awakened_map.tables.key_to_item.find_entry(
-            state,
-            &value.key(),
-            |index| {
-                if index == remove_index {
-                    value.key()
-                } else {
-                    awakened_map.items[index].key()
-                }
-            },
-        ) else {
-            // The item was not found.
-            panic!("we just looked this item up");
-        };
-
-        item1.remove();
-
-        Some(value)
+        awakened_map.remove_by_index(remove_index)
     }
 
     /// Retrieves an entry by its key.
@@ -1446,26 +1420,29 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
     }
 
     pub(super) fn remove_by_index(&mut self, remove_index: usize) -> Option<T> {
-        let value = self.items.remove(remove_index)?;
-
-        // Remove the value from the tables.
+        // For panic safety, look up the table entry while `self.items` still
+        // holds the value, then remove from the table and items in sequence.
+        // hashbrown's `find_entry` is panic-safe under user-`Hash`/`Eq` panics
+        // (the table is not mutated until `OccupiedEntry::remove` is called),
+        // so a panic during the lookup leaves both items and the table
+        // unmodified.
+        let key = self.items.get(remove_index)?.key();
         let state = &self.tables.state;
         let Ok(item) =
-            self.tables.key_to_item.find_entry(state, &value.key(), |index| {
-                if index == remove_index {
-                    value.key()
-                } else {
-                    self.items[index].key()
-                }
-            })
+            self.tables
+                .key_to_item
+                .find_entry(state, &key, |index| self.items[index].key())
         else {
-            // The item was not found.
             panic!("we just looked this item up");
         };
-
+        // Drop the key so that `self.items` can be mutated below.
+        drop(key);
         item.remove();
-
-        Some(value)
+        Some(
+            self.items
+                .remove(remove_index)
+                .expect("items[remove_index] was Occupied above"),
+        )
     }
 
     pub(super) fn replace_at_index(&mut self, index: usize, value: T) -> T {
