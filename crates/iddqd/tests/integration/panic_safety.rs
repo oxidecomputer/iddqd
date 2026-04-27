@@ -178,6 +178,7 @@ pub(crate) enum PanicSafety {
     StepAtomic,
     /// May corrupt the underlying table. Callers must skip arming a panic for
     /// this op.
+    #[allow(dead_code)] // unused without `default-hasher`
     MayCorruptOnPanic,
 }
 
@@ -186,6 +187,7 @@ pub(crate) enum PanicSafety {
 ///
 /// `contains_keys` should check *all* of an item's keys for multi-key
 /// maps.
+#[expect(clippy::too_many_arguments)]
 pub(crate) fn assert_post_op_invariants<K>(
     step: usize,
     op_label: &dyn fmt::Display,

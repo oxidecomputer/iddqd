@@ -914,7 +914,7 @@ mod proptest_panic_safety {
         /// * `RetainModulo` loops over per-step atomic mutations.
         /// * `Extend` calls `HashTable::reserve` up front, which on a
         ///   tombstone-heavy map drops into hashbrown's `rehash_in_place`.
-        ///   Hashbrown documetns `rehash_in_place` as not panic-safe.
+        ///   Hashbrown documents `rehash_in_place` as not panic-safe.
         fn panic_safety(&self) -> PanicSafety {
             match self {
                 PanickyAction::InsertUnique(_)

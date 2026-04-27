@@ -706,13 +706,13 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     /// ```
     #[doc(alias = "insert")]
     pub fn insert_overwrite(&mut self, value: T) -> Option<T> {
-        // Go through the entry API so all user-`Hash`/`Eq` work happens before
-        // any table mutation. A panic in user code therefore leaves the map in
-        // its pre-call state.
+        // Go through the entry API so all user code is called before any table
+        // mutation. A panic in user code therefore leaves the map in its
+        // pre-call state.
         //
-        // We use `vacant.insert_entry` rather than `vacant.insert` to avoid a
-        // `RefMut`, whose `Drop` would (unnecessarily) re-hash the key *after*
-        // the mutation.
+        // We use `vacant.insert_entry` rather than `vacant.insert` to avoid
+        // creating a `RefMut`, which would (unnecessarily) re-hash the key
+        // after the mutation when that `RefMut` is created.
         match self.entry(value.key()) {
             Entry::Occupied(mut occupied) => Some(occupied.insert(value)),
             Entry::Vacant(vacant) => {
