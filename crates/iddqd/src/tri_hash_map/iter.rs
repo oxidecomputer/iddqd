@@ -2,13 +2,11 @@ use super::{RefMut, tables::TriHashMapTables};
 use crate::{
     DefaultHashBuilder, TriHashItem,
     support::{
-        ItemIndex,
-        alloc::{AllocWrapper, Allocator, Global},
-        item_set::ItemSet,
+        alloc::{Allocator, Global},
+        item_set::{self, ItemSet},
     },
 };
 use core::{hash::BuildHasher, iter::FusedIterator};
-use hashbrown::hash_map;
 
 /// An iterator over the elements of a [`TriHashMap`] by shared reference.
 /// Created by [`TriHashMap::iter`].
@@ -21,7 +19,7 @@ use hashbrown::hash_map;
 /// [`HashMap`]: std::collections::HashMap
 #[derive(Clone, Debug, Default)]
 pub struct Iter<'a, T: TriHashItem> {
-    inner: hash_map::Values<'a, ItemIndex, T>,
+    inner: item_set::Values<'a, T>,
 }
 
 impl<'a, T: TriHashItem> Iter<'a, T> {
@@ -46,7 +44,6 @@ impl<T: TriHashItem> ExactSizeIterator for Iter<'_, T> {
     }
 }
 
-// hash_map::Iter is a FusedIterator, so Iter is as well.
 impl<T: TriHashItem> FusedIterator for Iter<'_, T> {}
 
 /// An iterator over the elements of a [`TriHashMap`] by mutable reference.
@@ -68,7 +65,7 @@ pub struct IterMut<
     A: Allocator = Global,
 > {
     tables: &'a TriHashMapTables<S, A>,
-    inner: hash_map::ValuesMut<'a, ItemIndex, T>,
+    inner: item_set::ValuesMut<'a, T>,
 }
 
 impl<'a, T: TriHashItem, S: Clone + BuildHasher, A: Allocator>
@@ -104,7 +101,6 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> ExactSizeIterator
     }
 }
 
-// hash_map::IterMut is a FusedIterator, so IterMut is as well.
 impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> FusedIterator
     for IterMut<'_, T, S, A>
 {
@@ -121,7 +117,7 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> FusedIterator
 /// [`HashMap`]: std::collections::HashMap
 #[derive(Debug)]
 pub struct IntoIter<T: TriHashItem, A: Allocator = Global> {
-    inner: hash_map::IntoValues<ItemIndex, T, AllocWrapper<A>>,
+    inner: item_set::IntoValues<T, A>,
 }
 
 impl<T: TriHashItem, A: Allocator> IntoIter<T, A> {
@@ -146,5 +142,4 @@ impl<T: TriHashItem, A: Allocator> ExactSizeIterator for IntoIter<T, A> {
     }
 }
 
-// hash_map::IterMut is a FusedIterator, so IterMut is as well.
 impl<T: TriHashItem, A: Allocator> FusedIterator for IntoIter<T, A> {}
