@@ -168,9 +168,8 @@ impl<'a, T, A: Allocator> GrowHandle<'a, T, A> {
             idx
         } else {
             let idx = self.items.free_head;
-            // Replace the `Vacant { next }` at `idx` with `Occupied`
-            // and splice `idx` out of the chain by advancing
-            // `free_head` past it.
+            // Replace the `Vacant { next }` at `idx` with `Occupied`,
+            // and advance `free_head` to `next`.
             let slot = &mut self.items.items[idx.as_u32() as usize];
             let next = match slot {
                 SlabEntry::Occupied(_) => {
@@ -193,17 +192,12 @@ impl<'a, T, A: Allocator> GrowHandle<'a, T, A> {
 /// type. All other interaction with slots goes through `ItemSet`'s safe
 /// methods.
 pub(crate) enum SlabEntry<T> {
-    /// Slot holds a live value.
+    /// The slot holds a live value.
     Occupied(T),
-    /// Slot is free; `next` is the index of the next free slot, or
-    /// [`SENTINEL`] if this is the end of the chain.
+    /// The slot is free.
     ///
-    /// `ItemIndex` is a `u32` newtype, so `SlabEntry<T>` stays
-    /// minimal-overhead for small `T`: when `size_of::<T>() <
-    /// size_of::<usize>()`, this saves four bytes per slot compared to
-    /// a `usize` (and may shrink the enum's overall size once
-    /// alignment is taken into account). For larger `T` the variant
-    /// size is dominated by `T` and there is no layout difference.
+    /// `next` is the index of the next free slot, or [`ItemIndex::SENTINEL`] if
+    /// this is the end of the chain.
     Vacant { next: ItemIndex },
 }
 
@@ -259,18 +253,13 @@ impl<T: fmt::Debug> fmt::Debug for SlabEntry<T> {
 /// See the [module-level docs](self) for the design and tradeoffs.
 pub(crate) struct ItemSet<T, A: Allocator> {
     items: Vec<SlabEntry<T>, AllocWrapper<A>>,
-    /// LIFO head of the embedded free-list chain, or [`SENTINEL`]
-    /// when no slots are free. Stored as [`ItemIndex`] for symmetry
-    /// with [`SlabEntry::Vacant::next`] — they're the same conceptual
-    /// value (a slot index along the free chain).
+    /// LIFO head of the embedded free chain, or [`ItemIndex::SENTINEL`] when no
+    /// slots are free.
     free_head: ItemIndex,
     /// Count of `Occupied` slots, maintained by insert/remove.
-    /// Stored as `u32` because [`ItemIndex::MAX_VALID`] caps the
-    /// assignable slot count at `u32::MAX`, so `len` always fits. The
-    /// `as usize`
-    /// casts at boundaries with `Vec::len()` and capacity arguments
-    /// document where slab-internal indexing meets the wider `usize`
-    /// world.
+    ///
+    /// (ItemIndex is a u32, as is len, so the struct can be more tightly packed
+    /// than if both were usizes.)
     len: u32,
 }
 
@@ -328,25 +317,13 @@ impl<T, A: Allocator> ItemSet<T, A> {
     }
 
     /// Returns a raw pointer to the backing slot buffer.
-    ///
-    /// Intended for iterator types that need to hand out disjoint
-    /// `&mut T` across iterations without reborrowing `&mut ItemSet`
-    /// each time. The `SlabEntry<T>` element type is exposed so callers can
-    /// pattern-match occupancy via [`SlabEntry::as_mut`].
-    ///
-    /// Pair with [`Self::slot_count`] to get the in-bounds upper limit
-    /// for `add(index)` arithmetic.
     #[inline]
     #[cfg_attr(not(feature = "std"), expect(dead_code))]
     pub(crate) fn as_mut_ptr(&mut self) -> *mut SlabEntry<T> {
         self.items.as_mut_ptr()
     }
 
-    /// Returns the number of slots in the backing buffer (occupied +
-    /// vacant).
-    ///
-    /// This is the in-bounds upper limit for any [`ItemIndex`] used
-    /// against the pointer returned by [`Self::as_mut_ptr`].
+    /// Returns the number of slots in the backing buffer.
     #[inline]
     #[cfg_attr(not(feature = "std"), expect(dead_code))]
     pub(crate) fn slot_count(&self) -> usize {
@@ -643,11 +620,9 @@ impl<T, A: Allocator> ItemSet<T, A> {
             return IndexRemap::Identity;
         }
 
-        // Two-pointer compaction: forward scan, writing each `Occupied`
-        // into the next write position. As we go, build a direct position
-        // array `new_pos[old] = new` so callers can rewrite their stored
-        // indexes in O(1) per entry, instead of doing a binary_search
-        // over a holes list.
+        // Do a forward scan, writing each `Occupied` into the next write
+        // position. As we go, build a `new_pos[old] = new` index so callers can
+        // rewrite their stored indexes.
         assert!(
             pre_len <= ItemIndex::MAX_VALID.as_u32() as usize,
             "compact: items.len() {pre_len} exceeds MAX_VALID {}",
