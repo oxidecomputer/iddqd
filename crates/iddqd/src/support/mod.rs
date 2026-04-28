@@ -7,7 +7,10 @@ pub(crate) mod daft_utils;
 pub(crate) mod fmt_utils;
 pub(crate) mod hash_builder;
 pub(crate) mod hash_table;
+pub(crate) mod item_index;
 pub(crate) mod item_set;
 pub(crate) mod map_hash;
 #[cfg(feature = "schemars08")]
 pub(crate) mod schemars_utils;
+
+pub(crate) use item_index::ItemIndex;

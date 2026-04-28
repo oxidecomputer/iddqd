@@ -2,6 +2,7 @@ use super::{RefMut, tables::TriHashMapTables};
 use crate::{
     DefaultHashBuilder, TriHashItem,
     support::{
+        ItemIndex,
         alloc::{AllocWrapper, Allocator, Global},
         item_set::ItemSet,
     },
@@ -20,7 +21,7 @@ use hashbrown::hash_map;
 /// [`HashMap`]: std::collections::HashMap
 #[derive(Clone, Debug, Default)]
 pub struct Iter<'a, T: TriHashItem> {
-    inner: hash_map::Values<'a, usize, T>,
+    inner: hash_map::Values<'a, ItemIndex, T>,
 }
 
 impl<'a, T: TriHashItem> Iter<'a, T> {
@@ -67,7 +68,7 @@ pub struct IterMut<
     A: Allocator = Global,
 > {
     tables: &'a TriHashMapTables<S, A>,
-    inner: hash_map::ValuesMut<'a, usize, T>,
+    inner: hash_map::ValuesMut<'a, ItemIndex, T>,
 }
 
 impl<'a, T: TriHashItem, S: Clone + BuildHasher, A: Allocator>
@@ -120,7 +121,7 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> FusedIterator
 /// [`HashMap`]: std::collections::HashMap
 #[derive(Debug)]
 pub struct IntoIter<T: TriHashItem, A: Allocator = Global> {
-    inner: hash_map::IntoValues<usize, T, AllocWrapper<A>>,
+    inner: hash_map::IntoValues<ItemIndex, T, AllocWrapper<A>>,
 }
 
 impl<T: TriHashItem, A: Allocator> IntoIter<T, A> {

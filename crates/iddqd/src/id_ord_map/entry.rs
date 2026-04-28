@@ -1,5 +1,5 @@
 use super::{IdOrdItem, IdOrdMap, RefMut};
-use crate::support::borrow::DormantMutRef;
+use crate::support::{ItemIndex, borrow::DormantMutRef};
 use core::{fmt, hash::Hash};
 
 /// An implementation of the Entry API for [`IdOrdMap`].
@@ -208,7 +208,7 @@ impl<'a, T: IdOrdItem> VacantEntry<'a, T> {
 pub struct OccupiedEntry<'a, T: IdOrdItem> {
     map: DormantMutRef<'a, IdOrdMap<T>>,
     // index is a valid index into the map's internal hash table.
-    index: usize,
+    index: ItemIndex,
 }
 
 impl<'a, T: IdOrdItem> fmt::Debug for OccupiedEntry<'a, T> {
@@ -226,7 +226,7 @@ impl<'a, T: IdOrdItem> OccupiedEntry<'a, T> {
     /// `DormantMutRef::new` must not be used.
     pub(super) unsafe fn new(
         map: DormantMutRef<'a, IdOrdMap<T>>,
-        index: usize,
+        index: ItemIndex,
     ) -> Self {
         OccupiedEntry { map, index }
     }
