@@ -4,6 +4,7 @@ use crate::{
     errors::DuplicateItem,
     internal::ValidationError,
     support::{
+        ItemIndex,
         alloc::{AllocWrapper, Allocator, Global, global_alloc},
         borrow::DormantMutRef,
         fmt_utils::StrDisplayAsDebug,
@@ -1465,7 +1466,7 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
             ));
         }
 
-        let next_index = self.items.insert_at_next_index(value);
+        let next_index = self.items.assert_can_grow().insert(value);
         // e1, e2 and e3 are all Some because if they were None, duplicates
         // would be non-empty, and we'd have bailed out earlier.
         e1.unwrap().insert(next_index);
@@ -2676,7 +2677,7 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
         self.find1_index(k).map(|ix| &self.items[ix])
     }
 
-    fn find1_index<'a, Q>(&'a self, k: &Q) -> Option<usize>
+    fn find1_index<'a, Q>(&'a self, k: &Q) -> Option<ItemIndex>
     where
         Q: Hash + Equivalent<T::K1<'a>> + ?Sized,
     {
@@ -2692,7 +2693,7 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
         self.find2_index(k).map(|ix| &self.items[ix])
     }
 
-    fn find2_index<'a, Q>(&'a self, k: &Q) -> Option<usize>
+    fn find2_index<'a, Q>(&'a self, k: &Q) -> Option<ItemIndex>
     where
         Q: Hash + Equivalent<T::K2<'a>> + ?Sized,
     {
@@ -2708,7 +2709,7 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
         self.find3_index(k).map(|ix| &self.items[ix])
     }
 
-    fn find3_index<'a, Q>(&'a self, k: &Q) -> Option<usize>
+    fn find3_index<'a, Q>(&'a self, k: &Q) -> Option<ItemIndex>
     where
         Q: Hash + Equivalent<T::K3<'a>> + ?Sized,
     {
@@ -2717,7 +2718,10 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
             .find_index(&self.tables.state, k, |index| self.items[index].key3())
     }
 
-    pub(super) fn remove_by_index(&mut self, remove_index: usize) -> Option<T> {
+    pub(super) fn remove_by_index(
+        &mut self,
+        remove_index: ItemIndex,
+    ) -> Option<T> {
         // For panic safety, look up all three table entries while `self.items`
         // still holds the value, then remove from all three tables and items
         // in sequence. hashbrown's `find_entry` is panic-safe under
@@ -2911,9 +2915,9 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> Extend<T>
 }
 
 fn detect_dup_or_insert<'a, A: Allocator>(
-    item: Entry<'a, usize, AllocWrapper<A>>,
-    duplicates: &mut BTreeSet<usize>,
-) -> Option<VacantEntry<'a, usize, AllocWrapper<A>>> {
+    item: Entry<'a, ItemIndex, AllocWrapper<A>>,
+    duplicates: &mut BTreeSet<ItemIndex>,
+) -> Option<VacantEntry<'a, ItemIndex, AllocWrapper<A>>> {
     match item {
         Entry::Vacant(slot) => Some(slot),
         Entry::Occupied(slot) => {
