@@ -57,7 +57,6 @@ use allocator_api2::vec::Vec;
 use core::{
     fmt,
     iter::FusedIterator,
-    marker::PhantomData,
     ops::{Index, IndexMut},
 };
 
@@ -191,6 +190,7 @@ impl<'a, T, A: Allocator> GrowHandle<'a, T, A> {
 /// raw pointer into the `items` buffer; callers need to name the element
 /// type. All other interaction with slots goes through `ItemSet`'s safe
 /// methods.
+#[derive(Clone, Debug)]
 pub(crate) enum SlabEntry<T> {
     /// The slot holds a live value.
     Occupied(T),
@@ -222,28 +222,9 @@ impl<T> SlabEntry<T> {
 
     #[inline]
     fn is_occupied(&self) -> bool {
-        matches!(self, SlabEntry::Occupied(_))
-    }
-}
-
-impl<T: Clone> Clone for SlabEntry<T> {
-    fn clone(&self) -> Self {
         match self {
-            SlabEntry::Occupied(v) => SlabEntry::Occupied(v.clone()),
-            SlabEntry::Vacant { next } => SlabEntry::Vacant { next: *next },
-        }
-    }
-}
-
-impl<T: fmt::Debug> fmt::Debug for SlabEntry<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            SlabEntry::Occupied(v) => {
-                f.debug_tuple("Occupied").field(v).finish()
-            }
-            SlabEntry::Vacant { next } => {
-                f.debug_struct("Vacant").field("next", next).finish()
-            }
+            SlabEntry::Occupied(_) => true,
+            SlabEntry::Vacant { .. } => false,
         }
     }
 }
@@ -573,17 +554,19 @@ impl<T, A: Allocator> ItemSet<T, A> {
     /// that `index` is valid (and panics if it isn't).
     #[inline]
     pub(crate) fn replace(&mut self, index: ItemIndex, value: T) -> T {
-        match self.items.get_mut(index.as_u32() as usize) {
-            Some(slot @ SlabEntry::Occupied(_)) => {
-                match core::mem::replace(slot, SlabEntry::Occupied(value)) {
-                    SlabEntry::Occupied(old) => old,
-                    SlabEntry::Vacant { .. } => {
-                        unreachable!("slot was just matched as Occupied")
-                    }
-                }
-            }
-            _ => panic!("ItemSet index not found: {index}"),
-        }
+        let Some(slot) = self
+            .items
+            .get_mut(index.as_u32() as usize)
+            .filter(|s| s.is_occupied())
+        else {
+            panic!("ItemSet index not found: {index}")
+        };
+        let SlabEntry::Occupied(old) =
+            core::mem::replace(slot, SlabEntry::Occupied(value))
+        else {
+            unreachable!("slot was just matched as Occupied")
+        };
+        old
     }
 
     #[inline]
@@ -942,18 +925,13 @@ impl<T> FusedIterator for ValuesMut<'_, T> {}
 pub(crate) struct IntoValues<T, A: Allocator> {
     inner: allocator_api2::vec::IntoIter<SlabEntry<T>, AllocWrapper<A>>,
     remaining: usize,
-    _marker: PhantomData<A>,
 }
 
 impl<T, A: Allocator> IntoValues<T, A> {
     fn new(set: ItemSet<T, A>) -> Self {
         let remaining = set.len();
         let consuming = set.into_consuming();
-        Self {
-            inner: consuming.items.into_iter(),
-            remaining,
-            _marker: PhantomData,
-        }
+        Self { inner: consuming.items.into_iter(), remaining }
     }
 }
 

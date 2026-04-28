@@ -262,7 +262,6 @@ impl MapBTreeTable {
     /// [`ItemSet::shrink_to_fit`]: super::item_set::ItemSet::shrink_to_fit
     /// [`ItemSet::shrink_to`]: super::item_set::ItemSet::shrink_to
     pub(crate) fn remap_indexes(&mut self, remap: &IndexRemap) {
-        // Note that this is an in-place rewrite of `self.items` values.
         for idx in self.items.iter() {
             let new = remap.remap(idx.value());
             idx.set_value(new);

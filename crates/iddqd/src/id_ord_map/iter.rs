@@ -117,8 +117,6 @@ where
     }
 }
 
-// `Send` and `Sync` are auto-derived for IterMut based on ItemSetPtr.
-
 impl<'a, T: IdOrdItem + 'a> Iterator for IterMut<'a, T>
 where
     T::Key<'a>: Hash,
@@ -141,9 +139,9 @@ where
             self.items.slot_count,
         );
 
-        // SAFETY: The big invariants to uphold here are that:
+        // SAFETY: We need to show:
         //
-        // * self.items.ptr.add(raw_index) points at valid memory.
+        // * `self.items.ptr.add(raw_index)` points at valid memory.
         // * There are no overlapping mutable borrows of the same memory.
         //
         // This is shown by the following observations:
@@ -163,7 +161,7 @@ where
         let item: &'a mut T = unsafe {
             (*self.items.ptr.add(raw_index))
                 .as_mut()
-                .expect("btree index points at a Some slot in ItemSet")
+                .expect("btree index points at an Occupied slot in ItemSet")
         };
 
         let (hash, dormant) = {

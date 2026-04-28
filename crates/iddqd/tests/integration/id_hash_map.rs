@@ -242,9 +242,9 @@ impl Operation {
             | Operation::RetainValueContains(_, _)
             | Operation::RetainModulo(_, _, _)
             | Operation::Extend(_) => CompactnessChange::NoLongerCompact,
-            // Clear always makes the map compact (empty). Shrink
-            // operations fully compact the backing store, restoring
-            // the `Compact` invariant.
+            // Clear empties the map, so it is de-facto compact. Shrink
+            // operations fully compact the backing store, restoring the
+            // `Compact` invariant.
             Operation::Clear
             | Operation::ShrinkToFit
             | Operation::ShrinkTo(_) => CompactnessChange::BecomesCompact,
@@ -360,15 +360,12 @@ fn proptest_ops(
             }
             Operation::ShrinkToFit => {
                 map.shrink_to_fit();
-                // The naive map has no shrink operation; contents stay
-                // unchanged. Compactness is validated below via the
-                // standard `map.validate(compactness)` call, which —
-                // thanks to the compactness-change tracker — now
-                // expects `Compact`.
+                // The naive map has no shrink operation.
                 map.validate(compactness).expect("map should be valid");
             }
             Operation::ShrinkTo(min_capacity) => {
                 map.shrink_to(min_capacity);
+                // The naive map has no shrink operation.
                 map.validate(compactness).expect("map should be valid");
             }
         }
