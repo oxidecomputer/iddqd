@@ -7,6 +7,7 @@ use crate::{
     errors::DuplicateItem,
     internal::{ValidateCompact, ValidationError},
     support::{
+        ItemIndex,
         alloc::{Allocator, Global, global_alloc},
         borrow::DormantMutRef,
         item_set::ItemSet,
@@ -694,9 +695,7 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
         &mut self,
         additional: usize,
     ) -> Result<(), crate::errors::TryReserveError> {
-        self.items
-            .try_reserve(additional)
-            .map_err(crate::errors::TryReserveError::from_hashbrown)?;
+        self.items.try_reserve(additional)?;
         let items = &self.items;
         let state = &self.tables.state;
         self.tables
@@ -739,7 +738,10 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
     /// # }
     /// ```
     pub fn shrink_to_fit(&mut self) {
-        self.items.shrink_to_fit();
+        let remap = self.items.shrink_to_fit();
+        if !remap.is_identity() {
+            self.tables.key_to_item.remap_indexes(&remap);
+        }
         let items = &self.items;
         let state = &self.tables.state;
         self.tables
@@ -785,7 +787,10 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
     /// # }
     /// ```
     pub fn shrink_to(&mut self, min_capacity: usize) {
-        self.items.shrink_to(min_capacity);
+        let remap = self.items.shrink_to(min_capacity);
+        if !remap.is_identity() {
+            self.tables.key_to_item.remap_indexes(&remap);
+        }
         let items = &self.items;
         let state = &self.tables.state;
         self.tables
@@ -894,7 +899,7 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
         self.tables.validate(self.len(), compactness)?;
 
         // Check that the indexes are all correct.
-        for (&ix, item) in self.items.iter() {
+        for (ix, item) in self.items.iter() {
             let key = item.key();
             let Some(ix1) = self.find_index(&key) else {
                 return Err(ValidationError::general(format!(
@@ -1238,7 +1243,7 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
         {
             // index is explicitly typed to show that it has a trivial Drop impl
             // that doesn't capture anything from map.
-            let index: Option<usize> = map.tables.key_to_item.find_index(
+            let index: Option<ItemIndex> = map.tables.key_to_item.find_index(
                 &map.tables.state,
                 &key,
                 |index| map.items[index].key(),
@@ -1349,7 +1354,7 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
         });
     }
 
-    fn find_index<'a, Q>(&'a self, k: &Q) -> Option<usize>
+    fn find_index<'a, Q>(&'a self, k: &Q) -> Option<ItemIndex>
     where
         Q: Hash + Equivalent<T::Key<'a>> + ?Sized,
     {
@@ -1366,13 +1371,13 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
         self.tables.make_key_hash::<T>(key)
     }
 
-    pub(super) fn get_by_index(&self, index: usize) -> Option<&T> {
+    pub(super) fn get_by_index(&self, index: ItemIndex) -> Option<&T> {
         self.items.get(index)
     }
 
     pub(super) fn get_by_index_mut(
         &mut self,
-        index: usize,
+        index: ItemIndex,
     ) -> Option<RefMut<'_, T, S>> {
         let state = self.tables.state.clone();
         let hashes = self.make_hash(&self.items[index]);
@@ -1383,7 +1388,7 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
     pub(super) fn insert_unique_impl(
         &mut self,
         value: T,
-    ) -> Result<usize, DuplicateItem<T, &T>> {
+    ) -> Result<ItemIndex, DuplicateItem<T, &T>> {
         let mut duplicates = BTreeSet::new();
 
         // Check for duplicates *before* inserting the new item, because we
@@ -1411,13 +1416,16 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
             ));
         }
 
-        let next_index = self.items.insert_at_next_index(value);
+        let next_index = self.items.assert_can_grow().insert(value);
         entry.unwrap().insert(next_index);
 
         Ok(next_index)
     }
 
-    pub(super) fn remove_by_index(&mut self, remove_index: usize) -> Option<T> {
+    pub(super) fn remove_by_index(
+        &mut self,
+        remove_index: ItemIndex,
+    ) -> Option<T> {
         // For panic safety, look up the table entry while `self.items` still
         // holds the value, then remove from the table and items in sequence.
         // hashbrown's `find_entry` is panic-safe under user-`Hash`/`Eq` panics
@@ -1443,7 +1451,7 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
         )
     }
 
-    pub(super) fn replace_at_index(&mut self, index: usize, value: T) -> T {
+    pub(super) fn replace_at_index(&mut self, index: ItemIndex, value: T) -> T {
         // We check the key before removing it, to avoid leaving the map in an
         // inconsistent state.
         let old_key =

@@ -38,9 +38,8 @@ fn debug_impls() {
 
     assert_eq!(
         format!("{map:?}"),
-        // This is a small-enough map that the order of iteration is
-        // deterministic.
-        r#"{1: SimpleItem { key: 1 }, 10: SimpleItem { key: 10 }, 20: SimpleItem { key: 20 }}"#
+        // Iteration is in insertion order.
+        r#"{1: SimpleItem { key: 1 }, 20: SimpleItem { key: 20 }, 10: SimpleItem { key: 10 }}"#
     );
     assert_eq!(
         format!("{:?}", map.get_mut(&1).unwrap()),
@@ -59,7 +58,7 @@ fn debug_impls_borrowed() {
 
     assert_eq!(
         format!("{before:?}"),
-        r#"{"a": BorrowedItem { key1: "a", key2: [98, 48], key3: "path0" }, "c": BorrowedItem { key1: "c", key2: [98, 50], key3: "path2" }, "b": BorrowedItem { key1: "b", key2: [98, 49], key3: "path1" }}"#
+        r#"{"a": BorrowedItem { key1: "a", key2: [98, 48], key3: "path0" }, "b": BorrowedItem { key1: "b", key2: [98, 49], key3: "path1" }, "c": BorrowedItem { key1: "c", key2: [98, 50], key3: "path2" }}"#
     );
 
     #[cfg(feature = "daft")]
@@ -232,16 +231,10 @@ enum Operation {
 impl Operation {
     fn compactness_change(&self) -> CompactnessChange {
         match self {
-            // `shrink_to_fit` / `shrink_to` flow through hashbrown's
-            // rehash path the same way `reserve` does; like `reserve`
-            // they touch the allocation, not the item set's index
-            // space, so compactness is unchanged.
             Operation::InsertUnique(_)
             | Operation::Get(_)
             | Operation::Reserve(_)
-            | Operation::TryReserve(_)
-            | Operation::ShrinkToFit
-            | Operation::ShrinkTo(_) => CompactnessChange::NoChange,
+            | Operation::TryReserve(_) => CompactnessChange::NoChange,
             // The act of removing items, including calls to insert_overwrite,
             // can make the map non-compact.
             Operation::InsertOverwrite(_)
@@ -249,8 +242,12 @@ impl Operation {
             | Operation::RetainValueContains(_, _)
             | Operation::RetainModulo(_, _, _)
             | Operation::Extend(_) => CompactnessChange::NoLongerCompact,
-            // Clear always makes the map compact (empty).
-            Operation::Clear => CompactnessChange::BecomesCompact,
+            // Clear always makes the map compact (empty). Shrink
+            // operations fully compact the backing store, restoring
+            // the `Compact` invariant.
+            Operation::Clear
+            | Operation::ShrinkToFit
+            | Operation::ShrinkTo(_) => CompactnessChange::BecomesCompact,
         }
     }
 }
@@ -363,6 +360,11 @@ fn proptest_ops(
             }
             Operation::ShrinkToFit => {
                 map.shrink_to_fit();
+                // The naive map has no shrink operation; contents stay
+                // unchanged. Compactness is validated below via the
+                // standard `map.validate(compactness)` call, which —
+                // thanks to the compactness-change tracker — now
+                // expects `Compact`.
                 map.validate(compactness).expect("map should be valid");
             }
             Operation::ShrinkTo(min_capacity) => {

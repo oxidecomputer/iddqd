@@ -32,7 +32,6 @@ iddqd = { path = "crates/iddqd", default-features = false }
 iddqd-test-utils = { path = "crates/iddqd-test-utils" }
 proptest = { version = "1.7.0", default-features = false, features = ["std"] }
 ref-cast = "1.0.24"
-rustc-hash = { version = "2.1.1", default-features = false }
 schemars = "0.8.22"
 serde = "1.0.223"
 serde_core = "1.0.223"

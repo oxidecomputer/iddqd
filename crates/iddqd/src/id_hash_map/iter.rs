@@ -2,12 +2,11 @@ use super::{RefMut, tables::IdHashMapTables};
 use crate::{
     DefaultHashBuilder, IdHashItem,
     support::{
-        alloc::{AllocWrapper, Allocator, Global},
-        item_set::ItemSet,
+        alloc::{Allocator, Global},
+        item_set::{self, ItemSet},
     },
 };
 use core::{hash::BuildHasher, iter::FusedIterator};
-use hashbrown::hash_map;
 
 /// An iterator over the elements of a [`IdHashMap`] by shared reference.
 /// Created by [`IdHashMap::iter`].
@@ -20,7 +19,7 @@ use hashbrown::hash_map;
 /// [`HashMap`]: std::collections::HashMap
 #[derive(Clone, Debug, Default)]
 pub struct Iter<'a, T: IdHashItem> {
-    inner: hash_map::Values<'a, usize, T>,
+    inner: item_set::Values<'a, T>,
 }
 
 impl<'a, T: IdHashItem> Iter<'a, T> {
@@ -45,7 +44,6 @@ impl<T: IdHashItem> ExactSizeIterator for Iter<'_, T> {
     }
 }
 
-// hash_map::Iter is a FusedIterator, so Iter is as well.
 impl<T: IdHashItem> FusedIterator for Iter<'_, T> {}
 
 /// An iterator over the elements of a [`IdHashMap`] by mutable reference.
@@ -67,7 +65,7 @@ pub struct IterMut<
     A: Allocator = Global,
 > {
     tables: &'a IdHashMapTables<S, A>,
-    inner: hash_map::ValuesMut<'a, usize, T>,
+    inner: item_set::ValuesMut<'a, T>,
 }
 
 impl<'a, T: IdHashItem, S: BuildHasher, A: Allocator> IterMut<'a, T, S, A> {
@@ -101,7 +99,6 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> ExactSizeIterator
     }
 }
 
-// hash_map::IterMut is a FusedIterator, so IterMut is as well.
 impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> FusedIterator
     for IterMut<'_, T, S, A>
 {
@@ -118,7 +115,7 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> FusedIterator
 /// [`HashMap`]: std::collections::HashMap
 #[derive(Debug)]
 pub struct IntoIter<T: IdHashItem, A: Allocator = Global> {
-    inner: hash_map::IntoValues<usize, T, AllocWrapper<A>>,
+    inner: item_set::IntoValues<T, A>,
 }
 
 impl<T: IdHashItem, A: Allocator> IntoIter<T, A> {
@@ -143,5 +140,4 @@ impl<T: IdHashItem, A: Allocator> ExactSizeIterator for IntoIter<T, A> {
     }
 }
 
-// hash_map::IterMut is a FusedIterator, so IterMut is as well.
 impl<T: IdHashItem, A: Allocator> FusedIterator for IntoIter<T, A> {}
