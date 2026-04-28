@@ -2,14 +2,13 @@
 //!
 //! # Design
 //!
-//! Each slot is an `SlabEntry<T>` that is either `Occupied(T)` or `Vacant { next
-//! }`. The free list is threaded inline through the vacant slots with
-//! `free_head` as its LIFO top and [`ItemIndex::SENTINEL`] as the
-//! end-of-list sentinel.
+//! Each slot is a `SlabEntry<T>` that is either `Occupied(T)` or `Vacant { next
+//! }`. The free chain consists of vacant slots that are linked together via
+//! `next` pointers, with `free_head` as its LIFO top and
+//! [`ItemIndex::SENTINEL`] as the end-of-list sentinel.
 //!
-//! Removed slots are recycled by the next [`GrowHandle::insert`] at no
-//! memory cost, so a churn workload stabilizes at the high-water mark of
-//! simultaneously-live items rather than the cumulative insertion count.
+//! Removed slots are recycled by the next [`GrowHandle::insert`], so a churn
+//! workload stabilizes at the high-water mark of simultaneously-live items.
 //!
 //! The container maintains a single allocation (`items`) and uses two `u32`s
 //! of stack footprint beyond it (the `free_head` and the current `len`).
@@ -25,12 +24,12 @@
 //! the disjoint-indexes trick in [`get_disjoint_mut`], which any slot-based
 //! container needs regardless of backend.
 //!
-//! This does mean that `SlabEntry<T>` carries a discriminant, so slots are at
-//! least `max(size_of::<u32>(), size_of::<T>()) + align_of::<SlabEntry<T>>()`
-//! regardless of whether `T` has a niche. For types with a niche (including
-//! structs where a field has a niche), this is one word larger per slot than
-//! `Option<T>` would be. Benchmarking indicates that overall this is a wash.
-//! Based on that, we choose the implementation with less unsafe code.
+//! The tradeoff is that `SlabEntry<T>` carries a discriminant, so slots are at
+//! least `max(size_of::<u32>(), size_of::<T>()) + align_of::<SlabEntry<T>>()`.
+//! For types with a niche (including structs where a field has a niche), this
+//! is one word larger per slot than `Option<T>` would be. Benchmarking
+//! indicates that overall this is a wash. Based on that, we choose the
+//! implementation with less unsafe code.
 //!
 //! # Invariants
 //!
@@ -41,9 +40,10 @@
 //!    contains no in-bounds index that refers to an `Occupied` slot.
 //! 3. `len == items.iter().filter(|e| matches!(e, Occupied(_))).count()`.
 //!
-//! Under these invariants the live item count is `self.len`, and
-//! `items.len() - self.len` equals the number of vacant slots (and
-//! therefore the length of the embedded free-list chain).
+//! Under these invariants:
+//!
+//! * The number of occupied slots is `self.len`.
+//! * The number of vacant slots is `items.len() - self.len`.
 
 use super::{
     ItemIndex,
@@ -589,7 +589,7 @@ impl<T, A: Allocator> ItemSet<T, A> {
     }
 
     /// Moves every live slot down to fill `Vacant` holes, truncates
-    /// `items` to its new length, and clears the free-list chain.
+    /// `items` to its new length, and clears the free chain.
     fn compact(&mut self) -> IndexRemap {
         let pre_len = self.items.len();
         if pre_len == self.len as usize {
@@ -1006,7 +1006,7 @@ impl<T, A: Allocator> ConsumingItemSet<T, A> {
             return None;
         }
         // The free chain is no longer maintained in this view, so any
-        // `next` value is fine — `SENTINEL` is a natural choice.
+        // `next` value is fine. `SENTINEL` is a natural choice.
         let SlabEntry::Occupied(v) = core::mem::replace(
             slot,
             SlabEntry::Vacant { next: ItemIndex::SENTINEL },

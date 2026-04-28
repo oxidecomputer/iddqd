@@ -223,10 +223,8 @@ impl<T: IdOrdItem> Iterator for IntoIter<T> {
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         let index = self.iter.next()?;
-        // We own `self.items` and the btree's indexes are never revisited,
-        // so take directly from the consuming view (O(1), no free-list
-        // allocation) rather than `ItemSet::remove`, which would push to
-        // the free list per call.
+        // We own `self.items` and the B-tree's indexes are never revisited, so
+        // we can take directly from the consuming view.
         let next = self
             .items
             .take(index)
