@@ -73,6 +73,13 @@ impl<'a, T: BiHashItem, S: Clone + BuildHasher> RefMut<'a, T, S> {
         let inner = self.inner.take().unwrap();
         inner.into_ref()
     }
+    /// Opt-out of the change-detection provided by [`RefMut`].
+    ///
+    /// It is a logic error to alter [`T::K1`](BiHashItem::K1)
+    /// or [`T::K2`](BiHashItem::K2) of the returned item.
+    pub fn into_mut_unchecked(mut self) -> &'a mut T {
+        self.inner.take().unwrap().borrowed
+    }
 }
 
 impl<T: BiHashItem, S: Clone + BuildHasher> Drop for RefMut<'_, T, S> {
