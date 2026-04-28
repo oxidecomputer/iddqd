@@ -80,7 +80,7 @@ use hashbrown::hash_table;
 #[derive(Clone)]
 pub struct BiHashMap<T, S = DefaultHashBuilder, A: Allocator = Global> {
     pub(super) items: ItemSet<T, A>,
-    // Invariant: the values (usize) in these tables are valid indexes into
+    // Invariant: the values (ItemIndex) in these tables are valid indexes into
     // `items`, and are a 1:1 mapping.
     pub(super) tables: BiHashMapTables<S, A>,
 }

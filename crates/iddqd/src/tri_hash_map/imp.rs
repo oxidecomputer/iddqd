@@ -86,7 +86,7 @@ use hashbrown::hash_table::{Entry, VacantEntry};
 #[derive(Clone)]
 pub struct TriHashMap<T, S = DefaultHashBuilder, A: Allocator = Global> {
     pub(super) items: ItemSet<T, A>,
-    // Invariant: the values (usize) in these tables are valid indexes into
+    // Invariant: the values (ItemIndex) in these tables are valid indexes into
     // `items`, and are a 1:1 mapping.
     tables: TriHashMapTables<S, A>,
 }
