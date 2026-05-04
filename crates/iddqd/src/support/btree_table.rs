@@ -4,7 +4,7 @@
 //! integers (that are indexes corresponding to items), but use an external
 //! comparator.
 
-use super::map_hash::MapHash;
+use super::{ItemIndex, map_hash::MapHash};
 use crate::internal::{TableValidationError, ValidateCompact};
 use alloc::{
     collections::{BTreeSet, btree_set},
@@ -123,7 +123,7 @@ impl MapBTreeTable {
                 }
                 indexes.sort_unstable();
                 for (i, index) in indexes.iter().enumerate() {
-                    if *index != i {
+                    if index.as_u32() as usize != i {
                         return Err(TableValidationError::new(format!(
                             "value at index {i} should be {i}, was {index}",
                         )));
@@ -134,7 +134,7 @@ impl MapBTreeTable {
                 // There should be no duplicates, and the sentinel value
                 // should not be stored.
                 let indexes: Vec<_> = self.items.iter().copied().collect();
-                let index_set: BTreeSet<usize> =
+                let index_set: BTreeSet<ItemIndex> =
                     indexes.iter().map(|ix| ix.0).collect();
                 if index_set.len() != indexes.len() {
                     return Err(TableValidationError::new(format!(
@@ -156,12 +156,12 @@ impl MapBTreeTable {
     }
 
     #[inline]
-    pub(crate) fn first(&self) -> Option<usize> {
+    pub(crate) fn first(&self) -> Option<ItemIndex> {
         self.items.first().map(|ix| ix.0)
     }
 
     #[inline]
-    pub(crate) fn last(&self) -> Option<usize> {
+    pub(crate) fn last(&self) -> Option<ItemIndex> {
         self.items.last().map(|ix| ix.0)
     }
 
@@ -169,11 +169,11 @@ impl MapBTreeTable {
         &self,
         key: &Q,
         lookup: F,
-    ) -> Option<usize>
+    ) -> Option<ItemIndex>
     where
         K: Ord,
         Q: ?Sized + Comparable<K>,
-        F: Fn(usize) -> K,
+        F: Fn(ItemIndex) -> K,
     {
         let f = find_cmp(key, lookup);
 
@@ -195,11 +195,15 @@ impl MapBTreeTable {
         ret
     }
 
-    pub(crate) fn insert<K, Q, F>(&mut self, index: usize, key: &Q, lookup: F)
-    where
+    pub(crate) fn insert<K, Q, F>(
+        &mut self,
+        index: ItemIndex,
+        key: &Q,
+        lookup: F,
+    ) where
         K: Ord,
         Q: ?Sized + Comparable<K>,
-        F: Fn(usize) -> K,
+        F: Fn(ItemIndex) -> K,
     {
         let f = insert_cmp(index, key, lookup);
         let guard = CmpDropGuard::new(&f);
@@ -210,9 +214,9 @@ impl MapBTreeTable {
         drop(guard);
     }
 
-    pub(crate) fn remove<K, F>(&mut self, index: usize, key: K, lookup: F)
+    pub(crate) fn remove<K, F>(&mut self, index: ItemIndex, key: K, lookup: F)
     where
-        F: Fn(usize) -> K,
+        F: Fn(ItemIndex) -> K,
         K: Ord,
     {
         let f = insert_cmp(index, &key, lookup);
@@ -226,7 +230,7 @@ impl MapBTreeTable {
 
     pub(crate) fn retain<F>(&mut self, mut f: F)
     where
-        F: FnMut(usize) -> bool,
+        F: FnMut(ItemIndex) -> bool,
     {
         // We don't need to set up a comparator in the environment because
         // `retain` doesn't do any comparisons as part of its operation.
@@ -272,7 +276,7 @@ impl<'a> Iter<'a> {
 }
 
 impl<'a> Iterator for Iter<'a> {
-    type Item = usize;
+    type Item = ItemIndex;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.next().map(|index| index.0)
@@ -291,7 +295,7 @@ impl IntoIter {
 }
 
 impl Iterator for IntoIter {
-    type Item = usize;
+    type Item = ItemIndex;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.next().map(|index| index.0)
@@ -304,7 +308,7 @@ fn find_cmp<'a, K, Q, F>(
 ) -> impl Fn(Index, Index) -> Ordering + 'a
 where
     Q: ?Sized + Comparable<K>,
-    F: 'a + Fn(usize) -> K,
+    F: 'a + Fn(ItemIndex) -> K,
     K: Ord,
 {
     move |a: Index, b: Index| {
@@ -326,13 +330,13 @@ where
 }
 
 fn insert_cmp<'a, K, Q, F>(
-    index: usize,
+    index: ItemIndex,
     key: &'a Q,
     lookup: F,
 ) -> impl Fn(Index, Index) -> Ordering + 'a
 where
     Q: ?Sized + Comparable<K>,
-    F: 'a + Fn(usize) -> K,
+    F: 'a + Fn(ItemIndex) -> K,
     K: Ord,
 {
     move |a: Index, b: Index| {
@@ -389,14 +393,14 @@ impl Drop for CmpDropGuard<'_> {
 }
 
 #[derive(Clone, Copy, Debug)]
-struct Index(usize);
+struct Index(ItemIndex);
 
 impl Index {
-    const SENTINEL_VALUE: usize = usize::MAX;
+    const SENTINEL_VALUE: ItemIndex = ItemIndex::SENTINEL;
     const SENTINEL: Self = Self(Self::SENTINEL_VALUE);
 
     #[inline]
-    fn new(value: usize) -> Self {
+    fn new(value: ItemIndex) -> Self {
         if value == Self::SENTINEL_VALUE {
             panic!("btree map overflow, index with value {value:?} was added")
         }

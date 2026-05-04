@@ -10,6 +10,7 @@ use crate::{
     errors::DuplicateItem,
     internal::{ValidateCompact, ValidationError},
     support::{
+        ItemIndex,
         alloc::{AllocWrapper, Allocator, Global, global_alloc},
         borrow::DormantMutRef,
         fmt_utils::StrDisplayAsDebug,
@@ -79,7 +80,7 @@ use hashbrown::hash_table;
 #[derive(Clone)]
 pub struct BiHashMap<T, S = DefaultHashBuilder, A: Allocator = Global> {
     pub(super) items: ItemSet<T, A>,
-    // Invariant: the values (usize) in these tables are valid indexes into
+    // Invariant: the values (ItemIndex) in these tables are valid indexes into
     // `items`, and are a 1:1 mapping.
     pub(super) tables: BiHashMapTables<S, A>,
 }
@@ -1822,12 +1823,12 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
         let (index1, index2) = {
             // index1 and index2 are explicitly typed to show that it has a
             // trivial Drop impl that doesn't capture anything from map.
-            let index1: Option<usize> = map.tables.k1_to_item.find_index(
+            let index1: Option<ItemIndex> = map.tables.k1_to_item.find_index(
                 &map.tables.state,
                 &key1,
                 |index| map.items[index].key1(),
             );
-            let index2: Option<usize> = map.tables.k2_to_item.find_index(
+            let index2: Option<ItemIndex> = map.tables.k2_to_item.find_index(
                 &map.tables.state,
                 &key2,
                 |index| map.items[index].key2(),
@@ -1997,7 +1998,7 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
         self.find1_index(k).map(|ix| &self.items[ix])
     }
 
-    fn find1_index<'a, Q>(&'a self, k: &Q) -> Option<usize>
+    fn find1_index<'a, Q>(&'a self, k: &Q) -> Option<ItemIndex>
     where
         Q: Hash + Equivalent<T::K1<'a>> + ?Sized,
     {
@@ -2013,7 +2014,7 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
         self.find2_index(k).map(|ix| &self.items[ix])
     }
 
-    fn find2_index<'a, Q>(&'a self, k: &Q) -> Option<usize>
+    fn find2_index<'a, Q>(&'a self, k: &Q) -> Option<ItemIndex>
     where
         Q: Hash + Equivalent<T::K2<'a>> + ?Sized,
     {
@@ -2094,7 +2095,7 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
 
     pub(super) fn get_by_index_mut(
         &mut self,
-        index: usize,
+        index: ItemIndex,
     ) -> Option<RefMut<'_, T, S>> {
         let borrowed = self.items.get_mut(index)?;
         let state = self.tables.state.clone();
@@ -2107,7 +2108,7 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
     pub(super) fn insert_unique_impl(
         &mut self,
         value: T,
-    ) -> Result<usize, DuplicateItem<T, &T>> {
+    ) -> Result<ItemIndex, DuplicateItem<T, &T>> {
         let mut duplicates = BTreeSet::new();
 
         // Check for duplicates *before* inserting the new item, because we
@@ -2140,7 +2141,7 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
             ));
         }
 
-        let next_index = self.items.insert_at_next_index(value);
+        let next_index = self.items.assert_can_grow().insert(value);
         // e1 and e2 are all Some because if they were None, duplicates
         // would be non-empty, and we'd have bailed out earlier.
         e1.unwrap().insert(next_index);
@@ -2178,7 +2179,10 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
         }
     }
 
-    pub(super) fn remove_by_index(&mut self, remove_index: usize) -> Option<T> {
+    pub(super) fn remove_by_index(
+        &mut self,
+        remove_index: ItemIndex,
+    ) -> Option<T> {
         // For panic safety, look up both table entries while `self.items` still
         // holds the value, then remove from both tables and items in sequence.
         // hashbrown's `find_entry` is panic-safe under user-`Hash`/`Eq` panics
@@ -2218,7 +2222,7 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
         &mut self,
         indexes: EntryIndexes,
         value: T,
-    ) -> (usize, Vec<T>) {
+    ) -> (ItemIndex, Vec<T>) {
         match indexes {
             EntryIndexes::Unique(index) => {
                 let old_item = &self.items[index];
@@ -2426,9 +2430,9 @@ impl<T: BiHashItem + Eq, S: Clone + BuildHasher, A: Allocator> Eq
 }
 
 fn detect_dup_or_insert<'a, A: Allocator>(
-    item: hash_table::Entry<'a, usize, AllocWrapper<A>>,
-    duplicates: &mut BTreeSet<usize>,
-) -> Option<hash_table::VacantEntry<'a, usize, AllocWrapper<A>>> {
+    item: hash_table::Entry<'a, ItemIndex, AllocWrapper<A>>,
+    duplicates: &mut BTreeSet<ItemIndex>,
+) -> Option<hash_table::VacantEntry<'a, ItemIndex, AllocWrapper<A>>> {
     match item {
         hash_table::Entry::Vacant(slot) => Some(slot),
         hash_table::Entry::Occupied(slot) => {

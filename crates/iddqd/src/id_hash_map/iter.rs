@@ -2,6 +2,7 @@ use super::{RefMut, tables::IdHashMapTables};
 use crate::{
     DefaultHashBuilder, IdHashItem,
     support::{
+        ItemIndex,
         alloc::{AllocWrapper, Allocator, Global},
         item_set::ItemSet,
     },
@@ -20,7 +21,7 @@ use hashbrown::hash_map;
 /// [`HashMap`]: std::collections::HashMap
 #[derive(Clone, Debug, Default)]
 pub struct Iter<'a, T: IdHashItem> {
-    inner: hash_map::Values<'a, usize, T>,
+    inner: hash_map::Values<'a, ItemIndex, T>,
 }
 
 impl<'a, T: IdHashItem> Iter<'a, T> {
@@ -67,7 +68,7 @@ pub struct IterMut<
     A: Allocator = Global,
 > {
     tables: &'a IdHashMapTables<S, A>,
-    inner: hash_map::ValuesMut<'a, usize, T>,
+    inner: hash_map::ValuesMut<'a, ItemIndex, T>,
 }
 
 impl<'a, T: IdHashItem, S: BuildHasher, A: Allocator> IterMut<'a, T, S, A> {
@@ -118,7 +119,7 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> FusedIterator
 /// [`HashMap`]: std::collections::HashMap
 #[derive(Debug)]
 pub struct IntoIter<T: IdHashItem, A: Allocator = Global> {
-    inner: hash_map::IntoValues<usize, T, AllocWrapper<A>>,
+    inner: hash_map::IntoValues<ItemIndex, T, AllocWrapper<A>>,
 }
 
 impl<T: IdHashItem, A: Allocator> IntoIter<T, A> {

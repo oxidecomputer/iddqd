@@ -6,6 +6,7 @@ use crate::{
     errors::DuplicateItem,
     internal::{ValidateChaos, ValidateCompact, ValidationError},
     support::{
+        ItemIndex,
         alloc::{Global, global_alloc},
         borrow::DormantMutRef,
         item_set::ItemSet,
@@ -65,7 +66,7 @@ pub struct IdOrdMap<T> {
     // We don't expose an allocator trait here because it isn't stable with
     // std's BTreeMap.
     pub(super) items: ItemSet<T, Global>,
-    // Invariant: the values (usize) in these tables are valid indexes into
+    // Invariant: the values (ItemIndex) in these tables are valid indexes into
     // `items`, and are a 1:1 mapping.
     pub(super) tables: IdOrdMapTables,
 }
@@ -967,7 +968,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
         {
             // index is explicitly typed to show that it has a trivial Drop impl
             // that doesn't capture anything from map.
-            let index: Option<usize> = map
+            let index: Option<ItemIndex> = map
                 .tables
                 .key_to_item
                 .find_index(&key, |index| map.items[index].key());
@@ -1357,7 +1358,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
         self.find_index(k).map(|ix| &self.items[ix])
     }
 
-    fn linear_search_index<'a, Q>(&'a self, k: &Q) -> Option<usize>
+    fn linear_search_index<'a, Q>(&'a self, k: &Q) -> Option<ItemIndex>
     where
         Q: ?Sized + Ord + Equivalent<T::Key<'a>>,
     {
@@ -1366,20 +1367,20 @@ impl<T: IdOrdItem> IdOrdMap<T> {
         })
     }
 
-    fn find_index<'a, Q>(&'a self, k: &Q) -> Option<usize>
+    fn find_index<'a, Q>(&'a self, k: &Q) -> Option<ItemIndex>
     where
         Q: ?Sized + Comparable<T::Key<'a>>,
     {
         self.tables.key_to_item.find_index(k, |index| self.items[index].key())
     }
 
-    pub(super) fn get_by_index(&self, index: usize) -> Option<&T> {
+    pub(super) fn get_by_index(&self, index: ItemIndex) -> Option<&T> {
         self.items.get(index)
     }
 
     pub(super) fn get_by_index_mut<'a>(
         &'a mut self,
-        index: usize,
+        index: ItemIndex,
     ) -> Option<RefMut<'a, T>>
     where
         T::Key<'a>: Hash,
@@ -1400,41 +1401,57 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     pub(super) fn insert_unique_impl(
         &mut self,
         value: T,
-    ) -> Result<usize, DuplicateItem<T, &T>> {
+    ) -> Result<ItemIndex, DuplicateItem<T, &T>> {
         let mut duplicates = BTreeSet::new();
 
         // Check for duplicates *before* inserting the new item, because we
         // don't want to partially insert the new item and then have to roll
         // back.
-        let key = value.key();
-
-        if let Some(index) = self
-            .tables
-            .key_to_item
-            .find_index(&key, |index| self.items[index].key())
+        //
+        // Scope this `key` to avoid lifetime issues.
         {
-            duplicates.insert(index);
+            let key = value.key();
+            if let Some(index) = self
+                .tables
+                .key_to_item
+                .find_index(&key, |index| self.items[index].key())
+            {
+                duplicates.insert(index);
+            }
+
+            if !duplicates.is_empty() {
+                drop(key);
+                return Err(DuplicateItem::__internal_new(
+                    value,
+                    duplicates.iter().map(|ix| &self.items[*ix]).collect(),
+                ));
+            }
         }
 
-        if !duplicates.is_empty() {
-            drop(key);
-            return Err(DuplicateItem::__internal_new(
-                value,
-                duplicates.iter().map(|ix| &self.items[*ix]).collect(),
-            ));
-        }
-
-        let next_index = self.items.next_index();
+        // Take the `GrowHandle` after the read-only duplicate check but before
+        // the B-tree mutation. With this approach, a panic from
+        // `assert_can_grow` (which means that the map is full) cannot leave the
+        // B-tree referencing an index that was never assigned to an item.
+        //
+        // The handle holds `&mut self.items` and is consumed by
+        // `GrowHandle::insert`, so the type system enforces that we cannot
+        // reach the push without the cap check.
+        let grow_handle = self.items.assert_can_grow();
+        let next_index = grow_handle.next_index();
+        let key = value.key();
         self.tables
             .key_to_item
-            .insert(next_index, &key, |index| self.items[index].key());
+            .insert(next_index, &key, |index| grow_handle[index].key());
         drop(key);
-        self.items.insert_at_next_index(value);
+        grow_handle.insert(value);
 
         Ok(next_index)
     }
 
-    pub(super) fn remove_by_index(&mut self, remove_index: usize) -> Option<T> {
+    pub(super) fn remove_by_index(
+        &mut self,
+        remove_index: ItemIndex,
+    ) -> Option<T> {
         // For panic safety, read the key while self.items still holds the slot,
         // then remove from the B-tree *before* mutating self.items.
         //
@@ -1456,7 +1473,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
         )
     }
 
-    pub(super) fn replace_at_index(&mut self, index: usize, value: T) -> T {
+    pub(super) fn replace_at_index(&mut self, index: ItemIndex, value: T) -> T {
         // We check the key before removing it, to avoid leaving the map in an
         // inconsistent state.
         let old_key =

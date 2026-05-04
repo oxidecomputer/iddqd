@@ -1,11 +1,13 @@
+use crate::support::ItemIndex;
+
 #[derive(Clone, Copy, Debug)]
 pub(super) enum EntryIndexes {
-    Unique(usize),
+    Unique(ItemIndex),
     NonUnique {
         // Invariant: at least one index is Some, and indexes are different from
         // each other.
-        index1: Option<usize>,
-        index2: Option<usize>,
+        index1: Option<ItemIndex>,
+        index2: Option<ItemIndex>,
     },
 }
 
@@ -43,8 +45,8 @@ impl EntryIndexes {
 }
 
 pub(super) enum DisjointKeys<'a> {
-    Unique(usize),
-    Key1(usize),
-    Key2(usize),
-    Key12([&'a usize; 2]),
+    Unique(ItemIndex),
+    Key1(ItemIndex),
+    Key2(ItemIndex),
+    Key12([&'a ItemIndex; 2]),
 }

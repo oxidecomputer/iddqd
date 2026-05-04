@@ -1,6 +1,7 @@
 //! A wrapper around a hash table with some random state.
 
 use super::{
+    ItemIndex,
     alloc::{AllocWrapper, Allocator},
     map_hash::MapHash,
 };
@@ -19,7 +20,7 @@ use hashbrown::{
 
 #[derive(Clone, Default)]
 pub(crate) struct MapHashTable<A: Allocator> {
-    pub(super) items: HashTable<usize, AllocWrapper<A>>,
+    pub(super) items: HashTable<ItemIndex, AllocWrapper<A>>,
 }
 
 impl<A: Allocator> fmt::Debug for MapHashTable<A> {
@@ -62,7 +63,7 @@ impl<A: Allocator> MapHashTable<A> {
                 let mut values: Vec<_> = self.items.iter().copied().collect();
                 values.sort_unstable();
                 for (i, value) in values.iter().enumerate() {
-                    if *value != i {
+                    if value.as_u32() as usize != i {
                         return Err(TableValidationError::new(format!(
                             "expected value at index {i} to be {i}, was {value}"
                         )));
@@ -101,9 +102,9 @@ impl<A: Allocator> MapHashTable<A> {
         state: &S,
         key: &Q,
         lookup: F,
-    ) -> Option<usize>
+    ) -> Option<ItemIndex>
     where
-        F: Fn(usize) -> K,
+        F: Fn(ItemIndex) -> K,
         Q: ?Sized + Hash + Equivalent<K>,
     {
         let hash = state.hash_one(key);
@@ -115,9 +116,9 @@ impl<A: Allocator> MapHashTable<A> {
         state: &S,
         key: K,
         lookup: F,
-    ) -> Entry<'_, usize, AllocWrapper<A>>
+    ) -> Entry<'_, ItemIndex, AllocWrapper<A>>
     where
-        F: Fn(usize) -> K,
+        F: Fn(ItemIndex) -> K,
     {
         let hash = state.hash_one(&key);
         self.items.entry(
@@ -133,11 +134,11 @@ impl<A: Allocator> MapHashTable<A> {
         key: &Q,
         lookup: F,
     ) -> Result<
-        OccupiedEntry<'_, usize, AllocWrapper<A>>,
-        AbsentEntry<'_, usize, AllocWrapper<A>>,
+        OccupiedEntry<'_, ItemIndex, AllocWrapper<A>>,
+        AbsentEntry<'_, ItemIndex, AllocWrapper<A>>,
     >
     where
-        F: Fn(usize) -> K,
+        F: Fn(ItemIndex) -> K,
         K: Hash + Eq + Borrow<Q>,
         Q: ?Sized + Hash + Eq,
     {
@@ -150,18 +151,18 @@ impl<A: Allocator> MapHashTable<A> {
         hash: u64,
         mut f: F,
     ) -> Result<
-        OccupiedEntry<'_, usize, AllocWrapper<A>>,
-        AbsentEntry<'_, usize, AllocWrapper<A>>,
+        OccupiedEntry<'_, ItemIndex, AllocWrapper<A>>,
+        AbsentEntry<'_, ItemIndex, AllocWrapper<A>>,
     >
     where
-        F: FnMut(usize) -> bool,
+        F: FnMut(ItemIndex) -> bool,
     {
         self.items.find_entry(hash, |index| f(*index))
     }
 
     pub(crate) fn retain<F>(&mut self, mut f: F)
     where
-        F: FnMut(usize) -> bool,
+        F: FnMut(ItemIndex) -> bool,
     {
         self.items.retain(|index| f(*index));
     }
@@ -183,7 +184,7 @@ impl<A: Allocator> MapHashTable<A> {
     pub(crate) fn reserve(
         &mut self,
         additional: usize,
-        hasher: impl Fn(&usize) -> u64,
+        hasher: impl Fn(&ItemIndex) -> u64,
     ) {
         self.items.reserve(additional, hasher);
     }
@@ -192,7 +193,7 @@ impl<A: Allocator> MapHashTable<A> {
     ///
     /// See [`Self::reserve`] for the contract `hasher` must satisfy.
     #[inline]
-    pub(crate) fn shrink_to_fit(&mut self, hasher: impl Fn(&usize) -> u64) {
+    pub(crate) fn shrink_to_fit(&mut self, hasher: impl Fn(&ItemIndex) -> u64) {
         self.items.shrink_to_fit(hasher);
     }
 
@@ -203,7 +204,7 @@ impl<A: Allocator> MapHashTable<A> {
     pub(crate) fn shrink_to(
         &mut self,
         min_capacity: usize,
-        hasher: impl Fn(&usize) -> u64,
+        hasher: impl Fn(&ItemIndex) -> u64,
     ) {
         self.items.shrink_to(min_capacity, hasher);
     }
@@ -215,7 +216,7 @@ impl<A: Allocator> MapHashTable<A> {
     pub(crate) fn try_reserve(
         &mut self,
         additional: usize,
-        hasher: impl Fn(&usize) -> u64,
+        hasher: impl Fn(&ItemIndex) -> u64,
     ) -> Result<(), hashbrown::TryReserveError> {
         self.items.try_reserve(additional, hasher)
     }

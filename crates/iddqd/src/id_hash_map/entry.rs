@@ -2,6 +2,7 @@ use super::{IdHashItem, IdHashMap, RefMut};
 use crate::{
     DefaultHashBuilder,
     support::{
+        ItemIndex,
         alloc::{Allocator, Global},
         borrow::DormantMutRef,
         map_hash::MapHash,
@@ -165,7 +166,7 @@ pub struct OccupiedEntry<
 > {
     map: DormantMutRef<'a, IdHashMap<T, S, A>>,
     // index is a valid index into the map's internal hash table.
-    index: usize,
+    index: ItemIndex,
 }
 
 impl<'a, T: IdHashItem, S, A: Allocator> fmt::Debug
@@ -187,7 +188,7 @@ impl<'a, T: IdHashItem, S: Clone + BuildHasher, A: Allocator>
     /// `DormantMutRef::new` must not be used.
     pub(super) unsafe fn new(
         map: DormantMutRef<'a, IdHashMap<T, S, A>>,
-        index: usize,
+        index: ItemIndex,
     ) -> Self {
         OccupiedEntry { map, index }
     }
