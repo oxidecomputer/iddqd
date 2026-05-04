@@ -4,6 +4,8 @@ mod id_hash_map;
 mod id_ord_map;
 #[cfg(any(feature = "std", feature = "default-hasher"))]
 mod panic_safety;
+#[cfg(all(feature = "std", feature = "default-hasher"))]
+mod pathological;
 #[cfg(feature = "schemars08")]
 mod schemars_tests;
 #[cfg(all(

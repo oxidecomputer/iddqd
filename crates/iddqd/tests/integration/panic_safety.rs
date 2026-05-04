@@ -72,11 +72,11 @@ fn take_op_count() -> u32 {
     OP_COUNT.with(|c| c.replace(0))
 }
 
-fn arm_panic_after(n: u32) {
+pub(crate) fn arm_panic_after(n: u32) {
     PANIC_COUNTDOWN.with(|c| c.set(Some(n)));
 }
 
-fn disarm_panic() {
+pub(crate) fn disarm_panic() {
     PANIC_COUNTDOWN.with(|c| c.set(None));
 }
 
