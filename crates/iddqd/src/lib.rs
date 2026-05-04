@@ -283,9 +283,13 @@
 //!
 //! * Unit tests
 //! * Property-based tests using a naive map as an oracle
-//! * Chaos tests for several kinds of buggy `Eq` and `Ord` implementations
-//! * Explicit tests for panic safety in some scenarios
-//! * Miri tests for unsafe code
+//! * Unit and property-based tests for several kinds of pathological `Eq`,
+//!   `Hash` and `Ord` implementations
+//! * Property-based tests for panic safety
+//! * Miri tests for unsafe code, checked against both Stacked and Tree Borrows
+//!
+//! Pathological user implementations written in safe Rust might corrupt
+//! internal map state and result in panics, but should never cause UB.
 //!
 //! If you see a gap in testing, new tests are welcome. Thank you!
 //!
