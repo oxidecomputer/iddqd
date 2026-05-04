@@ -230,6 +230,7 @@ Thanks to [aatifsyed](https://github.com/aatifsyed) for your first contribution!
 
 Initial release.
 
+[0.4.0]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.4.0
 [0.3.18]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.18
 [0.3.17]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.17
 [0.3.16]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.16
