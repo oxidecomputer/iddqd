@@ -374,9 +374,8 @@ where
     move |a: &Index, b: &Index| {
         let (a, b) = (a.value(), b.value());
         if a == b {
-            // This is potentially load-bearing! It means that even if the Eq
-            // implementation on map items is wrong, we treat items at the same
-            // index as equal.
+            // This is load-bearing! It means that even if the Eq implementation
+            // on map items is wrong, we treat items at the same index as equal.
             //
             // Unsafe code relies on this to ensure that we don't return
             // multiple mutable references to the same index.

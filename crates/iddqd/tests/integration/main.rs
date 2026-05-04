@@ -14,3 +14,5 @@ mod schemars_tests;
 ))]
 mod size_tests;
 mod tri_hash_map;
+#[cfg(all(feature = "std", feature = "default-hasher"))]
+mod pathological;
