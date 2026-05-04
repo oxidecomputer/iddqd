@@ -21,7 +21,7 @@
 //! hand-rolled unsafe allocator to manage the secondary allocation (i.e., north
 //! of 350 lines of layout-math, lifetime, and `Send`/`Sync` reasoning). The
 //! slot-based layout eliminates that module entirely: the only unsafe in this
-//! file is the disjoint-indexes trick in [`get_disjoint_mut`], which any
+//! file is the disjoint-indexes trick in `get_disjoint_mut`, which any
 //! slot-based container needs regardless of backend.
 //!
 //! The tradeoff is that `ItemSlot<T>` carries a discriminant, so slots are at
@@ -36,7 +36,7 @@
 //! 1. For every `i < items.len()`: `items[i]` is `Occupied` iff `i` is
 //!    not reachable from `free_head` via the `Vacant::next` chain.
 //! 2. The `Vacant::next` chain starting at `free_head` terminates at
-//!    [`SENTINEL`], visits every vacant slot exactly once, and
+//!    `SENTINEL`, visits every vacant slot exactly once, and
 //!    contains no in-bounds index that refers to an `Occupied` slot.
 //! 3. `len == items.iter().filter(|e| matches!(e, Occupied(_))).count()`.
 //!
@@ -186,7 +186,7 @@ impl<'a, T, A: Allocator> GrowHandle<'a, T, A> {
 
 /// A single slot in an [`ItemSet`].
 ///
-/// Exposed at `pub(crate)` because [`ItemSet::as_mut_ptr`] hands out a
+/// Exposed at `pub(crate)` because `ItemSet::as_mut_ptr` hands out a
 /// raw pointer into the `items` buffer; callers need to name the element
 /// type. All other interaction with slots goes through `ItemSet`'s safe
 /// methods.
