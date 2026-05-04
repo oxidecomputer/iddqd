@@ -69,7 +69,7 @@ impl IdOrdItem for PanickyItem {
 
 thread_local! {
     static INNER_MAP: RefCell<IdOrdMap<InnerItem>> =
-        RefCell::new(IdOrdMap::new());
+        const { RefCell::new(IdOrdMap::new()) };
     static REENTER: Cell<bool> = const { Cell::new(false) };
 }
 
@@ -268,6 +268,7 @@ struct LyingEqItem {
     id: u32,
 }
 
+#[expect(clippy::derived_hash_with_manual_eq)]
 #[derive(Hash)]
 struct LyingEqKey {
     id: u32,
