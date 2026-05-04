@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.4.0] - 2026-05-04
+
+### Changed
+
+- The internal implementation for item storage has been changed to use a linear slot-based buffer, resulting in 2-3x performance improvements for most workloads.
+- The maps now have a limit of `u32::MAX` (4 294 967 295) elements at any given time. This limit is very unlikely to be reached in practice.
+
+### Fixed
+
+- All mutation methods for `IdHashMap` and `IdOrdMap` are now panic-safe, in the sense that a panic in user code will not corrupt the map. This does not currently extend to `BiHashMap` and `TriHashMap`
+
+### Added
+
+- Many more unit and property-based tests covering various kinds of pathological user implementations. We now have high confidence that arbitraily buggy user implementations (as long as they're in safe Rust) will not result in undefined behavior.
+
 ## [0.3.18] - 2026-04-22
 
 ### Fixed
