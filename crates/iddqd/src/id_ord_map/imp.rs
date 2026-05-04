@@ -432,7 +432,10 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     /// assert!(map.capacity() >= 2);
     /// ```
     pub fn shrink_to_fit(&mut self) {
-        self.items.shrink_to_fit();
+        let remap = self.items.shrink_to_fit();
+        if !remap.is_identity() {
+            self.tables.key_to_item.remap_indexes(&remap);
+        }
     }
 
     /// Shrinks the capacity of the map with a lower limit. It will drop
@@ -475,7 +478,10 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     /// assert!(map.capacity() >= 2);
     /// ```
     pub fn shrink_to(&mut self, min_capacity: usize) {
-        self.items.shrink_to(min_capacity);
+        let remap = self.items.shrink_to(min_capacity);
+        if !remap.is_identity() {
+            self.tables.key_to_item.remap_indexes(&remap);
+        }
     }
 
     /// Iterates over the items in the map.
@@ -592,7 +598,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
 
         // Check that the indexes are all correct.
 
-        for (&ix, item) in self.items.iter() {
+        for (ix, item) in self.items.iter() {
             let key = item.key();
             let ix1 = match chaos {
                 ValidateChaos::Yes => {
@@ -1363,7 +1369,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
         Q: ?Sized + Ord + Equivalent<T::Key<'a>>,
     {
         self.items.iter().find_map(|(index, item)| {
-            (k.equivalent(&item.key())).then_some(*index)
+            (k.equivalent(&item.key())).then_some(index)
         })
     }
 

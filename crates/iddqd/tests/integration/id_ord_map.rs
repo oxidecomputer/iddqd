@@ -268,6 +268,8 @@ enum Operation {
     ),
     // clear is set to a lower weight since it makes the map empty.
     Clear,
+    ShrinkToFit,
+    ShrinkTo(#[strategy(0..256_usize)] usize),
 }
 
 impl Operation {
@@ -288,8 +290,12 @@ impl Operation {
             | Operation::RetainValueContains(_, _)
             | Operation::RetainModulo(_, _, _)
             | Operation::Extend(_) => CompactnessChange::NoLongerCompact,
-            // Clear always makes the map compact (empty).
-            Operation::Clear => CompactnessChange::BecomesCompact,
+            // Clear always makes the map compact (empty). Shrink
+            // fully compacts the backing store, restoring the
+            // `Compact` invariant.
+            Operation::Clear
+            | Operation::ShrinkToFit
+            | Operation::ShrinkTo(_) => CompactnessChange::BecomesCompact,
         }
     }
 }
@@ -461,6 +467,16 @@ fn proptest_ops(
             Operation::Clear => {
                 map.clear();
                 naive_map.clear();
+                map.validate(compactness, ValidateChaos::No)
+                    .expect("map should be valid");
+            }
+            Operation::ShrinkToFit => {
+                map.shrink_to_fit();
+                map.validate(compactness, ValidateChaos::No)
+                    .expect("map should be valid");
+            }
+            Operation::ShrinkTo(min_capacity) => {
+                map.shrink_to(min_capacity);
                 map.validate(compactness, ValidateChaos::No)
                     .expect("map should be valid");
             }

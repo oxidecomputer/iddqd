@@ -51,11 +51,10 @@ fn debug_impls() {
 
     assert_eq!(
         format!("{map:?}"),
-        // This is a small-enough map that the order of iteration is
-        // deterministic.
+        // Iteration is in insertion order.
         "{{k1: 1, k2: 'a', k3: 0}: SimpleItem { key1: 1, key2: 'a', key3: 0 }, \
-          {k1: 10, k2: 'c', k3: 2}: SimpleItem { key1: 10, key2: 'c', key3: 2 }, \
-          {k1: 20, k2: 'b', k3: 1}: SimpleItem { key1: 20, key2: 'b', key3: 1 }}",
+          {k1: 20, k2: 'b', k3: 1}: SimpleItem { key1: 20, key2: 'b', key3: 1 }, \
+          {k1: 10, k2: 'c', k3: 2}: SimpleItem { key1: 10, key2: 'c', key3: 2 }}",
     );
     assert_eq!(
         format!("{:?}", map.get1_mut(&1).unwrap()),
@@ -74,7 +73,7 @@ fn debug_impls_borrowed() {
 
     assert_eq!(
         format!("{before:?}"),
-        r#"{{k1: "a", k2: [98, 48], k3: "path0"}: BorrowedItem { key1: "a", key2: [98, 48], key3: "path0" }, {k1: "c", k2: [98, 50], k3: "path2"}: BorrowedItem { key1: "c", key2: [98, 50], key3: "path2" }, {k1: "b", k2: [98, 49], k3: "path1"}: BorrowedItem { key1: "b", key2: [98, 49], key3: "path1" }}"#
+        r#"{{k1: "a", k2: [98, 48], k3: "path0"}: BorrowedItem { key1: "a", key2: [98, 48], key3: "path0" }, {k1: "b", k2: [98, 49], k3: "path1"}: BorrowedItem { key1: "b", key2: [98, 49], key3: "path1" }, {k1: "c", k2: [98, 50], k3: "path2"}: BorrowedItem { key1: "c", key2: [98, 50], key3: "path2" }}"#
     );
 
     #[cfg(feature = "daft")]
@@ -91,7 +90,7 @@ fn debug_impls_borrowed() {
         let diff = before.diff(&after).by_unique();
         assert_eq!(
             format!("{diff:?}"),
-            r#"Diff { common: {{k1: "a", k2: [98, 48], k3: "path0"}: IdLeaf { before: BorrowedItem { key1: "a", key2: [98, 48], key3: "path0" }, after: BorrowedItem { key1: "a", key2: [98, 48], key3: "path0" } }}, added: {{k1: "d", k2: [98, 52], k3: "path4"}: BorrowedItem { key1: "d", key2: [98, 52], key3: "path4" }, {k1: "c", k2: [98, 51], k3: "path3"}: BorrowedItem { key1: "c", key2: [98, 51], key3: "path3" }}, removed: {{k1: "c", k2: [98, 50], k3: "path2"}: BorrowedItem { key1: "c", key2: [98, 50], key3: "path2" }, {k1: "b", k2: [98, 49], k3: "path1"}: BorrowedItem { key1: "b", key2: [98, 49], key3: "path1" }} }"#
+            r#"Diff { common: {{k1: "a", k2: [98, 48], k3: "path0"}: IdLeaf { before: BorrowedItem { key1: "a", key2: [98, 48], key3: "path0" }, after: BorrowedItem { key1: "a", key2: [98, 48], key3: "path0" } }}, added: {{k1: "c", k2: [98, 51], k3: "path3"}: BorrowedItem { key1: "c", key2: [98, 51], key3: "path3" }, {k1: "d", k2: [98, 52], k3: "path4"}: BorrowedItem { key1: "d", key2: [98, 52], key3: "path4" }}, removed: {{k1: "b", k2: [98, 49], k3: "path1"}: BorrowedItem { key1: "b", key2: [98, 49], key3: "path1" }, {k1: "c", k2: [98, 50], k3: "path2"}: BorrowedItem { key1: "c", key2: [98, 50], key3: "path2" }} }"#
         );
     }
 }
@@ -310,18 +309,12 @@ enum Operation {
 impl Operation {
     fn compactness_change(&self) -> CompactnessChange {
         match self {
-            // `shrink_to_fit` / `shrink_to` flow through hashbrown's
-            // rehash path the same way `reserve` does; like `reserve`
-            // they touch the allocation, not the item set's index
-            // space, so compactness is unchanged.
             Operation::InsertUnique(_)
             | Operation::Get1(_)
             | Operation::Get2(_)
             | Operation::Get3(_)
             | Operation::Reserve(_)
-            | Operation::TryReserve(_)
-            | Operation::ShrinkToFit
-            | Operation::ShrinkTo(_) => CompactnessChange::NoChange,
+            | Operation::TryReserve(_) => CompactnessChange::NoChange,
             // The act of removing items, including calls to insert_overwrite,
             // can make the map non-compact.
             Operation::InsertOverwrite(_)
@@ -331,8 +324,12 @@ impl Operation {
             | Operation::RetainValueContains(_, _)
             | Operation::RetainModulo(_, _, _)
             | Operation::Extend(_) => CompactnessChange::NoLongerCompact,
-            // Clear always makes the map compact (empty).
-            Operation::Clear => CompactnessChange::BecomesCompact,
+            // Clear always makes the map compact (empty). Shrink
+            // fully compacts the backing store, restoring the
+            // `Compact` invariant.
+            Operation::Clear
+            | Operation::ShrinkToFit
+            | Operation::ShrinkTo(_) => CompactnessChange::BecomesCompact,
         }
     }
 }

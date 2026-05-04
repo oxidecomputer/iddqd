@@ -77,9 +77,9 @@ enum TryReserveErrorKind {
     /// (usually `isize::MAX` bytes).
     CapacityOverflow,
 
-    /// The memory allocator returned an error
+    /// The memory allocator returned an error.
     AllocError {
-        /// The layout of the allocation request that failed
+        /// The layout of the allocation request that failed.
         layout: core::alloc::Layout,
     },
 }
@@ -92,6 +92,20 @@ impl TryReserveError {
                 TryReserveErrorKind::CapacityOverflow
             }
             hashbrown::TryReserveError::AllocError { layout } => {
+                TryReserveErrorKind::AllocError { layout }
+            }
+        };
+        Self { kind }
+    }
+
+    /// Converts from an `allocator_api2` `TryReserveError`.
+    pub(crate) fn from_allocator_api2(
+        error: allocator_api2::collections::TryReserveError,
+    ) -> Self {
+        use allocator_api2::collections::TryReserveErrorKind as Kind;
+        let kind = match error.kind() {
+            Kind::CapacityOverflow => TryReserveErrorKind::CapacityOverflow,
+            Kind::AllocError { layout, .. } => {
                 TryReserveErrorKind::AllocError { layout }
             }
         };

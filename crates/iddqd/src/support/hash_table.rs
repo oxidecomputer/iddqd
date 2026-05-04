@@ -3,6 +3,7 @@
 use super::{
     ItemIndex,
     alloc::{AllocWrapper, Allocator},
+    item_set::IndexRemap,
     map_hash::MapHash,
 };
 use crate::internal::{TableValidationError, ValidateCompact};
@@ -187,6 +188,21 @@ impl<A: Allocator> MapHashTable<A> {
         hasher: impl Fn(&ItemIndex) -> u64,
     ) {
         self.items.reserve(additional, hasher);
+    }
+
+    /// Rewrites every stored index via `remap`.
+    ///
+    /// Called after [`ItemSet::shrink_to_fit`] / [`ItemSet::shrink_to`]
+    /// compacts the backing items buffer. We store hashes of *keys* (not of
+    /// indexes), so rewriting an index does not invalidate its hash and no
+    /// rehash is needed.
+    ///
+    /// [`ItemSet::shrink_to_fit`]: super::item_set::ItemSet::shrink_to_fit
+    /// [`ItemSet::shrink_to`]: super::item_set::ItemSet::shrink_to
+    pub(crate) fn remap_indexes(&mut self, remap: &IndexRemap) {
+        for slot in self.items.iter_mut() {
+            *slot = remap.remap(*slot);
+        }
     }
 
     /// Shrinks the capacity of the hash table as much as possible.

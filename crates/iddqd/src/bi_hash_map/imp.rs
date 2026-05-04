@@ -819,9 +819,7 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
         &mut self,
         additional: usize,
     ) -> Result<(), crate::errors::TryReserveError> {
-        self.items
-            .try_reserve(additional)
-            .map_err(crate::errors::TryReserveError::from_hashbrown)?;
+        self.items.try_reserve(additional)?;
         let items = &self.items;
         let state = &self.tables.state;
         self.tables
@@ -872,7 +870,11 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
     /// # }
     /// ```
     pub fn shrink_to_fit(&mut self) {
-        self.items.shrink_to_fit();
+        let remap = self.items.shrink_to_fit();
+        if !remap.is_identity() {
+            self.tables.k1_to_item.remap_indexes(&remap);
+            self.tables.k2_to_item.remap_indexes(&remap);
+        }
         let items = &self.items;
         let state = &self.tables.state;
         self.tables
@@ -925,7 +927,11 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
     /// # }
     /// ```
     pub fn shrink_to(&mut self, min_capacity: usize) {
-        self.items.shrink_to(min_capacity);
+        let remap = self.items.shrink_to(min_capacity);
+        if !remap.is_identity() {
+            self.tables.k1_to_item.remap_indexes(&remap);
+            self.tables.k2_to_item.remap_indexes(&remap);
+        }
         let items = &self.items;
         let state = &self.tables.state;
         self.tables
@@ -1052,7 +1058,7 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
         self.tables.validate(self.len(), compactness)?;
 
         // Check that the indexes are all correct.
-        for (&ix, item) in self.items.iter() {
+        for (ix, item) in self.items.iter() {
             let key1 = item.key1();
             let key2 = item.key2();
 
