@@ -3,7 +3,7 @@ use crate::support::{
     alloc::Global,
     borrow::DormantMutRef,
     btree_table,
-    item_set::{ConsumingItemSet, ItemSet, SlabEntry},
+    item_set::{ConsumingItemSet, ItemSet, ItemSlot},
 };
 use core::{hash::Hash, iter::FusedIterator, marker::PhantomData};
 
@@ -48,15 +48,16 @@ impl<T: IdOrdItem> ExactSizeIterator for Iter<'_, T> {
 // btree_set::Iter is a FusedIterator, so Iter is as well.
 impl<T: IdOrdItem> FusedIterator for Iter<'_, T> {}
 
-/// A raw pointer into an `ItemSet`'s slot buffer, with the same thread-safety
-/// properties as an `&'a mut ItemSet<T, Global>`.
+/// A raw pointer into the start of an `ItemSet`'s slot buffer, with the same
+/// thread-safety properties as an `&'a mut ItemSet<T, Global>`.
 ///
 /// We use a raw pointer rather than lifetime extension as done by the hash map
 /// iterators to avoid reborrow invalidation under Stacked Borrows. Due to the
-/// way Vec::index_mut works, each iteration reborrowing `&mut self.items` would
-/// invalidate previously yielded `&mut T` children.
+/// way `Vec::index_mut` works, each iteration reborrowing `&mut self.items`
+/// would invalidate previously yielded `&mut T` children.
 struct ItemSetPtr<'a, T: IdOrdItem> {
-    ptr: *mut SlabEntry<T>,
+    // The pointer to the start of the slot buffer.
+    start_ptr: *mut ItemSlot<T>,
     // Number of slots in the backing buffer at construction time.
     slot_count: usize,
     // Borrow the ItemSet for `'a` so the raw pointer stays live, and so that
@@ -67,7 +68,7 @@ struct ItemSetPtr<'a, T: IdOrdItem> {
 impl<T: IdOrdItem> core::fmt::Debug for ItemSetPtr<'_, T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("ItemSetPtr")
-            .field("ptr", &self.ptr)
+            .field("start_ptr", &self.start_ptr)
             .field("slot_count", &self.slot_count)
             .finish()
     }
@@ -108,9 +109,9 @@ where
         tables: &'a IdOrdMapTables,
     ) -> Self {
         let slot_count = items.slot_count();
-        let ptr = items.as_mut_ptr();
+        let start_ptr = items.start_ptr();
         Self {
-            items: ItemSetPtr { ptr, slot_count, _marker: PhantomData },
+            items: ItemSetPtr { start_ptr, slot_count, _marker: PhantomData },
             tables,
             iter: tables.key_to_item.iter(),
         }
@@ -159,7 +160,7 @@ where
         //   distinct `index`. This means that the handed-out `&mut T`s
         //   never point to the same memory.
         let item: &'a mut T = unsafe {
-            (*self.items.ptr.add(raw_index))
+            (*self.items.start_ptr.add(raw_index))
                 .as_mut()
                 .expect("btree index points at an Occupied slot in ItemSet")
         };

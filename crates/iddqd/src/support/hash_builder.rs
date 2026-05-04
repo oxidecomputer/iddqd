@@ -18,17 +18,17 @@ mod dummy {
         type Hasher = Self;
 
         fn build_hasher(&self) -> Self::Hasher {
-            unreachable!("this is an empty enum so self cannot exist")
+            match self {}
         }
     }
 
     impl Hasher for DefaultHashBuilder {
         fn write(&mut self, _bytes: &[u8]) {
-            unreachable!("this is an empty enum so self cannot exist")
+            match self {}
         }
 
         fn finish(&self) -> u64 {
-            unreachable!("this is an empty enum so self cannot exist")
+            match self {}
         }
     }
 }

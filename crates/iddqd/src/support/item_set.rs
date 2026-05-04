@@ -2,9 +2,9 @@
 //!
 //! # Design
 //!
-//! Each slot is a `SlabEntry<T>` that is either `Occupied(T)` or `Vacant { next
-//! }`. The free chain consists of vacant slots that are linked together via
-//! `next` pointers, with `free_head` as its LIFO top and
+//! Each slot is an `ItemSlot<T>` that is either `Occupied(T)` or `Vacant {
+//! next }`. The free chain consists of vacant slots that are linked together
+//! via `next` pointers, with `free_head` as its LIFO top and
 //! [`ItemIndex::SENTINEL`] as the end-of-list sentinel.
 //!
 //! Removed slots are recycled by the next [`GrowHandle::insert`], so a churn
@@ -13,19 +13,19 @@
 //! The container maintains a single allocation (`items`) and uses two `u32`s
 //! of stack footprint beyond it (the `free_head` and the current `len`).
 //!
-//! # Why slab-style
+//! # Why slot-based
 //!
 //! We also tried a `Vec<Option<T>>` plus a separately allocated free list for
 //! vacant indexes. That was optimal storage for any `T` with a niche
 //! (`size_of::<Option<T>>() == size_of::<T>()`). But this came at the cost of a
 //! hand-rolled unsafe allocator to manage the secondary allocation (i.e., north
 //! of 350 lines of layout-math, lifetime, and `Send`/`Sync` reasoning). The
-//! slab layout eliminates that module entirely: the only unsafe in this file is
-//! the disjoint-indexes trick in [`get_disjoint_mut`], which any slot-based
-//! container needs regardless of backend.
+//! slot-based layout eliminates that module entirely: the only unsafe in this
+//! file is the disjoint-indexes trick in [`get_disjoint_mut`], which any
+//! slot-based container needs regardless of backend.
 //!
-//! The tradeoff is that `SlabEntry<T>` carries a discriminant, so slots are at
-//! least `max(size_of::<u32>(), size_of::<T>()) + align_of::<SlabEntry<T>>()`.
+//! The tradeoff is that `ItemSlot<T>` carries a discriminant, so slots are at
+//! least `max(size_of::<u32>(), size_of::<T>()) + align_of::<ItemSlot<T>>()`.
 //! For types with a niche (including structs where a field has a niche), this
 //! is one word larger per slot than `Option<T>` would be. Benchmarking
 //! indicates that overall this is a wash. Based on that, we choose the
@@ -162,7 +162,7 @@ impl<'a, T, A: Allocator> GrowHandle<'a, T, A> {
             // `assert_can_grow` guarantees `items.len() <= ItemIndex::MAX_VALID`,
             // so this u32 conversion cannot lose precision.
             let idx = ItemIndex::new(self.items.items.len() as u32);
-            self.items.items.push(SlabEntry::Occupied(value));
+            self.items.items.push(ItemSlot::Occupied(value));
             self.items.len += 1;
             idx
         } else {
@@ -171,12 +171,12 @@ impl<'a, T, A: Allocator> GrowHandle<'a, T, A> {
             // and advance `free_head` to `next`.
             let slot = &mut self.items.items[idx.as_u32() as usize];
             let next = match slot {
-                SlabEntry::Occupied(_) => {
+                ItemSlot::Occupied(_) => {
                     panic!("ItemSet free chain points at occupied slot {idx}")
                 }
-                SlabEntry::Vacant { next } => *next,
+                ItemSlot::Vacant { next } => *next,
             };
-            *slot = SlabEntry::Occupied(value);
+            *slot = ItemSlot::Occupied(value);
             self.items.free_head = next;
             self.items.len += 1;
             idx
@@ -184,14 +184,14 @@ impl<'a, T, A: Allocator> GrowHandle<'a, T, A> {
     }
 }
 
-/// A single slot in the slab.
+/// A single slot in an [`ItemSet`].
 ///
 /// Exposed at `pub(crate)` because [`ItemSet::as_mut_ptr`] hands out a
 /// raw pointer into the `items` buffer; callers need to name the element
 /// type. All other interaction with slots goes through `ItemSet`'s safe
 /// methods.
 #[derive(Clone, Debug)]
-pub(crate) enum SlabEntry<T> {
+pub(crate) enum ItemSlot<T> {
     /// The slot holds a live value.
     Occupied(T),
     /// The slot is free.
@@ -201,13 +201,13 @@ pub(crate) enum SlabEntry<T> {
     Vacant { next: ItemIndex },
 }
 
-impl<T> SlabEntry<T> {
+impl<T> ItemSlot<T> {
     /// Returns a reference to the contained value, if occupied.
     #[inline]
     fn as_ref(&self) -> Option<&T> {
         match self {
-            SlabEntry::Occupied(v) => Some(v),
-            SlabEntry::Vacant { .. } => None,
+            ItemSlot::Occupied(v) => Some(v),
+            ItemSlot::Vacant { .. } => None,
         }
     }
 
@@ -215,16 +215,16 @@ impl<T> SlabEntry<T> {
     #[inline]
     pub(crate) fn as_mut(&mut self) -> Option<&mut T> {
         match self {
-            SlabEntry::Occupied(v) => Some(v),
-            SlabEntry::Vacant { .. } => None,
+            ItemSlot::Occupied(v) => Some(v),
+            ItemSlot::Vacant { .. } => None,
         }
     }
 
     #[inline]
     fn is_occupied(&self) -> bool {
         match self {
-            SlabEntry::Occupied(_) => true,
-            SlabEntry::Vacant { .. } => false,
+            ItemSlot::Occupied(_) => true,
+            ItemSlot::Vacant { .. } => false,
         }
     }
 }
@@ -233,7 +233,7 @@ impl<T> SlabEntry<T> {
 ///
 /// See the [module-level docs](self) for the design and tradeoffs.
 pub(crate) struct ItemSet<T, A: Allocator> {
-    items: Vec<SlabEntry<T>, AllocWrapper<A>>,
+    items: Vec<ItemSlot<T>, AllocWrapper<A>>,
     /// LIFO head of the embedded free chain, or [`ItemIndex::SENTINEL`] when no
     /// slots are free.
     free_head: ItemIndex,
@@ -297,10 +297,10 @@ impl<T, A: Allocator> ItemSet<T, A> {
         &self.items.allocator().0
     }
 
-    /// Returns a raw pointer to the backing slot buffer.
+    /// Returns a raw pointer to the start of the backing slot buffer.
     #[inline]
     #[cfg_attr(not(feature = "std"), expect(dead_code))]
-    pub(crate) fn as_mut_ptr(&mut self) -> *mut SlabEntry<T> {
+    pub(crate) fn start_ptr(&mut self) -> *mut ItemSlot<T> {
         self.items.as_mut_ptr()
     }
 
@@ -351,13 +351,13 @@ impl<T, A: Allocator> ItemSet<T, A> {
                 )));
             }
             match &self.items[cursor_idx] {
-                SlabEntry::Occupied(_) => {
+                ItemSlot::Occupied(_) => {
                     return Err(ValidationError::General(format!(
                         "ItemSet free chain points at occupied slot \
                          {cursor}"
                     )));
                 }
-                SlabEntry::Vacant { next } => {
+                ItemSlot::Vacant { next } => {
                     walked += 1;
                     if walked > expected_vacant {
                         return Err(ValidationError::General(format!(
@@ -434,12 +434,12 @@ impl<T, A: Allocator> ItemSet<T, A> {
 
     #[inline]
     pub(crate) fn get(&self, index: ItemIndex) -> Option<&T> {
-        self.items.get(index.as_u32() as usize).and_then(SlabEntry::as_ref)
+        self.items.get(index.as_u32() as usize).and_then(ItemSlot::as_ref)
     }
 
     #[inline]
     pub(crate) fn get_mut(&mut self, index: ItemIndex) -> Option<&mut T> {
-        self.items.get_mut(index.as_u32() as usize).and_then(SlabEntry::as_mut)
+        self.items.get_mut(index.as_u32() as usize).and_then(ItemSlot::as_mut)
     }
 
     /// Returns mutable references to up to `N` distinct indexes.
@@ -522,10 +522,9 @@ impl<T, A: Allocator> ItemSet<T, A> {
         if !slot.is_occupied() {
             return None;
         }
-        let SlabEntry::Occupied(v) = core::mem::replace(
-            slot,
-            SlabEntry::Vacant { next: self.free_head },
-        ) else {
+        let ItemSlot::Occupied(v) =
+            core::mem::replace(slot, ItemSlot::Vacant { next: self.free_head })
+        else {
             unreachable!("is_occupied was just checked")
         };
         self.free_head = index;
@@ -561,8 +560,8 @@ impl<T, A: Allocator> ItemSet<T, A> {
         else {
             panic!("ItemSet index not found: {index}")
         };
-        let SlabEntry::Occupied(old) =
-            core::mem::replace(slot, SlabEntry::Occupied(value))
+        let ItemSlot::Occupied(old) =
+            core::mem::replace(slot, ItemSlot::Occupied(value))
         else {
             unreachable!("slot was just matched as Occupied")
         };
@@ -616,14 +615,14 @@ impl<T, A: Allocator> ItemSet<T, A> {
         let mut write: u32 = 0;
         for read in 0..pre_len {
             match &self.items[read] {
-                SlabEntry::Occupied(_) => {
+                ItemSlot::Occupied(_) => {
                     new_pos.push(ItemIndex::new(write));
                     if write as usize != read {
                         self.items.swap(write as usize, read);
                     }
                     write += 1;
                 }
-                SlabEntry::Vacant { .. } => {
+                ItemSlot::Vacant { .. } => {
                     new_pos.push(ItemIndex::SENTINEL);
                 }
             }
@@ -691,7 +690,7 @@ impl<T, A: Allocator> IndexMut<ItemIndex> for ItemSet<T, A> {
 
 /// An iterator over `(index, &item)` pairs in an [`ItemSet`].
 pub(crate) struct Iter<'a, T> {
-    inner: core::iter::Enumerate<core::slice::Iter<'a, SlabEntry<T>>>,
+    inner: core::iter::Enumerate<core::slice::Iter<'a, ItemSlot<T>>>,
     remaining: usize,
 }
 
@@ -715,7 +714,7 @@ impl<T: fmt::Debug> fmt::Debug for Iter<'_, T> {
 
 impl<T> Default for Iter<'_, T> {
     fn default() -> Self {
-        let empty: &[SlabEntry<T>] = &[];
+        let empty: &[ItemSlot<T>] = &[];
         Self { inner: empty.iter().enumerate(), remaining: 0 }
     }
 }
@@ -726,7 +725,7 @@ impl<'a, T> Iterator for Iter<'a, T> {
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         for (i, slot) in self.inner.by_ref() {
-            if let SlabEntry::Occupied(v) = slot {
+            if let ItemSlot::Occupied(v) = slot {
                 debug_assert!(
                     self.remaining > 0,
                     "iterator yielded more items than ItemSet::len()",
@@ -755,7 +754,7 @@ impl<T> FusedIterator for Iter<'_, T> {}
 
 /// An iterator over `(index, &mut item)` pairs in an [`ItemSet`].
 pub(crate) struct IterMut<'a, T> {
-    inner: core::iter::Enumerate<core::slice::IterMut<'a, SlabEntry<T>>>,
+    inner: core::iter::Enumerate<core::slice::IterMut<'a, ItemSlot<T>>>,
     remaining: usize,
 }
 
@@ -778,7 +777,7 @@ impl<'a, T> Iterator for IterMut<'a, T> {
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         for (i, slot) in self.inner.by_ref() {
-            if let SlabEntry::Occupied(v) = slot {
+            if let ItemSlot::Occupied(v) = slot {
                 debug_assert!(
                     self.remaining > 0,
                     "iterator yielded more items than ItemSet::len()",
@@ -807,7 +806,7 @@ impl<T> FusedIterator for IterMut<'_, T> {}
 
 /// An iterator over `&item` references in an [`ItemSet`].
 pub(crate) struct Values<'a, T> {
-    inner: core::slice::Iter<'a, SlabEntry<T>>,
+    inner: core::slice::Iter<'a, ItemSlot<T>>,
     remaining: usize,
 }
 
@@ -831,7 +830,7 @@ impl<T: fmt::Debug> fmt::Debug for Values<'_, T> {
 
 impl<T> Default for Values<'_, T> {
     fn default() -> Self {
-        let empty: &[SlabEntry<T>] = &[];
+        let empty: &[ItemSlot<T>] = &[];
         Self { inner: empty.iter(), remaining: 0 }
     }
 }
@@ -842,7 +841,7 @@ impl<'a, T> Iterator for Values<'a, T> {
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         for slot in self.inner.by_ref() {
-            if let SlabEntry::Occupied(v) = slot {
+            if let ItemSlot::Occupied(v) = slot {
                 debug_assert!(
                     self.remaining > 0,
                     "iterator yielded more items than ItemSet::len()",
@@ -871,7 +870,7 @@ impl<T> FusedIterator for Values<'_, T> {}
 
 /// An iterator over `&mut item` references in an [`ItemSet`].
 pub(crate) struct ValuesMut<'a, T> {
-    inner: core::slice::IterMut<'a, SlabEntry<T>>,
+    inner: core::slice::IterMut<'a, ItemSlot<T>>,
     remaining: usize,
 }
 
@@ -894,7 +893,7 @@ impl<'a, T> Iterator for ValuesMut<'a, T> {
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         for slot in self.inner.by_ref() {
-            if let SlabEntry::Occupied(v) = slot {
+            if let ItemSlot::Occupied(v) = slot {
                 debug_assert!(
                     self.remaining > 0,
                     "iterator yielded more items than ItemSet::len()",
@@ -923,7 +922,7 @@ impl<T> FusedIterator for ValuesMut<'_, T> {}
 
 /// An owning iterator over the items in an [`ItemSet`].
 pub(crate) struct IntoValues<T, A: Allocator> {
-    inner: allocator_api2::vec::IntoIter<SlabEntry<T>, AllocWrapper<A>>,
+    inner: allocator_api2::vec::IntoIter<ItemSlot<T>, AllocWrapper<A>>,
     remaining: usize,
 }
 
@@ -949,7 +948,7 @@ impl<T, A: Allocator> Iterator for IntoValues<T, A> {
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         for slot in self.inner.by_ref() {
-            if let SlabEntry::Occupied(v) = slot {
+            if let ItemSlot::Occupied(v) = slot {
                 debug_assert!(
                     self.remaining > 0,
                     "iterator yielded more items than ItemSet::len()",
@@ -981,7 +980,7 @@ impl<T, A: Allocator> FusedIterator for IntoValues<T, A> {}
 /// Produced by [`ItemSet::into_consuming`]. The free chain is no longer
 /// maintained from here on.
 pub(crate) struct ConsumingItemSet<T, A: Allocator> {
-    items: Vec<SlabEntry<T>, AllocWrapper<A>>,
+    items: Vec<ItemSlot<T>, AllocWrapper<A>>,
 }
 
 impl<T: fmt::Debug, A: Allocator> fmt::Debug for ConsumingItemSet<T, A> {
@@ -1007,9 +1006,9 @@ impl<T, A: Allocator> ConsumingItemSet<T, A> {
         }
         // The free chain is no longer maintained in this view, so any
         // `next` value is fine. `SENTINEL` is a natural choice.
-        let SlabEntry::Occupied(v) = core::mem::replace(
+        let ItemSlot::Occupied(v) = core::mem::replace(
             slot,
-            SlabEntry::Vacant { next: ItemIndex::SENTINEL },
+            ItemSlot::Vacant { next: ItemIndex::SENTINEL },
         ) else {
             unreachable!("is_occupied was just checked")
         };
