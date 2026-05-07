@@ -317,6 +317,10 @@
 //! - `default-hasher`: Enables the `DefaultHashBuilder` type. Disable this
 //!   feature to require a hash builder type parameter to be passed into
 //!   [`IdHashMap`], [`BiHashMap`], and [`TriHashMap`]. *Enabled by default.*
+//! - `nightly`: Enables support for the nightly `core::alloc::Allocator` trait.
+//!   Requires a nightly Rust compiler. When enabled, map types accept any type
+//!   implementing `core::alloc::Allocator` as a custom allocator. *Not enabled
+//!   by default.*
 //! - `proptest`: Enables [`proptest`] support for all ID map types, providing
 //!   [`Arbitrary`] implementations and strategies for property-based testing.
 //!   *Not enabled by default.*
@@ -367,6 +371,7 @@
 
 #![no_std]
 #![cfg_attr(doc_cfg, feature(doc_cfg))]
+#![cfg_attr(feature = "nightly", feature(allocator_api))]
 #![warn(missing_docs)]
 
 #[cfg_attr(not(feature = "std"), macro_use)] // for `format!`
