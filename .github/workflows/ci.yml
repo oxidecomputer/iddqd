@@ -28,7 +28,7 @@ jobs:
         with:
           tool: just,cargo-hack,cargo-sync-rdme
       - name: Lint (clippy)
-        run: just powerset --partition ${{ matrix.partition }}/10 clippy --all-targets
+        run: just powerset --exclude-features nightly --partition ${{ matrix.partition }}/10 clippy --all-targets
       - name: Lint (rustfmt)
         run: cargo xfmt --check
       - name: Run rustdoc
