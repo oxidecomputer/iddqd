@@ -67,11 +67,11 @@ jobs:
       - uses: taiki-e/install-action@just
       - uses: taiki-e/install-action@nextest
       - name: Build
-        run: just powerset --partition ${{ matrix.partition }}/10 build
+        run: just powerset --exclude-features nightly --partition ${{ matrix.partition }}/10 build
       - name: Run tests
-        run: just powerset --partition ${{ matrix.partition }}/10 nextest run
+        run: just powerset --exclude-features nightly --partition ${{ matrix.partition }}/10 nextest run
       - name: Doctests
-        run: just powerset --partition ${{ matrix.partition }}/10 test --doc
+        run: just powerset --exclude-features nightly --partition ${{ matrix.partition }}/10 test --doc
         
   build-no-std:
     name: Build on no-std
