@@ -3,9 +3,9 @@ use crate::support::{
     alloc::Global,
     borrow::DormantMutRef,
     btree_table,
-    item_set::{ConsumingItemSet, ItemSet, ItemSlot},
+    item_set::{ConsumingItemSet, ItemSet, ItemSlotsPtr},
 };
-use core::{hash::Hash, iter::FusedIterator, marker::PhantomData};
+use core::{hash::Hash, iter::FusedIterator};
 
 /// An iterator over the elements of an [`IdOrdMap`] by shared reference.
 ///
@@ -48,40 +48,6 @@ impl<T: IdOrdItem> ExactSizeIterator for Iter<'_, T> {
 // btree_set::Iter is a FusedIterator, so Iter is as well.
 impl<T: IdOrdItem> FusedIterator for Iter<'_, T> {}
 
-/// A raw pointer into the start of an `ItemSet`'s slot buffer, with the same
-/// thread-safety properties as an `&'a mut ItemSet<T, Global>`.
-///
-/// We use a raw pointer rather than lifetime extension as done by the hash map
-/// iterators to avoid reborrow invalidation under Stacked Borrows. Due to the
-/// way `Vec::index_mut` works, each iteration reborrowing `&mut self.items`
-/// would invalidate previously yielded `&mut T` children.
-struct ItemSetPtr<'a, T: IdOrdItem> {
-    // The pointer to the start of the slot buffer.
-    start_ptr: *mut ItemSlot<T>,
-    // Number of slots in the backing buffer at construction time.
-    slot_count: usize,
-    // Borrow the ItemSet for `'a` so the raw pointer stays live, and so that
-    // variance and drop-check work the same as `&'a mut ItemSet<T, Global>`.
-    _marker: PhantomData<&'a mut ItemSet<T, Global>>,
-}
-
-impl<T: IdOrdItem> core::fmt::Debug for ItemSetPtr<'_, T> {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.debug_struct("ItemSetPtr")
-            .field("start_ptr", &self.start_ptr)
-            .field("slot_count", &self.slot_count)
-            .finish()
-    }
-}
-
-// SAFETY: `ItemSetPtr<'a, T>` has the same thread-safety semantics as `&'a mut
-// ItemSet<T, Global>`, which is `Send`/`Sync` iff `ItemSet<T, Global>` is
-// either of those, respectively. This reduces to `T: Send` / `T: Sync`, since
-// the global allocator `Global` is always `Send` + `Sync`.
-unsafe impl<'a, T: IdOrdItem + Send> Send for ItemSetPtr<'a, T> {}
-// SAFETY: see the `Send` impl above.
-unsafe impl<'a, T: IdOrdItem + Sync> Sync for ItemSetPtr<'a, T> {}
-
 /// An iterator over the elements of a [`IdOrdMap`] by mutable reference.
 ///
 /// This iterator returns [`RefMut`] instances.
@@ -95,7 +61,7 @@ pub struct IterMut<'a, T: IdOrdItem>
 where
     T::Key<'a>: Hash,
 {
-    items: ItemSetPtr<'a, T>,
+    items: ItemSlotsPtr<'a, T>,
     tables: &'a IdOrdMapTables,
     iter: btree_table::Iter<'a>,
 }
@@ -108,10 +74,8 @@ where
         items: &'a mut ItemSet<T, Global>,
         tables: &'a IdOrdMapTables,
     ) -> Self {
-        let slot_count = items.slot_count();
-        let start_ptr = items.start_ptr();
         Self {
-            items: ItemSetPtr { start_ptr, slot_count, _marker: PhantomData },
+            items: ItemSlotsPtr::new(items.slots_mut()),
             tables,
             iter: tables.key_to_item.iter(),
         }
@@ -127,43 +91,11 @@ where
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         let index = self.iter.next()?;
-        let raw_index = index.as_u32() as usize;
 
-        // This is a belt-and-suspenders bounds check. As of 2026-04-28, we've
-        // carefully analyzed all the code paths (including for panic safety) to
-        // ensure that indexes stored in the B-tree are always in bounds. But a
-        // future change might inadvertently break things. Handle this kind of
-        // programmer error as a panic rather than UB.
-        assert!(
-            raw_index < self.items.slot_count,
-            "btree index {raw_index} out of bounds for slot count {}",
-            self.items.slot_count,
-        );
-
-        // SAFETY: We need to show:
-        //
-        // * `self.items.ptr.add(raw_index)` points at valid memory.
-        // * There are no overlapping mutable borrows of the same memory.
-        //
-        // This is shown by the following observations:
-        //
-        // * We construct `ItemSetPtr` by mutably borrowing the item set,
-        //   which means that while this iterator is alive, no other code
-        //   can access the item set.
-        // * The bounds check above shows that `raw_index` is in bounds.
-        // * The B-tree only stores indexes that currently point at `Some`
-        //   slots in the backing `ItemSet`, so the slot is initialized.
-        //   (Again, as of 2026-04-28 we've verified this invariant, but
-        //   a future change might break things, so we use `expect` and not
-        //   `unwrap_unchecked`.)
-        // * The B-tree is a set, so each call to `self.iter.next()` yields a
-        //   distinct `index`. This means that the handed-out `&mut T`s
-        //   never point to the same memory.
-        let item: &'a mut T = unsafe {
-            (*self.items.start_ptr.add(raw_index))
-                .as_mut()
-                .expect("btree index points at an Occupied slot in ItemSet")
-        };
+        // SAFETY: The B-tree is a set, so each call to `self.iter.next()`
+        // yields a distinct `index`. Therefore the `&mut T` references that
+        // `get_mut` hands out across iterations never alias.
+        let item: &'a mut T = unsafe { self.items.get_mut(index) };
 
         let (hash, dormant) = {
             let (item, dormant) = DormantMutRef::new(item);
@@ -171,8 +103,11 @@ where
             (hash, dormant)
         };
 
-        // SAFETY: item is dropped above, and self is no longer used
-        // after this point.
+        // SAFETY: The `&mut T` that `DormantMutRef::new` produced inside
+        // the block above (and used for hashing) was dropped when the
+        // block closed, so the dormant ref is now the unique borrow of
+        // the slot. The `self.tables.state()` access below touches a
+        // different allocation and does not alias.
         let item = unsafe { dormant.awaken() };
 
         Some(RefMut::new(self.tables.state().clone(), hash, item))
