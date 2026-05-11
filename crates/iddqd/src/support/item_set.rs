@@ -57,6 +57,7 @@ use allocator_api2::vec::Vec;
 use core::{
     fmt,
     iter::FusedIterator,
+    marker::PhantomData,
     ops::{Index, IndexMut},
 };
 
@@ -186,10 +187,10 @@ impl<'a, T, A: Allocator> GrowHandle<'a, T, A> {
 
 /// A single slot in an [`ItemSet`].
 ///
-/// Exposed at `pub(crate)` because `ItemSet::as_mut_ptr` hands out a
-/// raw pointer into the `items` buffer; callers need to name the element
-/// type. All other interaction with slots goes through `ItemSet`'s safe
-/// methods.
+/// Exposed at `pub(crate)` because [`ItemSet::slots_mut`] hands out a slot
+/// slice for `ItemSlotsPtr` to build an allocator-agnostic raw pointer over.
+/// Callers need to name the element type. All other interaction with slots
+/// goes through `ItemSet`'s safe methods.
 #[derive(Clone, Debug)]
 pub(crate) enum ItemSlot<T> {
     /// The slot holds a live value.
@@ -297,18 +298,14 @@ impl<T, A: Allocator> ItemSet<T, A> {
         &self.items.allocator().0
     }
 
-    /// Returns a raw pointer to the start of the backing slot buffer.
+    /// Returns the backing slot buffer as a mutable slice.
+    ///
+    /// Used by [`ItemSlotsPtr::new`] to build an allocator-agnostic raw
+    /// pointer over the slot buffer for the per-map `IterMut` iterators.
     #[inline]
     #[cfg_attr(not(feature = "std"), expect(dead_code))]
-    pub(crate) fn start_ptr(&mut self) -> *mut ItemSlot<T> {
-        self.items.as_mut_ptr()
-    }
-
-    /// Returns the number of slots in the backing buffer.
-    #[inline]
-    #[cfg_attr(not(feature = "std"), expect(dead_code))]
-    pub(crate) fn slot_count(&self) -> usize {
-        self.items.len()
+    pub(crate) fn slots_mut(&mut self) -> &mut [ItemSlot<T>] {
+        &mut self.items
     }
 
     pub(crate) fn validate(
@@ -683,6 +680,121 @@ impl<T, A: Allocator> IndexMut<ItemIndex> for ItemSet<T, A> {
     fn index_mut(&mut self, index: ItemIndex) -> &mut Self::Output {
         self.get_mut(index)
             .unwrap_or_else(|| panic!("ItemSet index not found: {index}"))
+    }
+}
+
+// --- ItemSlotsPtr ---------------------------------------------------------
+
+/// A raw pointer into the start of an [`ItemSet`]'s slot buffer, with the same
+/// thread-safety properties as `&'a mut [ItemSlot<T>]`.
+///
+/// This is used by iterators that yield `&mut T` references one at a time and
+/// need to keep handing out distinct references for the duration of the borrow.
+///
+/// This is equivalent to reborrowing the slot slice each iteration and using
+/// unsafe code for lifetime extension, but that would invalidate previously
+/// yielded `&mut T` children under Stacked Borrows. By using a raw pointer, we
+/// keep the original mutable borrow live for the full iteration while still
+/// being able to hand out element references that outlive `&mut self`. (Note
+/// that the lifetime extension approach is not rejected by Tree Borrows, which
+/// indicates that it's probably sound. But it's nice for iddqd to pass both
+/// Stacked and Tree Borrows.)
+///
+/// The only way to read a slot through this pointer is the `unsafe`
+/// [`Self::get_mut`] method, which the caller is responsible for invoking
+/// with each `index` at most once across the lifetime of `'a`.
+pub(crate) struct ItemSlotsPtr<'a, T> {
+    /// The pointer to the start of the slot buffer.
+    start_ptr: *mut ItemSlot<T>,
+    /// Number of slots in the backing buffer at construction time.
+    slot_count: usize,
+    /// Borrow the slot slice for `'a` so the raw pointer stays live, and so
+    /// that variance and drop-check work the same as `&'a mut [ItemSlot<T>]`.
+    /// This deliberately does not mention `ItemSet<T, A>` so the iterator's
+    /// public surface stays allocator-agnostic.
+    _marker: PhantomData<&'a mut [ItemSlot<T>]>,
+}
+
+impl<T> fmt::Debug for ItemSlotsPtr<'_, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ItemSlotsPtr")
+            .field("start_ptr", &self.start_ptr)
+            .field("slot_count", &self.slot_count)
+            .finish()
+    }
+}
+
+// SAFETY: We treat the `*mut ItemSlot<T>` as the `&'a mut [ItemSlot<T>]` that
+// the `PhantomData` already encodes. Auto-trait inference would give us
+// `Send`/`Sync` for that slice under `T: Send` (resp. `T: Sync`); raw
+// pointers don't carry the auto-traits, so we state the same bound here.
+unsafe impl<T: Send> Send for ItemSlotsPtr<'_, T> {}
+// SAFETY: see the `Send` impl above.
+unsafe impl<T: Sync> Sync for ItemSlotsPtr<'_, T> {}
+
+impl<'a, T> ItemSlotsPtr<'a, T> {
+    /// Captures a raw pointer into the slot buffer.
+    ///
+    /// The returned handle borrows `slots` for `'a`.
+    #[inline]
+    #[cfg_attr(not(feature = "std"), expect(dead_code))]
+    pub(crate) fn new(slots: &'a mut [ItemSlot<T>]) -> Self {
+        Self {
+            start_ptr: slots.as_mut_ptr(),
+            slot_count: slots.len(),
+            _marker: PhantomData,
+        }
+    }
+
+    /// Returns a mutable reference to the item at `index`.
+    ///
+    /// The lifetime of the returned reference is the borrow `'a` captured at
+    /// construction. This lets callers (typically iterators) hand the reference
+    /// out and then call `get_mut` again for a different index without
+    /// invalidating prior yields.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `index` is out of bounds for the captured slot buffer or
+    /// if the slot is `Vacant`. Both indicate a stale or invalid index
+    /// reached us from an outer index table: this is a programmer error,
+    /// not undefined behavior.
+    ///
+    /// # Safety
+    ///
+    /// The caller must guarantee that, across the lifetime of this
+    /// [`ItemSlotsPtr`], each `index` value is passed to `get_mut` at most
+    /// once. That is the only thing that keeps the returned `&mut T`
+    /// references disjoint and aliasing-free.
+    #[inline]
+    #[cfg_attr(not(feature = "std"), expect(dead_code))]
+    pub(crate) unsafe fn get_mut(&mut self, index: ItemIndex) -> &'a mut T {
+        let raw_index = index.as_u32() as usize;
+        // Belt-and-suspenders bounds check. The outer index tables only ever
+        // store indexes that point at occupied slots, but we panic rather
+        // than risk UB if a future change inadvertently breaks that invariant.
+        assert!(
+            raw_index < self.slot_count,
+            "ItemSlotsPtr index {raw_index} should be in bounds \
+             for slot count {}",
+            self.slot_count,
+        );
+        // SAFETY:
+        //
+        // * `raw_index < self.slot_count`, so `self.start_ptr.add(raw_index)`
+        //   is in-bounds for the original slot slice.
+        // * `ItemSlotsPtr::new` mutably borrowed the slot slice for `'a`, so
+        //   no other code can touch it for the duration.
+        // * The caller's distinctness contract guarantees that we never hand
+        //   out two `&mut T` references to the same slot.
+        // * The `expect` below verifies that the slot is `Occupied`; an outer
+        //   index table that points at a `Vacant` slot is a programmer error
+        //   that we surface as a panic rather than UB.
+        unsafe {
+            (*self.start_ptr.add(raw_index))
+                .as_mut()
+                .expect("ItemSlotsPtr index points at an occupied slot")
+        }
     }
 }
 
