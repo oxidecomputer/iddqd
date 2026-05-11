@@ -5,8 +5,6 @@
 pub use self::inner::Global;
 pub(crate) use self::inner::{AllocWrapper, Allocator, global_alloc};
 
-// TODO: support nightly.
-
 // Basic non-nightly case.
 #[cfg(feature = "allocator-api2")]
 mod inner {
@@ -101,5 +99,32 @@ mod inner {
         unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: Layout) {
             Allocator::deallocate(&self.0, ptr, layout);
         }
+    }
+}
+
+// Nightly support: implement `core::alloc::Allocator` for `AllocWrapper`.
+// This bridges `allocator_api2::alloc::Allocator` types to the nightly
+// `core::alloc::Allocator` trait, allowing `AllocWrapper` to be used where
+// the standard library allocator trait is expected.
+#[cfg(feature = "nightly")]
+// SAFETY: These functions just forward to the wrapped allocator.
+unsafe impl<T: Allocator> alloc::alloc::Allocator for AllocWrapper<T> {
+    #[inline]
+    fn allocate(
+        &self,
+        layout: alloc::alloc::Layout,
+    ) -> Result<core::ptr::NonNull<[u8]>, alloc::alloc::AllocError> {
+        Allocator::allocate(&self.0, layout)
+            .map_err(|_| alloc::alloc::AllocError)
+    }
+
+    #[inline]
+    unsafe fn deallocate(
+        &self,
+        ptr: core::ptr::NonNull<u8>,
+        layout: alloc::alloc::Layout,
+    ) {
+        // SAFETY: caller upholds safety contract.
+        unsafe { Allocator::deallocate(&self.0, ptr, layout) }
     }
 }

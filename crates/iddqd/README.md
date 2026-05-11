@@ -289,6 +289,10 @@ platform-specific notion of thread locals, would suffice to make
 * `default-hasher`: Enables the `DefaultHashBuilder` type. Disable this
   feature to require a hash builder type parameter to be passed into
   [`IdHashMap`](https://docs.rs/iddqd/0.4.0/iddqd/id_hash_map/imp/struct.IdHashMap.html), [`BiHashMap`](https://docs.rs/iddqd/0.4.0/iddqd/bi_hash_map/imp/struct.BiHashMap.html), and [`TriHashMap`](https://docs.rs/iddqd/0.4.0/iddqd/tri_hash_map/imp/struct.TriHashMap.html). *Enabled by default.*
+* `nightly`: Enables support for the nightly `core::alloc::Allocator` trait.
+  Requires a nightly Rust compiler. When enabled, map types accept any type
+  implementing `core::alloc::Allocator` as a custom allocator. *Not enabled
+  by default.*
 * `proptest`: Enables [`proptest`](https://docs.rs/proptest/1.7.0/proptest/index.html) support for all ID map types, providing
   [`Arbitrary`] implementations and strategies for property-based testing.
   *Not enabled by default.*
