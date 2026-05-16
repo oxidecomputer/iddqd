@@ -1780,7 +1780,7 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
             let (map, dormant_map) = DormantMutRef::new(self);
             let remove_index = map.find1_index(key1)?;
             let item = &map.items[remove_index];
-            if !key2.equivalent(&item.key2()) && !key3.equivalent(&item.key3())
+            if !key2.equivalent(&item.key2()) || !key3.equivalent(&item.key3())
             {
                 return None;
             }
