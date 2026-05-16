@@ -106,11 +106,7 @@ impl NaiveMap {
     ///
     /// Mirrors `BiHashMap::get_unique`: a hit requires `key1` *and* `key2` to
     /// match the same item.
-    pub fn get_unique12(
-        &self,
-        key1: u8,
-        key2: char,
-    ) -> Option<&TestItem> {
+    pub fn get_unique12(&self, key1: u8, key2: char) -> Option<&TestItem> {
         self.items.iter().find(|e| e.key1 == key1 && e.key2 == key2)
     }
 
@@ -129,10 +125,8 @@ impl NaiveMap {
         key1: u8,
         key2: char,
     ) -> Option<TestItem> {
-        let index = self
-            .items
-            .iter()
-            .position(|e| e.key1 == key1 && e.key2 == key2)?;
+        let index =
+            self.items.iter().position(|e| e.key1 == key1 && e.key2 == key2)?;
         Some(self.items.remove(index))
     }
 
@@ -146,9 +140,9 @@ impl NaiveMap {
         key2: char,
         key3: &str,
     ) -> Option<&TestItem> {
-        self.items.iter().find(|e| {
-            e.key1 == key1 && e.key2 == key2 && e.key3 == key3
-        })
+        self.items
+            .iter()
+            .find(|e| e.key1 == key1 && e.key2 == key2 && e.key3 == key3)
     }
 
     /// Mutable variant of [`Self::get_unique123`].
@@ -158,9 +152,9 @@ impl NaiveMap {
         key2: char,
         key3: &str,
     ) -> Option<&mut TestItem> {
-        self.items.iter_mut().find(|e| {
-            e.key1 == key1 && e.key2 == key2 && e.key3 == key3
-        })
+        self.items
+            .iter_mut()
+            .find(|e| e.key1 == key1 && e.key2 == key2 && e.key3 == key3)
     }
 
     /// Removes and returns the item whose three keys all match, if any.
@@ -170,9 +164,10 @@ impl NaiveMap {
         key2: char,
         key3: &str,
     ) -> Option<TestItem> {
-        let index = self.items.iter().position(|e| {
-            e.key1 == key1 && e.key2 == key2 && e.key3 == key3
-        })?;
+        let index = self
+            .items
+            .iter()
+            .position(|e| e.key1 == key1 && e.key2 == key2 && e.key3 == key3)?;
         Some(self.items.remove(index))
     }
 
