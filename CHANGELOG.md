@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.1] - 2026-05-15
+
+### Fixed
+
+- Fixed a logic bug in `TriHashMap::remove_unique`, when `key1` matches, and one of `key2` and `key3` matches, but not the other.
+
 ## [0.4.0] - 2026-05-04
 
 ### Changed
@@ -230,6 +236,7 @@ Thanks to [aatifsyed](https://github.com/aatifsyed) for your first contribution!
 
 Initial release.
 
+[0.4.1]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.4.1
 [0.4.0]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.4.0
 [0.3.18]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.18
 [0.3.17]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.17
