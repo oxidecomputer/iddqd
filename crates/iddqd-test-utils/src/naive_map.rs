@@ -102,6 +102,75 @@ impl NaiveMap {
         Some(self.items.remove(index))
     }
 
+    /// Returns the item whose two keys both match, if any.
+    ///
+    /// Mirrors `BiHashMap::get_unique`: a hit requires `key1` *and* `key2` to
+    /// match the same item.
+    pub fn get_unique12(&self, key1: u8, key2: char) -> Option<&TestItem> {
+        self.items.iter().find(|e| e.key1 == key1 && e.key2 == key2)
+    }
+
+    /// Mutable variant of [`Self::get_unique12`].
+    pub fn get_mut_unique12(
+        &mut self,
+        key1: u8,
+        key2: char,
+    ) -> Option<&mut TestItem> {
+        self.items.iter_mut().find(|e| e.key1 == key1 && e.key2 == key2)
+    }
+
+    /// Removes and returns the item whose two keys both match, if any.
+    pub fn remove_unique12(
+        &mut self,
+        key1: u8,
+        key2: char,
+    ) -> Option<TestItem> {
+        let index =
+            self.items.iter().position(|e| e.key1 == key1 && e.key2 == key2)?;
+        Some(self.items.remove(index))
+    }
+
+    /// Returns the item whose three keys all match, if any.
+    ///
+    /// Mirrors `TriHashMap::get_unique`: a hit requires `key1`, `key2`, *and*
+    /// `key3` to match the same item.
+    pub fn get_unique123(
+        &self,
+        key1: u8,
+        key2: char,
+        key3: &str,
+    ) -> Option<&TestItem> {
+        self.items
+            .iter()
+            .find(|e| e.key1 == key1 && e.key2 == key2 && e.key3 == key3)
+    }
+
+    /// Mutable variant of [`Self::get_unique123`].
+    pub fn get_mut_unique123(
+        &mut self,
+        key1: u8,
+        key2: char,
+        key3: &str,
+    ) -> Option<&mut TestItem> {
+        self.items
+            .iter_mut()
+            .find(|e| e.key1 == key1 && e.key2 == key2 && e.key3 == key3)
+    }
+
+    /// Removes and returns the item whose three keys all match, if any.
+    pub fn remove_unique123(
+        &mut self,
+        key1: u8,
+        key2: char,
+        key3: &str,
+    ) -> Option<TestItem> {
+        let index = self
+            .items
+            .iter()
+            .position(|e| e.key1 == key1 && e.key2 == key2 && e.key3 == key3)?;
+        Some(self.items.remove(index))
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = &TestItem> {
         self.items.iter()
     }

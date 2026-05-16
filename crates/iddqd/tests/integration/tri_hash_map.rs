@@ -268,6 +268,48 @@ impl CompactnessChange {
     }
 }
 
+/// A keys-triple sourced from a mix of "an existing item in the map" and
+/// random fallback values.
+///
+/// Each component independently either copies a key from an item at
+/// `key{1,2,3}_from % naive_map.len()` (when the map is non-empty), or falls
+/// back to the random `rand_key{1,2,3}` value. This mix-and-match makes "right
+/// key1, right key2, wrong key3"-style triples (and permutations thereof)
+/// common in the proptest stream, which is what the `_unique` methods need to
+/// be exercised on.
+#[derive(Clone, Debug, Arbitrary)]
+struct UniqueKeysOp {
+    key1_from: Option<u8>,
+    key2_from: Option<u8>,
+    key3_from: Option<u8>,
+    rand_key1: u8,
+    rand_key2: char,
+    rand_key3: String,
+}
+
+impl UniqueKeysOp {
+    /// Resolves the triple against the current oracle state.
+    fn resolve(&self, naive_map: &NaiveMap) -> (u8, char, String) {
+        let items: Vec<&TestItem> = naive_map.iter().collect();
+        let pick_from = |from: Option<u8>| -> Option<&TestItem> {
+            let len = items.len();
+            from.and_then(|i| {
+                if len == 0 { None } else { Some(items[i as usize % len]) }
+            })
+        };
+        let key1 = pick_from(self.key1_from)
+            .map(|item| item.key1)
+            .unwrap_or(self.rand_key1);
+        let key2 = pick_from(self.key2_from)
+            .map(|item| item.key2)
+            .unwrap_or(self.rand_key2);
+        let key3 = pick_from(self.key3_from)
+            .map(|item| item.key3.clone())
+            .unwrap_or_else(|| self.rand_key3.clone());
+        (key1, key2, key3)
+    }
+}
+
 #[derive(Debug, Arbitrary)]
 enum Operation {
     // Make inserts a bit more common to try and fill up the map.
@@ -282,11 +324,17 @@ enum Operation {
     #[weight(2)]
     Get3(String),
     #[weight(2)]
+    GetUnique(UniqueKeysOp),
+    #[weight(2)]
+    GetMutUnique(UniqueKeysOp),
+    #[weight(2)]
     Remove1(u8),
     #[weight(2)]
     Remove2(char),
     #[weight(2)]
     Remove3(String),
+    #[weight(2)]
+    RemoveUnique(UniqueKeysOp),
     #[weight(2)]
     RetainValueContains(char, bool),
     #[weight(2)]
@@ -313,6 +361,8 @@ impl Operation {
             | Operation::Get1(_)
             | Operation::Get2(_)
             | Operation::Get3(_)
+            | Operation::GetUnique(_)
+            | Operation::GetMutUnique(_)
             | Operation::Reserve(_)
             | Operation::TryReserve(_) => CompactnessChange::NoChange,
             // The act of removing items, including calls to insert_overwrite,
@@ -321,6 +371,7 @@ impl Operation {
             | Operation::Remove1(_)
             | Operation::Remove2(_)
             | Operation::Remove3(_)
+            | Operation::RemoveUnique(_)
             | Operation::RetainValueContains(_, _)
             | Operation::RetainModulo(_, _, _)
             | Operation::Extend(_) => CompactnessChange::NoLongerCompact,
@@ -403,6 +454,32 @@ fn proptest_ops(
 
                 assert_eq!(map_res, naive_res);
             }
+            Operation::GetUnique(keys) => {
+                let (key1, key2, key3) = keys.resolve(&naive_map);
+                let map_res = map.get_unique(
+                    &TestKey1::new(&key1),
+                    &TestKey2::new(key2),
+                    &TestKey3::new(&key3),
+                );
+                let naive_res = naive_map.get_unique123(key1, key2, &key3);
+
+                assert_eq!(map_res, naive_res);
+            }
+            Operation::GetMutUnique(keys) => {
+                let (key1, key2, key3) = keys.resolve(&naive_map);
+                let map_res = map
+                    .get_mut_unique(
+                        &TestKey1::new(&key1),
+                        &TestKey2::new(key2),
+                        &TestKey3::new(&key3),
+                    )
+                    .map(|r| (*r).clone());
+                let naive_res =
+                    naive_map.get_mut_unique123(key1, key2, &key3).cloned();
+
+                assert_eq!(map_res, naive_res);
+                map.validate(compactness).expect("map should be valid");
+            }
             Operation::Remove1(key1) => {
                 let map_res = map.remove1(&TestKey1::new(&key1));
                 let naive_res = naive_map.remove1(key1);
@@ -420,6 +497,18 @@ fn proptest_ops(
             Operation::Remove3(key3) => {
                 let map_res = map.remove3(&TestKey3::new(&key3));
                 let naive_res = naive_map.remove3(&key3);
+
+                assert_eq!(map_res, naive_res);
+                map.validate(compactness).expect("map should be valid");
+            }
+            Operation::RemoveUnique(keys) => {
+                let (key1, key2, key3) = keys.resolve(&naive_map);
+                let map_res = map.remove_unique(
+                    &TestKey1::new(&key1),
+                    &TestKey2::new(key2),
+                    &TestKey3::new(&key3),
+                );
+                let naive_res = naive_map.remove_unique123(key1, key2, &key3);
 
                 assert_eq!(map_res, naive_res);
                 map.validate(compactness).expect("map should be valid");
