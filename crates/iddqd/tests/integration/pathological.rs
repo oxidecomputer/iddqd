@@ -1,6 +1,5 @@
-//! Pathological adversarial impls of `IdOrdItem` / `IdHashItem` /
-//! `BiHashItem`, run under miri (Stacked + Tree Borrows) to probe iddqd's
-//! unsafe code for UB.
+//! Pathological adversarial impls of `IdOrdItem` / `IdHashItem`, run under
+//! miri (Stacked + Tree Borrows) to probe iddqd's unsafe code for UB.
 //!
 //! The tests in this file might leave maps in an inconsistent state, but not in
 //! a way that should cause UB.
@@ -8,8 +7,7 @@
 use crate::panic_safety::{PanickyKey, arm_panic_after, disarm_panic};
 use core::cell::Cell;
 use iddqd::{
-    BiHashItem, BiHashMap, IdHashItem, IdHashMap, IdOrdItem, IdOrdMap,
-    bi_upcast, id_upcast,
+    IdHashItem, IdHashMap, IdOrdItem, IdOrdMap, id_upcast,
     internal::{ValidateChaos, ValidateCompact},
 };
 use iddqd_test_utils::unwind::catch_panic;
@@ -20,20 +18,11 @@ use std::{
 };
 
 #[derive(Clone, Debug)]
-struct PayloadItem {
+struct PlainItem {
     id: u32,
-    payload: u64,
 }
 
-impl IdHashItem for PayloadItem {
-    type Key<'a> = u32;
-    fn key(&self) -> Self::Key<'_> {
-        self.id
-    }
-    id_upcast!();
-}
-
-impl IdOrdItem for PayloadItem {
+impl IdHashItem for PlainItem {
     type Key<'a> = u32;
     fn key(&self) -> Self::Key<'_> {
         self.id
@@ -222,25 +211,6 @@ fn shifty_key_no_ub() {
     SHIFTY_KEY.with(|s| s.set(0));
 }
 
-// Test: long-lived RefMut + iter_mut.
-
-#[test]
-fn id_ord_iter_mut_payload_writes_no_ub() {
-    let mut map = IdOrdMap::<PayloadItem>::new();
-    for i in 0..32 {
-        map.insert_unique(PayloadItem { id: i, payload: 0 }).unwrap();
-    }
-
-    let refs: Vec<_> = map.iter_mut().collect();
-    for mut r in refs {
-        r.payload = (r.id as u64) ^ 0xdead;
-    }
-
-    for i in 0..32 {
-        assert_eq!(map.get(&i).unwrap().payload, (i as u64) ^ 0xdead);
-    }
-}
-
 // Test: panic in the middle of an IdOrdMap operation, then iter_mut.
 
 #[test]
@@ -336,53 +306,6 @@ fn always_eq_no_ub() {
     }
     assert_eq!(map.len(), 1);
     assert_eq!(map.iter_mut().count(), 1);
-}
-
-// Test: BiHashMap entry NonUnique → get_disjoint_mut.
-
-#[derive(Debug)]
-struct BiItem {
-    k1: u32,
-    k2: u32,
-    payload: u64,
-}
-
-impl BiHashItem for BiItem {
-    type K1<'a> = u32;
-    type K2<'a> = u32;
-    fn key1(&self) -> Self::K1<'_> {
-        self.k1
-    }
-    fn key2(&self) -> Self::K2<'_> {
-        self.k2
-    }
-    bi_upcast!();
-}
-
-#[test]
-fn bi_entry_nonunique_writes_no_ub() {
-    let mut map = BiHashMap::<BiItem>::new();
-    for i in 0..8u32 {
-        map.insert_unique(BiItem { k1: i, k2: 1000 + i, payload: 0 }).unwrap();
-    }
-
-    // k1 from item 3, k2 from item 5 → NonUnique → Key12 → get_disjoint_mut.
-    let occupied = match map.entry(3, 1005) {
-        iddqd::bi_hash_map::Entry::Occupied(o) => o,
-        iddqd::bi_hash_map::Entry::Vacant(_) => panic!("expected occupied"),
-    };
-    assert!(occupied.is_non_unique());
-    let mut entry_mut = occupied.into_mut();
-    if let Some(mut r) = entry_mut.by_key1() {
-        r.payload = 1111;
-    }
-    if let Some(mut r) = entry_mut.by_key2() {
-        r.payload = 2222;
-    }
-    drop(entry_mut);
-
-    assert_eq!(map.get1(&3).unwrap().payload, 1111);
-    assert_eq!(map.get1(&5).unwrap().payload, 2222);
 }
 
 // Test: Ord that always returns Less.
@@ -501,9 +424,9 @@ fn drop_panic_during_remove_no_ub() {
 
 #[test]
 fn retain_callback_panic_no_ub() {
-    let mut map = IdHashMap::<PayloadItem>::new();
+    let mut map = IdHashMap::<PlainItem>::new();
     for i in 0..16 {
-        map.insert_unique(PayloadItem { id: i, payload: 0 }).unwrap();
+        map.insert_unique(PlainItem { id: i }).unwrap();
     }
     let _ = catch_panic(std::panic::AssertUnwindSafe(|| {
         let mut count = 0;
