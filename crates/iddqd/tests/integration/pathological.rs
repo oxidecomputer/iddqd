@@ -8,8 +8,8 @@ use crate::panic_safety::{PanickyKey, arm_panic_after, disarm_panic};
 use core::cell::Cell;
 use iddqd::{
     BiHashItem, BiHashMap, Comparable, Equivalent, IdHashItem, IdHashMap,
-    IdOrdItem, IdOrdMap, TriHashItem, TriHashMap, bi_upcast, id_ord_map,
-    id_upcast,
+    IdOrdItem, IdOrdMap, TriHashItem, TriHashMap, bi_upcast, id_hash_map,
+    id_ord_map, id_upcast,
     internal::{ValidateChaos, ValidateCompact},
     tri_upcast,
 };
@@ -745,6 +745,55 @@ fn id_ord_hash_blind_key_change_remove_reinsert_iter_mut_no_aliasing() {
     for item in &mut items {
         item.value += 1;
     }
+}
+
+// Test: hash-map analog of the IdOrdMap test above.
+
+#[derive(Debug)]
+struct ForgettableHashItem {
+    id: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+struct ForgettableHashKey(u32);
+
+impl IdHashItem for ForgettableHashItem {
+    type Key<'a> = ForgettableHashKey;
+    fn key(&self) -> Self::Key<'_> {
+        ForgettableHashKey(self.id)
+    }
+    id_upcast!();
+}
+
+#[test]
+fn id_hash_silent_key_change_entry_remove_no_panic() {
+    let mut map = IdHashMap::<ForgettableHashItem>::new();
+    for id in 0..8u32 {
+        map.insert_unique(ForgettableHashItem { id }).unwrap();
+    }
+
+    let id_hash_map::Entry::Occupied(mut entry) =
+        map.entry(ForgettableHashKey(3))
+    else {
+        panic!("we just inserted id 3 in the loop above");
+    };
+    let mut ref_mut = entry.get_mut();
+    ref_mut.id = 10_000;
+    // This bypasses the drop-time hash equality check on the ID.
+    std::mem::forget(ref_mut);
+
+    // Now call `entry.remove()`. This will not succeed at efficient removal.
+    // But we have a linear-scan fallback in place, due to which cleanup
+    // succeeds.
+    let removed = entry.remove();
+    assert_eq!(removed.id, 10_000);
+
+    // The seven other items must still be findable.
+    for id in [0u32, 1, 2, 4, 5, 6, 7] {
+        assert!(map.contains_key(&ForgettableHashKey(id)));
+    }
+    map.validate(ValidateCompact::NonCompact)
+        .expect("map remains valid after silent-mutation remove");
 }
 
 #[test]

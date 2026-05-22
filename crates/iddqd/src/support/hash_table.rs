@@ -203,6 +203,36 @@ impl<A: Allocator> MapHashTable<A> {
         self.items.retain(|stored| f(stored.ix));
     }
 
+    /// Removes the entry whose stored index is `ix` using a linear scan.
+    ///
+    /// Used as the cleanup path after a `find_entry_by_hash` miss caused by a
+    /// silent key mutation (e.g. `mem::forget` on `RefMut`). The caller has
+    /// already identified the `ItemIndex` to remove and needs a removal that
+    /// does not re-enter user code.
+    ///
+    /// The table holds at most one entry per `ItemIndex` (that is the
+    /// overarching invariant we're trying to uphold across this crate), so this
+    /// removes at most one entry.
+    ///
+    /// Panics if no such entry exists. Reaching this state means the table and
+    /// item set had already diverged before the call, at which point we can no
+    /// longer reason about the map.
+    pub(crate) fn remove_by_index(&mut self, ix: ItemIndex) {
+        let mut found = false;
+        self.items.retain(|stored| {
+            if !found && stored.ix == ix {
+                found = true;
+                false
+            } else {
+                true
+            }
+        });
+        assert!(
+            found,
+            "linear scan should locate the index that find_entry_by_hash missed"
+        );
+    }
+
     /// Clears the hash table, removing all items.
     #[inline]
     pub(crate) fn clear(&mut self) {
