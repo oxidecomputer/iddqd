@@ -1123,8 +1123,9 @@ impl TriHashItem for PanickyHashItem {
 mod proptest_panic_safety {
     use super::*;
     use crate::panic_safety::{
-        PanicSafety, PanickyKey, PanickyOp, assert_panic_fired_as_expected,
-        assert_post_op_invariants, run_armed, sorted_keys,
+        PanicSafety, PanickyOp, PanickySearchKey,
+        assert_panic_fired_as_expected, assert_post_op_invariants, run_armed,
+        sorted_keys,
     };
 
     // Keys are kept in a small range so hits and misses both happen
@@ -1215,22 +1216,22 @@ mod proptest_panic_safety {
                     });
                 }
                 PanickyAction::Remove1(key1) => {
-                    let _ = map.remove1(&PanickyKey(key1));
+                    let _ = map.remove1(&PanickySearchKey(key1));
                 }
                 PanickyAction::Remove2(key2) => {
-                    let _ = map.remove2(&PanickyKey(key2));
+                    let _ = map.remove2(&PanickySearchKey(key2));
                 }
                 PanickyAction::Remove3(key3) => {
-                    let _ = map.remove3(&PanickyKey(key3));
+                    let _ = map.remove3(&PanickySearchKey(key3));
                 }
                 PanickyAction::Get1(key1) => {
-                    let _ = map.get1(&PanickyKey(key1));
+                    let _ = map.get1(&PanickySearchKey(key1));
                 }
                 PanickyAction::Get2(key2) => {
-                    let _ = map.get2(&PanickyKey(key2));
+                    let _ = map.get2(&PanickySearchKey(key2));
                 }
                 PanickyAction::Get3(key3) => {
-                    let _ = map.get3(&PanickyKey(key3));
+                    let _ = map.get3(&PanickySearchKey(key3));
                 }
                 PanickyAction::RetainModulo(rem, modulo, keep) => {
                     map.retain(|item| {
@@ -1295,9 +1296,9 @@ mod proptest_panic_safety {
                 &pre_state,
                 &post_state,
                 |&(k1, k2, k3)| {
-                    map.contains_key1(&PanickyKey(k1))
-                        && map.contains_key2(&PanickyKey(k2))
-                        && map.contains_key3(&PanickyKey(k3))
+                    map.contains_key1(&PanickySearchKey(k1))
+                        && map.contains_key2(&PanickySearchKey(k2))
+                        && map.contains_key3(&PanickySearchKey(k3))
                 },
             );
         }

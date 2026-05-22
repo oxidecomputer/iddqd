@@ -1107,8 +1107,9 @@ impl IdOrdItem for PanickyOrdItem {
 mod proptest_panic_safety {
     use super::*;
     use crate::panic_safety::{
-        PanicSafety, PanickyKey, PanickyOp, assert_panic_fired_as_expected,
-        assert_post_op_invariants, run_armed, sorted_keys,
+        PanicSafety, PanickyOp, PanickySearchKey,
+        assert_panic_fired_as_expected, assert_post_op_invariants, run_armed,
+        sorted_keys,
     };
 
     // Keys are kept in a small range so hits and misses both happen
@@ -1169,13 +1170,13 @@ mod proptest_panic_safety {
                     let _ = map.insert_overwrite(PanickyOrdItem { key });
                 }
                 PanickyAction::Remove(key) => {
-                    let _ = map.remove(&PanickyKey(key));
+                    let _ = map.remove(&PanickySearchKey(key));
                 }
                 PanickyAction::Get(key) => {
-                    let _ = map.get(&PanickyKey(key));
+                    let _ = map.get(&PanickySearchKey(key));
                 }
                 PanickyAction::ContainsKey(key) => {
-                    let _ = map.contains_key(&PanickyKey(key));
+                    let _ = map.contains_key(&PanickySearchKey(key));
                 }
                 PanickyAction::PopFirst => {
                     let _ = map.pop_first();
@@ -1240,7 +1241,7 @@ mod proptest_panic_safety {
                 panic_safety,
                 &pre_state,
                 &post_state,
-                |&k| map.contains_key(&PanickyKey(k)),
+                |&k| map.contains_key(&PanickySearchKey(k)),
             );
         }
     }

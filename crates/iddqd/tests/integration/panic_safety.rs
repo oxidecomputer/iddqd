@@ -1,8 +1,12 @@
 //! Shared scaffolding for panic safety tests.
 //!
-//! [`PanickyKey`] is a key whose `Hash`/`Eq`/`Ord` impls share a thread-local
-//! panic countdown. The call after `n` successful ones panics. Each proptest
-//! drives a random sequence of [`PanickyOp`]s, and after every step asserts:
+//! [`PanickyKey`] is a key whose `Hash`/`Eq`/`Ord`/`Drop` impls share a
+//! thread-local panic countdown. The call after `n` successful ones panics.
+//! Drop is included so the harness also exercises the post-`prepare_*`,
+//! pre-commit windows in `IdOrdMap` (and analogous windows in the hash
+//! maps) where a user-key Drop is the only thing that could panic. Each
+//! proptest drives a random sequence of [`PanickyOp`]s, and after every
+//! step asserts:
 //!
 //! * `validate()`
 //! * a `contains_key` round-trip on every surviving item
@@ -15,6 +19,7 @@ use core::{
     fmt,
     hash::{Hash, Hasher},
 };
+use equivalent::{Comparable, Equivalent};
 use iddqd_test_utils::unwind::catch_panic;
 use proptest::prelude::*;
 
@@ -23,21 +28,73 @@ thread_local! {
     static OP_COUNT: Cell<u32> = const { Cell::new(0) };
 }
 
-/// A key whose `Hash`/`Eq`/`Ord` impls share a panic countdown, so
-/// tests can deterministically trigger a panic at a chosen point.
+/// A key whose `Hash`/`Eq`/`Ord`/`Drop` impls share a panic countdown,
+/// so tests can deterministically trigger a panic at a chosen point.
 #[derive(Clone, Debug, Eq)]
 pub(crate) struct PanickyKey(pub u32);
 
 impl PanickyKey {
     fn observe_call(label: &'static str) {
-        OP_COUNT.with(|c| c.set(c.get() + 1));
         PANIC_COUNTDOWN.with(|c| {
+            // When disarmed, don't tick `OP_COUNT`. This matters for two
+            // distinct cases:
+            //
+            // * Calls outside `run_armed` (validation, assertions): they
+            //   shouldn't count toward the next armed step.
+            // * Calls during panic unwinding *after* the countdown has fired:
+            //   key drops along the unwind path would otherwise tick
+            //   `OP_COUNT` past `n + 1` and break
+            //   `assert_panic_fired_as_expected`.
             let Some(n) = c.get() else { return };
+            OP_COUNT.with(|c| c.set(c.get() + 1));
             if n == 0 {
+                // Disarm before panicking so additional `observe_call`s
+                // during unwinding (notably key drops) don't double-panic.
+                c.set(None);
                 panic!("PanickyKey::{label} panic triggered");
             }
             c.set(Some(n - 1));
         });
+    }
+}
+
+impl Drop for PanickyKey {
+    fn drop(&mut self) {
+        Self::observe_call("drop");
+    }
+}
+
+/// Caller-side lookup key.
+///
+/// Shares `PanickyKey`'s countdown for `Hash`/`Eq`/`Ord` so the harness
+/// still exercises mid-op panics from comparator calls. Deliberately does
+/// **not** panic from `Drop`: a search key is constructed by the caller,
+/// passed by reference into a map op, and dropped *after* the op returns
+/// (per Rust temporary lifetime rules). A `Drop` panic at that point isn't
+/// within the map's atomic-op window, so observing it would conflate
+/// post-op cleanup with mid-op failures and spuriously flag atomic ops as
+/// violating their invariant.
+#[derive(Clone, Debug)]
+pub(crate) struct PanickySearchKey(pub u32);
+
+impl Hash for PanickySearchKey {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        PanickyKey::observe_call("search-hash");
+        self.0.hash(state);
+    }
+}
+
+impl Equivalent<PanickyKey> for PanickySearchKey {
+    fn equivalent(&self, key: &PanickyKey) -> bool {
+        PanickyKey::observe_call("search-equivalent");
+        self.0 == key.0
+    }
+}
+
+impl Comparable<PanickyKey> for PanickySearchKey {
+    fn compare(&self, key: &PanickyKey) -> Ordering {
+        PanickyKey::observe_call("search-compare");
+        self.0.cmp(&key.0)
     }
 }
 
@@ -124,6 +181,7 @@ pub(crate) fn run_armed(armed: Option<u32>, f: impl FnOnce()) -> (bool, u32) {
 /// Asserts that the panic-countdown infrastructure fired (or didn't)
 /// exactly as the arming would predict.
 ///
+/// "Key call" here means any of `Hash`/`Eq`/`Ord`/`Drop` on `PanickyKey`.
 /// With `armed = Some(n)`, the panic should fire on the `(n+1)`-th key
 /// call, so `panicked` implies `ops == n + 1`, and `!panicked` implies
 /// the action made at most `n` key calls. With `armed = None`, no

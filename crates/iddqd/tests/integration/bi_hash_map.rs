@@ -1241,8 +1241,9 @@ impl BiHashItem for PanickyHashItem {
 mod proptest_panic_safety {
     use super::*;
     use crate::panic_safety::{
-        PanicSafety, PanickyKey, PanickyOp, assert_panic_fired_as_expected,
-        assert_post_op_invariants, run_armed, sorted_keys,
+        PanicSafety, PanickyOp, PanickySearchKey,
+        assert_panic_fired_as_expected, assert_post_op_invariants, run_armed,
+        sorted_keys,
     };
 
     // Keys are kept in a small range so hits and misses both happen
@@ -1319,22 +1320,22 @@ mod proptest_panic_safety {
                         map.insert_overwrite(PanickyHashItem { key1, key2 });
                 }
                 PanickyAction::Remove1(key1) => {
-                    let _ = map.remove1(&PanickyKey(key1));
+                    let _ = map.remove1(&PanickySearchKey(key1));
                 }
                 PanickyAction::Remove2(key2) => {
-                    let _ = map.remove2(&PanickyKey(key2));
+                    let _ = map.remove2(&PanickySearchKey(key2));
                 }
                 PanickyAction::Get1(key1) => {
-                    let _ = map.get1(&PanickyKey(key1));
+                    let _ = map.get1(&PanickySearchKey(key1));
                 }
                 PanickyAction::Get2(key2) => {
-                    let _ = map.get2(&PanickyKey(key2));
+                    let _ = map.get2(&PanickySearchKey(key2));
                 }
                 PanickyAction::ContainsKey1(key1) => {
-                    let _ = map.contains_key1(&PanickyKey(key1));
+                    let _ = map.contains_key1(&PanickySearchKey(key1));
                 }
                 PanickyAction::ContainsKey2(key2) => {
-                    let _ = map.contains_key2(&PanickyKey(key2));
+                    let _ = map.contains_key2(&PanickySearchKey(key2));
                 }
                 PanickyAction::RetainModulo(rem, modulo, keep) => {
                     map.retain(|item| {
@@ -1395,8 +1396,8 @@ mod proptest_panic_safety {
                 &pre_state,
                 &post_state,
                 |&(k1, k2)| {
-                    map.contains_key1(&PanickyKey(k1))
-                        && map.contains_key2(&PanickyKey(k2))
+                    map.contains_key1(&PanickySearchKey(k1))
+                        && map.contains_key2(&PanickySearchKey(k2))
                 },
             );
         }
