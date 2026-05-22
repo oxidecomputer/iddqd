@@ -718,6 +718,53 @@ fn entry_examples() {
     }
 }
 
+// A NonUnique occupied entry resolves `by_key1` and `by_key2` to *different*
+// underlying items; `into_mut` must hand back disjoint `&mut`s to both.
+#[test]
+fn entry_nonunique_writes_through_both_keys() {
+    #[derive(Clone, Debug)]
+    struct BiItem {
+        k1: u32,
+        k2: u32,
+        payload: u64,
+    }
+
+    impl BiHashItem for BiItem {
+        type K1<'a> = u32;
+        type K2<'a> = u32;
+        fn key1(&self) -> Self::K1<'_> {
+            self.k1
+        }
+        fn key2(&self) -> Self::K2<'_> {
+            self.k2
+        }
+        bi_upcast!();
+    }
+
+    let mut map = BiHashMap::<BiItem, HashBuilder, Alloc>::make_new();
+    for i in 0..8u32 {
+        map.insert_unique(BiItem { k1: i, k2: 1000 + i, payload: 0 }).unwrap();
+    }
+
+    // k1 from item 3, k2 from item 5 -> NonUnique -> Key12 -> get_disjoint_mut.
+    let occupied = match map.entry(3, 1005) {
+        bi_hash_map::Entry::Occupied(o) => o,
+        bi_hash_map::Entry::Vacant(_) => panic!("expected occupied"),
+    };
+    assert!(occupied.is_non_unique());
+    let mut entry_mut = occupied.into_mut();
+    if let Some(mut r) = entry_mut.by_key1() {
+        r.payload = 1111;
+    }
+    if let Some(mut r) = entry_mut.by_key2() {
+        r.payload = 2222;
+    }
+    drop(entry_mut);
+
+    assert_eq!(map.get1(&3).unwrap().payload, 1111);
+    assert_eq!(map.get1(&5).unwrap().payload, 2222);
+}
+
 #[test]
 #[should_panic = "key1 hashes do not match"]
 fn insert_panics_for_non_matching_key1() {
