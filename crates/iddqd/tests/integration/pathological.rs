@@ -7,8 +7,10 @@
 use crate::panic_safety::{PanickyKey, arm_panic_after, disarm_panic};
 use core::cell::Cell;
 use iddqd::{
-    IdHashItem, IdHashMap, IdOrdItem, IdOrdMap, id_ord_map, id_upcast,
+    BiHashItem, BiHashMap, Equivalent, IdHashItem, IdHashMap, IdOrdItem,
+    IdOrdMap, TriHashItem, TriHashMap, bi_upcast, id_ord_map, id_upcast,
     internal::{ValidateChaos, ValidateCompact},
+    tri_upcast,
 };
 use iddqd_test_utils::unwind::catch_panic;
 use std::{
@@ -269,6 +271,198 @@ fn lying_eq_no_ub() {
     let len = map.len();
     let count = map.iter_mut().count();
     assert_eq!(count, len);
+}
+
+// Test: pathological Eq on hash keys must not let table-driven mutable paths
+// yield overlapping indexes after remove/reinsert.
+
+thread_local! {
+    static MISDIRECTED_EQ_MODE: Cell<bool> = const { Cell::new(false) };
+}
+
+struct MisdirectedEqKey {
+    id: u32,
+}
+
+impl Hash for MisdirectedEqKey {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        if self.id <= 1 {
+            0u32.hash(state);
+        } else {
+            self.id.hash(state);
+        }
+    }
+}
+
+impl PartialEq for MisdirectedEqKey {
+    fn eq(&self, other: &Self) -> bool {
+        if MISDIRECTED_EQ_MODE.with(Cell::get) {
+            match (self.id, other.id) {
+                // Under correct behavior, (0, 0) and (1, 1) would return true
+                // and (0, 1) and (1, 0) would return false. Invert the result
+                // for these IDs.
+                (0, 1) | (1, 0) => true,
+                (0, 0) | (1, 1) => false,
+                _ => self.id == other.id,
+            }
+        } else {
+            self.id == other.id
+        }
+    }
+}
+impl Eq for MisdirectedEqKey {}
+
+struct ExactLookupKey {
+    id: u32,
+}
+
+impl Hash for ExactLookupKey {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        if self.id <= 1 {
+            0u32.hash(state);
+        } else {
+            self.id.hash(state);
+        }
+    }
+}
+
+impl Equivalent<MisdirectedEqKey> for ExactLookupKey {
+    fn equivalent(&self, key: &MisdirectedEqKey) -> bool {
+        // This is always correct.
+        self.id == key.id
+    }
+}
+
+#[derive(Debug)]
+struct MisdirectedEqIdHashItem {
+    id: u32,
+}
+
+impl IdHashItem for MisdirectedEqIdHashItem {
+    type Key<'a> = MisdirectedEqKey;
+    fn key(&self) -> Self::Key<'_> {
+        MisdirectedEqKey { id: self.id }
+    }
+    id_upcast!();
+}
+
+#[test]
+fn id_hash_misdirected_eq_remove_reinsert_retain_no_aliasing() {
+    let mut map = IdHashMap::<MisdirectedEqIdHashItem>::with_capacity(16);
+    // Insert two items under correct behavior.
+    map.insert_unique(MisdirectedEqIdHashItem { id: 0 }).unwrap();
+    map.insert_unique(MisdirectedEqIdHashItem { id: 1 }).unwrap();
+
+    // Now turn on the pathological behavior.
+    MISDIRECTED_EQ_MODE.with(|c| c.set(true));
+    // The old bug was in the internal table cleanup after that lookup. It knew
+    // the `ItemIndex` for id 1, but searched the hash table again using the
+    // item's key equality. Under `MisdirectedEqKey`, key 1 matches the table
+    // entry for key 0 but not itself, so cleanup could remove key 0's table
+    // entry while removing id 1 from `ItemSet`.
+    //
+    // The fixed code uses the key only to compute the hash, then removes the
+    // table entry whose stored `ItemIndex` is exactly the selected index.
+    let removed = map.remove(&ExactLookupKey { id: 1 }).unwrap();
+    MISDIRECTED_EQ_MODE.with(|c| c.set(false));
+    assert_eq!(removed.id, 1);
+
+    map.insert_unique(MisdirectedEqIdHashItem { id: 2 }).unwrap();
+
+    map.retain(|_| false);
+    assert!(map.is_empty());
+}
+
+#[derive(Debug)]
+struct MisdirectedEqBiHashItem {
+    id: u32,
+}
+
+impl BiHashItem for MisdirectedEqBiHashItem {
+    type K1<'a> = MisdirectedEqKey;
+    type K2<'a> = u32;
+    fn key1(&self) -> Self::K1<'_> {
+        MisdirectedEqKey { id: self.id }
+    }
+    fn key2(&self) -> Self::K2<'_> {
+        self.id + 10
+    }
+    bi_upcast!();
+}
+
+#[test]
+fn bi_hash_misdirected_eq_remove_reinsert_retain_no_aliasing() {
+    let mut map = BiHashMap::<MisdirectedEqBiHashItem>::with_capacity(16);
+    // Insert two items under correct behavior.
+    map.insert_unique(MisdirectedEqBiHashItem { id: 0 }).unwrap();
+    map.insert_unique(MisdirectedEqBiHashItem { id: 1 }).unwrap();
+
+    // Now turn on the pathological behavior.
+    MISDIRECTED_EQ_MODE.with(|c| c.set(true));
+    // The old bug was in the internal table cleanup after that lookup. It knew
+    // the `ItemIndex` for id 1, but searched the hash table again using the
+    // item's key equality. Under `MisdirectedEqKey`, key 1 matches the table
+    // entry for key 0 but not itself, so cleanup could remove key 0's table
+    // entry while removing id 1 from `ItemSet`.
+    //
+    // The fixed code uses the key only to compute the hash, then removes the
+    // table entry whose stored `ItemIndex` is exactly the selected index.
+    let removed = map.remove1(&ExactLookupKey { id: 1 }).unwrap();
+    MISDIRECTED_EQ_MODE.with(|c| c.set(false));
+    assert_eq!(removed.id, 1);
+
+    map.insert_unique(MisdirectedEqBiHashItem { id: 2 }).unwrap();
+
+    map.retain(|_| false);
+    assert!(map.is_empty());
+}
+
+#[derive(Debug)]
+struct MisdirectedEqTriHashItem {
+    id: u32,
+}
+
+impl TriHashItem for MisdirectedEqTriHashItem {
+    type K1<'a> = MisdirectedEqKey;
+    type K2<'a> = u32;
+    type K3<'a> = u32;
+    fn key1(&self) -> Self::K1<'_> {
+        MisdirectedEqKey { id: self.id }
+    }
+    fn key2(&self) -> Self::K2<'_> {
+        self.id + 10
+    }
+    fn key3(&self) -> Self::K3<'_> {
+        self.id + 20
+    }
+    tri_upcast!();
+}
+
+#[test]
+fn tri_hash_misdirected_eq_remove_reinsert_retain_no_aliasing() {
+    let mut map = TriHashMap::<MisdirectedEqTriHashItem>::with_capacity(16);
+    // Insert two items under correct behavior.
+    map.insert_unique(MisdirectedEqTriHashItem { id: 0 }).unwrap();
+    map.insert_unique(MisdirectedEqTriHashItem { id: 1 }).unwrap();
+
+    // Now turn on the pathological behavior.
+    MISDIRECTED_EQ_MODE.with(|c| c.set(true));
+    // The old bug was in the internal table cleanup after that lookup. It knew
+    // the `ItemIndex` for id 1, but searched the hash table again using the
+    // item's key equality. Under `MisdirectedEqKey`, key 1 matches the table
+    // entry for key 0 but not itself, so cleanup could remove key 0's table
+    // entry while removing id 1 from `ItemSet`.
+    //
+    // The fixed code uses the key only to compute the hash, then removes the
+    // table entry whose stored `ItemIndex` is exactly the selected index.
+    let removed = map.remove1(&ExactLookupKey { id: 1 }).unwrap();
+    MISDIRECTED_EQ_MODE.with(|c| c.set(false));
+    assert_eq!(removed.id, 1);
+
+    map.insert_unique(MisdirectedEqTriHashItem { id: 2 }).unwrap();
+
+    map.retain(|_| false);
+    assert!(map.is_empty());
 }
 
 #[derive(Debug)]

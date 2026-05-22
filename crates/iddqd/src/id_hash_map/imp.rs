@@ -1426,24 +1426,25 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
         &mut self,
         remove_index: ItemIndex,
     ) -> Option<T> {
-        // For panic safety, look up the table entry while `self.items` still
-        // holds the value, then remove from the table and items in sequence.
-        // hashbrown's `find_entry` is panic-safe under user-`Hash`/`Eq` panics
-        // (the table is not mutated until `OccupiedEntry::remove` is called),
-        // so a panic during the lookup leaves both items and the table
-        // unmodified.
-        let key = self.items.get(remove_index)?.key();
+        // For panic safety, compute the key hash and look up the table entry
+        // while `self.items` still holds the value, then remove from the table
+        // and items in sequence. This lookup deliberately matches by
+        // `ItemIndex` rather than by user `Eq`: at this point we already know
+        // which item is being removed, and user `Eq` might be pathological.
+        // hashbrown's `find_entry_by_hash` is panic-safe because the table is
+        // not mutated until `OccupiedEntry::remove` is called, so a panic while
+        // hashing leaves both items and the table unmodified.
+        let item = self.items.get(remove_index)?;
         let state = &self.tables.state;
-        let Ok(item) =
-            self.tables
-                .key_to_item
-                .find_entry(state, &key, |index| self.items[index].key())
+        let hash = state.hash_one(item.key());
+        let Ok(entry) = self
+            .tables
+            .key_to_item
+            .find_entry_by_hash(hash, |index| index == remove_index)
         else {
-            panic!("we just looked this item up");
+            panic!("remove_index {remove_index} not found in key_to_item");
         };
-        // Drop the key so that `self.items` can be mutated below.
-        drop(key);
-        item.remove();
+        entry.remove();
         Some(
             self.items
                 .remove(remove_index)

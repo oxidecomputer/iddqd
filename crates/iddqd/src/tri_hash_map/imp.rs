@@ -2730,40 +2730,41 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
         &mut self,
         remove_index: ItemIndex,
     ) -> Option<T> {
-        // For panic safety, look up all three table entries while `self.items`
-        // still holds the value, then remove from all three tables and items
-        // in sequence. hashbrown's `find_entry` is panic-safe under
-        // user-`Hash`/`Eq` panics (the table is not mutated until
-        // `OccupiedEntry::remove` is called), so a panic during the lookups
-        // leaves items and all three tables unmodified.
+        // For panic safety, compute all three key hashes and look up all three
+        // table entries while `self.items` still holds the value, then remove
+        // from all three tables and items in sequence. These lookups
+        // deliberately match by `ItemIndex` rather than by user `Eq`: at this
+        // point we already know which item is being removed, and user `Eq`
+        // might be pathological. hashbrown's `find_entry_by_hash` is
+        // panic-safe because the table is not mutated until
+        // `OccupiedEntry::remove` is called, so a panic while hashing leaves
+        // items and all three tables unmodified.
         let item = self.items.get(remove_index)?;
-        let key1 = item.key1();
-        let key2 = item.key2();
-        let key3 = item.key3();
         let state = &self.tables.state;
-        let Ok(entry1) =
-            self.tables
-                .k1_to_item
-                .find_entry(state, &key1, |index| self.items[index].key1())
+        let hash1 = state.hash_one(item.key1());
+        let hash2 = state.hash_one(item.key2());
+        let hash3 = state.hash_one(item.key3());
+        let Ok(entry1) = self
+            .tables
+            .k1_to_item
+            .find_entry_by_hash(hash1, |index| index == remove_index)
         else {
             panic!("remove_index {remove_index} not found in k1_to_item");
         };
-        let Ok(entry2) =
-            self.tables
-                .k2_to_item
-                .find_entry(state, &key2, |index| self.items[index].key2())
+        let Ok(entry2) = self
+            .tables
+            .k2_to_item
+            .find_entry_by_hash(hash2, |index| index == remove_index)
         else {
             panic!("remove_index {remove_index} not found in k2_to_item");
         };
-        let Ok(entry3) =
-            self.tables
-                .k3_to_item
-                .find_entry(state, &key3, |index| self.items[index].key3())
+        let Ok(entry3) = self
+            .tables
+            .k3_to_item
+            .find_entry_by_hash(hash3, |index| index == remove_index)
         else {
             panic!("remove_index {remove_index} not found in k3_to_item");
         };
-        // Drop the keys so that `self.items` can be mutated below.
-        drop((key1, key2, key3));
         entry1.remove();
         entry2.remove();
         entry3.remove();
