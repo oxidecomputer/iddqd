@@ -1306,7 +1306,7 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
     /// ```
     pub fn retain<'a, F>(&'a mut self, mut f: F)
     where
-        F: FnMut(RefMut<'a, T, S>) -> bool,
+        F: for<'b> FnMut(RefMut<'b, T, S>) -> bool,
     {
         let hash_state = self.tables.state.clone();
         let (_, mut dormant_items) = DormantMutRef::new(&mut self.items);

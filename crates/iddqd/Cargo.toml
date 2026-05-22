@@ -40,6 +40,7 @@ iddqd-test-utils.workspace = true
 proptest.workspace = true
 serde.workspace = true
 test-strategy.workspace = true
+trybuild.workspace = true
 
 [features]
 allocator-api2 = ["iddqd-test-utils/allocator-api2"]

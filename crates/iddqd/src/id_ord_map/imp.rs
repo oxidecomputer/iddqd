@@ -1307,7 +1307,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     /// ```
     pub fn retain<'a, F>(&'a mut self, mut f: F)
     where
-        F: FnMut(RefMut<'a, T>) -> bool,
+        F: for<'b> FnMut(RefMut<'b, T>) -> bool,
         T::Key<'a>: Hash,
     {
         let hash_state = self.tables.state().clone();

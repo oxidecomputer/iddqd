@@ -11,7 +11,10 @@ use iddqd_test_utils::{
     },
 };
 use proptest::prelude::*;
-use std::{borrow::Cow, path::Path};
+use std::{
+    borrow::Cow,
+    path::{Path, PathBuf},
+};
 use test_strategy::{Arbitrary, proptest};
 
 #[derive(Clone, Debug)]
@@ -617,6 +620,36 @@ fn borrowed_item() {
             iddqd_test_utils::serde_json::from_str(&map_string).unwrap();
         assert_eq!(map, deserialized);
     }
+}
+
+#[test]
+fn borrowed_item_retain_non_static() {
+    let foo_key = String::from("foo");
+    let bar_key = String::from("bar");
+    let foo_bytes = b"foo".to_vec();
+    let bar_bytes = b"bar".to_vec();
+    let foo_path = PathBuf::from("foo");
+    let bar_path = PathBuf::from("bar");
+
+    let mut map = IdHashMap::<BorrowedItem<'_>, HashBuilder, Alloc>::default();
+    map.insert_unique(BorrowedItem {
+        key1: foo_key.as_str(),
+        key2: Cow::Borrowed(foo_bytes.as_slice()),
+        key3: foo_path.as_path(),
+    })
+    .unwrap();
+    map.insert_unique(BorrowedItem {
+        key1: bar_key.as_str(),
+        key2: Cow::Borrowed(bar_bytes.as_slice()),
+        key3: bar_path.as_path(),
+    })
+    .unwrap();
+
+    map.retain(|item| item.key1 == foo_key.as_str());
+
+    assert_eq!(map.len(), 1);
+    assert!(map.get(foo_key.as_str()).is_some());
+    assert!(map.get(bar_key.as_str()).is_none());
 }
 
 #[test]
