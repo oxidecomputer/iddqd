@@ -9,7 +9,6 @@ use super::{
 use crate::internal::{TableValidationError, ValidateCompact};
 use alloc::{collections::BTreeSet, vec::Vec};
 use core::{
-    borrow::Borrow,
     fmt,
     hash::{BuildHasher, Hash},
 };
@@ -127,24 +126,6 @@ impl<A: Allocator> MapHashTable<A> {
             |index| lookup(*index) == key,
             |v| state.hash_one(lookup(*v)),
         )
-    }
-
-    pub(crate) fn find_entry<S: BuildHasher, K, Q, F>(
-        &mut self,
-        state: &S,
-        key: &Q,
-        lookup: F,
-    ) -> Result<
-        OccupiedEntry<'_, ItemIndex, AllocWrapper<A>>,
-        AbsentEntry<'_, ItemIndex, AllocWrapper<A>>,
-    >
-    where
-        F: Fn(ItemIndex) -> K,
-        K: Hash + Eq + Borrow<Q>,
-        Q: ?Sized + Hash + Eq,
-    {
-        let hash = state.hash_one(key);
-        self.items.find_entry(hash, |index| lookup(*index).borrow() == key)
     }
 
     pub(crate) fn find_entry_by_hash<F>(
