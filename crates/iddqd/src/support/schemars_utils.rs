@@ -21,7 +21,7 @@ pub(crate) static IDDQD_CRATE_VERSION: &str = "*";
 /// Helper function to create array validation for map types.
 /// All iddqd map types serialize as arrays of their values.
 pub(crate) fn array_validation<T>(
-    generator: &mut schemars::gen::SchemaGenerator,
+    generator: &mut schemars::r#gen::SchemaGenerator,
 ) -> Box<schemars::schema::ArrayValidation>
 where
     T: schemars::JsonSchema,
@@ -57,7 +57,7 @@ where
 /// type parameter.
 pub(crate) fn make_extension_table<T>(
     path: &'static str,
-    generator: &mut schemars::gen::SchemaGenerator,
+    generator: &mut schemars::r#gen::SchemaGenerator,
 ) -> schemars::Map<String, serde_json::Value>
 where
     T: schemars::JsonSchema,
@@ -79,7 +79,7 @@ where
 pub(crate) fn create_map_schema<T>(
     title: &str,
     rust_type_path: &'static str,
-    generator: &mut schemars::gen::SchemaGenerator,
+    generator: &mut schemars::r#gen::SchemaGenerator,
 ) -> schemars::schema::Schema
 where
     T: schemars::JsonSchema,
@@ -98,7 +98,7 @@ where
 
 /// Helper function to create object validation for map types serialized as objects.
 pub(crate) fn object_validation<V>(
-    generator: &mut schemars::gen::SchemaGenerator,
+    generator: &mut schemars::r#gen::SchemaGenerator,
 ) -> Box<schemars::schema::ObjectValidation>
 where
     V: schemars::JsonSchema,
@@ -114,7 +114,7 @@ where
 pub(crate) fn create_object_schema<V>(
     title: &str,
     rust_type_path: &'static str,
-    generator: &mut schemars::gen::SchemaGenerator,
+    generator: &mut schemars::r#gen::SchemaGenerator,
 ) -> schemars::schema::Schema
 where
     V: schemars::JsonSchema,

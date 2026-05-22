@@ -10,7 +10,7 @@ use crate::{
     },
 };
 use alloc::string::String;
-use schemars::{JsonSchema, gen::SchemaGenerator, schema::Schema};
+use schemars::{JsonSchema, r#gen::SchemaGenerator, schema::Schema};
 
 impl<T, S, A> JsonSchema for IdHashMap<T, S, A>
 where

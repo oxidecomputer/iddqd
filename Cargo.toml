@@ -3,9 +3,9 @@ resolver = "2"
 members = ["crates/*"]
 
 [workspace.package]
-edition = "2021"
+edition = "2024"
 license = "MIT OR Apache-2.0"
-rust-version = "1.81"
+rust-version = "1.85"
 
 [workspace.lints.clippy]
 undocumented_unsafe_blocks = { level = "warn" }
