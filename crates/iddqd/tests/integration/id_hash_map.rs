@@ -944,10 +944,7 @@ mod proptest_panic_safety {
     impl PanickyAction {
         /// Classify panic safety for this action.
         ///
-        /// * `RetainModulo` loops over per-step atomic mutations.
-        /// * `Extend` calls `HashTable::reserve` up front, which on a
-        ///   tombstone-heavy map drops into hashbrown's `rehash_in_place`.
-        ///   Hashbrown documents `rehash_in_place` as not panic-safe.
+        /// * `RetainModulo` and `Extend` loop over per-step atomic mutations.
         fn panic_safety(&self) -> PanicSafety {
             match self {
                 PanickyAction::InsertUnique(_)
@@ -955,8 +952,8 @@ mod proptest_panic_safety {
                 | PanickyAction::Remove(_)
                 | PanickyAction::Get(_)
                 | PanickyAction::ContainsKey(_) => PanicSafety::Atomic,
-                PanickyAction::RetainModulo(_, _, _) => PanicSafety::StepAtomic,
-                PanickyAction::Extend(_) => PanicSafety::MayCorruptOnPanic,
+                PanickyAction::RetainModulo(_, _, _)
+                | PanickyAction::Extend(_) => PanicSafety::StepAtomic,
                 PanickyAction::Clear => PanicSafety::Atomic,
             }
         }
@@ -1007,10 +1004,7 @@ mod proptest_panic_safety {
             let action = op.action;
             let action_label = format!("{action:?}");
             let panic_safety = action.panic_safety();
-            let armed = match panic_safety {
-                PanicSafety::MayCorruptOnPanic => None,
-                PanicSafety::Atomic | PanicSafety::StepAtomic => op.armed,
-            };
+            let armed = op.armed;
 
             let pre_state = sorted_keys(&map, |item| item.key);
             let (panicked, ops) = run_armed(armed, || action.run(&mut map));

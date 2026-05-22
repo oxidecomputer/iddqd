@@ -1213,10 +1213,7 @@ mod proptest_panic_safety {
             let action = op.action;
             let action_label = format!("{action:?}");
             let panic_safety = action.panic_safety();
-            let armed = match panic_safety {
-                PanicSafety::MayCorruptOnPanic => None,
-                PanicSafety::Atomic | PanicSafety::StepAtomic => op.armed,
-            };
+            let armed = op.armed;
 
             let pre_state = sorted_keys(&map, |item| item.key);
             let (panicked, ops) = run_armed(armed, || action.run(&mut map));

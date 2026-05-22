@@ -234,10 +234,6 @@ pub(crate) enum PanicSafety {
     /// Composed of atomic sub-steps; a panic may leave the map in a different
     /// but still-valid state.
     StepAtomic,
-    /// May corrupt the underlying table. Callers must skip arming a panic for
-    /// this op.
-    #[allow(dead_code)] // unused without `default-hasher`
-    MayCorruptOnPanic,
 }
 
 /// Asserts that every surviving item is findable, and (for atomic ops

@@ -10,6 +10,7 @@ use crate::{
         ItemIndex,
         alloc::{Allocator, Global, global_alloc},
         borrow::DormantMutRef,
+        hash_table,
         item_set::ItemSet,
         map_hash::MapHash,
     },
@@ -20,7 +21,6 @@ use core::{
     hash::{BuildHasher, Hash},
 };
 use equivalent::Equivalent;
-use hashbrown::hash_table;
 
 /// A hash map where the key is part of the value.
 ///
@@ -642,11 +642,7 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
     /// ```
     pub fn reserve(&mut self, additional: usize) {
         self.items.reserve(additional);
-        let items = &self.items;
-        let state = &self.tables.state;
-        self.tables
-            .key_to_item
-            .reserve(additional, |ix| state.hash_one(items[*ix].key()));
+        self.tables.key_to_item.reserve(additional);
     }
 
     /// Tries to reserve capacity for at least `additional` more elements to be
@@ -696,11 +692,9 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
         additional: usize,
     ) -> Result<(), crate::errors::TryReserveError> {
         self.items.try_reserve(additional)?;
-        let items = &self.items;
-        let state = &self.tables.state;
         self.tables
             .key_to_item
-            .try_reserve(additional, |ix| state.hash_one(items[*ix].key()))
+            .try_reserve(additional)
             .map_err(crate::errors::TryReserveError::from_hashbrown)?;
         Ok(())
     }
@@ -742,11 +736,7 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
         if !remap.is_identity() {
             self.tables.key_to_item.remap_indexes(&remap);
         }
-        let items = &self.items;
-        let state = &self.tables.state;
-        self.tables
-            .key_to_item
-            .shrink_to_fit(|ix| state.hash_one(items[*ix].key()));
+        self.tables.key_to_item.shrink_to_fit();
     }
 
     /// Shrinks the capacity of the map with a lower limit. It will drop
@@ -791,11 +781,7 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
         if !remap.is_identity() {
             self.tables.key_to_item.remap_indexes(&remap);
         }
-        let items = &self.items;
-        let state = &self.tables.state;
-        self.tables
-            .key_to_item
-            .shrink_to(min_capacity, |ix| state.hash_one(items[*ix].key()));
+        self.tables.key_to_item.shrink_to(min_capacity);
     }
 
     /// Iterates over the items in the map.
@@ -1403,7 +1389,7 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
             .entry(state, key, |index| self.items[index].key())
         {
             hash_table::Entry::Occupied(slot) => {
-                duplicates.insert(*slot.get());
+                duplicates.insert(slot.get());
                 None
             }
             hash_table::Entry::Vacant(slot) => Some(slot),

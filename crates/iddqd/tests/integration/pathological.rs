@@ -4,7 +4,9 @@
 //! The tests in this file might leave maps in an inconsistent state, but not in
 //! a way that should cause UB.
 
-use crate::panic_safety::{PanickyKey, arm_panic_after, disarm_panic};
+use crate::panic_safety::{
+    PanickyKey, arm_panic_after, disarm_panic, run_armed,
+};
 use core::cell::Cell;
 use iddqd::{
     BiHashItem, BiHashMap, Comparable, Equivalent, IdHashItem, IdHashMap,
@@ -989,4 +991,58 @@ fn pop_after_chaos_no_ub() {
     while catch_panic(|| map.pop_first()).flatten().is_some() {}
     while catch_panic(|| map.pop_last()).flatten().is_some() {}
     LIE_ORD.with(|c| c.set(None));
+}
+
+// Test: pre-cached-hash, `reserve` on a tombstone-heavy table dropped into
+// hashbrown's `rehash_in_place`, which calls the caller-supplied rehash hasher
+// on every surviving entry. Hashbrown documents that path as not panic-safe.
+//
+// With hashes cached alongside each `ItemIndex`, the rehash hasher never
+// touches user code. This test asserts that property end-to-end.
+//
+// The constants here are tuned against
+// `foldhash::fast::FixedState::with_seed(0)` to bias the next `reserve` toward
+// `rehash_in_place` rather than a fresh-allocation grow. The capacity-stability
+// assertion ensures that we're actually doing a rehash_in_place; if it fires,
+// retune the constants.
+
+#[test]
+fn reserve_into_tombstone_heavy_map_skips_user_hash() {
+    let mut map = IdHashMap::<PanickyItem, _>::with_hasher(
+        foldhash::fast::FixedState::with_seed(0),
+    );
+    for &id in &[
+        0u32, 17, 1, 12, 5, 21, 8, 10, 18, 4, 16, 22, 9, 24, 23, 13, 7, 25, 26,
+        20, 31, 11, 14, 2, 6,
+    ] {
+        let _ = map.insert_overwrite(PanickyItem { id });
+    }
+    // These retains create many tombstones, biasing the next reserve toward
+    // `rehash_in_place` over a true grow.
+    map.retain(|item| item.id % 2 == 1);
+    map.retain(|item| item.id % 3 != 0);
+    let _ = map.insert_overwrite(PanickyItem { id: 15 });
+
+    let cap_before = map.capacity();
+    let (panicked, ops) = run_armed(Some(0), || {
+        let _ = catch_panic(|| map.reserve(3));
+    });
+    let cap_after = map.capacity();
+
+    assert!(!panicked, "reserve must not panic with cached hashes, but did");
+    assert_eq!(
+        ops, 0,
+        "reserve must not invoke any PanickyKey method with cached hashes, \
+         but invoked {ops}",
+    );
+    assert_eq!(
+        cap_before, cap_after,
+        "expected rehash_in_place (capacity unchanged); a capacity change \
+         means hashbrown chose a fresh-allocation grow instead, so this test \
+         no longer exercises rehash_in_place. Retune the constants against \
+         the current hashbrown.",
+    );
+
+    map.validate(ValidateCompact::NonCompact)
+        .expect("map remains valid after reserve");
 }

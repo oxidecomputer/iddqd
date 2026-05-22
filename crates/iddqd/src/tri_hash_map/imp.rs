@@ -5,9 +5,10 @@ use crate::{
     internal::ValidationError,
     support::{
         ItemIndex,
-        alloc::{AllocWrapper, Allocator, Global, global_alloc},
+        alloc::{Allocator, Global, global_alloc},
         borrow::DormantMutRef,
         fmt_utils::StrDisplayAsDebug,
+        hash_table,
         item_set::ItemSet,
         map_hash::MapHash,
     },
@@ -18,7 +19,6 @@ use core::{
     hash::{BuildHasher, Hash},
 };
 use equivalent::Equivalent;
-use hashbrown::hash_table::{Entry, VacantEntry};
 
 /// A 1:1:1 (trijective) map for three keys and a value.
 ///
@@ -855,17 +855,9 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     /// ```
     pub fn reserve(&mut self, additional: usize) {
         self.items.reserve(additional);
-        let items = &self.items;
-        let state = &self.tables.state;
-        self.tables
-            .k1_to_item
-            .reserve(additional, |ix| state.hash_one(items[*ix].key1()));
-        self.tables
-            .k2_to_item
-            .reserve(additional, |ix| state.hash_one(items[*ix].key2()));
-        self.tables
-            .k3_to_item
-            .reserve(additional, |ix| state.hash_one(items[*ix].key3()));
+        self.tables.k1_to_item.reserve(additional);
+        self.tables.k2_to_item.reserve(additional);
+        self.tables.k3_to_item.reserve(additional);
     }
 
     /// Tries to reserve capacity for at least `additional` more elements to be
@@ -924,19 +916,17 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
         additional: usize,
     ) -> Result<(), crate::errors::TryReserveError> {
         self.items.try_reserve(additional)?;
-        let items = &self.items;
-        let state = &self.tables.state;
         self.tables
             .k1_to_item
-            .try_reserve(additional, |ix| state.hash_one(items[*ix].key1()))
+            .try_reserve(additional)
             .map_err(crate::errors::TryReserveError::from_hashbrown)?;
         self.tables
             .k2_to_item
-            .try_reserve(additional, |ix| state.hash_one(items[*ix].key2()))
+            .try_reserve(additional)
             .map_err(crate::errors::TryReserveError::from_hashbrown)?;
         self.tables
             .k3_to_item
-            .try_reserve(additional, |ix| state.hash_one(items[*ix].key3()))
+            .try_reserve(additional)
             .map_err(crate::errors::TryReserveError::from_hashbrown)?;
         Ok(())
     }
@@ -999,17 +989,9 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
             self.tables.k2_to_item.remap_indexes(&remap);
             self.tables.k3_to_item.remap_indexes(&remap);
         }
-        let items = &self.items;
-        let state = &self.tables.state;
-        self.tables
-            .k1_to_item
-            .shrink_to_fit(|ix| state.hash_one(items[*ix].key1()));
-        self.tables
-            .k2_to_item
-            .shrink_to_fit(|ix| state.hash_one(items[*ix].key2()));
-        self.tables
-            .k3_to_item
-            .shrink_to_fit(|ix| state.hash_one(items[*ix].key3()));
+        self.tables.k1_to_item.shrink_to_fit();
+        self.tables.k2_to_item.shrink_to_fit();
+        self.tables.k3_to_item.shrink_to_fit();
     }
 
     /// Shrinks the capacity of the map with a lower limit. It will drop
@@ -1075,17 +1057,9 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
             self.tables.k2_to_item.remap_indexes(&remap);
             self.tables.k3_to_item.remap_indexes(&remap);
         }
-        let items = &self.items;
-        let state = &self.tables.state;
-        self.tables
-            .k1_to_item
-            .shrink_to(min_capacity, |ix| state.hash_one(items[*ix].key1()));
-        self.tables
-            .k2_to_item
-            .shrink_to(min_capacity, |ix| state.hash_one(items[*ix].key2()));
-        self.tables
-            .k3_to_item
-            .shrink_to(min_capacity, |ix| state.hash_one(items[*ix].key3()));
+        self.tables.k1_to_item.shrink_to(min_capacity);
+        self.tables.k2_to_item.shrink_to(min_capacity);
+        self.tables.k3_to_item.shrink_to(min_capacity);
     }
 
     /// Iterates over the items in the map.
@@ -2924,13 +2898,13 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> Extend<T>
 }
 
 fn detect_dup_or_insert<'a, A: Allocator>(
-    item: Entry<'a, ItemIndex, AllocWrapper<A>>,
+    item: hash_table::Entry<'a, A>,
     duplicates: &mut BTreeSet<ItemIndex>,
-) -> Option<VacantEntry<'a, ItemIndex, AllocWrapper<A>>> {
+) -> Option<hash_table::VacantEntry<'a, A>> {
     match item {
-        Entry::Vacant(slot) => Some(slot),
-        Entry::Occupied(slot) => {
-            duplicates.insert(*slot.get());
+        hash_table::Entry::Vacant(slot) => Some(slot),
+        hash_table::Entry::Occupied(slot) => {
+            duplicates.insert(slot.get());
             None
         }
     }

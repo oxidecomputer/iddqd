@@ -1196,8 +1196,8 @@ mod proptest_panic_safety {
                 | PanickyAction::Get1(_)
                 | PanickyAction::Get2(_)
                 | PanickyAction::Get3(_) => PanicSafety::Atomic,
-                PanickyAction::RetainModulo(_, _, _) => PanicSafety::StepAtomic,
-                PanickyAction::Extend(_) => PanicSafety::MayCorruptOnPanic,
+                PanickyAction::RetainModulo(_, _, _)
+                | PanickyAction::Extend(_) => PanicSafety::StepAtomic,
                 PanickyAction::Clear => PanicSafety::Atomic,
             }
         }
@@ -1266,10 +1266,7 @@ mod proptest_panic_safety {
             let action = op.action;
             let action_label = format!("{action:?}");
             let panic_safety = action.panic_safety();
-            let armed = match panic_safety {
-                PanicSafety::MayCorruptOnPanic => None,
-                PanicSafety::Atomic | PanicSafety::StepAtomic => op.armed,
-            };
+            let armed = op.armed;
 
             let pre_state =
                 sorted_keys(&map, |item| (item.key1, item.key2, item.key3));
