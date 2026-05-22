@@ -811,15 +811,13 @@ fn lying_ord_remove_must_not_remove_wrong_btree_entry() {
     };
     assert_eq!(removed.id, 0);
 
-    // Reinsert under a *different* lie. `Greater` (not `Equal`) is required
-    // because `insert_unique`'s duplicate-detection `find_index` walks the
-    // tree under the lying comparator too. An `Equal` lie would make
-    // `find_index` collide spuriously against the first node it visits;
-    // `Greater` directs the walk consistently right and lets the walk reach
-    // Vacant without seeing any false match.
+    // Reinsert under a different lie. We use `Greater` to make
+    // `insert_unique`'s duplicate-detection `find_index` walk the tree under
+    // the lying comparator too. This directs the walk consistently right and
+    // lets the walk reach Vacant without seeing a false match.
     //
     // ItemSet's free chain is LIFO, so the new item is assigned exactly the
-    // ItemIndex that id=0 just freed: 0.
+    // ItemIndex that we just freed above, 0.
     //
     // Under the un-tiebroken (old) comparator, this is what triggers the UB:
     //
@@ -833,9 +831,9 @@ fn lying_ord_remove_must_not_remove_wrong_btree_entry() {
     // 4. The B-tree now holds two distinct nodes whose `Index::value()`
     //    both equal 0. As a result, the index uniqueness invariant is
     //    violated.
-    // 5. `iter_mut` walks the tree in structural order and yields a
-    //    `RefMut` for slot 0 *twice*, so that there are two `&mut T`
-    //    aliases the same physical item.
+    // 5. `iter_mut` walks the tree in B-tree order and yields a
+    //    `RefMut` for slot 0 twice, so that there are two mutable
+    //    aliases to the same physical item.
     //
     // Under the tiebreaker comparator, there is no orphaned index (the remove
     // above hit the right entry), so `prepare_insert` produces exactly one tree
