@@ -1775,3 +1775,84 @@ impl<T: IdHashItem, S: Default + Clone + BuildHasher, A: Allocator + Default>
         map
     }
 }
+
+#[cfg(all(test, feature = "default-hasher", feature = "std"))]
+mod cached_rehash_tests {
+    use super::*;
+    use core::cell::Cell;
+    use core::hash::Hasher;
+
+    std::thread_local! {
+        static USER_HASH_CALLS: Cell<u32> = const { Cell::new(0) };
+    }
+
+    #[derive(Debug)]
+    struct CountedKey(u32);
+
+    impl Hash for CountedKey {
+        fn hash<H: Hasher>(&self, state: &mut H) {
+            USER_HASH_CALLS.with(|c| c.set(c.get() + 1));
+            self.0.hash(state);
+        }
+    }
+
+    impl PartialEq for CountedKey {
+        fn eq(&self, other: &Self) -> bool {
+            self.0 == other.0
+        }
+    }
+    impl Eq for CountedKey {}
+
+    #[derive(Debug)]
+    struct CountedItem {
+        id: u32,
+    }
+
+    impl IdHashItem for CountedItem {
+        type Key<'a> = CountedKey;
+        fn key(&self) -> Self::Key<'_> {
+            CountedKey(self.id)
+        }
+        id_upcast!();
+    }
+
+    // This is a unit test and not an integration test to ensure rehashing
+    // actually happens. (Rehashing is not externally observable in integration
+    // tests.)
+    #[test]
+    fn reserve_rehash_uses_cached_hash() {
+        let mut map = IdHashMap::<CountedItem, _>::with_hasher(
+            foldhash::fast::FixedState::with_seed(0),
+        );
+        // Insert items (legitimately calls user Hash).
+        for id in [
+            0u32, 17, 1, 12, 5, 21, 8, 10, 18, 4, 16, 22, 9, 24, 23, 13, 7, 25,
+            26, 20, 31, 11, 14, 2, 6,
+        ] {
+            let _ = map.insert_overwrite(CountedItem { id });
+        }
+        // Drop most entries, leaving the table heavy with tombstones so the
+        // next reserve favors `rehash_in_place` over a fresh-allocation grow.
+        map.retain(|item| item.id % 2 == 1 && item.id % 3 != 0);
+
+        USER_HASH_CALLS.with(|c| c.set(0));
+        let rehash_calls = map.tables.key_to_item.reserve_counting_rehash(10);
+        let user_calls = USER_HASH_CALLS.with(Cell::get);
+
+        assert!(
+            rehash_calls > 0,
+            "expected reserve to invoke the rehash callback at least once \
+             (setup did not actually trigger a rehash; if hashbrown's \
+             growth/rehash heuristic changed, retune the constants)",
+        );
+        assert_eq!(
+            user_calls, 0,
+            "reserve must not invoke user `Hash` during rehash; got \
+             {user_calls} call(s) for {rehash_calls} rehash-callback \
+             invocation(s)",
+        );
+
+        map.validate(ValidateCompact::NonCompact)
+            .expect("map remains valid after reserve");
+    }
+}

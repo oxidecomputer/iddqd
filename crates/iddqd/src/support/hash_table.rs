@@ -261,6 +261,27 @@ impl<A: Allocator> MapHashTable<A> {
     ) -> Result<(), hashbrown::TryReserveError> {
         self.items.try_reserve(additional, cached_hasher)
     }
+
+    /// Test-only variant of [`Self::reserve`] that returns how many times the
+    /// rehash closure was invoked.
+    ///
+    /// A non-zero return value proves the rehash callback fired, so the
+    /// caller's setup actually exercises a rehash path rather than landing
+    /// in hashbrown's "no-op, growth_left already sufficient" branch. The
+    /// closure delegates to [`cached_hasher`], so this exercises the real
+    /// production hasher.
+    #[cfg(test)]
+    pub(crate) fn reserve_counting_rehash(
+        &mut self,
+        additional: usize,
+    ) -> usize {
+        let count = core::cell::Cell::new(0usize);
+        self.items.reserve(additional, |stored| {
+            count.set(count.get() + 1);
+            cached_hasher(stored)
+        });
+        count.into_inner()
+    }
 }
 
 /// An entry in [`MapHashTable`].
