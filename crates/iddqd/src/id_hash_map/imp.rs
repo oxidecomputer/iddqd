@@ -1779,8 +1779,7 @@ impl<T: IdHashItem, S: Default + Clone + BuildHasher, A: Allocator + Default>
 #[cfg(all(test, feature = "std"))]
 mod tests {
     use super::*;
-    use core::cell::Cell;
-    use core::hash::Hasher;
+    use core::{cell::Cell, hash::Hasher};
 
     std::thread_local! {
         static USER_HASH_CALLS: Cell<u32> = const { Cell::new(0) };

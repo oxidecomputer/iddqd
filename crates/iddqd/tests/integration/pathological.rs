@@ -990,4 +990,3 @@ fn pop_after_chaos_no_ub() {
     while catch_panic(|| map.pop_last()).flatten().is_some() {}
     LIE_ORD.with(|c| c.set(None));
 }
-
