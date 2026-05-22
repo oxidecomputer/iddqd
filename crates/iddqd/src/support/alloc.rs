@@ -86,7 +86,12 @@ mod inner {
 
         #[inline]
         unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: Layout) {
-            allocator_api2::alloc::Allocator::deallocate(&self.0, ptr, layout);
+            // SAFETY: Inherited from the wrapped allocator.
+            unsafe {
+                allocator_api2::alloc::Allocator::deallocate(
+                    &self.0, ptr, layout,
+                );
+            }
         }
     }
 
@@ -104,7 +109,10 @@ mod inner {
         }
         #[inline]
         unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: Layout) {
-            Allocator::deallocate(&self.0, ptr, layout);
+            // SAFETY: Inherited from the wrapped allocator.
+            unsafe {
+                Allocator::deallocate(&self.0, ptr, layout);
+            }
         }
     }
 }
