@@ -28,8 +28,12 @@ use core::{
 ///
 /// Also, `RefMut`'s hash detection will not function if [`mem::forget`] is
 /// called on it. If a key is changed and `mem::forget` is then called on the
-/// `RefMut`, the `TriHashMap` will stop functioning correctly. This will not
-/// introduce memory safety issues, however.
+/// `RefMut`, lookups by the affected key will return the wrong result (or no
+/// result at all). The map itself remains structurally valid: subsequent
+/// [`retain`](crate::TriHashMap::retain) and
+/// [`remove*`](crate::TriHashMap::remove1) operations still clean up the stale
+/// entry via a linear-scan fallback. This will not introduce memory safety
+/// issues.
 ///
 /// The issues here are similar to using interior mutability (e.g. `RefCell` or
 /// `Mutex`) to mutate keys in a regular `HashMap`.

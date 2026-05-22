@@ -1,5 +1,6 @@
-//! Pathological adversarial impls of `IdOrdItem` / `IdHashItem`, run under
-//! miri (Stacked + Tree Borrows) to probe iddqd's unsafe code for UB.
+//! Pathological adversarial impls of `IdOrdItem` / `IdHashItem` /
+//! `BiHashItem` / `TriHashItem`, run under miri (Stacked + Tree Borrows) to
+//! probe iddqd's unsafe code for UB.
 //!
 //! The tests in this file might leave maps in an inconsistent state, but not in
 //! a way that should cause UB.
@@ -765,6 +766,47 @@ impl IdHashItem for ForgettableHashItem {
     id_upcast!();
 }
 
+#[derive(Debug)]
+struct ForgettableBiHashItem {
+    id: u32,
+    alt: u32,
+}
+
+impl BiHashItem for ForgettableBiHashItem {
+    type K1<'a> = ForgettableHashKey;
+    type K2<'a> = ForgettableHashKey;
+    fn key1(&self) -> Self::K1<'_> {
+        ForgettableHashKey(self.id)
+    }
+    fn key2(&self) -> Self::K2<'_> {
+        ForgettableHashKey(self.alt)
+    }
+    bi_upcast!();
+}
+
+#[derive(Debug)]
+struct ForgettableTriHashItem {
+    id: u32,
+    alt: u32,
+    third: u32,
+}
+
+impl TriHashItem for ForgettableTriHashItem {
+    type K1<'a> = ForgettableHashKey;
+    type K2<'a> = ForgettableHashKey;
+    type K3<'a> = ForgettableHashKey;
+    fn key1(&self) -> Self::K1<'_> {
+        ForgettableHashKey(self.id)
+    }
+    fn key2(&self) -> Self::K2<'_> {
+        ForgettableHashKey(self.alt)
+    }
+    fn key3(&self) -> Self::K3<'_> {
+        ForgettableHashKey(self.third)
+    }
+    tri_upcast!();
+}
+
 #[test]
 fn id_hash_silent_key_change_entry_remove_no_panic() {
     let mut map = IdHashMap::<ForgettableHashItem>::new();
@@ -794,6 +836,51 @@ fn id_hash_silent_key_change_entry_remove_no_panic() {
     }
     map.validate(ValidateCompact::NonCompact)
         .expect("map remains valid after silent-mutation remove");
+}
+
+#[test]
+fn bi_hash_silent_secondary_key_change_retain_no_panic() {
+    let mut map = BiHashMap::<ForgettableBiHashItem>::new();
+    for id in 0..8u32 {
+        map.insert_unique(ForgettableBiHashItem { id, alt: id + 100 }).unwrap();
+    }
+
+    let mut ref_mut = map.get1_mut(&ForgettableHashKey(3)).unwrap();
+    ref_mut.alt = 10_000;
+    // This bypasses the drop-time hash equality check on key2, leaving the k2
+    // table entry in the old hash bucket.
+    std::mem::forget(ref_mut);
+
+    map.retain(|_| false);
+
+    assert!(map.is_empty());
+    map.validate(ValidateCompact::NonCompact)
+        .expect("map remains valid after silent-mutation retain");
+}
+
+#[test]
+fn tri_hash_silent_secondary_key_change_retain_no_panic() {
+    let mut map = TriHashMap::<ForgettableTriHashItem>::new();
+    for id in 0..8u32 {
+        map.insert_unique(ForgettableTriHashItem {
+            id,
+            alt: id + 100,
+            third: id + 200,
+        })
+        .unwrap();
+    }
+
+    let mut ref_mut = map.get1_mut(&ForgettableHashKey(3)).unwrap();
+    ref_mut.third = 10_000;
+    // This bypasses the drop-time hash equality check on key3, leaving the k3
+    // table entry in the old hash bucket.
+    std::mem::forget(ref_mut);
+
+    map.retain(|_| false);
+
+    assert!(map.is_empty());
+    map.validate(ValidateCompact::NonCompact)
+        .expect("map remains valid after silent-mutation retain");
 }
 
 #[test]
@@ -1003,6 +1090,46 @@ fn drop_panic_during_remove_no_ub() {
 
     assert_eq!(map.iter_mut().count(), 7);
     assert!(map.get(&5).is_none());
+}
+
+#[test]
+fn drop_panic_during_retain_leaves_map_valid() {
+    let mut map = IdHashMap::<DropPanicItem>::new();
+    for i in 0..8 {
+        map.insert_unique(DropPanicItem { id: i, armed: i == 5 }).unwrap();
+    }
+
+    DROP_PANIC_ARMED.with(|c| c.set(true));
+    let result = catch_panic(std::panic::AssertUnwindSafe(|| {
+        map.retain(|item| item.id != 5);
+    }));
+    DROP_PANIC_ARMED.with(|c| c.set(false));
+
+    assert!(result.is_none(), "expected retained-away item drop to panic");
+    assert_eq!(map.iter_mut().count(), 7);
+    assert!(map.get(&5).is_none());
+    map.validate(ValidateCompact::NonCompact)
+        .expect("map remains valid after retain drop panic");
+}
+
+#[test]
+fn drop_panic_during_clear_leaves_map_valid() {
+    let mut map = IdHashMap::<DropPanicItem>::new();
+    for i in 0..8 {
+        map.insert_unique(DropPanicItem { id: i, armed: i == 5 }).unwrap();
+    }
+
+    DROP_PANIC_ARMED.with(|c| c.set(true));
+    let result = catch_panic(std::panic::AssertUnwindSafe(|| {
+        map.clear();
+    }));
+    DROP_PANIC_ARMED.with(|c| c.set(false));
+
+    assert!(result.is_none(), "expected item drop during clear to panic");
+    assert!(map.is_empty());
+    assert!(map.get(&5).is_none());
+    map.validate(ValidateCompact::NonCompact)
+        .expect("map remains valid after clear drop panic");
 }
 
 // Test: retain callback panic.

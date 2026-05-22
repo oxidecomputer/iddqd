@@ -541,9 +541,11 @@ impl<T, A: Allocator> ItemSet<T, A> {
     /// [`Vec::clear`]. Any prior [`try_reserve`](Self::try_reserve)
     /// reservation survives a `clear`.
     pub(crate) fn clear(&mut self) {
-        self.items.clear();
+        // Publish the post-clear metadata before dropping items, so a user
+        // `Drop` panic cannot leave len/free_head describing the old slots.
         self.free_head = ItemIndex::SENTINEL;
         self.len = 0;
+        self.items.clear();
     }
 
     /// This method assumes that value has the same ID. It also asserts

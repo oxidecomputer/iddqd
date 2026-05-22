@@ -348,8 +348,11 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     /// assert_eq!(map.len(), 0);
     /// ```
     pub fn clear(&mut self) {
-        self.items.clear();
+        // Clear the internal index before dropping items. This way, if a user
+        // `Drop` panics during `self.items.clear()`, `key_to_item` cannot retain
+        // indexes pointing to removed item slots.
         self.tables.key_to_item.clear();
+        self.items.clear();
     }
 
     /// Reserves capacity for at least `additional` more elements to be inserted
@@ -1312,8 +1315,20 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     {
         let hash_state = self.tables.state().clone();
         let (_, mut dormant_items) = DormantMutRef::new(&mut self.items);
+        let mut removed_item = None;
 
         self.tables.key_to_item.retain(|index| {
+            // Drop the previously-removed item here, at the top of the next
+            // iteration.
+            //
+            // By now, the prior `key_to_item` entry has been erased, so if
+            // `drop` below panics, `key_to_item` and `items` remain in sync.
+            // Dropping the item at the end of the prior iteration would
+            // unwind before the BTree dropped the entry, leaving
+            // `key_to_item` pointing at a slot we already removed from
+            // `items`.
+            drop(removed_item.take());
+
             let (item, dormant_items) = {
                 // SAFETY: All uses of `items` ended in the previous iteration.
                 let items = unsafe { dormant_items.reborrow() };
@@ -1351,10 +1366,16 @@ impl<T: IdOrdItem> IdOrdMap<T> {
                 // block above, and item + dormant_item have been dropped after
                 // being used above.
                 let items = unsafe { dormant_items.awaken() };
-                items.remove(index);
+                removed_item = Some(
+                    items
+                        .remove(index)
+                        .expect("all indexes are present in self.items"),
+                );
                 false
             }
         });
+
+        // Anything in `removed_item` is implicitly dropped now.
     }
 
     fn find<'a, Q>(&'a self, k: &Q) -> Option<&'a T>
