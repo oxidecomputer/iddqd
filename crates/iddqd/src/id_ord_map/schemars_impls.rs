@@ -7,7 +7,7 @@ use crate::{
     support::schemars_utils::{create_map_schema, create_object_schema},
 };
 use alloc::string::String;
-use schemars::{JsonSchema, gen::SchemaGenerator, schema::Schema};
+use schemars::{JsonSchema, r#gen::SchemaGenerator, schema::Schema};
 
 impl<T> JsonSchema for IdOrdMap<T>
 where
