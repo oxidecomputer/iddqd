@@ -49,8 +49,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        # 1.85 is the MSRV
-        rust-version: ["1.85", "stable"]
+        rust-version: ["stable"]
         partition: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
       fail-fast: false
     env:
@@ -72,7 +71,40 @@ jobs:
         run: just powerset --partition ${{ matrix.partition }}/10 nextest run
       - name: Doctests
         run: just powerset --partition ${{ matrix.partition }}/10 test --doc
-        
+
+  build-and-test-msrv:
+    name: Build and test (MSRV)
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        # 1.85 is the MSRV
+        rust-version: ["1.85"]
+        partition: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]
+      fail-fast: false
+    env:
+      RUSTFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust-version }}
+      - uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2.8.0
+        with:
+          key: partition-${{ matrix.partition }}-msrv
+      - uses: taiki-e/install-action@cargo-hack
+      - uses: taiki-e/install-action@just
+      - uses: taiki-e/install-action@nextest
+      - name: Build
+        run: just powerset --partition ${{ matrix.partition }}/10 build
+      # We don't run UI tests on the MSRV since compiler output varies by
+      # version.
+      - name: Run tests (excluding UI tests)
+        run: just powerset --partition ${{ matrix.partition }}/10 nextest run -E 'not binary_id(iddqd::ui)'
+      - name: Doctests
+        run: just powerset --partition ${{ matrix.partition }}/10 test --doc
+
+
   build-no-std:
     name: Build on no-std
     runs-on: ${{ matrix.os }}
