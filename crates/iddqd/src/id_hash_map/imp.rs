@@ -1777,7 +1777,7 @@ impl<T: IdHashItem, S: Default + Clone + BuildHasher, A: Allocator + Default>
 }
 
 #[cfg(all(test, feature = "default-hasher", feature = "std"))]
-mod cached_rehash_tests {
+mod tests {
     use super::*;
     use core::cell::Cell;
     use core::hash::Hasher;
