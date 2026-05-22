@@ -2,7 +2,7 @@
 //!
 //! # Why we cache the hash
 //!
-//! Hashbrown's `RawTable::reserve_rehash` may choose to rehash in plae when a
+//! Hashbrown's `RawTable::reserve_rehash` may choose to rehash in place when a
 //! reserve is requested on a tombstone-heavy table. That path invokes the
 //! caller-supplied rehash hasher on every surviving entry, and hashbrown
 //! documents it as not panic-safe (a panic mid-rehash can leave the table with
@@ -19,6 +19,9 @@
 //! rehash hasher of the form `|stored| stored.hash` that reads the cached
 //! value and never invokes user `Hash`. Rehash is then panic-free by
 //! construction.
+//!
+//! This does add a u64 to every entry, but for the kinds of items iddqd is
+//! targeting (fat database records) the overhead is ideally minimal.
 
 use super::{
     ItemIndex,
