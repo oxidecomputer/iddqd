@@ -11,9 +11,10 @@ use crate::{
     internal::{ValidateCompact, ValidationError},
     support::{
         ItemIndex,
-        alloc::{AllocWrapper, Allocator, Global, global_alloc},
+        alloc::{Allocator, Global, global_alloc},
         borrow::DormantMutRef,
         fmt_utils::StrDisplayAsDebug,
+        hash_table,
         item_set::ItemSet,
         map_hash::MapHash,
     },
@@ -24,7 +25,6 @@ use core::{
     hash::{BuildHasher, Hash},
 };
 use equivalent::Equivalent;
-use hashbrown::hash_table;
 
 /// A 1:1 (bijective) map for two keys and a value.
 ///
@@ -759,14 +759,8 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
     /// ```
     pub fn reserve(&mut self, additional: usize) {
         self.items.reserve(additional);
-        let items = &self.items;
-        let state = &self.tables.state;
-        self.tables
-            .k1_to_item
-            .reserve(additional, |ix| state.hash_one(items[*ix].key1()));
-        self.tables
-            .k2_to_item
-            .reserve(additional, |ix| state.hash_one(items[*ix].key2()));
+        self.tables.k1_to_item.reserve(additional);
+        self.tables.k2_to_item.reserve(additional);
     }
 
     /// Tries to reserve capacity for at least `additional` more elements to be
@@ -820,15 +814,13 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
         additional: usize,
     ) -> Result<(), crate::errors::TryReserveError> {
         self.items.try_reserve(additional)?;
-        let items = &self.items;
-        let state = &self.tables.state;
         self.tables
             .k1_to_item
-            .try_reserve(additional, |ix| state.hash_one(items[*ix].key1()))
+            .try_reserve(additional)
             .map_err(crate::errors::TryReserveError::from_hashbrown)?;
         self.tables
             .k2_to_item
-            .try_reserve(additional, |ix| state.hash_one(items[*ix].key2()))
+            .try_reserve(additional)
             .map_err(crate::errors::TryReserveError::from_hashbrown)?;
         Ok(())
     }
@@ -875,14 +867,8 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
             self.tables.k1_to_item.remap_indexes(&remap);
             self.tables.k2_to_item.remap_indexes(&remap);
         }
-        let items = &self.items;
-        let state = &self.tables.state;
-        self.tables
-            .k1_to_item
-            .shrink_to_fit(|ix| state.hash_one(items[*ix].key1()));
-        self.tables
-            .k2_to_item
-            .shrink_to_fit(|ix| state.hash_one(items[*ix].key2()));
+        self.tables.k1_to_item.shrink_to_fit();
+        self.tables.k2_to_item.shrink_to_fit();
     }
 
     /// Shrinks the capacity of the map with a lower limit. It will drop
@@ -932,14 +918,8 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
             self.tables.k1_to_item.remap_indexes(&remap);
             self.tables.k2_to_item.remap_indexes(&remap);
         }
-        let items = &self.items;
-        let state = &self.tables.state;
-        self.tables
-            .k1_to_item
-            .shrink_to(min_capacity, |ix| state.hash_one(items[*ix].key1()));
-        self.tables
-            .k2_to_item
-            .shrink_to(min_capacity, |ix| state.hash_one(items[*ix].key2()));
+        self.tables.k1_to_item.shrink_to(min_capacity);
+        self.tables.k2_to_item.shrink_to(min_capacity);
     }
 
     /// Returns an iterator over all items in the map.
@@ -2436,13 +2416,13 @@ impl<T: BiHashItem + Eq, S: Clone + BuildHasher, A: Allocator> Eq
 }
 
 fn detect_dup_or_insert<'a, A: Allocator>(
-    item: hash_table::Entry<'a, ItemIndex, AllocWrapper<A>>,
+    item: hash_table::Entry<'a, A>,
     duplicates: &mut BTreeSet<ItemIndex>,
-) -> Option<hash_table::VacantEntry<'a, ItemIndex, AllocWrapper<A>>> {
+) -> Option<hash_table::VacantEntry<'a, A>> {
     match item {
         hash_table::Entry::Vacant(slot) => Some(slot),
         hash_table::Entry::Occupied(slot) => {
-            duplicates.insert(*slot.get());
+            duplicates.insert(slot.get());
             None
         }
     }

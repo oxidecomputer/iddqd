@@ -10,6 +10,7 @@ use crate::{
         ItemIndex,
         alloc::{Allocator, Global, global_alloc},
         borrow::DormantMutRef,
+        hash_table,
         item_set::ItemSet,
         map_hash::MapHash,
     },
@@ -20,7 +21,6 @@ use core::{
     hash::{BuildHasher, Hash},
 };
 use equivalent::Equivalent;
-use hashbrown::hash_table;
 
 /// A hash map where the key is part of the value.
 ///
@@ -642,11 +642,7 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
     /// ```
     pub fn reserve(&mut self, additional: usize) {
         self.items.reserve(additional);
-        let items = &self.items;
-        let state = &self.tables.state;
-        self.tables
-            .key_to_item
-            .reserve(additional, |ix| state.hash_one(items[*ix].key()));
+        self.tables.key_to_item.reserve(additional);
     }
 
     /// Tries to reserve capacity for at least `additional` more elements to be
@@ -696,11 +692,9 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
         additional: usize,
     ) -> Result<(), crate::errors::TryReserveError> {
         self.items.try_reserve(additional)?;
-        let items = &self.items;
-        let state = &self.tables.state;
         self.tables
             .key_to_item
-            .try_reserve(additional, |ix| state.hash_one(items[*ix].key()))
+            .try_reserve(additional)
             .map_err(crate::errors::TryReserveError::from_hashbrown)?;
         Ok(())
     }
@@ -742,11 +736,7 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
         if !remap.is_identity() {
             self.tables.key_to_item.remap_indexes(&remap);
         }
-        let items = &self.items;
-        let state = &self.tables.state;
-        self.tables
-            .key_to_item
-            .shrink_to_fit(|ix| state.hash_one(items[*ix].key()));
+        self.tables.key_to_item.shrink_to_fit();
     }
 
     /// Shrinks the capacity of the map with a lower limit. It will drop
@@ -791,11 +781,7 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
         if !remap.is_identity() {
             self.tables.key_to_item.remap_indexes(&remap);
         }
-        let items = &self.items;
-        let state = &self.tables.state;
-        self.tables
-            .key_to_item
-            .shrink_to(min_capacity, |ix| state.hash_one(items[*ix].key()));
+        self.tables.key_to_item.shrink_to(min_capacity);
     }
 
     /// Iterates over the items in the map.
@@ -1403,7 +1389,7 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
             .entry(state, key, |index| self.items[index].key())
         {
             hash_table::Entry::Occupied(slot) => {
-                duplicates.insert(*slot.get());
+                duplicates.insert(slot.get());
                 None
             }
             hash_table::Entry::Vacant(slot) => Some(slot),
@@ -1787,5 +1773,85 @@ impl<T: IdHashItem, S: Default + Clone + BuildHasher, A: Allocator + Default>
             map.insert_overwrite(item);
         }
         map
+    }
+}
+
+#[cfg(all(test, feature = "std"))]
+mod tests {
+    use super::*;
+    use core::{cell::Cell, hash::Hasher};
+
+    std::thread_local! {
+        static USER_HASH_CALLS: Cell<u32> = const { Cell::new(0) };
+    }
+
+    #[derive(Debug)]
+    struct CountedKey(u32);
+
+    impl Hash for CountedKey {
+        fn hash<H: Hasher>(&self, state: &mut H) {
+            USER_HASH_CALLS.with(|c| c.set(c.get() + 1));
+            self.0.hash(state);
+        }
+    }
+
+    impl PartialEq for CountedKey {
+        fn eq(&self, other: &Self) -> bool {
+            self.0 == other.0
+        }
+    }
+    impl Eq for CountedKey {}
+
+    #[derive(Debug)]
+    struct CountedItem {
+        id: u32,
+    }
+
+    impl IdHashItem for CountedItem {
+        type Key<'a> = CountedKey;
+        fn key(&self) -> Self::Key<'_> {
+            CountedKey(self.id)
+        }
+        id_upcast!();
+    }
+
+    // This is a unit test and not an integration test to ensure rehashing
+    // actually happens. (Rehashing is not externally observable in integration
+    // tests.)
+    #[test]
+    fn reserve_rehash_uses_cached_hash() {
+        let mut map = IdHashMap::<CountedItem, _>::with_hasher(
+            foldhash::fast::FixedState::with_seed(0),
+        );
+        // Insert items (legitimately calls user Hash).
+        for id in [
+            0u32, 17, 1, 12, 5, 21, 8, 10, 18, 4, 16, 22, 9, 24, 23, 13, 7, 25,
+            26, 20, 31, 11, 14, 2, 6,
+        ] {
+            let _ = map.insert_overwrite(CountedItem { id });
+        }
+        // Drop most entries, leaving the table heavy with tombstones so the
+        // next reserve favors `rehash_in_place` over a fresh-allocation grow.
+        map.retain(|item| item.id % 2 == 1 && item.id % 3 != 0);
+
+        USER_HASH_CALLS.with(|c| c.set(0));
+        let rehash_calls = map.tables.key_to_item.reserve_counting_rehash(10);
+        let user_calls = USER_HASH_CALLS.with(Cell::get);
+
+        assert!(
+            rehash_calls > 0,
+            "expected reserve to invoke the rehash callback at least once \
+             (setup did not actually trigger a rehash; if hashbrown's \
+             growth/rehash heuristic changed, retune the constants)",
+        );
+        assert_eq!(
+            user_calls, 0,
+            "reserve must not invoke user `Hash` during rehash; got \
+             {user_calls} call(s) for {rehash_calls} rehash-callback \
+             invocation(s)",
+        );
+
+        map.validate(ValidateCompact::NonCompact)
+            .expect("map remains valid after reserve");
     }
 }
