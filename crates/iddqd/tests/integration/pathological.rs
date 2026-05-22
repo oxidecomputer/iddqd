@@ -748,6 +748,111 @@ fn id_ord_hash_blind_key_change_remove_reinsert_iter_mut_no_aliasing() {
 }
 
 #[test]
+fn lying_ord_remove_must_not_remove_wrong_btree_entry() {
+    // Build a 64-element map under an honest `Ord`. The B-tree is sorted by
+    // user key (id); ids and ItemIndex values coincide here, so the tree's
+    // structural order also matches index order, and Index{0} is the leftmost
+    // leaf.
+    let mut map = IdOrdMap::<LyingOrdItem>::new();
+    for i in 0..64 {
+        map.insert_unique(LyingOrdItem { id: i, value: 0 }).unwrap();
+    }
+
+    // `entry()` walks the tree under the honest comparator and resolves id=0
+    // to its exact ItemIndex (0). The OccupiedEntry remembers that index but
+    // releases the &mut, so subsequent operations re-descend the tree.
+    let entry = map.entry(LyingOrdKey { id: 0 });
+    let removed = match entry {
+        id_ord_map::Entry::Occupied(entry) => {
+            // Arm the lying comparator *after* `entry()` resolved the index
+            // but *before* `Entry::remove` descends the tree again.
+            //
+            // `Entry::remove` routes through `remove_by_index(0)`, which
+            // calls `prepare_remove(0, &key, lookup)`. That re-enters
+            // `BTreeMap::entry(Index::new(0))` under `insert_cmp`. This
+            // second descent is the dangerous one.
+            //
+            // Stepping through a comparator without tie breaks (the bug):
+            //
+            // 1. At the root, BTreeMap compares search index 0 against
+            //    some stored index, say X. `insert_cmp` lands in the
+            //    `a == index` arm and returns `key.compare(&lookup(X))`.
+            // 2. LIE_ORD=Equal makes that `Ordering::Equal`.
+            // 3. BTreeMap concludes the keys match and reports
+            //    `Occupied(index X)` -- some unrelated index near the
+            //    root, never 0.
+            // 4. `entry.remove_entry()` deletes the node for X.
+            // 5. The tree entry for index 0 is left behind as an orphan,
+            //    and a valid live entry for X is now unlinked.
+            // 6. Back in `remove_by_index`, `self.items.remove(0)` frees
+            //    physical slot 0 from the item set. The orphan now points
+            //    at a freed slot, and slot X is still occupied but
+            //    unreachable through the tree.
+            //
+            // The tiebreaker comparator fixes step 1-3. Within `insert_cmp`, we
+            // now say `key.compare(...).then_with(|| index.cmp(&b))`.
+            //
+            // * Under LIE_ORD=Equal the primary collapses to Equal, but the
+            //   tiebreaker comparator resolves to `0.cmp(&b)`, which is Less
+            //   for every b != 0.
+            // * As a result, the BTreeMap walks consistently left, reaches
+            //   the leaf holding index 0 (where the top-of-comparator `a == b`
+            //   short-circuit fires), and reports Occupied(0).
+            // * If the tree's structure didn't align with index order and the
+            //   walk passed index 0 by, the descent would land at Vacant. That
+            //   is still okay because `prepare_remove` would then return Missing
+            //   and `remove_by_index` would fall back to the linear `remove_exact`.
+            //
+            // Either path removes the entry for index 0, and only that one.
+            LIE_ORD.with(|c| c.set(Some(Ordering::Equal)));
+            entry.remove()
+        }
+        id_ord_map::Entry::Vacant(_) => panic!("id 0 should be present"),
+    };
+    assert_eq!(removed.id, 0);
+
+    // Reinsert under a *different* lie. `Greater` (not `Equal`) is required
+    // because `insert_unique`'s duplicate-detection `find_index` walks the
+    // tree under the lying comparator too. An `Equal` lie would make
+    // `find_index` collide spuriously against the first node it visits;
+    // `Greater` directs the walk consistently right and lets the walk reach
+    // Vacant without seeing any false match.
+    //
+    // ItemSet's free chain is LIFO, so the new item is assigned exactly the
+    // ItemIndex that id=0 just freed: 0.
+    //
+    // Under the un-tiebroken (old) comparator, this is what triggers the UB:
+    //
+    // 1. The orphan tree entry for index 0 is still leftmost in the tree.
+    // 2. `prepare_insert(0, ...)` walks under LIE_ORD=Greater. Every
+    //    comparison takes `insert_cmp`'s `a == index` arm and returns
+    //    `Greater`, so the walk heads right.
+    // 3. The walk never visits the leftmost orphan, never sees Equal, and
+    //    terminates at Vacant on the right end. A *second* tree node for
+    //    index 0 is inserted there.
+    // 4. The B-tree now holds two distinct nodes whose `Index::value()`
+    //    both equal 0. As a result, the index uniqueness invariant is
+    //    violated.
+    // 5. `iter_mut` walks the tree in structural order and yields a
+    //    `RefMut` for slot 0 *twice*, so that there are two `&mut T`
+    //    aliases the same physical item.
+    //
+    // Under the tiebreaker comparator, there is no orphaned index (the remove
+    // above hit the right entry), so `prepare_insert` produces exactly one tree
+    // node for the reused index, and `iter_mut` yields each item once.
+    LIE_ORD.with(|c| c.set(Some(Ordering::Greater)));
+    map.insert_unique(LyingOrdItem { id: 10_000, value: 0 }).unwrap();
+    LIE_ORD.with(|c| c.set(None));
+
+    // Walk through all the items via `iter_mut` so any &mut aliasing is
+    // detected by Miri.
+    let mut items: Vec<_> = map.iter_mut().collect();
+    for item in &mut items {
+        item.value += 1;
+    }
+}
+
+#[test]
 fn lying_ord_iter_mut_no_duplicate_yield() {
     let mut map = IdOrdMap::<LyingOrdItem>::new();
     for i in 0..16 {
