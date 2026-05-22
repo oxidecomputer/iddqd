@@ -1445,10 +1445,12 @@ impl<T: IdOrdItem> IdOrdMap<T> {
         let grow_handle = self.items.assert_can_grow();
         let next_index = grow_handle.next_index();
         let key = value.key();
-        self.tables
-            .key_to_item
-            .insert(next_index, &key, |index| grow_handle[index].key());
+        let insert =
+            self.tables.key_to_item.prepare_insert(next_index, &key, |index| {
+                grow_handle[index].key()
+            });
         drop(key);
+        insert.insert();
         grow_handle.insert(value);
 
         Ok(next_index)
@@ -1459,19 +1461,30 @@ impl<T: IdOrdItem> IdOrdMap<T> {
         remove_index: ItemIndex,
     ) -> Option<T> {
         // For panic safety, read the key while self.items still holds the slot,
-        // then remove from the B-tree *before* mutating self.items.
+        // then locate the B-tree entry before mutating self.items.
         //
-        // `BTreeSet::remove` is panic-safe under user-`Ord` panics, since
-        // comparator panics during the internal binary search abort the
-        // operation without modifying the tree. (This is not a documented
-        // guarantee, but really the only reasonable way to implement a
-        // panic-safe B-tree map.) This means that a panic at this point leaves
-        // both items and the B-tree unmodified. `items.remove` afterwards
-        // cannot panic.
+        // `BTreeMap::entry` is panic-safe under user-`Ord` panics, since
+        // comparator panics during the internal binary search abort the lookup
+        // without modifying the tree. (This is not a documented guarantee, but
+        // really the only reasonable way to implement a panic-safe B-tree map.)
+        // This means that a panic at this point leaves both items and the
+        // B-tree unmodified. After the entry has been located, `drop(key)` can
+        // run user code, so it must happen before the B-tree or item slot is
+        // mutated.
+        //
+        // If BTreeMap::entry returns normally but misses due to already-broken
+        // tree ordering, the prepared remove falls back to exact-index cleanup
+        // before this item slot can be reused.
         let key = self.items.get(remove_index)?.key();
-        self.tables
-            .key_to_item
-            .remove(remove_index, key, |index| self.items[index].key());
+        let remove = self.tables.key_to_item.prepare_remove(
+            remove_index,
+            &key,
+            |index| self.items[index].key(),
+        );
+        drop(key);
+        if !remove.remove() {
+            self.tables.key_to_item.remove_exact(remove_index);
+        }
         Some(
             self.items
                 .remove(remove_index)

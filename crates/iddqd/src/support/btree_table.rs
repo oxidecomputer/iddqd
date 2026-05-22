@@ -7,7 +7,7 @@
 use super::{ItemIndex, item_set::IndexRemap, map_hash::MapHash};
 use crate::internal::{TableValidationError, ValidateCompact};
 use alloc::{
-    collections::{BTreeSet, btree_set},
+    collections::{BTreeMap, BTreeSet, btree_map},
     vec::Vec,
 };
 use core::{
@@ -75,7 +75,7 @@ type IndexCmp<'a> = dyn Fn(&Index, &Index) -> Ordering + 'a;
 /// A B-tree-based table with an external comparator.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct MapBTreeTable {
-    items: BTreeSet<Index>,
+    items: BTreeMap<Index, ()>,
     // We use foldhash directly here because we allow compiling with std but
     // without the default-hasher. std turns on foldhash but not the default
     // hasher.
@@ -85,7 +85,7 @@ pub(crate) struct MapBTreeTable {
 impl MapBTreeTable {
     pub(crate) const fn new() -> Self {
         Self {
-            items: BTreeSet::new(),
+            items: BTreeMap::new(),
             // FixedState::with_seed XORs the passed in seed with a fixed
             // high-entropy value.
             hash_state: foldhash::fast::FixedState::with_seed(0),
@@ -117,7 +117,7 @@ impl MapBTreeTable {
                 // value should not be stored.
                 let mut indexes: Vec<ItemIndex> =
                     Vec::with_capacity(expected_len);
-                for index in &self.items {
+                for index in self.items.keys() {
                     let v = index.value();
                     if v == Index::SENTINEL_VALUE {
                         return Err(TableValidationError::new(
@@ -139,7 +139,7 @@ impl MapBTreeTable {
                 // There should be no duplicates, and the sentinel value
                 // should not be stored.
                 let indexes: Vec<ItemIndex> =
-                    self.items.iter().map(|ix| ix.value()).collect();
+                    self.items.keys().map(|ix| ix.value()).collect();
                 let index_set: BTreeSet<ItemIndex> =
                     indexes.iter().copied().collect();
                 if index_set.len() != indexes.len() {
@@ -163,12 +163,12 @@ impl MapBTreeTable {
 
     #[inline]
     pub(crate) fn first(&self) -> Option<ItemIndex> {
-        self.items.first().map(|ix| ix.value())
+        self.items.first_key_value().map(|(ix, ())| ix.value())
     }
 
     #[inline]
     pub(crate) fn last(&self) -> Option<ItemIndex> {
-        self.items.last().map(|ix| ix.value())
+        self.items.last_key_value().map(|(ix, ())| ix.value())
     }
 
     pub(crate) fn find_index<K, Q, F>(
@@ -185,11 +185,11 @@ impl MapBTreeTable {
 
         let guard = CmpDropGuard::new(&f);
 
-        let ret = match self.items.get(&Index::sentinel()) {
-            Some(ix) if ix.value() == Index::SENTINEL_VALUE => {
+        let ret = match self.items.get_key_value(&Index::sentinel()) {
+            Some((ix, ())) if ix.value() == Index::SENTINEL_VALUE => {
                 panic!("internal map shouldn't store sentinel value")
             }
-            Some(ix) => Some(ix.value()),
+            Some((ix, ())) => Some(ix.value()),
             None => {
                 // The key is not in the table.
                 None
@@ -201,6 +201,34 @@ impl MapBTreeTable {
         ret
     }
 
+    pub(crate) fn prepare_insert<K, Q, F>(
+        &mut self,
+        index: ItemIndex,
+        key: &Q,
+        lookup: F,
+    ) -> PreparedBTreeInsert<'_>
+    where
+        K: Ord,
+        Q: ?Sized + Comparable<K>,
+        F: Fn(ItemIndex) -> K,
+    {
+        let f = insert_cmp(index, key, lookup);
+        let guard = CmpDropGuard::new(&f);
+
+        let entry = match self.items.entry(Index::new(index)) {
+            btree_map::Entry::Vacant(entry) => entry,
+            btree_map::Entry::Occupied(_) => {
+                panic!("internal map already contains index {index}")
+            }
+        };
+
+        // drop(guard) isn't necessary, but we make it explicit
+        drop(guard);
+
+        PreparedBTreeInsert { entry }
+    }
+
+    #[cfg_attr(not(test), expect(dead_code))]
     pub(crate) fn insert<K, Q, F>(
         &mut self,
         index: ItemIndex,
@@ -211,27 +239,50 @@ impl MapBTreeTable {
         Q: ?Sized + Comparable<K>,
         F: Fn(ItemIndex) -> K,
     {
-        let f = insert_cmp(index, key, lookup);
-        let guard = CmpDropGuard::new(&f);
-
-        self.items.insert(Index::new(index));
-
-        // drop(guard) isn't necessary, but we make it explicit
-        drop(guard);
+        self.prepare_insert(index, key, lookup).insert();
     }
 
-    pub(crate) fn remove<K, F>(&mut self, index: ItemIndex, key: K, lookup: F)
+    pub(crate) fn prepare_remove<K, F>(
+        &mut self,
+        index: ItemIndex,
+        key: &K,
+        lookup: F,
+    ) -> PreparedBTreeRemove<'_>
     where
         F: Fn(ItemIndex) -> K,
         K: Ord,
     {
-        let f = insert_cmp(index, &key, lookup);
+        let f = insert_cmp(index, key, lookup);
         let guard = CmpDropGuard::new(&f);
-
-        self.items.remove(&Index::new(index));
+        let entry = self.items.entry(Index::new(index));
 
         // drop(guard) isn't necessary, but we make it explicit
         drop(guard);
+
+        match entry {
+            btree_map::Entry::Occupied(entry) => PreparedBTreeRemove {
+                inner: PreparedBTreeRemoveInner::Occupied(entry),
+            },
+            btree_map::Entry::Vacant(_entry) => {
+                // Something went wrong, most likely a buggy comparator. The
+                // item is missing.
+                //
+                // This is a signal to the caller to use the linear remove_exact
+                // fallback when it gets around to committing the change.
+                PreparedBTreeRemove { inner: PreparedBTreeRemoveInner::Missing }
+            }
+        }
+    }
+
+    pub(crate) fn remove_exact(&mut self, index: ItemIndex) {
+        // If an item key was changed without detection, the B-tree order can be
+        // wrong. A comparator-based search may then miss the physical entry for
+        // this index. Fall back to a linear exact-index cleanup before the
+        // item slot can be reused.
+        //
+        // (BTreeMap::retain does not re-sort the tree or recompute positions,
+        // so a comparator guard isn't necessary.)
+        self.items.retain(|stored_index, ()| stored_index.value() != index);
     }
 
     pub(crate) fn retain<F>(&mut self, mut f: F)
@@ -240,7 +291,7 @@ impl MapBTreeTable {
     {
         // We don't need to set up a comparator in the environment because
         // `retain` doesn't do any comparisons as part of its operation.
-        self.items.retain(|index| f(index.value()));
+        self.items.retain(|index, ()| f(index.value()));
     }
 
     /// Rewrites every stored index via `remap`.
@@ -262,7 +313,7 @@ impl MapBTreeTable {
     /// [`ItemSet::shrink_to_fit`]: super::item_set::ItemSet::shrink_to_fit
     /// [`ItemSet::shrink_to`]: super::item_set::ItemSet::shrink_to
     pub(crate) fn remap_indexes(&mut self, remap: &IndexRemap) {
-        for idx in self.items.iter() {
+        for idx in self.items.keys() {
             let new = remap.remap(idx.value());
             idx.set_value(new);
         }
@@ -275,7 +326,7 @@ impl MapBTreeTable {
     }
 
     pub(crate) fn iter(&self) -> Iter<'_> {
-        Iter::new(self.items.iter())
+        Iter::new(self.items.keys())
     }
 
     pub(crate) fn into_iter(self) -> IntoIter {
@@ -293,11 +344,11 @@ impl MapBTreeTable {
 
 #[derive(Clone, Debug)]
 pub(crate) struct Iter<'a> {
-    inner: btree_set::Iter<'a, Index>,
+    inner: btree_map::Keys<'a, Index, ()>,
 }
 
 impl<'a> Iter<'a> {
-    fn new(inner: btree_set::Iter<'a, Index>) -> Self {
+    fn new(inner: btree_map::Keys<'a, Index, ()>) -> Self {
         Self { inner }
     }
 
@@ -316,11 +367,11 @@ impl<'a> Iterator for Iter<'a> {
 
 #[derive(Debug)]
 pub(crate) struct IntoIter {
-    inner: btree_set::IntoIter<Index>,
+    inner: btree_map::IntoIter<Index, ()>,
 }
 
 impl IntoIter {
-    fn new(inner: btree_set::IntoIter<Index>) -> Self {
+    fn new(inner: btree_map::IntoIter<Index, ()>) -> Self {
         Self { inner }
     }
 }
@@ -329,7 +380,38 @@ impl Iterator for IntoIter {
     type Item = ItemIndex;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next().map(|index| index.value())
+        self.inner.next().map(|(index, ())| index.value())
+    }
+}
+
+pub(crate) struct PreparedBTreeInsert<'a> {
+    entry: btree_map::VacantEntry<'a, Index, ()>,
+}
+
+impl PreparedBTreeInsert<'_> {
+    pub(crate) fn insert(self) {
+        self.entry.insert(());
+    }
+}
+
+pub(crate) struct PreparedBTreeRemove<'a> {
+    inner: PreparedBTreeRemoveInner<'a>,
+}
+
+enum PreparedBTreeRemoveInner<'a> {
+    Occupied(btree_map::OccupiedEntry<'a, Index, ()>),
+    Missing,
+}
+
+impl PreparedBTreeRemove<'_> {
+    pub(crate) fn remove(self) -> bool {
+        match self.inner {
+            PreparedBTreeRemoveInner::Occupied(entry) => {
+                entry.remove_entry();
+                true
+            }
+            PreparedBTreeRemoveInner::Missing => false,
+        }
     }
 }
 
@@ -619,7 +701,7 @@ mod tests {
         assert_eq!(
             table
                 .items
-                .iter()
+                .keys()
                 .map(|i| i.value().as_u32())
                 .collect::<alloc::vec::Vec<_>>(),
             [0u32, 2, 4],
@@ -636,7 +718,7 @@ mod tests {
         assert_eq!(
             table
                 .items
-                .iter()
+                .keys()
                 .map(|i| i.value().as_u32())
                 .collect::<alloc::vec::Vec<_>>(),
             [0u32, 1, 2],
