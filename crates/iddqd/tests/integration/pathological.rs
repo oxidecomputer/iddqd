@@ -1100,12 +1100,12 @@ fn drop_panic_during_retain_leaves_map_valid() {
     }
 
     DROP_PANIC_ARMED.with(|c| c.set(true));
-    let panicked = catch_panic(std::panic::AssertUnwindSafe(|| {
+    let result = catch_panic(std::panic::AssertUnwindSafe(|| {
         map.retain(|item| item.id != 5);
     }));
     DROP_PANIC_ARMED.with(|c| c.set(false));
 
-    assert!(panicked.is_none(), "expected retained-away item drop to panic");
+    assert!(result.is_none(), "expected retained-away item drop to panic");
     assert_eq!(map.iter_mut().count(), 7);
     assert!(map.get(&5).is_none());
     map.validate(ValidateCompact::NonCompact)
@@ -1120,12 +1120,12 @@ fn drop_panic_during_clear_leaves_map_valid() {
     }
 
     DROP_PANIC_ARMED.with(|c| c.set(true));
-    let panicked = catch_panic(std::panic::AssertUnwindSafe(|| {
+    let result = catch_panic(std::panic::AssertUnwindSafe(|| {
         map.clear();
     }));
     DROP_PANIC_ARMED.with(|c| c.set(false));
 
-    assert!(panicked.is_none(), "expected item drop during clear to panic");
+    assert!(result.is_none(), "expected item drop during clear to panic");
     assert!(map.is_empty());
     assert!(map.get(&5).is_none());
     map.validate(ValidateCompact::NonCompact)

@@ -1318,8 +1318,15 @@ impl<T: IdOrdItem> IdOrdMap<T> {
         let mut removed_item = None;
 
         self.tables.key_to_item.retain(|index| {
-            // Drop the previously removed item only after the primary table's
-            // retain machinery has had a chance to unlink its entry.
+            // Drop the previously-removed item here, at the top of the next
+            // iteration.
+            //
+            // By now, the prior `key_to_item` entry has been erased, so if
+            // `drop` below panics, `key_to_item` and `items` remain in sync.
+            // Dropping the item at the end of the prior iteration would
+            // unwind before the BTree dropped the entry, leaving
+            // `key_to_item` pointing at a slot we already removed from
+            // `items`.
             drop(removed_item.take());
 
             let (item, dormant_items) = {
@@ -1368,7 +1375,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
             }
         });
 
-        drop(removed_item);
+        // Anything in `removed_item` is implicitly dropped now.
     }
 
     fn find<'a, Q>(&'a self, k: &Q) -> Option<&'a T>

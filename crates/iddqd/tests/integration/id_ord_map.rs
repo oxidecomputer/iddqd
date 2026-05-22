@@ -1150,8 +1150,10 @@ mod proptest_panic_safety {
     impl PanickyAction {
         /// Classify panic safety for this action.
         ///
-        /// `Extend`, `RetainModulo`, and `Clear` loop over per-step atomic
-        /// item destruction.
+        /// * `RetainModulo` and `Clear` loop over per-step atomic item
+        ///   destruction.
+        /// * `Extend` is a sequence of per-step atomic `insert_overwrite`
+        ///   calls; a mid-sequence panic leaves earlier inserts committed.
         fn panic_safety(&self) -> PanicSafety {
             match self {
                 PanickyAction::InsertUnique(_)

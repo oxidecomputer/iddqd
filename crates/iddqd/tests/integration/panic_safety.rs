@@ -67,7 +67,9 @@ pub(crate) fn observe_panicky_call(label: &'static str) {
 /// Drops a value after the map operation has returned ownership to the caller.
 ///
 /// This keeps caller-side cleanup of returned/rejected items out of the armed
-/// panic window while preserving the operation count already recorded.
+/// panic window while preserving the operation count already recorded. The
+/// disarm persists for the rest of the current [`run_armed`] invocation;
+/// any subsequent map op in the same arm runs un-armed unless re-armed.
 pub(crate) fn drop_unarmed<T>(value: T) {
     disarm_panic();
     drop(value);

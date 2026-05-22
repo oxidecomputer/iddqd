@@ -2568,8 +2568,15 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
         let mut removed_item = None;
 
         self.tables.k1_to_item.retain(|index| {
-            // Drop the previously removed item only after the primary table's
-            // retain machinery has had a chance to unlink its entry.
+            // Drop the previously-removed item here, at the top of the next
+            // iteration.
+            //
+            // By now, the prior `k1_to_item` entry has been erased, so if
+            // `drop` below panics, `k1_to_item`, `k2_to_item`, `k3_to_item`,
+            // and `items` remain in sync. Dropping the item at the end of the
+            // prior iteration would unwind before the table erased the entry,
+            // leaving `k1_to_item` pointing at a slot we already removed from
+            // `items`, `k2_to_item`, and `k3_to_item`.
             drop(removed_item.take());
 
             let (item, dormant_items) = {
@@ -2644,7 +2651,9 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
 
                 // SAFETY: The original items is no longer used after the first
                 // block above, and item + dormant_item have been dropped after
-                // being used above.
+                // being used above. The k2/k3 work between them borrows only
+                // `self.tables.k2_to_item` and `self.tables.k3_to_item`,
+                // which are disjoint from `self.items`.
                 let items = unsafe { dormant_items.awaken() };
                 removed_item = Some(
                     items
@@ -2656,7 +2665,7 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
             }
         });
 
-        drop(removed_item);
+        // Anything in `removed_item` is implicitly dropped now.
     }
 
     fn find1<'a, Q>(&'a self, k: &Q) -> Option<&'a T>
