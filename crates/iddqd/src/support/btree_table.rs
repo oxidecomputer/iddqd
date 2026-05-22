@@ -428,7 +428,10 @@ where
         match (a, b) {
             (Index::SENTINEL_VALUE, v) => key.compare(&lookup(v)),
             (v, Index::SENTINEL_VALUE) => key.compare(&lookup(v)).reverse(),
-            (a, b) => lookup(a).cmp(&lookup(b)),
+            // The tiebreaker (then_with) in this arm preserves bijection when a
+            // pathological user `Ord` returns `Equal` for distinct keys: if the
+            // comparison returns equal, then the indexes are the same.
+            (a, b) => lookup(a).cmp(&lookup(b)).then_with(|| a.cmp(&b)),
         }
     }
 }
@@ -459,9 +462,18 @@ where
             (Index::SENTINEL_VALUE, _) | (_, Index::SENTINEL_VALUE) => {
                 panic!("sentinel value should not be invoked in insert path")
             }
-            (a, b) if a == index => key.compare(&lookup(b)),
-            (a, b) if b == index => key.compare(&lookup(a)).reverse(),
-            (a, b) => lookup(a).cmp(&lookup(b)),
+            // The tiebreakers (then_with) in the arms below preserve bijection
+            // when the user `Ord` returns `Equal` for distinct keys: if the
+            // comparison returns equal, then the indexes are the same. Without
+            // this, `BTreeMap::entry` could land on the wrong physical index
+            // during `prepare_remove`.
+            (a, b) if a == index => {
+                key.compare(&lookup(b)).then_with(|| a.cmp(&b))
+            }
+            (a, b) if b == index => {
+                key.compare(&lookup(a)).reverse().then_with(|| a.cmp(&b))
+            }
+            (a, b) => lookup(a).cmp(&lookup(b)).then_with(|| a.cmp(&b)),
         }
     }
 }
@@ -634,6 +646,10 @@ mod tests {
         /// When set, `PanickingKey::cmp` panics on invocation. Scoped by
         /// individual tests.
         static PANIC_TRIGGER: Cell<bool> = const { Cell::new(false) };
+
+        /// When set, `LyingKey::cmp` returns this ordering rather than
+        /// comparing honestly. Scoped by individual tests.
+        static LIE_ORD: Cell<Option<Ordering>> = const { Cell::new(None) };
     }
 
     /// A key type whose `Ord` impl can be made to panic on demand.
@@ -652,6 +668,23 @@ mod tests {
                 panic!("simulated Ord panic");
             }
             self.0.cmp(&other.0)
+        }
+    }
+
+    /// A key type whose `Ord` impl can be told to return a fixed ordering on
+    /// every call, to simulate adversarial user comparators.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    struct LyingKey(u32);
+
+    impl PartialOrd for LyingKey {
+        fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+            Some(self.cmp(other))
+        }
+    }
+
+    impl Ord for LyingKey {
+        fn cmp(&self, other: &Self) -> Ordering {
+            LIE_ORD.with(Cell::get).unwrap_or_else(|| self.0.cmp(&other.0))
         }
     }
 
@@ -713,5 +746,50 @@ mod tests {
                 .collect::<alloc::vec::Vec<_>>(),
             [0u32, 1, 2],
         );
+    }
+
+    /// Under a pathological user comparator that returns `Equal` for distinct
+    /// keys, `prepare_insert` at a fresh index must not declare a spurious
+    /// `Occupied` match.
+    ///
+    /// * Without the index tiebreaker in `insert_cmp`, `BTreeMap::entry` would
+    ///   land on the first stored Index it visited and `prepare_insert` would
+    ///   panic with "internal map already contains index".
+    /// * With the tiebreaker, every comparison effectively becomes
+    ///   `fresh_index.cmp(&stored)`, which is always non-equal for a fresh index,
+    ///   so the descent reaches Vacant and the insert proceeds.
+    ///
+    /// This is a unit test rather than an integration test in pathological.rs
+    /// because the path is somewhat hard to reach via the public API.
+    /// `insert_unique` runs `find_index` first, which would return
+    /// `Err(DuplicateItem)` before `prepare_insert` is ever called. We could in
+    /// principle set things up to start lying after `find_index` but before
+    /// `prepare_insert` (or extend our PBTs to generate random sequences of
+    /// lying implementations), but this is more convenient.
+    #[test]
+    fn prepare_insert_under_lying_equal_does_not_spuriously_panic() {
+        let mut table = MapBTreeTable::new();
+        let lookup = |ix: ItemIndex| -> LyingKey { LyingKey(ix.as_u32() * 10) };
+
+        // Populate four entries under honest ordering. Four is enough that
+        // BTreeMap's root holds more than one key, so the descent below
+        // actually invokes the comparator.
+        for i in 0..4u32 {
+            let ix = ItemIndex::new(i);
+            let key = lookup(ix);
+            table.prepare_insert(ix, &key, lookup).insert();
+        }
+        assert_eq!(table.len(), 4);
+
+        // Arm the lie and prepare an insert at a fresh index. Under the
+        // un-tiebroken comparator this panics inside `prepare_insert`.
+        LIE_ORD.with(|c| c.set(Some(Ordering::Equal)));
+        let fresh_ix = ItemIndex::new(100);
+        let fresh_key = LyingKey(999);
+        let prepared = table.prepare_insert(fresh_ix, &fresh_key, lookup);
+        LIE_ORD.with(|c| c.set(None));
+
+        prepared.insert();
+        assert_eq!(table.len(), 5);
     }
 }
