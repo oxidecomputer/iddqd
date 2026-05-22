@@ -1417,20 +1417,35 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
         // and items in sequence. This lookup deliberately matches by
         // `ItemIndex` rather than by user `Eq`: at this point we already know
         // which item is being removed, and user `Eq` might be pathological.
+        //
         // hashbrown's `find_entry_by_hash` is panic-safe because the table is
         // not mutated until `OccupiedEntry::remove` is called, so a panic while
-        // hashing leaves both items and the table unmodified.
+        // hashing leaves both items and the table unmodified. (Unlike the
+        // IdOrdMap path, we don't need a separate two-phase commit: the
+        // BTreeMap analog has to guard against a user-`Ord` panic during the
+        // tree walk, but the hash walk here never invokes user code.)
+        //
+        // If the hash lookup misses, which can happen when `mem::forget` is
+        // called on a `RefMut` after the ID was changed, the item's current key
+        // now hashes to a different bucket than the one its entry sits in. In
+        // that case, we fall back to a linear scan by `ItemIndex`. This keeps
+        // the table and item set consistent with each other across silent key
+        // mutations, mirroring `MapBTreeTable::remove_exact`.
+        //
+        // This is not expected to be the common case (why are you calling
+        // mem::forget on a RefMut?), but guarding against it explicitly makes
+        // our invariants easier to reason about.
         let item = self.items.get(remove_index)?;
         let state = &self.tables.state;
         let hash = state.hash_one(item.key());
-        let Ok(entry) = self
+        match self
             .tables
             .key_to_item
             .find_entry_by_hash(hash, |index| index == remove_index)
-        else {
-            panic!("remove_index {remove_index} not found in key_to_item");
-        };
-        entry.remove();
+        {
+            Ok(entry) => entry.remove(),
+            Err(()) => self.tables.key_to_item.remove_by_index(remove_index),
+        }
         Some(
             self.items
                 .remove(remove_index)

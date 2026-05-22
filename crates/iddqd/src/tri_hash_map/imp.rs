@@ -2712,36 +2712,45 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
         // might be pathological. hashbrown's `find_entry_by_hash` is
         // panic-safe because the table is not mutated until
         // `OccupiedEntry::remove` is called, so a panic while hashing leaves
-        // items and all three tables unmodified.
+        // items and all three tables unmodified. (Unlike the IdOrdMap path,
+        // no separate two-phase commit is needed: the BTreeMap analog has to
+        // guard against a user-`Ord` panic during the tree walk, but the
+        // hash walk here never invokes user code.)
+        //
+        // If any hash lookup misses — which happens when a `mem::forget` on
+        // a `RefMut` bypassed the drop-time hash check and one of the item's
+        // keys now hashes to a different bucket than its entry sits in —
+        // fall back to a linear scan by `ItemIndex` for that table. The
+        // fallback never invokes user `Hash`, so cleanup remains panic-safe.
         let item = self.items.get(remove_index)?;
         let state = &self.tables.state;
         let hash1 = state.hash_one(item.key1());
         let hash2 = state.hash_one(item.key2());
         let hash3 = state.hash_one(item.key3());
-        let Ok(entry1) = self
+        match self
             .tables
             .k1_to_item
             .find_entry_by_hash(hash1, |index| index == remove_index)
-        else {
-            panic!("remove_index {remove_index} not found in k1_to_item");
-        };
-        let Ok(entry2) = self
+        {
+            Ok(entry) => entry.remove(),
+            Err(()) => self.tables.k1_to_item.remove_by_index(remove_index),
+        }
+        match self
             .tables
             .k2_to_item
             .find_entry_by_hash(hash2, |index| index == remove_index)
-        else {
-            panic!("remove_index {remove_index} not found in k2_to_item");
-        };
-        let Ok(entry3) = self
+        {
+            Ok(entry) => entry.remove(),
+            Err(()) => self.tables.k2_to_item.remove_by_index(remove_index),
+        }
+        match self
             .tables
             .k3_to_item
             .find_entry_by_hash(hash3, |index| index == remove_index)
-        else {
-            panic!("remove_index {remove_index} not found in k3_to_item");
-        };
-        entry1.remove();
-        entry2.remove();
-        entry3.remove();
+        {
+            Ok(entry) => entry.remove(),
+            Err(()) => self.tables.k3_to_item.remove_by_index(remove_index),
+        }
         Some(
             self.items
                 .remove(remove_index)
