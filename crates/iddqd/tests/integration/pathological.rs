@@ -7,8 +7,9 @@
 use crate::panic_safety::{PanickyKey, arm_panic_after, disarm_panic};
 use core::cell::Cell;
 use iddqd::{
-    BiHashItem, BiHashMap, Equivalent, IdHashItem, IdHashMap, IdOrdItem,
-    IdOrdMap, TriHashItem, TriHashMap, bi_upcast, id_ord_map, id_upcast,
+    BiHashItem, BiHashMap, Comparable, Equivalent, IdHashItem, IdHashMap,
+    IdOrdItem, IdOrdMap, TriHashItem, TriHashMap, bi_upcast, id_ord_map,
+    id_upcast,
     internal::{ValidateChaos, ValidateCompact},
     tri_upcast,
 };
@@ -52,6 +53,146 @@ impl IdOrdItem for PanickyItem {
         PanickyKey(self.id)
     }
     id_upcast!();
+}
+
+thread_local! {
+    /// When `Some(n)`, the `n`-th subsequent `DropPanicOrdKey::drop` panics.
+    /// Counts physical drops rather than `key()` calls, so the trigger is
+    /// robust to refactors that create more or fewer keys during an
+    /// operation.
+    static DROPS_UNTIL_PANIC: Cell<Option<u32>> = const { Cell::new(None) };
+}
+
+#[derive(Debug)]
+struct DropPanicOrdItem {
+    id: u32,
+}
+
+#[derive(Debug, Eq)]
+struct DropPanicOrdKey {
+    id: u32,
+}
+
+impl Drop for DropPanicOrdKey {
+    fn drop(&mut self) {
+        DROPS_UNTIL_PANIC.with(|c| match c.get() {
+            None | Some(0) => {}
+            Some(1) => {
+                // Disarm before panicking so additional drops during
+                // unwinding don't double-panic and abort the process.
+                c.set(None);
+                panic!("DropPanicOrdKey drop panic");
+            }
+            Some(n) => c.set(Some(n - 1)),
+        });
+    }
+}
+
+impl PartialEq for DropPanicOrdKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+impl PartialOrd for DropPanicOrdKey {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for DropPanicOrdKey {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.id.cmp(&other.id)
+    }
+}
+
+struct DropPanicLookup(u32);
+
+impl Equivalent<DropPanicOrdKey> for DropPanicLookup {
+    fn equivalent(&self, key: &DropPanicOrdKey) -> bool {
+        self.0 == key.id
+    }
+}
+
+impl Comparable<DropPanicOrdKey> for DropPanicLookup {
+    fn compare(&self, key: &DropPanicOrdKey) -> Ordering {
+        self.0.cmp(&key.id)
+    }
+}
+
+impl IdOrdItem for DropPanicOrdItem {
+    type Key<'a> = DropPanicOrdKey;
+
+    fn key(&self) -> Self::Key<'_> {
+        DropPanicOrdKey { id: self.id }
+    }
+
+    id_upcast!();
+}
+
+#[test]
+fn id_ord_insert_key_drop_panic_leaves_map_valid() {
+    let mut map = IdOrdMap::<DropPanicOrdItem>::new();
+
+    // Panic on the *first* key drop after arming. The exact code path exercised
+    // depends on the impl, but the broader claim is that a key `Drop` panic at
+    // any point during `insert_unique` must leave the map valid.
+    DROPS_UNTIL_PANIC.with(|c| c.set(Some(1)));
+    let panicked = catch_panic(|| {
+        map.insert_unique(DropPanicOrdItem { id: 1 })
+            .expect("insert_unique should not return Err here");
+    })
+    .is_none();
+    assert!(panicked, "expected the armed key Drop to panic the insert");
+
+    let validation =
+        map.validate(ValidateCompact::NonCompact, ValidateChaos::No);
+    assert!(validation.is_ok(), "{validation:?}");
+}
+
+#[test]
+fn id_ord_insert_key_drop_panic_during_commit_leaves_map_valid() {
+    let mut map = IdOrdMap::<DropPanicOrdItem>::new();
+
+    // Skip the first drop (which falls in the duplicate-check window) and panic
+    // on the second, which lands between `prepare_insert` and the final commit.
+    // This is why IdOrdMap uses two-phase commit.
+    //
+    // If a future refactor stops creating a second key, this test fails loudly
+    // via `assert!(panicked)`. (At that point the test should maybe be
+    // deleted.)
+    DROPS_UNTIL_PANIC.with(|c| c.set(Some(2)));
+    let panicked = catch_panic(|| {
+        map.insert_unique(DropPanicOrdItem { id: 1 })
+            .expect("insert_unique should not return Err here");
+    })
+    .is_none();
+    assert!(panicked, "expected the armed key Drop to panic the insert");
+
+    let validation =
+        map.validate(ValidateCompact::NonCompact, ValidateChaos::No);
+    assert!(validation.is_ok(), "{validation:?}");
+}
+
+#[test]
+fn id_ord_remove_key_drop_panic_leaves_map_valid() {
+    let mut map = IdOrdMap::<DropPanicOrdItem>::new();
+    map.insert_unique(DropPanicOrdItem { id: 1 })
+        .expect("insert_unique on fresh map should succeed");
+
+    // The remove path constructs one key before the prepare/commit window
+    // and drops it inside that window, so panicking on the first drop lands
+    // the panic in the post-`prepare_remove`, pre-commit drop.
+    DROPS_UNTIL_PANIC.with(|c| c.set(Some(1)));
+    let panicked = catch_panic(|| {
+        let _ = map.remove(&DropPanicLookup(1));
+    })
+    .is_none();
+    assert!(panicked, "expected the armed key Drop to panic the remove");
+
+    let validation =
+        map.validate(ValidateCompact::NonCompact, ValidateChaos::No);
+    assert!(validation.is_ok(), "{validation:?}");
 }
 
 // Test: `OuterItem::key()` calls into a different `IdOrdMap`, so the inner
@@ -548,6 +689,64 @@ impl IdOrdItem for LyingOrdItem {
     id_upcast!();
 }
 
+#[derive(Debug)]
+struct HashBlindOrdItem {
+    id: u32,
+    value: u32,
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord)]
+struct HashBlindOrdKey {
+    id: u32,
+}
+
+impl Hash for HashBlindOrdKey {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        // `IdOrdMap::RefMut` detects key changes by hashing the key before and
+        // after the mutable borrow. A user key can defeat that check by
+        // colliding all key hashes.
+        0u32.hash(state);
+    }
+}
+
+impl IdOrdItem for HashBlindOrdItem {
+    type Key<'a> = HashBlindOrdKey;
+    fn key(&self) -> Self::Key<'_> {
+        HashBlindOrdKey { id: self.id }
+    }
+    id_upcast!();
+}
+
+#[test]
+fn id_ord_hash_blind_key_change_remove_reinsert_iter_mut_no_aliasing() {
+    let mut map = IdOrdMap::<HashBlindOrdItem>::new();
+    for i in 0..64 {
+        map.insert_unique(HashBlindOrdItem { id: i, value: 0 }).unwrap();
+    }
+
+    // This changes the key's ordering position without changing its hash, so
+    // `RefMut` drop does not catch it. The B-tree is now logically misordered.
+    {
+        let mut item = map.get_mut(&HashBlindOrdKey { id: 0 }).unwrap();
+        item.id = 10_000;
+    }
+
+    // `pop_first` sees the structurally first index. Removal must clear that
+    // exact index from the B-tree even though comparator-based search would be
+    // confused by the changed key.
+    let removed = map.pop_first().unwrap();
+    assert_eq!(removed.id, 10_000);
+
+    // The item set reuses the removed slot. If the old B-tree entry was left
+    // behind, iter_mut would yield two RefMuts to this same slot.
+    map.insert_unique(HashBlindOrdItem { id: 20_000, value: 0 }).unwrap();
+
+    let mut items: Vec<_> = map.iter_mut().collect();
+    for item in &mut items {
+        item.value += 1;
+    }
+}
+
 #[test]
 fn lying_ord_iter_mut_no_duplicate_yield() {
     let mut map = IdOrdMap::<LyingOrdItem>::new();
@@ -584,16 +783,8 @@ fn lying_ord_remove_reinsert_iter_mut_no_aliasing() {
             // Now switch the Ord implementation to always return
             // `Ordering::Less`.
             LIE_ORD.with(|c| c.set(Some(Ordering::Less)));
-            // In btree_table.rs, insert_cmp has a short-circuit for identical
-            // indexes. That short-circuit is load-bearing!
-            //
-            // With or without insert_cmp short-circuiting, the remove operation
-            // always succeeds from the ItemSet.
-            //
-            // * With the short-circuit, the remove additionally always succeeds
-            //   from the B-tree table.
-            // * But without it, the index 0 would be removed from the ItemSet but
-            //   _not_ be cleared from the B-tree table.
+            // Removal must not be confused by the pathological comparator: it
+            // has already selected the exact index being removed.
             entry.remove()
         }
         id_ord_map::Entry::Vacant(_) => panic!("id 0 should be present"),
@@ -601,14 +792,10 @@ fn lying_ord_remove_reinsert_iter_mut_no_aliasing() {
     assert_eq!(removed.id, 0);
 
     // Now insert an item with a comparator which always returns
-    // `Ordering::Greater`. The item set will always allocate the index 0 to the
-    // new item (since it uses LRU semantics for the free chain). But if a
-    // previous index 0 got left behind due to the lack of short-circuiting, the
-    // B-tree table will end up storing two copies of the index 0. When
-    // iterating over the map, we'll end up handing out two mutable aliases to
-    // the item we just inserted at index 0 (and miri will fail accordingly).
-    //
-    // This demonstrates that short-circuiting is necessary for soundness.
+    // `Ordering::Greater`. The item set will allocate index 0 to the new item
+    // because it uses LRU semantics for the free chain. If the previous index 0
+    // was left behind in the B-tree table, iter_mut would hand out two mutable
+    // aliases to the item we just inserted at index 0.
     LIE_ORD.with(|c| c.set(Some(Ordering::Greater)));
     map.insert_unique(LyingOrdItem { id: 10_000, value: 0 }).unwrap();
     LIE_ORD.with(|c| c.set(None));
