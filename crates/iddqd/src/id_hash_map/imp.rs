@@ -595,8 +595,11 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
     /// # }
     /// ```
     pub fn clear(&mut self) {
-        self.items.clear();
+        // Clear the internal index before dropping items. This way, if a user
+        // `Drop` panics during `self.items.clear()`, `key_to_item` cannot retain
+        // indexes pointing to removed item slots.
         self.tables.key_to_item.clear();
+        self.items.clear();
     }
 
     /// Reserves capacity for at least `additional` more elements to be inserted
@@ -1296,8 +1299,13 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
     {
         let hash_state = self.tables.state.clone();
         let (_, mut dormant_items) = DormantMutRef::new(&mut self.items);
+        let mut removed_item = None;
 
         self.tables.key_to_item.retain(|index| {
+            // Drop the previously removed item only after the primary table's
+            // retain machinery has had a chance to unlink its entry.
+            drop(removed_item.take());
+
             let (item, dormant_items) = {
                 // SAFETY: All uses of `items` ended in the previous iteration.
                 let items = unsafe { dormant_items.reborrow() };
@@ -1334,10 +1342,16 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
                 // SAFETY: The original items is no longer used after the first
                 // block above, and item + dormant item have been used above.
                 let items = unsafe { dormant_items.awaken() };
-                items.remove(index);
+                removed_item = Some(
+                    items
+                        .remove(index)
+                        .expect("all indexes are present in self.items"),
+                );
                 false
             }
         });
+
+        drop(removed_item);
     }
 
     fn find_index<'a, Q>(&'a self, k: &Q) -> Option<ItemIndex>

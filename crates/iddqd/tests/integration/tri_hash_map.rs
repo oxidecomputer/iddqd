@@ -1120,12 +1120,19 @@ impl TriHashItem for PanickyHashItem {
 }
 
 #[cfg(feature = "default-hasher")]
+impl Drop for PanickyHashItem {
+    fn drop(&mut self) {
+        crate::panic_safety::observe_panicky_call("item-drop");
+    }
+}
+
+#[cfg(feature = "default-hasher")]
 mod proptest_panic_safety {
     use super::*;
     use crate::panic_safety::{
         PanicSafety, PanickyOp, PanickySearchKey,
-        assert_panic_fired_as_expected, assert_post_op_invariants, run_armed,
-        sorted_keys,
+        assert_panic_fired_as_expected, assert_post_op_invariants,
+        drop_unarmed, run_armed, sorted_keys,
     };
 
     // Keys are kept in a small range so hits and misses both happen
@@ -1179,7 +1186,8 @@ mod proptest_panic_safety {
         ///   `remove1; remove2; remove3; insert_unique;` as sequential
         ///   commits, so a mid-sequence panic can leave the map in a
         ///   different (but still valid) state.
-        /// * `RetainModulo` loops over per-step atomic mutations.
+        /// * `RetainModulo` and `Clear` loop over per-step atomic item
+        ///   destruction.
         /// * `Extend` calls `HashTable::reserve` up front, which on a
         ///   tombstone-heavy map drops into hashbrown's
         ///   `rehash_in_place` — documented as not panic-safe under a
@@ -1197,32 +1205,35 @@ mod proptest_panic_safety {
                 | PanickyAction::Get2(_)
                 | PanickyAction::Get3(_) => PanicSafety::Atomic,
                 PanickyAction::RetainModulo(_, _, _)
-                | PanickyAction::Extend(_) => PanicSafety::StepAtomic,
-                PanickyAction::Clear => PanicSafety::Atomic,
+                | PanickyAction::Extend(_)
+                | PanickyAction::Clear => PanicSafety::StepAtomic,
             }
         }
 
         fn run(self, map: &mut TriHashMap<PanickyHashItem>) {
             match self {
                 PanickyAction::InsertUnique(key1, key2, key3) => {
-                    let _ =
-                        map.insert_unique(PanickyHashItem { key1, key2, key3 });
-                }
-                PanickyAction::InsertOverwrite(key1, key2, key3) => {
-                    let _ = map.insert_overwrite(PanickyHashItem {
+                    drop_unarmed(map.insert_unique(PanickyHashItem {
                         key1,
                         key2,
                         key3,
-                    });
+                    }));
+                }
+                PanickyAction::InsertOverwrite(key1, key2, key3) => {
+                    drop_unarmed(map.insert_overwrite(PanickyHashItem {
+                        key1,
+                        key2,
+                        key3,
+                    }));
                 }
                 PanickyAction::Remove1(key1) => {
-                    let _ = map.remove1(&PanickySearchKey(key1));
+                    drop_unarmed(map.remove1(&PanickySearchKey(key1)));
                 }
                 PanickyAction::Remove2(key2) => {
-                    let _ = map.remove2(&PanickySearchKey(key2));
+                    drop_unarmed(map.remove2(&PanickySearchKey(key2)));
                 }
                 PanickyAction::Remove3(key3) => {
-                    let _ = map.remove3(&PanickySearchKey(key3));
+                    drop_unarmed(map.remove3(&PanickySearchKey(key3)));
                 }
                 PanickyAction::Get1(key1) => {
                     let _ = map.get1(&PanickySearchKey(key1));

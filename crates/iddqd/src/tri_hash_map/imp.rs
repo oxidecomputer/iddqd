@@ -797,10 +797,13 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     /// # }
     /// ```
     pub fn clear(&mut self) {
-        self.items.clear();
+        // Clear the internal indexes before dropping items. This way, if a user
+        // `Drop` panics during `self.items.clear()`, the tables cannot retain
+        // indexes pointing to removed item slots.
         self.tables.k1_to_item.clear();
         self.tables.k2_to_item.clear();
         self.tables.k3_to_item.clear();
+        self.items.clear();
     }
 
     /// Reserves capacity for at least `additional` more elements to be inserted
@@ -2562,8 +2565,13 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     {
         let hash_state = self.tables.state.clone();
         let (_, mut dormant_items) = DormantMutRef::new(&mut self.items);
+        let mut removed_item = None;
 
         self.tables.k1_to_item.retain(|index| {
+            // Drop the previously removed item only after the primary table's
+            // retain machinery has had a chance to unlink its entry.
+            drop(removed_item.take());
+
             let (item, dormant_items) = {
                 // SAFETY: All uses of `items` ended in the previous iteration.
                 let items = unsafe { dormant_items.reborrow() };
@@ -2610,11 +2618,6 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
             if retain {
                 true
             } else {
-                // SAFETY: The original items is no longer used after the first
-                // block above, and item + dormant_item have been dropped after
-                // being used above.
-                let items = unsafe { dormant_items.awaken() };
-                items.remove(index);
                 let k2_entry = self
                     .tables
                     .k2_to_item
@@ -2628,28 +2631,32 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
                         map3_index == index
                     });
 
-                let mut is_inconsistent = false;
                 if let Ok(k2_entry) = k2_entry {
                     k2_entry.remove();
                 } else {
-                    is_inconsistent = true;
+                    self.tables.k2_to_item.remove_by_index(index);
                 }
                 if let Ok(k3_entry) = k3_entry {
                     k3_entry.remove();
                 } else {
-                    is_inconsistent = true;
+                    self.tables.k3_to_item.remove_by_index(index);
                 }
-                if is_inconsistent {
-                    // This happening means there's an inconsistency among
-                    // the maps.
-                    panic!(
-                        "inconsistency among k1_to_item, k2_to_item, k3_to_item"
-                    );
-                }
+
+                // SAFETY: The original items is no longer used after the first
+                // block above, and item + dormant_item have been dropped after
+                // being used above.
+                let items = unsafe { dormant_items.awaken() };
+                removed_item = Some(
+                    items
+                        .remove(index)
+                        .expect("all indexes are present in self.items"),
+                );
 
                 false
             }
         });
+
+        drop(removed_item);
     }
 
     fn find1<'a, Q>(&'a self, k: &Q) -> Option<&'a T>

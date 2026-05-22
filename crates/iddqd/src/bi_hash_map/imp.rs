@@ -707,9 +707,12 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
     /// # }
     /// ```
     pub fn clear(&mut self) {
-        self.items.clear();
+        // Clear the internal indexes before dropping items. This way, if a user
+        // `Drop` panics during `self.items.clear()`, the tables cannot retain
+        // indexes pointing to removed item slots.
         self.tables.k1_to_item.clear();
         self.tables.k2_to_item.clear();
+        self.items.clear();
     }
 
     /// Reserves capacity for at least `additional` more elements to be inserted
@@ -1910,8 +1913,13 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
     {
         let hash_state = self.tables.state.clone();
         let (_, mut dormant_items) = DormantMutRef::new(&mut self.items);
+        let mut removed_item = None;
 
         self.tables.k1_to_item.retain(|index| {
+            // Drop the previously removed item only after the primary table's
+            // retain machinery has had a chance to unlink its entry.
+            drop(removed_item.take());
+
             let (item, dormant_items) = {
                 // SAFETY: All uses of `items` ended in the previous iteration.
                 let items = unsafe { dormant_items.reborrow() };
@@ -1948,11 +1956,6 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
             if retain {
                 true
             } else {
-                // SAFETY: The original items is no longer used after the first
-                // block above, and item + dormant_item have been dropped after
-                // being used above.
-                let items = unsafe { dormant_items.awaken() };
-                items.remove(index);
                 let k2_entry = self
                     .tables
                     .k2_to_item
@@ -1964,17 +1967,25 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
                         entry.remove();
                     }
                     Err(_) => {
-                        // This happening means there's an inconsistency between
-                        // the maps.
-                        panic!(
-                            "inconsistency between k1_to_item and k2_to_item"
-                        );
+                        self.tables.k2_to_item.remove_by_index(index);
                     }
                 }
+
+                // SAFETY: The original items is no longer used after the first
+                // block above, and item + dormant_item have been dropped after
+                // being used above.
+                let items = unsafe { dormant_items.awaken() };
+                removed_item = Some(
+                    items
+                        .remove(index)
+                        .expect("all indexes are present in self.items"),
+                );
 
                 false
             }
         });
+
+        drop(removed_item);
     }
 
     fn find1<'a, Q>(&'a self, k: &Q) -> Option<&'a T>

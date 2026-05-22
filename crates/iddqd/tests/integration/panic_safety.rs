@@ -1,12 +1,14 @@
 //! Shared scaffolding for panic safety tests.
 //!
 //! [`PanickyKey`] is a key whose `Hash`/`Eq`/`Ord`/`Drop` impls share a
-//! thread-local panic countdown. The call after `n` successful ones panics.
-//! Drop is included so the harness also exercises the post-`prepare_*`,
+//! thread-local panic countdown. The map-specific test items also call into
+//! the same countdown from `Drop`. The call after `n` successful ones panics.
+//! Key `Drop` is included so the harness exercises the post-`prepare_*`,
 //! pre-commit windows in `IdOrdMap` (and analogous windows in the hash
-//! maps) where a user-key Drop is the only thing that could panic. Each
-//! proptest drives a random sequence of [`PanickyOp`]s, and after every
-//! step asserts:
+//! maps) where a user-key Drop is the only thing that could panic; item
+//! `Drop` covers container-owned destruction paths such as `retain`,
+//! `clear`, and `Extend`. Each proptest drives a random sequence of
+//! [`PanickyOp`]s, and after every step asserts:
 //!
 //! * `validate()`
 //! * a `contains_key` round-trip on every surviving item
@@ -35,27 +37,40 @@ pub(crate) struct PanickyKey(pub u32);
 
 impl PanickyKey {
     fn observe_call(label: &'static str) {
-        PANIC_COUNTDOWN.with(|c| {
-            // When disarmed, don't tick `OP_COUNT`. This matters for two
-            // distinct cases:
-            //
-            // * Calls outside `run_armed` (validation, assertions): they
-            //   shouldn't count toward the next armed step.
-            // * Calls during panic unwinding *after* the countdown has fired:
-            //   key drops along the unwind path would otherwise tick
-            //   `OP_COUNT` past `n + 1` and break
-            //   `assert_panic_fired_as_expected`.
-            let Some(n) = c.get() else { return };
-            OP_COUNT.with(|c| c.set(c.get() + 1));
-            if n == 0 {
-                // Disarm before panicking so additional `observe_call`s
-                // during unwinding (notably key drops) don't double-panic.
-                c.set(None);
-                panic!("PanickyKey::{label} panic triggered");
-            }
-            c.set(Some(n - 1));
-        });
+        observe_panicky_call(label);
     }
+}
+
+pub(crate) fn observe_panicky_call(label: &'static str) {
+    PANIC_COUNTDOWN.with(|c| {
+        // When disarmed, don't tick `OP_COUNT`. This matters for two
+        // distinct cases:
+        //
+        // * Calls outside `run_armed` (validation, assertions): they
+        //   shouldn't count toward the next armed step.
+        // * Calls during panic unwinding *after* the countdown has fired:
+        //   user drops along the unwind path would otherwise tick
+        //   `OP_COUNT` past `n + 1` and break
+        //   `assert_panic_fired_as_expected`.
+        let Some(n) = c.get() else { return };
+        OP_COUNT.with(|c| c.set(c.get() + 1));
+        if n == 0 {
+            // Disarm before panicking so additional `observe_panicky_call`s
+            // during unwinding don't double-panic.
+            c.set(None);
+            panic!("Panicky::{label} panic triggered");
+        }
+        c.set(Some(n - 1));
+    });
+}
+
+/// Drops a value after the map operation has returned ownership to the caller.
+///
+/// This keeps caller-side cleanup of returned/rejected items out of the armed
+/// panic window while preserving the operation count already recorded.
+pub(crate) fn drop_unarmed<T>(value: T) {
+    disarm_panic();
+    drop(value);
 }
 
 impl Drop for PanickyKey {
@@ -165,8 +180,8 @@ where
 
 /// Run `f` with the panic countdown set, then unconditionally disarm
 /// so a leftover countdown can't trip later code. Returns
-/// `(panicked, ops)` where `ops` is the count of `PanickyKey`
-/// trait-method calls made during `f`.
+/// `(panicked, ops)` where `ops` is the count of observed user calls made
+/// during `f`.
 pub(crate) fn run_armed(armed: Option<u32>, f: impl FnOnce()) -> (bool, u32) {
     let _ = take_op_count();
     if let Some(n) = armed {
@@ -181,10 +196,11 @@ pub(crate) fn run_armed(armed: Option<u32>, f: impl FnOnce()) -> (bool, u32) {
 /// Asserts that the panic-countdown infrastructure fired (or didn't)
 /// exactly as the arming would predict.
 ///
-/// "Key call" here means any of `Hash`/`Eq`/`Ord`/`Drop` on `PanickyKey`.
-/// With `armed = Some(n)`, the panic should fire on the `(n+1)`-th key
-/// call, so `panicked` implies `ops == n + 1`, and `!panicked` implies
-/// the action made at most `n` key calls. With `armed = None`, no
+/// "User call" here means any of `Hash`/`Eq`/`Ord`/`Drop` on `PanickyKey`,
+/// or `Drop` on a map item. With `armed = Some(n)`, the panic should fire
+/// on the `(n+1)`-th user call, so `panicked` implies `ops == n + 1`,
+/// and `!panicked` implies
+/// the action made at most `n` user calls. With `armed = None`, no
 /// panic should escape.
 pub(crate) fn assert_panic_fired_as_expected(
     op_label: &dyn fmt::Display,
@@ -196,13 +212,13 @@ pub(crate) fn assert_panic_fired_as_expected(
         (Some(n), true) => assert_eq!(
             ops,
             n + 1,
-            "op {op_label} (armed: {n}) panicked on key call {ops}, \
+            "op {op_label} (armed: {n}) panicked on user call {ops}, \
              expected call {}",
             n + 1,
         ),
         (Some(n), false) => assert!(
             ops <= n,
-            "op {op_label} (armed: {n}) made {ops} key call(s) but \
+            "op {op_label} (armed: {n}) made {ops} user call(s) but \
              did not panic — the panic countdown failed to fire",
         ),
         (None, true) => panic!(
