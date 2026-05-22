@@ -270,7 +270,7 @@ impl<A: Allocator> MapHashTable<A> {
     /// in hashbrown's "no-op, growth_left already sufficient" branch. The
     /// closure delegates to [`cached_hasher`], so this exercises the real
     /// production hasher.
-    #[cfg(test)]
+    #[cfg(all(test, feature = "std"))]
     pub(crate) fn reserve_counting_rehash(
         &mut self,
         additional: usize,

@@ -1776,7 +1776,7 @@ impl<T: IdHashItem, S: Default + Clone + BuildHasher, A: Allocator + Default>
     }
 }
 
-#[cfg(all(test, feature = "default-hasher", feature = "std"))]
+#[cfg(all(test, feature = "std"))]
 mod tests {
     use super::*;
     use core::cell::Cell;
