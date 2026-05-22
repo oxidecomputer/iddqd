@@ -722,7 +722,7 @@ fn entry_examples() {
 // underlying items; `into_mut` must hand back disjoint `&mut`s to both.
 #[test]
 fn entry_nonunique_writes_through_both_keys() {
-    #[derive(Debug)]
+    #[derive(Clone, Debug)]
     struct BiItem {
         k1: u32,
         k2: u32,
@@ -741,7 +741,7 @@ fn entry_nonunique_writes_through_both_keys() {
         bi_upcast!();
     }
 
-    let mut map = BiHashMap::<BiItem>::new();
+    let mut map = BiHashMap::<BiItem, HashBuilder, Alloc>::make_new();
     for i in 0..8u32 {
         map.insert_unique(BiItem { k1: i, k2: 1000 + i, payload: 0 }).unwrap();
     }
