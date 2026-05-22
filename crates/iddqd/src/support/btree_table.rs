@@ -26,7 +26,7 @@ thread_local! {
     ///
     /// This works by:
     ///
-    /// * We store an `Index` in the BTreeSet which knows how to call this
+    /// * We store an `Index` in the BTreeMap which knows how to call this
     ///   dynamic comparator.
     /// * When we need to compare two `Index` values, we create a CmpDropGuard.
     ///   This struct is responsible for managing the lifetime of the
@@ -49,7 +49,7 @@ thread_local! {
     ///   If and when https://github.com/rust-lang/rust/issues/133549 lands,
     ///   this should become a viable option. Worth looking out for!
     ///
-    /// * Using a third-party BTreeSet implementation that allows passing in
+    /// * Using a third-party BTreeMap implementation that allows passing in
     ///   external comparators. As of 2025-05, there appear to be two options:
     ///
     ///   1. copse (https://docs.rs/copse), which doesn't seem like a good fit
@@ -228,20 +228,6 @@ impl MapBTreeTable {
         PreparedBTreeInsert { entry }
     }
 
-    #[cfg_attr(not(test), expect(dead_code))]
-    pub(crate) fn insert<K, Q, F>(
-        &mut self,
-        index: ItemIndex,
-        key: &Q,
-        lookup: F,
-    ) where
-        K: Ord,
-        Q: ?Sized + Comparable<K>,
-        F: Fn(ItemIndex) -> K,
-    {
-        self.prepare_insert(index, key, lookup).insert();
-    }
-
     pub(crate) fn prepare_remove<K, F>(
         &mut self,
         index: ItemIndex,
@@ -260,17 +246,21 @@ impl MapBTreeTable {
         drop(guard);
 
         match entry {
+            btree_map::Entry::Vacant(_) => {
+                // The comparator-based search missed an entry that
+                // `remove_by_index` has just confirmed lives in the item set.
+                // The most likely cause is a hash-blind key mutation that
+                // `RefMut` could not detect: the tree's structural order is
+                // now wrong, so a binary search walks past the physical
+                // entry.
+                //
+                // This is a signal to the caller to fall back to the linear
+                // `remove_exact` fallback when it commits the change.
+                PreparedBTreeRemove { inner: PreparedBTreeRemoveInner::Missing }
+            }
             btree_map::Entry::Occupied(entry) => PreparedBTreeRemove {
                 inner: PreparedBTreeRemoveInner::Occupied(entry),
             },
-            btree_map::Entry::Vacant(_entry) => {
-                // Something went wrong, most likely a buggy comparator. The
-                // item is missing.
-                //
-                // This is a signal to the caller to use the linear remove_exact
-                // fallback when it gets around to committing the change.
-                PreparedBTreeRemove { inner: PreparedBTreeRemoveInner::Missing }
-            }
         }
     }
 
@@ -695,7 +685,7 @@ mod tests {
         for ix in [0u32, 2, 4] {
             let ix = ItemIndex::new(ix);
             let key = pre_lookup(ix);
-            table.insert(ix, &key, pre_lookup);
+            table.prepare_insert(ix, &key, pre_lookup).insert();
         }
         assert_eq!(table.len(), 3);
         assert_eq!(

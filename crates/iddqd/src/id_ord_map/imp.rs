@@ -359,7 +359,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     /// Does nothing if capacity is already sufficient.
     ///
     /// Note: This only reserves capacity in the item storage. The internal
-    /// [`BTreeSet`] used for key-to-item mapping does not support capacity
+    /// `BTreeMap` used for key-to-item mapping does not support capacity
     /// reservation.
     ///
     /// # Panics
@@ -402,7 +402,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     /// and possibly leaving some space in accordance with the resize policy.
     ///
     /// Note: This only shrinks the item storage capacity. The internal
-    /// [`BTreeSet`] used for key-to-item mapping does not support capacity
+    /// `BTreeMap` used for key-to-item mapping does not support capacity
     /// control.
     ///
     /// # Examples
@@ -446,7 +446,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     /// If the current capacity is less than the lower limit, this is a no-op.
     ///
     /// Note: This only shrinks the item storage capacity. The internal
-    /// [`BTreeSet`] used for key-to-item mapping does not support capacity
+    /// `BTreeMap` used for key-to-item mapping does not support capacity
     /// control.
     ///
     /// # Examples
