@@ -56,8 +56,11 @@ impl IdOrdItem for PanickyItem {
 }
 
 thread_local! {
-    static DROP_PANIC_KEY_CALLS: Cell<u32> = const { Cell::new(0) };
-    static DROP_PANIC_ON_KEY_DROP: Cell<Option<u32>> = const { Cell::new(None) };
+    /// When `Some(n)`, the `n`-th subsequent `DropPanicOrdKey::drop` panics.
+    /// Counts physical drops rather than `key()` calls, so the trigger is
+    /// robust to refactors that create more or fewer keys during an
+    /// operation.
+    static DROPS_UNTIL_PANIC: Cell<Option<u32>> = const { Cell::new(None) };
 }
 
 #[derive(Debug)]
@@ -68,29 +71,19 @@ struct DropPanicOrdItem {
 #[derive(Debug, Eq)]
 struct DropPanicOrdKey {
     id: u32,
-    key_call: u32,
-}
-
-impl DropPanicOrdKey {
-    fn new(id: u32) -> Self {
-        let key_call = DROP_PANIC_KEY_CALLS.with(|c| {
-            let next = c.get() + 1;
-            c.set(next);
-            next
-        });
-        Self { id, key_call }
-    }
 }
 
 impl Drop for DropPanicOrdKey {
     fn drop(&mut self) {
-        DROP_PANIC_ON_KEY_DROP.with(|c| {
-            if c.get() == Some(self.key_call) {
-                panic!(
-                    "DropPanicOrdKey drop panic on key call {}",
-                    self.key_call
-                );
+        DROPS_UNTIL_PANIC.with(|c| match c.get() {
+            None | Some(0) => {}
+            Some(1) => {
+                // Disarm before panicking so additional drops during
+                // unwinding don't double-panic and abort the process.
+                c.set(None);
+                panic!("DropPanicOrdKey drop panic");
             }
+            Some(n) => c.set(Some(n - 1)),
         });
     }
 }
@@ -131,29 +124,50 @@ impl IdOrdItem for DropPanicOrdItem {
     type Key<'a> = DropPanicOrdKey;
 
     fn key(&self) -> Self::Key<'_> {
-        DropPanicOrdKey::new(self.id)
+        DropPanicOrdKey { id: self.id }
     }
 
     id_upcast!();
-}
-
-fn reset_drop_panic_ord_key() {
-    DROP_PANIC_KEY_CALLS.with(|c| c.set(0));
-    DROP_PANIC_ON_KEY_DROP.with(|c| c.set(None));
 }
 
 #[test]
 fn id_ord_insert_key_drop_panic_leaves_map_valid() {
     let mut map = IdOrdMap::<DropPanicOrdItem>::new();
 
-    reset_drop_panic_ord_key();
-    DROP_PANIC_ON_KEY_DROP.with(|c| c.set(Some(2)));
+    // Panic on the *first* key drop after arming. The exact code path exercised
+    // depends on the impl, but the broader claim is that a key `Drop` panic at
+    // any point during `insert_unique` must leave the map valid.
+    DROPS_UNTIL_PANIC.with(|c| c.set(Some(1)));
     let panicked = catch_panic(|| {
-        map.insert_unique(DropPanicOrdItem { id: 1 }).unwrap();
+        map.insert_unique(DropPanicOrdItem { id: 1 })
+            .expect("insert_unique should not return Err here");
     })
     .is_none();
-    DROP_PANIC_ON_KEY_DROP.with(|c| c.set(None));
-    assert!(panicked);
+    assert!(panicked, "expected the armed key Drop to panic the insert");
+
+    let validation =
+        map.validate(ValidateCompact::NonCompact, ValidateChaos::No);
+    assert!(validation.is_ok(), "{validation:?}");
+}
+
+#[test]
+fn id_ord_insert_key_drop_panic_during_commit_leaves_map_valid() {
+    let mut map = IdOrdMap::<DropPanicOrdItem>::new();
+
+    // Skip the first drop (which falls in the duplicate-check window) and panic
+    // on the second, which lands between `prepare_insert` and the final commit.
+    // This is why IdOrdMap uses two-phase commit.
+    //
+    // If a future refactor stops creating a second key, this test fails loudly
+    // via `assert!(panicked)`. (At that point the test should maybe be
+    // deleted.)
+    DROPS_UNTIL_PANIC.with(|c| c.set(Some(2)));
+    let panicked = catch_panic(|| {
+        map.insert_unique(DropPanicOrdItem { id: 1 })
+            .expect("insert_unique should not return Err here");
+    })
+    .is_none();
+    assert!(panicked, "expected the armed key Drop to panic the insert");
 
     let validation =
         map.validate(ValidateCompact::NonCompact, ValidateChaos::No);
@@ -163,16 +177,18 @@ fn id_ord_insert_key_drop_panic_leaves_map_valid() {
 #[test]
 fn id_ord_remove_key_drop_panic_leaves_map_valid() {
     let mut map = IdOrdMap::<DropPanicOrdItem>::new();
-    map.insert_unique(DropPanicOrdItem { id: 1 }).unwrap();
+    map.insert_unique(DropPanicOrdItem { id: 1 })
+        .expect("insert_unique on fresh map should succeed");
 
-    reset_drop_panic_ord_key();
-    DROP_PANIC_ON_KEY_DROP.with(|c| c.set(Some(2)));
+    // The remove path constructs one key before the prepare/commit window
+    // and drops it inside that window, so panicking on the first drop lands
+    // the panic in the post-`prepare_remove`, pre-commit drop.
+    DROPS_UNTIL_PANIC.with(|c| c.set(Some(1)));
     let panicked = catch_panic(|| {
         let _ = map.remove(&DropPanicLookup(1));
     })
     .is_none();
-    DROP_PANIC_ON_KEY_DROP.with(|c| c.set(None));
-    assert!(panicked);
+    assert!(panicked, "expected the armed key Drop to panic the remove");
 
     let validation =
         map.validate(ValidateCompact::NonCompact, ValidateChaos::No);
