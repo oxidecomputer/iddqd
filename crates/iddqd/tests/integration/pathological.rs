@@ -7,7 +7,7 @@
 use crate::panic_safety::{PanickyKey, arm_panic_after, disarm_panic};
 use core::cell::Cell;
 use iddqd::{
-    IdHashItem, IdHashMap, IdOrdItem, IdOrdMap, id_upcast,
+    IdHashItem, IdHashMap, IdOrdItem, IdOrdMap, id_ord_map, id_upcast,
     internal::{ValidateChaos, ValidateCompact},
 };
 use iddqd_test_utils::unwind::catch_panic;
@@ -320,6 +320,7 @@ thread_local! {
 #[derive(Debug)]
 struct LyingOrdItem {
     id: u32,
+    value: u32,
 }
 
 #[derive(PartialEq, Eq)]
@@ -357,20 +358,71 @@ impl IdOrdItem for LyingOrdItem {
 fn lying_ord_iter_mut_no_duplicate_yield() {
     let mut map = IdOrdMap::<LyingOrdItem>::new();
     for i in 0..16 {
-        map.insert_unique(LyingOrdItem { id: i }).unwrap();
+        map.insert_unique(LyingOrdItem { id: i, value: 0 }).unwrap();
     }
     LIE_ORD.with(|c| c.set(Some(Ordering::Less)));
     let _ = catch_panic(|| {
         for i in 100..110 {
-            let _ = map.insert_unique(LyingOrdItem { id: i });
+            let _ = map.insert_unique(LyingOrdItem { id: i, value: 0 });
         }
     });
 
     let mut seen = std::collections::HashSet::new();
     for item in map.iter_mut() {
+        let _ = item.value;
         assert!(seen.insert(item.id), "iter_mut yielded id={} twice", item.id);
     }
     LIE_ORD.with(|c| c.set(None));
+}
+
+#[test]
+fn lying_ord_remove_reinsert_iter_mut_no_aliasing() {
+    let mut map = IdOrdMap::<LyingOrdItem>::new();
+    // Insert a bunch of items.
+    for i in 0..64 {
+        map.insert_unique(LyingOrdItem { id: i, value: 0 }).unwrap();
+    }
+
+    // Look up item 0 while the `Ord` is correct...
+    let entry = map.entry(LyingOrdKey { id: 0 });
+    let removed = match entry {
+        id_ord_map::Entry::Occupied(entry) => {
+            // Now switch the Ord implementation to always return
+            // `Ordering::Less`.
+            LIE_ORD.with(|c| c.set(Some(Ordering::Less)));
+            // In btree_table.rs, insert_cmp has a short-circuit for identical
+            // indexes. That short-circuit is load-bearing!
+            //
+            // With or without insert_cmp short-circuiting, the remove operation
+            // always succeeds from the ItemSet.
+            //
+            // * With the short-circuit, the remove additionally always succeeds
+            //   from the B-tree table.
+            // * But without it, the index 0 would be removed from the ItemSet but
+            //   _not_ be cleared from the B-tree table.
+            entry.remove()
+        }
+        id_ord_map::Entry::Vacant(_) => panic!("id 0 should be present"),
+    };
+    assert_eq!(removed.id, 0);
+
+    // Now insert an item with a comparator which always returns
+    // `Ordering::Greater`. The item set will always allocate the index 0 to the
+    // new item (since it uses LRU semantics for the free chain). But if a
+    // previous index 0 got left behind due to the lack of short-circuiting, the
+    // B-tree table will end up storing two copies of the index 0. When
+    // iterating over the map, we'll end up handing out two mutable aliases to
+    // the item we just inserted at index 0 (and miri will fail accordingly).
+    //
+    // This demonstrates that short-circuiting is necessary for soundness.
+    LIE_ORD.with(|c| c.set(Some(Ordering::Greater)));
+    map.insert_unique(LyingOrdItem { id: 10_000, value: 0 }).unwrap();
+    LIE_ORD.with(|c| c.set(None));
+
+    let mut items: Vec<_> = map.iter_mut().collect();
+    for item in &mut items {
+        item.value += 1;
+    }
 }
 
 // Test: Drop panic during remove.
@@ -447,7 +499,7 @@ fn retain_callback_panic_no_ub() {
 fn pop_after_chaos_no_ub() {
     let mut map = IdOrdMap::<LyingOrdItem>::new();
     for i in 0..16 {
-        map.insert_unique(LyingOrdItem { id: i }).unwrap();
+        map.insert_unique(LyingOrdItem { id: i, value: 0 }).unwrap();
     }
     LIE_ORD.with(|c| c.set(Some(Ordering::Greater)));
     while catch_panic(|| map.pop_first()).flatten().is_some() {}
