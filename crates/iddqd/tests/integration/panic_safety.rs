@@ -22,9 +22,9 @@
 //! * (for atomic ops that panicked) that the post-op state equals the pre-op
 //!   snapshot.
 
-#[cfg(feature = "allocator-api2")]
+#[cfg(all(feature = "default-hasher", feature = "allocator-api2"))]
 use allocator_api2::alloc::{AllocError, Allocator, Layout};
-#[cfg(feature = "allocator-api2")]
+#[cfg(all(feature = "default-hasher", feature = "allocator-api2"))]
 use core::ptr::NonNull;
 use core::{
     cell::Cell,
@@ -301,7 +301,7 @@ pub(crate) fn assert_post_op_invariants<K>(
 
 /// Allocator wrapper whose `allocate` calls tap into the same panic
 /// countdown as [`PanickyKey`].
-#[cfg(feature = "allocator-api2")]
+#[cfg(all(feature = "default-hasher", feature = "allocator-api2"))]
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct PanickyAlloc<A>(pub A);
 
@@ -310,7 +310,7 @@ pub(crate) struct PanickyAlloc<A>(pub A);
 // * On the non-panic path, forwards to the wrapped allocator.
 // * On the armed path, panics before any inner allocation, so no pointer is
 //   observable to the caller.
-#[cfg(feature = "allocator-api2")]
+#[cfg(all(feature = "default-hasher", feature = "allocator-api2"))]
 unsafe impl<A: Allocator> Allocator for PanickyAlloc<A> {
     fn allocate(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
         observe_panicky_call("alloc");
