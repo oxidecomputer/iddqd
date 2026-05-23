@@ -8,6 +8,3 @@ tag-name = "{{crate_name}}-{{version}}"
 publish = false
 dependent-version = "upgrade"
 pre-release-hook = ["just", "generate-readmes"]
-pre-release-replacements = [
-    {file="CHANGELOG.md", search="Unreleased", replace="{{version}}"},
-]

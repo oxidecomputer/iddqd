@@ -1,5 +1,17 @@
 # Changelog
 
+<!-- next-header -->
+## Unreleased - ReleaseDate
+
+### Fixed
+
+- The `retain` callbacks no longer permit the `RefMut` to be stashed outside them. This is technically a breaking change, but is being treated as a soundness bugfix.
+- A number of soundness and resilience fixes for pathological implementations. These were found through a combination of human-driven analysis, example-based tests with Miri, chaos testing using fault injection with proptest, and adversarial code review from Claude Opus 4.7 and GPT-5.5. In particular, iddqd now more consistently preserves internal map state across panics in user code by using patterns like prepare-then-commit, index-based cleanup, cached hashes, and careful ordering of user-code execution relative to internal mutations.
+
+### Changed
+
+- MSRV updated to Rust 1.85.
+
 ## [0.4.1] - 2026-05-15
 
 ### Fixed
@@ -236,29 +248,30 @@ Thanks to [aatifsyed](https://github.com/aatifsyed) for your first contribution!
 
 Initial release.
 
-[0.4.1]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.4.1
-[0.4.0]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.4.0
-[0.3.18]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.18
-[0.3.17]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.17
-[0.3.16]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.16
-[0.3.15]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.15
-[0.3.14]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.14
-[0.3.13]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.13
-[0.3.12]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.12
-[0.3.11]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.11
-[0.3.10]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.10
-[0.3.9]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.9
-[0.3.8]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.8
-[0.3.7]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.7
-[0.3.6]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.6
-[0.3.5]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.5
-[0.3.4]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.4
-[0.3.3]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.3
-[0.3.2]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.2
-[0.3.1]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.1
-[0.3.0]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.3.0
-[0.2.1]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.2.1
-[0.2.0]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.2.0
-[0.1.2]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.1.2
-[0.1.1]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.1.1
-[0.1.0]: https://github.com/oxidecomputer/iddqd/releases/iddqd-0.1.0
+<!-- next-url -->
+[0.4.1]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.4.1
+[0.4.0]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.4.0
+[0.3.18]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.3.18
+[0.3.17]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.3.17
+[0.3.16]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.3.16
+[0.3.15]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.3.15
+[0.3.14]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.3.14
+[0.3.13]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.3.13
+[0.3.12]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.3.12
+[0.3.11]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.3.11
+[0.3.10]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.3.10
+[0.3.9]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.3.9
+[0.3.8]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.3.8
+[0.3.7]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.3.7
+[0.3.6]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.3.6
+[0.3.5]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.3.5
+[0.3.4]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.3.4
+[0.3.3]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.3.3
+[0.3.2]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.3.2
+[0.3.1]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.3.1
+[0.3.0]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.3.0
+[0.2.1]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.2.1
+[0.2.0]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.2.0
+[0.1.2]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.1.2
+[0.1.1]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.1.1
+[0.1.0]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.1.0

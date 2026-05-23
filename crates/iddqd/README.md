@@ -259,6 +259,8 @@ This crate is validated through a combination of:
   `Hash` and `Ord` implementations
 * Property-based tests for panic safety
 * Miri tests for unsafe code, checked against both Stacked and Tree Borrows
+* Compile-fail UI tests to ensure invalid patterns are rejected by the
+  borrow checker
 
 Pathological user implementations written in safe Rust might corrupt
 internal map state and result in panics, but should never cause UB.
