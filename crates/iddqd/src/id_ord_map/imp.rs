@@ -435,10 +435,23 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     /// assert!(map.capacity() >= 2);
     /// ```
     pub fn shrink_to_fit(&mut self) {
-        let remap = self.items.shrink_to_fit();
+        // Sequence this carefully.
+        //
+        // * First, compact the item set. This does not allocate through A
+        //   (it allocates a small remap buffer through the global allocator),
+        //   and returns a remapper.
+        // * Then, remap the table using the remapper.
+        // * Finally, shrink the capacity of the items. (BTreeMap has no
+        //   capacity to shrink.)
+        //
+        // An allocator panic during the capacity shrink leaves the table
+        // and items already in sync, because remap has already been
+        // committed.
+        let remap = self.items.compact();
         if !remap.is_identity() {
             self.tables.key_to_item.remap_indexes(&remap);
         }
+        self.items.shrink_capacity_to_fit();
     }
 
     /// Shrinks the capacity of the map with a lower limit. It will drop
@@ -481,10 +494,12 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     /// assert!(map.capacity() >= 2);
     /// ```
     pub fn shrink_to(&mut self, min_capacity: usize) {
-        let remap = self.items.shrink_to(min_capacity);
+        // See `shrink_to_fit` for the rationale behind the sequence.
+        let remap = self.items.compact();
         if !remap.is_identity() {
             self.tables.key_to_item.remap_indexes(&remap);
         }
+        self.items.shrink_capacity_to(min_capacity);
     }
 
     /// Iterates over the items in the map.

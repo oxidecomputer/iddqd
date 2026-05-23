@@ -2,7 +2,10 @@ mod bi_hash_map;
 mod id_hash_map;
 #[cfg(feature = "std")]
 mod id_ord_map;
-#[cfg(any(feature = "std", feature = "default-hasher"))]
+#[cfg(any(
+    feature = "std",
+    all(feature = "default-hasher", feature = "allocator-api2")
+))]
 mod panic_safety;
 #[cfg(all(feature = "std", feature = "default-hasher"))]
 mod pathological;

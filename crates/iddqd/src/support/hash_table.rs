@@ -252,13 +252,11 @@ impl<A: Allocator> MapHashTable<A> {
 
     /// Rewrites every stored index via `remap`.
     ///
-    /// Called after [`ItemSet::shrink_to_fit`] / [`ItemSet::shrink_to`]
-    /// compacts the backing items buffer. We store hashes of *keys* (not of
-    /// indexes), so rewriting an index does not invalidate its hash and no
-    /// rehash is needed.
+    /// Called after [`ItemSet::compact`] compacts the backing items buffer.
+    /// We store hashes of *keys* (not of indexes), so rewriting an index does
+    /// not invalidate its hash and no rehash is needed.
     ///
-    /// [`ItemSet::shrink_to_fit`]: super::item_set::ItemSet::shrink_to_fit
-    /// [`ItemSet::shrink_to`]: super::item_set::ItemSet::shrink_to
+    /// [`ItemSet::compact`]: super::item_set::ItemSet::compact
     pub(crate) fn remap_indexes(&mut self, remap: &IndexRemap) {
         for stored in self.items.iter_mut() {
             stored.ix = remap.remap(stored.ix);

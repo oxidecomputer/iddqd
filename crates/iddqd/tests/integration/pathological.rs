@@ -1166,3 +1166,83 @@ fn pop_after_chaos_no_ub() {
     while catch_panic(|| map.pop_last()).flatten().is_some() {}
     LIE_ORD.with(|c| c.set(None));
 }
+
+#[cfg(feature = "allocator-api2")]
+mod allocator_tests {
+    use super::*;
+    use crate::panic_safety::{PanickyAlloc, arm_panic_after, disarm_panic};
+    use allocator_api2::alloc::Global;
+    use std::{collections::BTreeSet, panic::AssertUnwindSafe};
+
+    // An allocator panic during shrink_to_fit must leave the tables and the
+    // item set in sync.
+    //
+    // Without the fix, the inner `Vec::shrink_to_fit` panics after
+    // `ItemSet::compact` has already reorganized the slot buffer, but before
+    // the outer code can remap the indexes stored in the tables. As a result,
+    // `get(key)` ends up reading the wrong physical slot.
+    #[test]
+    fn shrink_to_fit_panic_keeps_tables_and_items_in_sync() {
+        let mut map: IdHashMap<_, _, PanickyAlloc<Global>> =
+            IdHashMap::with_capacity_and_hasher_in(
+                8,
+                foldhash::fast::FixedState::with_seed(0),
+                PanickyAlloc::default(),
+            );
+
+        // Insert 8 items, then remove two from the middle so `compact` has
+        // holes to fill and the `IndexRemap` is non-trivial.
+        for id in 0..8u32 {
+            map.insert_unique(ForgettableHashItem { id }).unwrap();
+        }
+        map.remove(&ForgettableHashKey(2)).expect("id 2 was inserted");
+        map.remove(&ForgettableHashKey(5)).expect("id 5 was inserted");
+
+        let expected: BTreeSet<u32> = map.iter().map(|item| item.id).collect();
+
+        // Arm the allocator and call `shrink_to_fit`. The first allocate
+        // inside `Vec::shrink_to_fit` panics, which is exactly the panic
+        // window the fix needs to handle.
+        //
+        // `ForgettableHashItem` and `ForgettableHashKey` don't invoke the
+        // panic countdown from `Hash`/`Eq`/`Drop`, so the count is driven
+        // entirely by `PanickyAlloc::allocate` here.
+        arm_panic_after(0);
+        let result = catch_panic(AssertUnwindSafe(|| map.shrink_to_fit()));
+        disarm_panic();
+        assert!(
+            result.is_none(),
+            "shrink_to_fit should have panicked once the allocator was armed"
+        );
+
+        // The item set is what `iter()` walks, so it still yields the same
+        // logical set of keys.
+        let yielded: BTreeSet<u32> = map.iter().map(|item| item.id).collect();
+        assert_eq!(
+            yielded, expected,
+            "iter() should return the same items across the panic"
+        );
+
+        // The real test: every item yielded by `iter()` must also be
+        // findable by its key via `get()`. With the bug, the tables hold
+        // pre-compact indexes that point at either the wrong slot (returns
+        // the wrong item) or an out-of-bounds slot (returns None).
+        for id in &yielded {
+            let got = map.get(&ForgettableHashKey(*id));
+            assert_eq!(
+                got.map(|item| item.id),
+                Some(*id),
+                "get({id}) returns the right item"
+            );
+        }
+
+        // Structural validity should also hold. The panic fires *after*
+        // `compact()` returned, so even though the Vec capacity shrink
+        // never completed, the items themselves are fully compact and the
+        // tables have already been remapped to match.
+        map.validate(ValidateCompact::Compact).expect(
+            "map should be structurally valid (and compact) after the \
+             shrink_to_fit panic",
+        );
+    }
+}
