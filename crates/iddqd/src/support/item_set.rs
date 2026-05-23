@@ -63,10 +63,11 @@ use core::{
 
 /// A remap from old (pre-compaction) to new (post-compaction) indexes.
 ///
-/// Produced by [`ItemSet::shrink_to_fit`] and [`ItemSet::shrink_to`],
-/// consumed by the outer tables (hash / btree index tables) so they
-/// can rewrite their stored indexes to point at the compacted `items`
-/// buffer.
+/// Produced by [`ItemSet::compact`], and consumed by the outer tables (hash /
+/// btree index tables) so they can rewrite their stored indexes to point at
+/// the compacted `items` buffer. The capacity shrink that typically follows
+/// is a separate step so that an allocator panic during the
+/// shrink cannot leave the tables pointing at pre-compaction indexes.
 ///
 /// Two cases:
 ///
@@ -95,7 +96,7 @@ impl IndexRemap {
     ///
     /// Panics if `old` was a slot that compaction vacated. This indicates a
     /// caller bug: those indexes should already have been removed from the
-    /// outer index before `shrink_to_fit` was called.
+    /// outer index before [`ItemSet::compact`] was called.
     #[inline]
     pub(crate) fn remap(&self, old: ItemIndex) -> ItemIndex {
         match self {
@@ -512,7 +513,7 @@ impl<T, A: Allocator> ItemSet<T, A> {
     ///
     /// `items` is not truncated here, even for a trailing remove. The vacated
     /// slot stays in place until reused by the next insert or reclaimed by
-    /// [`shrink_to_fit`](Self::shrink_to_fit).
+    /// [`compact`](Self::compact).
     #[inline]
     pub(crate) fn remove(&mut self, index: ItemIndex) -> Option<T> {
         let slot = self.items.get_mut(index.as_u32() as usize)?;
@@ -572,23 +573,37 @@ impl<T, A: Allocator> ItemSet<T, A> {
         self.items.reserve(additional);
     }
 
+    /// Shrinks the backing buffer's capacity to fit the current length.
+    ///
+    /// Must be called *after* [`compact`](Self::compact) has been run and
+    /// the outer tables have been remapped via the returned [`IndexRemap`].
+    /// Splitting capacity-shrinking out of compaction means that an
+    /// allocator panic in this call cannot leave the tables pointing at
+    /// pre-compaction indexes (by the time we get here, the tables and
+    /// `items` are already in sync).
     #[inline]
-    pub(crate) fn shrink_to_fit(&mut self) -> IndexRemap {
-        let remap = self.compact();
+    pub(crate) fn shrink_capacity_to_fit(&mut self) {
         self.items.shrink_to_fit();
-        remap
     }
 
+    /// Shrinks the backing buffer's capacity, leaving at least `min_capacity`
+    /// slots reserved.
+    ///
+    /// See [`shrink_capacity_to_fit`](Self::shrink_capacity_to_fit) for the
+    /// panic-safety rationale for splitting this from compaction.
     #[inline]
-    pub(crate) fn shrink_to(&mut self, min_capacity: usize) -> IndexRemap {
-        let remap = self.compact();
+    pub(crate) fn shrink_capacity_to(&mut self, min_capacity: usize) {
         self.items.shrink_to(min_capacity);
-        remap
     }
 
     /// Moves every live slot down to fill `Vacant` holes, truncates
     /// `items` to its new length, and clears the free chain.
-    fn compact(&mut self) -> IndexRemap {
+    ///
+    /// Does *not* shrink the underlying buffer's capacity. Callers should
+    /// remap any externally-stored indexes via the returned [`IndexRemap`]
+    /// before calling [`shrink_capacity_to_fit`](Self::shrink_capacity_to_fit)
+    /// or [`shrink_capacity_to`](Self::shrink_capacity_to).
+    pub(crate) fn compact(&mut self) -> IndexRemap {
         let pre_len = self.items.len();
         if pre_len == self.len as usize {
             // Already compact, so there's nothing to remap.
@@ -1140,7 +1155,7 @@ mod tests {
     }
 
     #[test]
-    fn shrink_to_fit_compacts_middle_holes() {
+    fn compact_fills_middle_holes() {
         let mut set = ItemSet::<u32, Global>::new();
         for i in 0..5 {
             set.assert_can_grow().insert(i * 10);
@@ -1148,7 +1163,8 @@ mod tests {
         set.remove(ix(1)).expect("slot was occupied");
         set.remove(ix(3)).expect("slot was occupied");
 
-        let remap = set.shrink_to_fit();
+        let remap = set.compact();
+        set.shrink_capacity_to_fit();
 
         assert_eq!(set.len(), 3);
         set.validate(ValidateCompact::Compact).unwrap();
@@ -1161,15 +1177,16 @@ mod tests {
     }
 
     #[test]
-    fn shrink_to_fit_without_holes_returns_empty_remap() {
+    fn compact_without_holes_returns_identity_remap() {
         let mut set = ItemSet::<u32, Global>::new();
         for i in 0..4 {
             set.assert_can_grow().insert(i);
         }
-        let remap = set.shrink_to_fit();
+        let remap = set.compact();
+        set.shrink_capacity_to_fit();
         assert!(remap.is_identity());
         set.validate(ValidateCompact::Compact)
-            .expect("a hole-free set is trivially compact after shrink_to_fit");
+            .expect("a hole-free set is trivially compact after compact");
     }
 
     #[test]

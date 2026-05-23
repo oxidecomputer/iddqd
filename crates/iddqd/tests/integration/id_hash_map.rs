@@ -892,13 +892,13 @@ mod serde_tests {
     }
 }
 
-#[cfg(feature = "default-hasher")]
+#[cfg(all(feature = "default-hasher", feature = "allocator-api2"))]
 #[derive(Clone, Debug)]
 struct PanickyHashItem {
     key: u32,
 }
 
-#[cfg(feature = "default-hasher")]
+#[cfg(all(feature = "default-hasher", feature = "allocator-api2"))]
 impl IdHashItem for PanickyHashItem {
     type Key<'a> = crate::panic_safety::PanickyKey;
     fn key(&self) -> Self::Key<'_> {
@@ -907,21 +907,29 @@ impl IdHashItem for PanickyHashItem {
     id_upcast!();
 }
 
-#[cfg(feature = "default-hasher")]
+#[cfg(all(feature = "default-hasher", feature = "allocator-api2"))]
 impl Drop for PanickyHashItem {
     fn drop(&mut self) {
         crate::panic_safety::observe_panicky_call("item-drop");
     }
 }
 
-#[cfg(feature = "default-hasher")]
+#[cfg(all(feature = "default-hasher", feature = "allocator-api2"))]
 mod proptest_panic_safety {
     use super::*;
     use crate::panic_safety::{
-        PanicSafety, PanickyOp, PanickySearchKey,
+        PanicSafety, PanickyAlloc, PanickyOp, PanickySearchKey,
         assert_panic_fired_as_expected, assert_post_op_invariants,
         drop_unarmed, run_armed, sorted_keys,
     };
+    use allocator_api2::alloc::Global;
+
+    /// Map type used by these tests.
+    type PanickyMap = IdHashMap<
+        PanickyHashItem,
+        iddqd::DefaultHashBuilder,
+        PanickyAlloc<Global>,
+    >;
 
     // Keys are kept in a small range so collisions, hits, and misses
     // all happen frequently against a 16-ish-element map.
@@ -946,6 +954,8 @@ mod proptest_panic_safety {
         #[weight(2)]
         Extend(#[strategy(prop::collection::vec(0..32_u32, 0..8))] Vec<u32>),
         Clear,
+        ShrinkToFit,
+        ShrinkTo(#[strategy(0..32_usize)] usize),
     }
 
     impl PanickyAction {
@@ -961,14 +971,16 @@ mod proptest_panic_safety {
                 | PanickyAction::InsertOverwrite(_)
                 | PanickyAction::Remove(_)
                 | PanickyAction::Get(_)
-                | PanickyAction::ContainsKey(_) => PanicSafety::Atomic,
+                | PanickyAction::ContainsKey(_)
+                | PanickyAction::ShrinkToFit
+                | PanickyAction::ShrinkTo(_) => PanicSafety::Atomic,
                 PanickyAction::RetainModulo(_, _, _)
                 | PanickyAction::Extend(_)
                 | PanickyAction::Clear => PanicSafety::StepAtomic,
             }
         }
 
-        fn run(self, map: &mut IdHashMap<PanickyHashItem>) {
+        fn run(self, map: &mut PanickyMap) {
             match self {
                 PanickyAction::InsertUnique(key) => {
                     drop_unarmed(map.insert_unique(PanickyHashItem { key }));
@@ -997,6 +1009,10 @@ mod proptest_panic_safety {
                     );
                 }
                 PanickyAction::Clear => map.clear(),
+                PanickyAction::ShrinkToFit => map.shrink_to_fit(),
+                PanickyAction::ShrinkTo(min_capacity) => {
+                    map.shrink_to(min_capacity);
+                }
             }
         }
     }
@@ -1008,7 +1024,10 @@ mod proptest_panic_safety {
         ))]
         ops: Vec<PanickyOp<PanickyAction>>,
     ) {
-        let mut map = IdHashMap::<PanickyHashItem>::new();
+        let mut map: PanickyMap = IdHashMap::with_hasher_in(
+            iddqd::DefaultHashBuilder::default(),
+            PanickyAlloc::default(),
+        );
 
         for (i, op) in ops.into_iter().enumerate() {
             let action = op.action;

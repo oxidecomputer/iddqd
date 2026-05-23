@@ -735,10 +735,21 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
     /// # }
     /// ```
     pub fn shrink_to_fit(&mut self) {
-        let remap = self.items.shrink_to_fit();
+        // Sequence this carefully.
+        //
+        // * First, compact the item set. This does not allocate through A
+        //   (it allocates a small remap buffer through the global allocator),
+        //   and returns a remapper.
+        // * Then, remap the tables using the remapper.
+        // * Finally, shrink the capacities of the tables and items.
+        //
+        // An allocator panic during either capacity shrink leaves the tables
+        // and items already in sync, because remap has already been committed.
+        let remap = self.items.compact();
         if !remap.is_identity() {
             self.tables.key_to_item.remap_indexes(&remap);
         }
+        self.items.shrink_capacity_to_fit();
         self.tables.key_to_item.shrink_to_fit();
     }
 
@@ -780,10 +791,12 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
     /// # }
     /// ```
     pub fn shrink_to(&mut self, min_capacity: usize) {
-        let remap = self.items.shrink_to(min_capacity);
+        // See `shrink_to_fit` for the rationale behind the sequence.
+        let remap = self.items.compact();
         if !remap.is_identity() {
             self.tables.key_to_item.remap_indexes(&remap);
         }
+        self.items.shrink_capacity_to(min_capacity);
         self.tables.key_to_item.shrink_to(min_capacity);
     }
 

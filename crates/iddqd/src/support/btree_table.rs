@@ -286,9 +286,9 @@ impl MapBTreeTable {
 
     /// Rewrites every stored index via `remap`.
     ///
-    /// Called after [`ItemSet::shrink_to_fit`] or [`ItemSet::shrink_to`]
-    /// compacts the backing items buffer. Each stored `Index` needs to be
-    /// rewritten to point at the item's new position.
+    /// Called after [`ItemSet::compact`] compacts the backing items buffer.
+    /// Each stored `Index` needs to be rewritten to point at the item's new
+    /// position.
     ///
     /// We do not rebuild the tree. [`IndexRemap`] preserves relative
     /// order, so the tree's iteration order — which is the user's
@@ -300,8 +300,7 @@ impl MapBTreeTable {
     /// In-place mutation through `&Index` is provided by [`IndexCell`],
     /// which uses an `AtomicU32` for `&self`-based stores.
     ///
-    /// [`ItemSet::shrink_to_fit`]: super::item_set::ItemSet::shrink_to_fit
-    /// [`ItemSet::shrink_to`]: super::item_set::ItemSet::shrink_to
+    /// [`ItemSet::compact`]: super::item_set::ItemSet::compact
     pub(crate) fn remap_indexes(&mut self, remap: &IndexRemap) {
         for idx in self.items.keys() {
             let new = remap.remap(idx.value());
@@ -700,7 +699,8 @@ mod tests {
         }
         set.remove(ItemIndex::new(1));
         set.remove(ItemIndex::new(3));
-        let remap = set.shrink_to_fit();
+        let remap = set.compact();
+        set.shrink_capacity_to_fit();
         assert!(!remap.is_identity(), "remap should carry two holes");
 
         // A MapBTreeTable populated to match the pre-compaction live indexes
