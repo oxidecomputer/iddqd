@@ -1,0 +1,13 @@
+error[E0521]: borrowed data escapes outside of closure
+  --> tests/ui/invalid/bi_hash_occupied_entry_mut_for_each_stash.rs:38:9
+   |
+36 |     let mut stashed = Vec::new();
+   |         ----------- `stashed` declared here, outside of the closure body
+37 |     refs.for_each(|item| {
+   |                    ---- `item` is a reference that is only valid in the closure body
+38 |         stashed.push(item);
+   |         ^^^^^^^^^^^^^^^^^^ `item` escapes the closure body here
+   |
+   = note: requirement occurs because of a mutable reference to `Vec<iddqd::bi_hash_map::RefMut<'_, Item>>`
+   = note: mutable references are invariant over their type parameter
+   = help: see <https://doc.rust-lang.org/nomicon/subtyping.html> for more information about variance
