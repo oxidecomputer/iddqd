@@ -22,8 +22,10 @@
 //! * (for atomic ops that panicked) that the post-op state equals the pre-op
 //!   snapshot.
 
+use crate::unwind::catch_panic;
 #[cfg(all(feature = "default-hasher", feature = "allocator-api2"))]
 use allocator_api2::alloc::{AllocError, Allocator, Layout};
+use camino::{Utf8Path, Utf8PathBuf};
 #[cfg(all(feature = "default-hasher", feature = "allocator-api2"))]
 use core::ptr::NonNull;
 use core::{
@@ -33,8 +35,29 @@ use core::{
     hash::{Hash, Hasher},
 };
 use equivalent::{Comparable, Equivalent};
-use iddqd_test_utils::unwind::catch_panic;
 use proptest::prelude::*;
+use std::{
+    io::Write,
+    sync::{Mutex, OnceLock},
+};
+
+/// Default `proptest` case count for the per-map `proptest_panic_ops`
+/// tests.
+///
+/// 16 seems like a pretty small number for PBTs. What's going on here? For one,
+/// we generate many operations per case (see [`PANIC_PROPTEST_MAX_OPS`]). But
+/// also, CI runs the tests with the powerset of features, so these tests are
+/// run multiple times with different feature combinations. Overall, we get
+/// pretty good coverage and fast per-feature-set test runs.
+pub const PANIC_PROPTEST_CASES: u32 = 16;
+
+/// Exclusive upper bound on the number of [`PanickyOp`]s generated per
+/// `proptest_panic_ops` case (so each case runs `0..PANIC_PROPTEST_MAX_OPS`
+/// operations against a fresh map).
+///
+/// Empirically chosen to give the armed-countdown distribution enough room to
+/// hit its long-tail buckets at least a few times per case.
+pub const PANIC_PROPTEST_MAX_OPS: usize = 512;
 
 thread_local! {
     static PANIC_COUNTDOWN: Cell<Option<u32>> = const { Cell::new(None) };
@@ -44,7 +67,7 @@ thread_local! {
 /// A key whose `Hash`/`Eq`/`Ord`/`Drop` impls share a panic countdown,
 /// so tests can deterministically trigger a panic at a chosen point.
 #[derive(Clone, Debug, Eq)]
-pub(crate) struct PanickyKey(pub u32);
+pub struct PanickyKey(pub u32);
 
 impl PanickyKey {
     fn observe_call(label: &'static str) {
@@ -52,7 +75,7 @@ impl PanickyKey {
     }
 }
 
-pub(crate) fn observe_panicky_call(label: &'static str) {
+pub fn observe_panicky_call(label: &'static str) {
     PANIC_COUNTDOWN.with(|c| {
         // When disarmed, don't tick `OP_COUNT`. This matters for two
         // distinct cases:
@@ -81,7 +104,7 @@ pub(crate) fn observe_panicky_call(label: &'static str) {
 /// panic window while preserving the operation count already recorded. The
 /// disarm persists for the rest of the current [`run_armed`] invocation;
 /// any subsequent map op in the same arm runs un-armed unless re-armed.
-pub(crate) fn drop_unarmed<T>(value: T) {
+pub fn drop_unarmed<T>(value: T) {
     disarm_panic();
     drop(value);
 }
@@ -94,16 +117,13 @@ impl Drop for PanickyKey {
 
 /// Caller-side lookup key.
 ///
-/// Shares `PanickyKey`'s countdown for `Hash`/`Eq`/`Ord` so the harness
-/// still exercises mid-op panics from comparator calls. Deliberately does
-/// **not** panic from `Drop`: a search key is constructed by the caller,
-/// passed by reference into a map op, and dropped *after* the op returns
-/// (per Rust temporary lifetime rules). A `Drop` panic at that point isn't
-/// within the map's atomic-op window, so observing it would conflate
-/// post-op cleanup with mid-op failures and spuriously flag atomic ops as
-/// violating their invariant.
+/// Shares `PanickyKey`'s countdown for `Hash`/`Eq`/`Ord` so the harness still
+/// exercises mid-op panics from comparator calls. Deliberately does **not**
+/// panic from `Drop` to help separate out the various conditions: a search key
+/// is constructed by the caller, passed by reference into a map op, and dropped
+/// after the op returns.
 #[derive(Clone, Debug)]
-pub(crate) struct PanickySearchKey(pub u32);
+pub struct PanickySearchKey(pub u32);
 
 impl Hash for PanickySearchKey {
     fn hash<H: Hasher>(&self, state: &mut H) {
@@ -157,18 +177,18 @@ fn take_op_count() -> u32 {
     OP_COUNT.with(|c| c.replace(0))
 }
 
-pub(crate) fn arm_panic_after(n: u32) {
+pub fn arm_panic_after(n: u32) {
     PANIC_COUNTDOWN.with(|c| c.set(Some(n)));
 }
 
-pub(crate) fn disarm_panic() {
+pub fn disarm_panic() {
     PANIC_COUNTDOWN.with(|c| c.set(None));
 }
 
 #[derive(Debug)]
-pub(crate) struct PanickyOp<A> {
-    pub(crate) action: A,
-    pub(crate) armed: Option<u32>,
+pub struct PanickyOp<A> {
+    pub action: A,
+    pub armed: Option<u32>,
 }
 
 impl<A> Arbitrary for PanickyOp<A>
@@ -179,12 +199,30 @@ where
     type Strategy = BoxedStrategy<Self>;
 
     fn arbitrary_with(args: A::Parameters) -> Self::Strategy {
-        // Bias towards `None` so the map fills up, otherwise panicking ops
-        // would dominate and leave the map empty.
-        let armed = prop_oneof![
-            7 => Just(None),
-            3 => (0..16_u32).prop_map(Some),
-        ];
+        let armed = if observe_output_path().is_some() {
+            // In observe mode, force an effectively-infinite countdown so
+            // `OP_COUNT` ticks for every user call but the panic never fires.
+            // The PBTs then record the per-op call count for distribution
+            // analysis. See [`observe_output_path`] and [`record_observation`].
+            Just(Some(u32::MAX)).boxed()
+        } else {
+            // Layered distribution chosen from observed per-op user-call
+            // counts (see [`observe_output_path`]).
+            prop_oneof![
+                // Mostly `None` so that the map fills up.
+                7 => Just(None),
+                // Retains dense coverage of early panics.
+                2 => (0..16_u32).prop_map(Some),
+                // This bucket explores single-key atomic ops (Insert/Remove
+                // have been observed to run to up to ~75 calls) and
+                // `*HashMap::InsertOverwrite` (~38).
+                1 => (16..64_u32).prop_map(Some),
+                // This bucket covers bulk ops, with `Extend`, `RetainModulo`,
+                // and `Clear` observed running to ~321 calls.
+                1 => (64..384_u32).prop_map(Some),
+            ]
+            .boxed()
+        };
         (any_with::<A>(args), armed)
             .prop_map(|(action, armed)| PanickyOp { action, armed })
             .boxed()
@@ -195,7 +233,7 @@ where
 /// so a leftover countdown can't trip later code. Returns
 /// `(panicked, ops)` where `ops` is the count of observed user calls made
 /// during `f`.
-pub(crate) fn run_armed(armed: Option<u32>, f: impl FnOnce()) -> (bool, u32) {
+pub fn run_armed(armed: Option<u32>, f: impl FnOnce()) -> (bool, u32) {
     let _ = take_op_count();
     if let Some(n) = armed {
         arm_panic_after(n);
@@ -215,20 +253,24 @@ pub(crate) fn run_armed(armed: Option<u32>, f: impl FnOnce()) -> (bool, u32) {
 /// and `!panicked` implies
 /// the action made at most `n` user calls. With `armed = None`, no
 /// panic should escape.
-pub(crate) fn assert_panic_fired_as_expected(
+pub fn assert_panic_fired_as_expected(
     op_label: &dyn fmt::Display,
     armed: Option<u32>,
     panicked: bool,
     ops: u32,
 ) {
     match (armed, panicked) {
-        (Some(n), true) => assert_eq!(
-            ops,
-            n + 1,
-            "op {op_label} (armed: {n}) panicked on user call {ops}, \
-             expected call {}",
-            n + 1,
-        ),
+        (Some(n), true) => {
+            // `saturating_add` so that observe mode (armed = u32::MAX) still
+            // produces a useful assertion message if a real panic surfaces,
+            // instead of an opaque debug-build overflow panic.
+            let expected = n.saturating_add(1);
+            assert_eq!(
+                ops, expected,
+                "op {op_label} (armed: {n}) panicked on user call {ops}, \
+                 expected call {expected}",
+            );
+        }
         (Some(n), false) => assert!(
             ops <= n,
             "op {op_label} (armed: {n}) made {ops} user call(s) but \
@@ -244,7 +286,7 @@ pub(crate) fn assert_panic_fired_as_expected(
 
 /// `K` is a single key for `IdHashMap`/`IdOrdMap` or a tuple of all
 /// keys for `BiHashMap`/`TriHashMap`.
-pub(crate) fn sorted_keys<I, K, F>(items: I, key_of: F) -> Vec<K>
+pub fn sorted_keys<I, K, F>(items: I, key_of: F) -> Vec<K>
 where
     I: IntoIterator,
     K: Ord,
@@ -257,7 +299,7 @@ where
 
 /// Classifies how an action should behave under a user-trait panic.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum PanicSafety {
+pub enum PanicSafety {
     /// A panic must leave the map in its pre-call state.
     Atomic,
     /// Composed of atomic sub-steps; a panic may leave the map in a different
@@ -271,7 +313,7 @@ pub(crate) enum PanicSafety {
 /// `contains_keys` should check *all* of an item's keys for multi-key
 /// maps.
 #[expect(clippy::too_many_arguments)]
-pub(crate) fn assert_post_op_invariants<K>(
+pub fn assert_post_op_invariants<K>(
     step: usize,
     op_label: &dyn fmt::Display,
     armed: Option<u32>,
@@ -299,11 +341,76 @@ pub(crate) fn assert_post_op_invariants<K>(
     }
 }
 
+/// Returns the path to write observation records to, or `None` when
+/// observe mode is off.
+///
+/// Observe mode is enabled by setting `IDDQD_PANIC_OBSERVE` to the output file
+/// path.
+pub fn observe_output_path() -> Option<&'static Utf8Path> {
+    static PATH: OnceLock<Option<Utf8PathBuf>> = OnceLock::new();
+    PATH.get_or_init(|| match std::env::var("IDDQD_PANIC_OBSERVE") {
+        Ok(s) => Some(Utf8PathBuf::from(s)),
+        Err(std::env::VarError::NotPresent) => None,
+        Err(std::env::VarError::NotUnicode(_)) => {
+            panic!("IDDQD_PANIC_OBSERVE must be valid UTF-8")
+        }
+    })
+    .as_deref()
+}
+
+/// Records a per-op observation when observe mode is on. (This is a no-op when
+/// observe mode is off.)
+///
+/// The output is a TSV with columns: map label, action variant name, observed
+/// user-call count.
+pub fn record_observation(
+    map_label: &'static str,
+    action_label: &str,
+    ops: u32,
+) {
+    static FILE: OnceLock<Mutex<std::fs::File>> = OnceLock::new();
+
+    let Some(path) = observe_output_path() else {
+        return;
+    };
+
+    let file = FILE.get_or_init(|| {
+        if let Some(parent) = path.parent() {
+            if !parent.as_str().is_empty() {
+                std::fs::create_dir_all(parent)
+                    .expect("created observation output parent directory");
+            }
+        }
+        let file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)
+            .expect("opened observation output file");
+        Mutex::new(file)
+    });
+
+    // Strip arguments from `action_label`. This assumes the action enum uses
+    // its default-derived `Debug`, which produces `Variant`, `Variant(..)`, or
+    // `Variant { .. }`.
+    let variant = action_label
+        .split(['(', ' ', '{'])
+        .next()
+        .expect("str::split always yields at least one element");
+
+    // Small writes with `O_APPEND` are fine on Linux, so concurrent nextest
+    // worker processes won't interleave records on a local filesystem.
+    // (`write_all` may loop on a short write or `EINTR`, but neither is
+    // realistic for a ~50-byte regular-file write.)
+    let line = format!("{map_label}\t{variant}\t{ops}\n");
+    let mut file = file.lock().expect("acquired observation file lock");
+    file.write_all(line.as_bytes()).expect("wrote observation record");
+}
+
 /// Allocator wrapper whose `allocate` calls tap into the same panic
 /// countdown as [`PanickyKey`].
 #[cfg(all(feature = "default-hasher", feature = "allocator-api2"))]
 #[derive(Clone, Copy, Debug, Default)]
-pub(crate) struct PanickyAlloc<A>(pub A);
+pub struct PanickyAlloc<A>(pub A);
 
 // SAFETY:
 //

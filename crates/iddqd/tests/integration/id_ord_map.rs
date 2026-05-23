@@ -1097,25 +1097,26 @@ struct PanickyOrdItem {
 }
 
 impl IdOrdItem for PanickyOrdItem {
-    type Key<'a> = crate::panic_safety::PanickyKey;
+    type Key<'a> = iddqd_test_utils::panic_safety::PanickyKey;
     fn key(&self) -> Self::Key<'_> {
-        crate::panic_safety::PanickyKey(self.key)
+        iddqd_test_utils::panic_safety::PanickyKey(self.key)
     }
     id_upcast!();
 }
 
 impl Drop for PanickyOrdItem {
     fn drop(&mut self) {
-        crate::panic_safety::observe_panicky_call("item-drop");
+        iddqd_test_utils::panic_safety::observe_panicky_call("item-drop");
     }
 }
 
 mod proptest_panic_safety {
     use super::*;
-    use crate::panic_safety::{
-        PanicSafety, PanickyOp, PanickySearchKey,
-        assert_panic_fired_as_expected, assert_post_op_invariants,
-        drop_unarmed, run_armed, sorted_keys,
+    use iddqd_test_utils::panic_safety::{
+        PANIC_PROPTEST_CASES, PANIC_PROPTEST_MAX_OPS, PanicSafety, PanickyOp,
+        PanickySearchKey, assert_panic_fired_as_expected,
+        assert_post_op_invariants, drop_unarmed, record_observation, run_armed,
+        sorted_keys,
     };
 
     // Keys are kept in a small range so hits and misses both happen
@@ -1208,10 +1209,10 @@ mod proptest_panic_safety {
         }
     }
 
-    #[proptest(cases = 16)]
+    #[proptest(cases = PANIC_PROPTEST_CASES)]
     fn proptest_panic_ops(
         #[strategy(prop::collection::vec(
-            any::<PanickyOp<PanickyAction>>(), 0..512,
+            any::<PanickyOp<PanickyAction>>(), 0..PANIC_PROPTEST_MAX_OPS,
         ))]
         ops: Vec<PanickyOp<PanickyAction>>,
     ) {
@@ -1225,6 +1226,7 @@ mod proptest_panic_safety {
 
             let pre_state = sorted_keys(&map, |item| item.key);
             let (panicked, ops) = run_armed(armed, || action.run(&mut map));
+            record_observation("id_ord_map", &action_label, ops);
             assert_panic_fired_as_expected(&action_label, armed, panicked, ops);
 
             // `NonCompact` since step-atomic panics leave compactness
