@@ -1,6 +1,7 @@
 pub mod borrowed_item;
 pub mod eq_props;
 pub mod naive_map;
+pub mod panic_safety;
 #[cfg(feature = "serde")]
 pub mod serde_utils;
 pub mod test_item;

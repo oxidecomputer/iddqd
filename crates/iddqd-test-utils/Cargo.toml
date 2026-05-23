@@ -10,7 +10,10 @@ publish = false
 workspace = true
 
 [dependencies]
+allocator-api2 = { workspace = true, optional = true }
 bumpalo = { workspace = true, optional = true }
+camino.workspace = true
+equivalent.workspace = true
 hugealloc = { workspace = true, optional = true }
 iddqd.workspace = true
 proptest.workspace = true
@@ -21,7 +24,12 @@ test-strategy.workspace = true
 [features]
 # We test once with allocator-api2 + hugealloc, and once without it and with the
 # default allocator.
-allocator-api2 = ["iddqd/allocator-api2", "dep:bumpalo", "dep:hugealloc"]
+allocator-api2 = [
+    "iddqd/allocator-api2",
+    "dep:allocator-api2",
+    "dep:bumpalo",
+    "dep:hugealloc",
+]
 # We test once with the default hasher, and once with std's RandomState.
 default-hasher = ["iddqd/default-hasher"]
 std = ["iddqd/std"]

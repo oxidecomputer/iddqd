@@ -1226,13 +1226,13 @@ struct PanickyHashItem {
 
 #[cfg(all(feature = "default-hasher", feature = "allocator-api2"))]
 impl BiHashItem for PanickyHashItem {
-    type K1<'a> = crate::panic_safety::PanickyKey;
-    type K2<'a> = crate::panic_safety::PanickyKey;
+    type K1<'a> = iddqd_test_utils::panic_safety::PanickyKey;
+    type K2<'a> = iddqd_test_utils::panic_safety::PanickyKey;
     fn key1(&self) -> Self::K1<'_> {
-        crate::panic_safety::PanickyKey(self.key1)
+        iddqd_test_utils::panic_safety::PanickyKey(self.key1)
     }
     fn key2(&self) -> Self::K2<'_> {
-        crate::panic_safety::PanickyKey(self.key2)
+        iddqd_test_utils::panic_safety::PanickyKey(self.key2)
     }
     bi_upcast!();
 }
@@ -1240,19 +1240,20 @@ impl BiHashItem for PanickyHashItem {
 #[cfg(all(feature = "default-hasher", feature = "allocator-api2"))]
 impl Drop for PanickyHashItem {
     fn drop(&mut self) {
-        crate::panic_safety::observe_panicky_call("item-drop");
+        iddqd_test_utils::panic_safety::observe_panicky_call("item-drop");
     }
 }
 
 #[cfg(all(feature = "default-hasher", feature = "allocator-api2"))]
 mod proptest_panic_safety {
     use super::*;
-    use crate::panic_safety::{
-        PanicSafety, PanickyAlloc, PanickyOp, PanickySearchKey,
-        assert_panic_fired_as_expected, assert_post_op_invariants,
-        drop_unarmed, run_armed, sorted_keys,
-    };
     use allocator_api2::alloc::Global;
+    use iddqd_test_utils::panic_safety::{
+        PANIC_PROPTEST_CASES, PANIC_PROPTEST_MAX_OPS, PanicSafety,
+        PanickyAlloc, PanickyOp, PanickySearchKey,
+        assert_panic_fired_as_expected, assert_post_op_invariants,
+        drop_unarmed, record_observation, run_armed, sorted_keys,
+    };
 
     /// Map type used by these tests.
     type PanickyMap = BiHashMap<
@@ -1382,10 +1383,10 @@ mod proptest_panic_safety {
         }
     }
 
-    #[proptest(cases = 16)]
+    #[proptest(cases = PANIC_PROPTEST_CASES)]
     fn proptest_panic_ops(
         #[strategy(prop::collection::vec(
-            any::<PanickyOp<PanickyAction>>(), 0..512,
+            any::<PanickyOp<PanickyAction>>(), 0..PANIC_PROPTEST_MAX_OPS,
         ))]
         ops: Vec<PanickyOp<PanickyAction>>,
     ) {
@@ -1402,6 +1403,7 @@ mod proptest_panic_safety {
 
             let pre_state = sorted_keys(&map, |item| (item.key1, item.key2));
             let (panicked, ops) = run_armed(armed, || action.run(&mut map));
+            record_observation("bi_hash_map", &action_label, ops);
             assert_panic_fired_as_expected(&action_label, armed, panicked, ops);
 
             // `NonCompact` since step-atomic panics can leave compactness in an

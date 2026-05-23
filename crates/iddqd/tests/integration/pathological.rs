@@ -5,7 +5,6 @@
 //! The tests in this file might leave maps in an inconsistent state, but not in
 //! a way that should cause UB.
 
-use crate::panic_safety::{PanickyKey, arm_panic_after, disarm_panic};
 use core::cell::Cell;
 use iddqd::{
     BiHashItem, BiHashMap, Comparable, Equivalent, IdHashItem, IdHashMap,
@@ -14,7 +13,10 @@ use iddqd::{
     internal::{ValidateChaos, ValidateCompact},
     tri_upcast,
 };
-use iddqd_test_utils::unwind::catch_panic;
+use iddqd_test_utils::{
+    panic_safety::{PanickyKey, arm_panic_after, disarm_panic},
+    unwind::catch_panic,
+};
 use std::{
     cell::RefCell,
     cmp::Ordering,
@@ -1170,8 +1172,10 @@ fn pop_after_chaos_no_ub() {
 #[cfg(feature = "allocator-api2")]
 mod allocator_tests {
     use super::*;
-    use crate::panic_safety::{PanickyAlloc, arm_panic_after, disarm_panic};
     use allocator_api2::alloc::Global;
+    use iddqd_test_utils::panic_safety::{
+        PanickyAlloc, arm_panic_after, disarm_panic,
+    };
     use std::{collections::BTreeSet, panic::AssertUnwindSafe};
 
     // An allocator panic during shrink_to_fit must leave the tables and the
