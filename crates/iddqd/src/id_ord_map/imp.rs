@@ -1486,8 +1486,26 @@ impl<T: IdOrdItem> IdOrdMap<T> {
                 grow_handle[index].key()
             });
         drop(key);
-        insert.insert();
+
+        // Commit the item set push *before* the B-tree commit.
+        //
+        // This matches the *HashMap insert order and gives stronger
+        // panic-safety against allocator panics:
+        //
+        // * If `grow_handle.insert` panics on allocation (what this code does
+        //   first), the `insert` handle is dropped without committing, so
+        //   neither the item set nor the B-tree is mutated.
+        // * If `insert.insert` panics on allocation (a B-tree node split is the
+        //   only way this is possible), the item set holds an orphan slot, but it's
+        //   invisible to every map operation because no B-tree entry points to
+        //   it.
+        //
+        // This isn't an issue today because the global allocator aborts on
+        // panic, but this is defensively coded. (But in any case this is quite
+        // theoretical -- most Rust code in the wild is likely not prepared for
+        // allocator panics that don't abort.)
         grow_handle.insert(value);
+        insert.insert();
 
         Ok(next_index)
     }
