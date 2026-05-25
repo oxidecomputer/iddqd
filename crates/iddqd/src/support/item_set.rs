@@ -410,12 +410,6 @@ impl<T, A: Allocator> ItemSet<T, A> {
     }
 
     #[inline]
-    #[expect(dead_code)]
-    pub(crate) fn iter_mut(&mut self) -> IterMut<'_, T> {
-        IterMut::new(self)
-    }
-
-    #[inline]
     pub(crate) fn values(&self) -> Values<'_, T> {
         Values::new(self)
     }
@@ -880,58 +874,6 @@ impl<T> ExactSizeIterator for Iter<'_, T> {
 }
 
 impl<T> FusedIterator for Iter<'_, T> {}
-
-/// An iterator over `(index, &mut item)` pairs in an [`ItemSet`].
-pub(crate) struct IterMut<'a, T> {
-    inner: core::iter::Enumerate<core::slice::IterMut<'a, ItemSlot<T>>>,
-    remaining: usize,
-}
-
-impl<'a, T> IterMut<'a, T> {
-    fn new<A: Allocator>(set: &'a mut ItemSet<T, A>) -> Self {
-        let remaining = set.len();
-        Self { inner: set.items.iter_mut().enumerate(), remaining }
-    }
-}
-
-impl<T: fmt::Debug> fmt::Debug for IterMut<'_, T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("IterMut").field("remaining", &self.remaining).finish()
-    }
-}
-
-impl<'a, T> Iterator for IterMut<'a, T> {
-    type Item = (ItemIndex, &'a mut T);
-
-    #[inline]
-    fn next(&mut self) -> Option<Self::Item> {
-        for (i, slot) in self.inner.by_ref() {
-            if let ItemSlot::Occupied(v) = slot {
-                debug_assert!(
-                    self.remaining > 0,
-                    "iterator yielded more items than ItemSet::len()",
-                );
-                self.remaining -= 1;
-                return Some((ItemIndex::new(i as u32), v));
-            }
-        }
-        None
-    }
-
-    #[inline]
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.remaining, Some(self.remaining))
-    }
-}
-
-impl<T> ExactSizeIterator for IterMut<'_, T> {
-    #[inline]
-    fn len(&self) -> usize {
-        self.remaining
-    }
-}
-
-impl<T> FusedIterator for IterMut<'_, T> {}
 
 /// An iterator over `&item` references in an [`ItemSet`].
 pub(crate) struct Values<'a, T> {
