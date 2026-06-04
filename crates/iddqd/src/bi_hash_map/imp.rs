@@ -26,6 +26,56 @@ use core::{
 };
 use equivalent::Equivalent;
 
+#[derive(Clone, Debug)]
+struct PreparedDuplicate {
+    index: ItemIndex,
+    hashes: [MapHash; 2],
+}
+
+impl PreparedDuplicate {
+    fn from_indexes<const N: usize>(
+        indexes: [Option<ItemIndex>; N],
+        mut prepare: impl FnMut(ItemIndex) -> Self,
+    ) -> Vec<Self> {
+        let mut duplicates = Vec::new();
+
+        for index in indexes.into_iter().flatten() {
+            if duplicates
+                .iter()
+                .any(|duplicate: &PreparedDuplicate| duplicate.index == index)
+            {
+                continue;
+            }
+
+            duplicates.push(prepare(index));
+        }
+
+        duplicates
+    }
+}
+
+#[derive(Clone, Debug)]
+struct PreparedInsertOverwrite {
+    index1: Option<ItemIndex>,
+    index2: Option<ItemIndex>,
+    duplicates: Vec<PreparedDuplicate>,
+    hashes: [MapHash; 2],
+}
+
+impl PreparedInsertOverwrite {
+    #[inline]
+    fn duplicate_count(&self) -> usize {
+        self.duplicates.len()
+    }
+
+    // ItemSet only needs to grow when no duplicate slot will be freed during
+    // commit. Hash-table insertion capacity is reserved separately.
+    #[inline]
+    fn needs_new_item_slot(&self) -> bool {
+        self.duplicates.is_empty()
+    }
+}
+
 /// A 1:1 (bijective) map for two keys and a value.
 ///
 /// The storage mechanism is a fast hash table of integer indexes to items, with
@@ -1130,22 +1180,13 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
     /// ```
     #[doc(alias = "insert")]
     pub fn insert_overwrite(&mut self, value: T) -> Vec<T> {
-        // Trying to write this function for maximal efficiency can get very
-        // tricky, requiring delicate handling of indexes. We follow a very
-        // simple approach instead:
-        //
-        // 1. Remove items corresponding to keys that are already in the map.
-        // 2. Add the item to the map.
+        let prepared = self.prepare_insert_overwrite(&value);
 
-        let mut duplicates = Vec::new();
-        duplicates.extend(self.remove1(&value.key1()));
-        duplicates.extend(self.remove2(&value.key2()));
+        let mut duplicates = Vec::with_capacity(prepared.duplicate_count());
 
-        if self.insert_unique(value).is_err() {
-            // We should never get here, because we just removed all the
-            // duplicates.
-            panic!("insert_unique failed after removing duplicates");
-        }
+        self.reserve_insert_overwrite_commit(prepared.needs_new_item_slot());
+
+        self.commit_insert_overwrite(value, prepared, &mut duplicates);
 
         duplicates
     }
@@ -2042,6 +2083,100 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
             .find_index(&self.tables.state, k, |index| self.items[index].key2())
     }
 
+    fn prepare_insert_overwrite(&self, value: &T) -> PreparedInsertOverwrite {
+        let key1 = value.key1();
+        let key2 = value.key2();
+
+        let index1 = self.find1_index(&key1);
+        let index2 = self.find2_index(&key2);
+        let hashes = self.tables.make_hashes::<T>(&key1, &key2);
+
+        let duplicates =
+            PreparedDuplicate::from_indexes([index1, index2], |index| {
+                self.prepare_duplicate(index)
+            });
+
+        PreparedInsertOverwrite { index1, index2, duplicates, hashes }
+    }
+
+    fn prepare_entry_index_removal(
+        &self,
+        indexes: EntryIndexes,
+    ) -> Vec<PreparedDuplicate> {
+        match indexes {
+            EntryIndexes::Unique(index) => {
+                PreparedDuplicate::from_indexes([Some(index)], |index| {
+                    self.prepare_duplicate(index)
+                })
+            }
+            EntryIndexes::NonUnique { index1, index2 } => {
+                PreparedDuplicate::from_indexes([index1, index2], |index| {
+                    self.prepare_duplicate(index)
+                })
+            }
+        }
+    }
+
+    fn prepare_duplicate(&self, index: ItemIndex) -> PreparedDuplicate {
+        let item = &self.items[index];
+        let key1 = item.key1();
+        let key2 = item.key2();
+        let hashes = self.tables.make_hashes::<T>(&key1, &key2);
+
+        PreparedDuplicate { index, hashes }
+    }
+
+    fn reserve_insert_overwrite_commit(&mut self, needs_new_item_slot: bool) {
+        if needs_new_item_slot {
+            self.items.try_reserve(1).expect("failed to reserve item slot");
+        }
+
+        self.tables
+            .k1_to_item
+            .try_reserve(1)
+            .expect("failed to reserve key1 table slot");
+
+        self.tables
+            .k2_to_item
+            .try_reserve(1)
+            .expect("failed to reserve key2 table slot");
+    }
+
+    fn commit_insert_overwrite(
+        &mut self,
+        value: T,
+        prepared: PreparedInsertOverwrite,
+        duplicates: &mut Vec<T>,
+    ) -> ItemIndex {
+        // From here until insertion completes, do not call user code or
+        // allocate. The caller prepared hashes/indexes and reserved capacity.
+        for duplicate in prepared.duplicates {
+            duplicates.push(
+                self.remove_by_index_with_hashes(
+                    duplicate.index,
+                    duplicate.hashes,
+                )
+                .expect("duplicate index is valid"),
+            );
+        }
+
+        self.insert_unique_with_prepared_hashes(value, prepared.hashes)
+    }
+
+    fn insert_unique_with_prepared_hashes(
+        &mut self,
+        value: T,
+        hashes: [MapHash; 2],
+    ) -> ItemIndex {
+        let [hash1, hash2] = hashes;
+        let next_index = self.items.assert_can_grow().insert(value);
+
+        self.tables.k1_to_item.insert_prehashed_unchecked(hash1, next_index);
+        self.tables.k2_to_item.insert_prehashed_unchecked(hash2, next_index);
+
+        next_index
+    }
+
     pub(super) fn get_by_entry_index(
         &self,
         indexes: EntryIndexes,
@@ -2173,29 +2308,20 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
         &mut self,
         indexes: EntryIndexes,
     ) -> Vec<T> {
-        match indexes {
-            EntryIndexes::Unique(index) => {
-                // Since all keys match, we can simply replace the item.
-                let old_item =
-                    self.remove_by_index(index).expect("index is valid");
-                vec![old_item]
-            }
-            EntryIndexes::NonUnique { index1, index2 } => {
-                let mut old_items = Vec::new();
-                if let Some(index1) = index1 {
-                    old_items.push(
-                        self.remove_by_index(index1).expect("index1 is valid"),
-                    );
-                }
-                if let Some(index2) = index2 {
-                    old_items.push(
-                        self.remove_by_index(index2).expect("index2 is valid"),
-                    );
-                }
+        let prepared = self.prepare_entry_index_removal(indexes);
+        let mut old_items = Vec::with_capacity(prepared.len());
 
-                old_items
-            }
+        for duplicate in prepared {
+            old_items.push(
+                self.remove_by_index_with_hashes(
+                    duplicate.index,
+                    duplicate.hashes,
+                )
+                .expect("prepared duplicate index is valid"),
+            );
         }
+
+        old_items
     }
 
     pub(super) fn remove_by_index(
@@ -2247,6 +2373,40 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
         )
     }
 
+    fn remove_by_index_with_hashes(
+        &mut self,
+        remove_index: ItemIndex,
+        hashes: [MapHash; 2],
+    ) -> Option<T> {
+        let _ = self.items.get(remove_index)?;
+
+        let [hash1, hash2] = hashes;
+
+        match self
+            .tables
+            .k1_to_item
+            .find_entry_by_hash(hash1.hash(), |index| index == remove_index)
+        {
+            Ok(entry) => entry.remove(),
+            Err(()) => self.tables.k1_to_item.remove_by_index(remove_index),
+        }
+
+        match self
+            .tables
+            .k2_to_item
+            .find_entry_by_hash(hash2.hash(), |index| index == remove_index)
+        {
+            Ok(entry) => entry.remove(),
+            Err(()) => self.tables.k2_to_item.remove_by_index(remove_index),
+        }
+
+        Some(
+            self.items
+                .remove(remove_index)
+                .expect("items[remove_index] was occupied above"),
+        )
+    }
+
     pub(super) fn replace_at_indexes(
         &mut self,
         indexes: EntryIndexes,
@@ -2254,41 +2414,45 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
     ) -> (ItemIndex, Vec<T>) {
         match indexes {
             EntryIndexes::Unique(index) => {
-                let old_item = &self.items[index];
-                if old_item.key1() != value.key1() {
-                    panic!("key1 mismatch");
-                }
-                if old_item.key2() != value.key2() {
-                    panic!("key2 mismatch");
-                }
-
-                // Since all keys match, we can simply replace the item.
-                let old_item = self.items.replace(index, value);
-                (index, vec![old_item])
-            }
-            EntryIndexes::NonUnique { index1, index2 } => {
-                let mut old_items = Vec::new();
-                if let Some(index1) = index1 {
-                    let old_item = &self.items[index1];
+                {
+                    let old_item = &self.items[index];
                     if old_item.key1() != value.key1() {
                         panic!("key1 mismatch");
                     }
-                    old_items.push(self.remove_by_index(index1).unwrap());
-                }
-                if let Some(index2) = index2 {
-                    let old_item = &self.items[index2];
                     if old_item.key2() != value.key2() {
                         panic!("key2 mismatch");
                     }
-                    old_items.push(self.remove_by_index(index2).unwrap());
                 }
 
-                // Insert the new item.
-                let Ok(next_index) = self.insert_unique_impl(value) else {
-                    unreachable!(
-                        "insert_unique cannot fail after removing duplicates"
-                    );
-                };
+                let mut old_items = Vec::with_capacity(1);
+                let old_item = self.items.replace(index, value);
+                old_items.push(old_item);
+
+                (index, old_items)
+            }
+            EntryIndexes::NonUnique { index1, index2 } => {
+                let prepared = self.prepare_insert_overwrite(&value);
+
+                if prepared.index1 != index1 {
+                    panic!("key1 mismatch");
+                }
+                if prepared.index2 != index2 {
+                    panic!("key2 mismatch");
+                }
+
+                let mut old_items =
+                    Vec::with_capacity(prepared.duplicate_count());
+
+                self.reserve_insert_overwrite_commit(
+                    prepared.needs_new_item_slot(),
+                );
+
+                let next_index = self.commit_insert_overwrite(
+                    value,
+                    prepared,
+                    &mut old_items,
+                );
+
                 (next_index, old_items)
             }
         }

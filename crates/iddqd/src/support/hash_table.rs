@@ -233,6 +233,41 @@ impl<A: Allocator> MapHashTable<A> {
         );
     }
 
+    /// Inserts `ix` with an already-computed key hash.
+    ///
+    /// The caller must ensure:
+    ///
+    /// * all user-controlled key extraction, hashing, and equality checks have
+    ///   already completed;
+    /// * capacity for at least one insertion has already been reserved before
+    ///   the caller began mutating map state;
+    /// * conflicting table entries have already been removed;
+    /// * this `ItemIndex` is not already present in this table;
+    /// * inserting this index preserves the map/table invariants.
+    ///
+    /// This method does not check key uniqueness. It is intended only for
+    /// commit paths that have already removed conflicting table entries and
+    /// reserved insertion capacity before mutation.
+    #[inline]
+    pub(crate) fn insert_prehashed_unchecked(
+        &mut self,
+        hash: MapHash,
+        ix: ItemIndex,
+    ) {
+        let raw_hash = hash.hash();
+
+        debug_assert!(
+            !self.items.iter().any(|stored| stored.ix == ix),
+            "attempted to insert an ItemIndex already present in this table"
+        );
+
+        let _ = self.items.insert_unique(
+            raw_hash,
+            HashedIndex::new(ix, raw_hash),
+            cached_hasher,
+        );
+    }
+
     /// Clears the hash table, removing all items.
     #[inline]
     pub(crate) fn clear(&mut self) {

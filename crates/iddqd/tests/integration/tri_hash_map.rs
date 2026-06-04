@@ -702,6 +702,163 @@ fn get_mut_panics_if_key3_changes() {
     map.get1_mut(&TestKey1::new(&128)).unwrap().key3 = "z".to_owned();
 }
 
+#[derive(Debug)]
+struct PanicKey3Item {
+    key1: u32,
+    key2: u32,
+    key3: u32,
+    panic_in_key3: bool,
+}
+
+impl TriHashItem for PanicKey3Item {
+    type K1<'a> = u32;
+    type K2<'a> = u32;
+    type K3<'a> = u32;
+
+    fn key1(&self) -> Self::K1<'_> {
+        self.key1
+    }
+
+    fn key2(&self) -> Self::K2<'_> {
+        self.key2
+    }
+
+    fn key3(&self) -> Self::K3<'_> {
+        if self.panic_in_key3 {
+            panic!("panic in key3");
+        }
+
+        self.key3
+    }
+
+    tri_upcast!();
+}
+
+#[test]
+fn insert_overwrite_does_not_mutate_if_new_key3_panics() {
+    use std::panic::{AssertUnwindSafe, catch_unwind};
+
+    let mut map = TriHashMap::<PanicKey3Item>::new();
+
+    map.insert_unique(PanicKey3Item {
+        key1: 1,
+        key2: 10,
+        key3: 100,
+        panic_in_key3: false,
+    })
+    .unwrap();
+
+    map.insert_unique(PanicKey3Item {
+        key1: 2,
+        key2: 20,
+        key3: 200,
+        panic_in_key3: false,
+    })
+    .unwrap();
+
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        map.insert_overwrite(PanicKey3Item {
+            key1: 1,
+            key2: 99,
+            key3: 999,
+            panic_in_key3: true,
+        });
+    }));
+
+    assert!(result.is_err());
+
+    map.validate(ValidateCompact::NonCompact).unwrap();
+    assert_eq!(map.len(), 2);
+
+    assert_eq!(map.get1(&1).unwrap().key3, 100);
+    assert_eq!(map.get2(&20).unwrap().key3, 200);
+    assert!(map.get1(&99).is_none());
+    assert!(map.get2(&99).is_none());
+    assert!(map.get3(&999).is_none());
+}
+
+#[derive(Debug)]
+struct PanicOldTriKeyItem {
+    key1: u32,
+    key2: u32,
+    key3: u32,
+    panic_key1: std::rc::Rc<std::cell::Cell<bool>>,
+}
+
+impl TriHashItem for PanicOldTriKeyItem {
+    type K1<'a> = u32;
+    type K2<'a> = u32;
+    type K3<'a> = u32;
+
+    fn key1(&self) -> Self::K1<'_> {
+        if self.panic_key1.get() {
+            panic!("panic in key1");
+        }
+
+        self.key1
+    }
+
+    fn key2(&self) -> Self::K2<'_> {
+        self.key2
+    }
+
+    fn key3(&self) -> Self::K3<'_> {
+        self.key3
+    }
+
+    tri_upcast!();
+}
+
+#[test]
+fn insert_overwrite_does_not_mutate_if_old_duplicate_key_panics() {
+    use std::{
+        cell::Cell,
+        panic::{AssertUnwindSafe, catch_unwind},
+        rc::Rc,
+    };
+
+    let old1_panic_key1 = Rc::new(Cell::new(false));
+    let old2_panic_key1 = Rc::new(Cell::new(false));
+
+    let mut map = TriHashMap::<PanicOldTriKeyItem>::new();
+
+    map.insert_unique(PanicOldTriKeyItem {
+        key1: 1,
+        key2: 10,
+        key3: 100,
+        panic_key1: old1_panic_key1,
+    })
+    .unwrap();
+
+    map.insert_unique(PanicOldTriKeyItem {
+        key1: 2,
+        key2: 20,
+        key3: 200,
+        panic_key1: old2_panic_key1.clone(),
+    })
+    .unwrap();
+
+    old2_panic_key1.set(true);
+
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        map.insert_overwrite(PanicOldTriKeyItem {
+            key1: 1,
+            key2: 99,
+            key3: 200,
+            panic_key1: Rc::new(Cell::new(false)),
+        });
+    }));
+
+    assert!(result.is_err());
+    assert_eq!(map.len(), 2);
+
+    old2_panic_key1.set(false);
+    map.validate(ValidateCompact::NonCompact).unwrap();
+
+    assert_eq!(map.get1(&1).unwrap().key3, 100);
+    assert_eq!(map.get3(&200).unwrap().key1, 2);
+}
+
 #[test]
 fn borrowed_item() {
     let mut map = TriHashMap::<BorrowedItem, HashBuilder, Alloc>::default();

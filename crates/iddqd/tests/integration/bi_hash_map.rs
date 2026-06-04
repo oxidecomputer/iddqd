@@ -850,6 +850,231 @@ fn insert_entry_panics_for_non_matching_keys() {
     }
 }
 
+#[derive(Debug)]
+struct PanicKey2Item {
+    key1: u32,
+    key2: u32,
+    panic_in_key2: bool,
+}
+
+impl BiHashItem for PanicKey2Item {
+    type K1<'a> = u32;
+    type K2<'a> = u32;
+
+    fn key1(&self) -> Self::K1<'_> {
+        self.key1
+    }
+
+    fn key2(&self) -> Self::K2<'_> {
+        if self.panic_in_key2 {
+            panic!("panic in key2");
+        }
+
+        self.key2
+    }
+
+    bi_upcast!();
+}
+
+#[test]
+fn insert_overwrite_does_not_mutate_if_new_key2_panics() {
+    use std::panic::{AssertUnwindSafe, catch_unwind};
+
+    let mut map = BiHashMap::<PanicKey2Item>::new();
+
+    map.insert_unique(PanicKey2Item {
+        key1: 1,
+        key2: 10,
+        panic_in_key2: false,
+    })
+    .unwrap();
+
+    map.insert_unique(PanicKey2Item {
+        key1: 2,
+        key2: 20,
+        panic_in_key2: false,
+    })
+    .unwrap();
+
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        map.insert_overwrite(PanicKey2Item {
+            key1: 1,
+            key2: 99,
+            panic_in_key2: true,
+        });
+    }));
+
+    assert!(result.is_err());
+
+    map.validate(ValidateCompact::NonCompact).unwrap();
+    assert_eq!(map.len(), 2);
+
+    assert_eq!(map.get1(&1).unwrap().key2, 10);
+    assert_eq!(map.get2(&10).unwrap().key1, 1);
+    assert_eq!(map.get1(&2).unwrap().key2, 20);
+    assert_eq!(map.get2(&20).unwrap().key1, 2);
+    assert!(map.get1(&99).is_none());
+    assert!(map.get2(&99).is_none());
+}
+
+#[derive(Debug)]
+struct PanicOldBiKeyItem {
+    key1: u32,
+    key2: u32,
+    panic_key1: std::rc::Rc<std::cell::Cell<bool>>,
+}
+
+impl BiHashItem for PanicOldBiKeyItem {
+    type K1<'a> = u32;
+    type K2<'a> = u32;
+
+    fn key1(&self) -> Self::K1<'_> {
+        if self.panic_key1.get() {
+            panic!("panic in key1");
+        }
+
+        self.key1
+    }
+
+    fn key2(&self) -> Self::K2<'_> {
+        self.key2
+    }
+
+    bi_upcast!();
+}
+
+#[test]
+fn insert_overwrite_does_not_mutate_if_old_duplicate_key_panics() {
+    use std::{
+        cell::Cell,
+        panic::{AssertUnwindSafe, catch_unwind},
+        rc::Rc,
+    };
+
+    let old1_panic_key1 = Rc::new(Cell::new(false));
+    let old2_panic_key1 = Rc::new(Cell::new(false));
+
+    let mut map = BiHashMap::<PanicOldBiKeyItem>::new();
+
+    map.insert_unique(PanicOldBiKeyItem {
+        key1: 1,
+        key2: 10,
+        panic_key1: old1_panic_key1,
+    })
+    .unwrap();
+
+    map.insert_unique(PanicOldBiKeyItem {
+        key1: 2,
+        key2: 20,
+        panic_key1: old2_panic_key1.clone(),
+    })
+    .unwrap();
+
+    old2_panic_key1.set(true);
+
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        map.insert_overwrite(PanicOldBiKeyItem {
+            key1: 1,
+            key2: 20,
+            panic_key1: Rc::new(Cell::new(false)),
+        });
+    }));
+
+    assert!(result.is_err());
+    assert_eq!(map.len(), 2);
+
+    old2_panic_key1.set(false);
+    map.validate(ValidateCompact::NonCompact).unwrap();
+
+    assert_eq!(map.get1(&1).unwrap().key2, 10);
+    assert_eq!(map.get2(&20).unwrap().key1, 2);
+}
+
+#[test]
+fn occupied_insert_does_not_mutate_if_new_key2_panics() {
+    use std::panic::{AssertUnwindSafe, catch_unwind};
+
+    let mut map = BiHashMap::<PanicKey2Item>::new();
+
+    map.insert_unique(PanicKey2Item {
+        key1: 1,
+        key2: 10,
+        panic_in_key2: false,
+    })
+    .unwrap();
+
+    map.insert_unique(PanicKey2Item {
+        key1: 2,
+        key2: 20,
+        panic_in_key2: false,
+    })
+    .unwrap();
+
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let iddqd::bi_hash_map::Entry::Occupied(mut entry) = map.entry(1, 20)
+        else {
+            panic!("expected occupied entry");
+        };
+
+        entry.insert(PanicKey2Item { key1: 1, key2: 20, panic_in_key2: true });
+    }));
+
+    assert!(result.is_err());
+
+    map.validate(ValidateCompact::NonCompact).unwrap();
+    assert_eq!(map.len(), 2);
+    assert_eq!(map.get1(&1).unwrap().key2, 10);
+    assert_eq!(map.get2(&20).unwrap().key1, 2);
+}
+
+#[test]
+fn occupied_remove_does_not_mutate_if_old_duplicate_key_panics() {
+    use std::{
+        cell::Cell,
+        panic::{AssertUnwindSafe, catch_unwind},
+        rc::Rc,
+    };
+
+    let old1_panic_key1 = Rc::new(Cell::new(false));
+    let old2_panic_key1 = Rc::new(Cell::new(false));
+
+    let mut map = BiHashMap::<PanicOldBiKeyItem>::new();
+
+    map.insert_unique(PanicOldBiKeyItem {
+        key1: 1,
+        key2: 10,
+        panic_key1: old1_panic_key1,
+    })
+    .unwrap();
+
+    map.insert_unique(PanicOldBiKeyItem {
+        key1: 2,
+        key2: 20,
+        panic_key1: old2_panic_key1.clone(),
+    })
+    .unwrap();
+
+    old2_panic_key1.set(true);
+
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        let iddqd::bi_hash_map::Entry::Occupied(entry) = map.entry(1, 20)
+        else {
+            panic!("expected occupied entry");
+        };
+
+        let _removed = entry.remove();
+    }));
+
+    assert!(result.is_err());
+    assert_eq!(map.len(), 2);
+
+    old2_panic_key1.set(false);
+    map.validate(ValidateCompact::NonCompact).unwrap();
+
+    assert_eq!(map.get1(&1).unwrap().key2, 10);
+    assert_eq!(map.get2(&20).unwrap().key1, 2);
+}
+
 #[test]
 fn borrowed_item() {
     let mut map = BiHashMap::<BorrowedItem, HashBuilder, Alloc>::default();

@@ -73,10 +73,19 @@ impl<S: Clone + BuildHasher, A: Allocator> TriHashMapTables<S, A> {
         let k2 = item.key2();
         let k3 = item.key3();
 
-        let h1 = self.k1_to_item.compute_hash(&self.state, k1);
-        let h2 = self.k2_to_item.compute_hash(&self.state, k2);
-        let h3 = self.k3_to_item.compute_hash(&self.state, k3);
+        self.make_hashes_for_keys::<T>(&k1, &k2, &k3)
+    }
 
-        [h1, h2, h3]
+    pub(super) fn make_hashes_for_keys<T: TriHashItem>(
+        &self,
+        key1: &T::K1<'_>,
+        key2: &T::K2<'_>,
+        key3: &T::K3<'_>,
+    ) -> [MapHash; 3] {
+        [
+            self.k1_to_item.compute_hash(&self.state, key1),
+            self.k2_to_item.compute_hash(&self.state, key2),
+            self.k3_to_item.compute_hash(&self.state, key3),
+        ]
     }
 }
