@@ -256,11 +256,6 @@ impl<A: Allocator> MapHashTable<A> {
     ) {
         let raw_hash = hash.hash();
 
-        debug_assert!(
-            !self.items.iter().any(|stored| stored.ix == ix),
-            "attempted to insert an ItemIndex already present in this table"
-        );
-
         let _ = self.items.insert_unique(
             raw_hash,
             HashedIndex::new(ix, raw_hash),

@@ -2792,23 +2792,23 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
 
     fn reserve_insert_overwrite_commit(&mut self, needs_new_item_slot: bool) {
         if needs_new_item_slot {
-            self.items.try_reserve(1).expect("failed to reserve item slot");
+            self.items.try_reserve(1).expect("reserved item slot");
         }
 
         self.tables
             .k1_to_item
             .try_reserve(1)
-            .expect("failed to reserve key1 table slot");
+            .expect("reserved key1 table slot");
 
         self.tables
             .k2_to_item
             .try_reserve(1)
-            .expect("failed to reserve key2 table slot");
+            .expect("reserved key2 table slot");
 
         self.tables
             .k3_to_item
             .try_reserve(1)
-            .expect("failed to reserve key3 table slot");
+            .expect("reserved key3 table slot");
     }
 
     fn commit_insert_overwrite(
@@ -2825,7 +2825,7 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
                     duplicate.index,
                     duplicate.hashes,
                 )
-                .expect("duplicate index is valid"),
+                .expect("duplicate index was prepared"),
             );
         }
 
@@ -2905,6 +2905,22 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
         )
     }
 
+    /// Removes the item at `remove_index`, using already-computed key hashes when
+    /// possible.
+    ///
+    /// The caller must ensure:
+    ///
+    /// * all user-controlled key extraction and hashing for the item at
+    ///   `remove_index` has already completed;
+    /// * the item at `remove_index` has not changed since those hashes were
+    ///   computed;
+    /// * removing this index from the item store and key tables preserves the
+    ///   map/table invariants.
+    ///
+    /// The provided `hashes` allow the normal commit path to remove key-table
+    /// entries without recomputing user-controlled hashes. If a prehashed lookup
+    /// misses, this falls back to removing by `ItemIndex`, which performs a linear
+    /// scan over cached indexes and does not re-enter user code.
     fn remove_by_index_with_hashes(
         &mut self,
         remove_index: ItemIndex,
@@ -2944,7 +2960,7 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
         Some(
             self.items
                 .remove(remove_index)
-                .expect("items[remove_index] was occupied above"),
+                .expect("items[remove_index] was Occupied above"),
         )
     }
 }
