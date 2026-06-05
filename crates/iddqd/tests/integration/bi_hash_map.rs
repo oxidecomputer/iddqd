@@ -1308,10 +1308,6 @@ mod proptest_panic_safety {
     impl PanickyAction {
         /// Classify panic safety for this action.
         ///
-        /// * `BiHashMap::insert_overwrite` runs
-        ///   `remove1; remove2; insert_unique;` as sequential commits,
-        ///   so a mid-sequence panic can leave the map in a different
-        ///   (but still valid) state.
         /// * `RetainModulo` and `Clear` loop over per-step atomic item
         ///   destruction.
         /// * `Extend` calls `HashTable::reserve` up front, which on a
@@ -1320,9 +1316,9 @@ mod proptest_panic_safety {
         ///   user `Hash` panic, so the proptest skips arming for it.
         fn panic_safety(&self) -> PanicSafety {
             match self {
-                PanickyAction::InsertUnique(_, _) => PanicSafety::Atomic,
-                PanickyAction::InsertOverwrite(_, _) => PanicSafety::Atomic,
-                PanickyAction::Remove1(_)
+                PanickyAction::InsertUnique(_, _)
+                | PanickyAction::InsertOverwrite(_, _)
+                | PanickyAction::Remove1(_)
                 | PanickyAction::Remove2(_)
                 | PanickyAction::Get1(_)
                 | PanickyAction::Get2(_)
