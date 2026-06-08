@@ -1,7 +1,7 @@
 use super::{IntoIter, Iter, IterMut, RefMut, tables::TriHashMapTables};
 use crate::{
     DefaultHashBuilder, TriHashItem,
-    errors::DuplicateItem,
+    errors::{DuplicateItem, TryReserveError},
     internal::ValidationError,
     support::{
         ItemIndex,
@@ -1360,7 +1360,10 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
 
         let mut duplicates = Vec::with_capacity(prepared.duplicate_count());
 
-        self.reserve_insert_overwrite_commit(prepared.needs_new_item_slot());
+        self.try_reserve_insert_overwrite_commit(
+            prepared.needs_new_item_slot(),
+        )
+        .expect("reserved space successfully");
 
         self.commit_insert_overwrite(value, prepared, &mut duplicates);
 
@@ -2790,25 +2793,30 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
         PreparedDuplicate { index, hashes }
     }
 
-    fn reserve_insert_overwrite_commit(&mut self, needs_new_item_slot: bool) {
+    fn try_reserve_insert_overwrite_commit(
+        &mut self,
+        needs_new_item_slot: bool,
+    ) -> Result<(), TryReserveError> {
         if needs_new_item_slot {
-            self.items.try_reserve(1).expect("reserved item slot");
+            self.items.try_reserve(1)?;
         }
 
         self.tables
             .k1_to_item
             .try_reserve(1)
-            .expect("reserved key1 table slot");
+            .map_err(TryReserveError::from_hashbrown)?;
 
         self.tables
             .k2_to_item
             .try_reserve(1)
-            .expect("reserved key2 table slot");
+            .map_err(TryReserveError::from_hashbrown)?;
 
         self.tables
             .k3_to_item
             .try_reserve(1)
-            .expect("reserved key3 table slot");
+            .map_err(TryReserveError::from_hashbrown)?;
+
+        Ok(())
     }
 
     fn commit_insert_overwrite(

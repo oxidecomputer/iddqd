@@ -7,7 +7,7 @@ use super::{
 use crate::{
     BiHashItem, DefaultHashBuilder,
     bi_hash_map::entry::OccupiedEntryMut,
-    errors::DuplicateItem,
+    errors::{DuplicateItem, TryReserveError},
     internal::{ValidateCompact, ValidationError},
     support::{
         ItemIndex,
@@ -1184,7 +1184,10 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
 
         let mut duplicates = Vec::with_capacity(prepared.duplicate_count());
 
-        self.reserve_insert_overwrite_commit(prepared.needs_new_item_slot());
+        self.try_reserve_insert_overwrite_commit(
+            prepared.needs_new_item_slot(),
+        )
+        .expect("reserved space successfully");
 
         self.commit_insert_overwrite(value, prepared, &mut duplicates);
 
@@ -2126,20 +2129,24 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
         PreparedDuplicate { index, hashes }
     }
 
-    fn reserve_insert_overwrite_commit(&mut self, needs_new_item_slot: bool) {
+    fn try_reserve_insert_overwrite_commit(
+        &mut self,
+        needs_new_item_slot: bool,
+    ) -> Result<(), TryReserveError> {
         if needs_new_item_slot {
-            self.items.try_reserve(1).expect("reserved item slot");
+            self.items.try_reserve(1)?;
         }
 
         self.tables
             .k1_to_item
             .try_reserve(1)
-            .expect("reserved key1 table slot");
-
+            .map_err(TryReserveError::from_hashbrown)?;
         self.tables
             .k2_to_item
             .try_reserve(1)
-            .expect("reserved key2 table slot");
+            .map_err(TryReserveError::from_hashbrown)?;
+
+        Ok(())
     }
 
     fn commit_insert_overwrite(
@@ -2450,9 +2457,10 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
                 let mut old_items =
                     Vec::with_capacity(prepared.duplicate_count());
 
-                self.reserve_insert_overwrite_commit(
+                self.try_reserve_insert_overwrite_commit(
                     prepared.needs_new_item_slot(),
-                );
+                )
+                .expect("reserved item slot");
 
                 let next_index = self.commit_insert_overwrite(
                     value,
