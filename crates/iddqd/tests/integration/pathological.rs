@@ -1371,8 +1371,12 @@ mod allocator_tests {
         );
     }
 
-    // Ensure that `insert_overwrite` reserves all commit-time capacity up
-    // front, before it removes any duplicates.
+    // Ensures that when a brand-new key forces the item set to grow,
+    // `insert_overwrite` reserves that capacity up front, so a reservation
+    // failure leaves the map unchanged.
+    //
+    // The reserve-before-remove ordering on the duplicate path is covered by
+    // the `PanickyAlloc` panic-safety proptest.
     #[test]
     fn bi_insert_overwrite_atomic_on_alloc_failure() {
         let mut map: BiHashMap<_, _, FailingAlloc<Global>> =

@@ -26,7 +26,8 @@ use core::{
 };
 use equivalent::Equivalent;
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
+#[must_use]
 struct PreparedDuplicate {
     index: ItemIndex,
     hashes: [MapHash; 2],
@@ -54,7 +55,8 @@ impl PreparedDuplicate {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
+#[must_use]
 struct PreparedInsertOverwrite {
     index1: Option<ItemIndex>,
     index2: Option<ItemIndex>,

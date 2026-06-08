@@ -20,7 +20,8 @@ use core::{
 };
 use equivalent::Equivalent;
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
+#[must_use]
 struct PreparedDuplicate {
     index: ItemIndex,
     hashes: [MapHash; 3],
@@ -48,7 +49,8 @@ impl PreparedDuplicate {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
+#[must_use]
 struct PreparedInsertOverwrite {
     duplicates: Vec<PreparedDuplicate>,
     hashes: [MapHash; 3],
