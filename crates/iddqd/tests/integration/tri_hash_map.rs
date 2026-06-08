@@ -1107,15 +1107,22 @@ impl TriHashItem for PanickyHashItem {
     type K1<'a> = iddqd_test_utils::panic_safety::PanickyKey;
     type K2<'a> = iddqd_test_utils::panic_safety::PanickyKey;
     type K3<'a> = iddqd_test_utils::panic_safety::PanickyKey;
+
     fn key1(&self) -> Self::K1<'_> {
+        iddqd_test_utils::panic_safety::observe_panicky_call("key1");
         iddqd_test_utils::panic_safety::PanickyKey(self.key1)
     }
+
     fn key2(&self) -> Self::K2<'_> {
+        iddqd_test_utils::panic_safety::observe_panicky_call("key2");
         iddqd_test_utils::panic_safety::PanickyKey(self.key2)
     }
+
     fn key3(&self) -> Self::K3<'_> {
+        iddqd_test_utils::panic_safety::observe_panicky_call("key3");
         iddqd_test_utils::panic_safety::PanickyKey(self.key3)
     }
+
     tri_upcast!();
 }
 
