@@ -1,3 +1,5 @@
+#[cfg(feature = "allocator-api2")]
+pub mod alloc_failure;
 pub mod borrowed_item;
 pub mod eq_props;
 pub mod naive_map;
