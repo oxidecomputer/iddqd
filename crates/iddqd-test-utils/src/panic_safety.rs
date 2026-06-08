@@ -69,12 +69,6 @@ thread_local! {
 #[derive(Clone, Debug, Eq)]
 pub struct PanickyKey(pub u32);
 
-impl PanickyKey {
-    fn observe_call(label: &'static str) {
-        observe_panicky_call(label);
-    }
-}
-
 pub fn observe_panicky_call(label: &'static str) {
     PANIC_COUNTDOWN.with(|c| {
         // When disarmed, don't tick `OP_COUNT`. This matters for two
@@ -111,7 +105,7 @@ pub fn drop_unarmed<T>(value: T) {
 
 impl Drop for PanickyKey {
     fn drop(&mut self) {
-        Self::observe_call("drop");
+        observe_panicky_call("drop");
     }
 }
 
@@ -127,28 +121,28 @@ pub struct PanickySearchKey(pub u32);
 
 impl Hash for PanickySearchKey {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        PanickyKey::observe_call("search-hash");
+        observe_panicky_call("search-hash");
         self.0.hash(state);
     }
 }
 
 impl Equivalent<PanickyKey> for PanickySearchKey {
     fn equivalent(&self, key: &PanickyKey) -> bool {
-        PanickyKey::observe_call("search-equivalent");
+        observe_panicky_call("search-equivalent");
         self.0 == key.0
     }
 }
 
 impl Comparable<PanickyKey> for PanickySearchKey {
     fn compare(&self, key: &PanickyKey) -> Ordering {
-        PanickyKey::observe_call("search-compare");
+        observe_panicky_call("search-compare");
         self.0.cmp(&key.0)
     }
 }
 
 impl PartialEq for PanickyKey {
     fn eq(&self, other: &Self) -> bool {
-        Self::observe_call("eq");
+        observe_panicky_call("eq");
         self.0 == other.0
     }
 }
@@ -161,14 +155,14 @@ impl PartialOrd for PanickyKey {
 
 impl Ord for PanickyKey {
     fn cmp(&self, other: &Self) -> Ordering {
-        Self::observe_call("cmp");
+        observe_panicky_call("cmp");
         self.0.cmp(&other.0)
     }
 }
 
 impl Hash for PanickyKey {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        Self::observe_call("hash");
+        observe_panicky_call("hash");
         self.0.hash(state);
     }
 }
