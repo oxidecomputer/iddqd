@@ -2152,11 +2152,8 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
         // allocate. The caller prepared hashes/indexes and reserved capacity.
         for duplicate in prepared.duplicates {
             duplicates.push(
-                self.remove_by_index_with_hashes(
-                    duplicate.index,
-                    duplicate.hashes,
-                )
-                .expect("duplicate index was prepared"),
+                self.remove_duplicate(duplicate)
+                    .expect("duplicate index was prepared"),
             );
         }
 
@@ -2313,11 +2310,8 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
 
         for duplicate in prepared {
             old_items.push(
-                self.remove_by_index_with_hashes(
-                    duplicate.index,
-                    duplicate.hashes,
-                )
-                .expect("prepared duplicate index was present"),
+                self.remove_duplicate(duplicate)
+                    .expect("prepared duplicate index was present"),
             );
         }
 
@@ -2373,53 +2367,50 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
         )
     }
 
-    /// Removes the item at `remove_index`, using already-computed key hashes when
+    /// Removes the item at `duplicate`, using already-computed key hashes when
     /// possible.
     ///
     /// The caller must ensure:
     ///
     /// * all user-controlled key extraction and hashing for the item at
-    ///   `remove_index` has already completed;
-    /// * the item at `remove_index` has not changed since those hashes were
+    ///   `duplicate.index` has already completed;
+    /// * the item at `duplicate.index` has not changed since those hashes were
     ///   computed;
     /// * removing this index from the item store and key tables preserves the
     ///   map/table invariants.
     ///
-    /// The provided `hashes` allow the normal commit path to remove key-table
-    /// entries without recomputing user-controlled hashes. If a prehashed lookup
-    /// misses, this falls back to removing by `ItemIndex`, which performs a linear
-    /// scan over cached indexes and does not re-enter user code.
-    fn remove_by_index_with_hashes(
-        &mut self,
-        remove_index: ItemIndex,
-        hashes: [MapHash; 2],
-    ) -> Option<T> {
-        let _ = self.items.get(remove_index)?;
+    /// The provided `duplicate.hashes` allow the normal commit path to remove
+    /// key-table entries without recomputing user-controlled hashes. If a
+    /// prehashed lookup misses, this falls back to removing by `ItemIndex`,
+    /// which performs a linear scan over cached indexes and does not re-enter
+    /// user code.
+    fn remove_duplicate(&mut self, duplicate: PreparedDuplicate) -> Option<T> {
+        let _ = self.items.get(duplicate.index)?;
 
-        let [hash1, hash2] = hashes;
+        let [hash1, hash2] = duplicate.hashes;
 
         match self
             .tables
             .k1_to_item
-            .find_entry_by_hash(hash1.hash(), |index| index == remove_index)
+            .find_entry_by_hash(hash1.hash(), |index| index == duplicate.index)
         {
             Ok(entry) => entry.remove(),
-            Err(()) => self.tables.k1_to_item.remove_by_index(remove_index),
+            Err(()) => self.tables.k1_to_item.remove_by_index(duplicate.index),
         }
 
         match self
             .tables
             .k2_to_item
-            .find_entry_by_hash(hash2.hash(), |index| index == remove_index)
+            .find_entry_by_hash(hash2.hash(), |index| index == duplicate.index)
         {
             Ok(entry) => entry.remove(),
-            Err(()) => self.tables.k2_to_item.remove_by_index(remove_index),
+            Err(()) => self.tables.k2_to_item.remove_by_index(duplicate.index),
         }
 
         Some(
             self.items
-                .remove(remove_index)
-                .expect("items[remove_index] was Occupied above"),
+                .remove(duplicate.index)
+                .expect("items[duplicate.index] was Occupied above"),
         )
     }
 
