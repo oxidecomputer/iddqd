@@ -3,6 +3,10 @@
 <!-- next-header -->
 ## Unreleased - ReleaseDate
 
+### Fixed
+
+- The `insert_overwrite` paths on `BiHashMap` and `TriHashMap` are now atomic in case user code panics. Thanks to [SG-devel](https://github.com/SG-devel) for your first contribution!
+
 ## [0.4.2] - 2026-05-23
 
 ### Fixed
