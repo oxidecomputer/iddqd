@@ -1255,7 +1255,7 @@ mod proptest_panic_safety {
     use allocator_api2::alloc::Global;
     use iddqd_test_utils::panic_safety::{
         PANIC_PROPTEST_CASES, PANIC_PROPTEST_MAX_OPS, PanicSafety,
-        PanickyAlloc, PanickyOp, PanickySearchKey,
+        PanickyAlloc, PanickyKey, PanickyOp, PanickySearchKey,
         assert_panic_fired_as_expected, assert_post_op_invariants,
         drop_unarmed, record_observation, run_armed, sorted_keys,
     };
@@ -1275,6 +1275,13 @@ mod proptest_panic_safety {
         InsertUnique(#[strategy(0..32_u32)] u32, #[strategy(0..32_u32)] u32),
         #[weight(3)]
         InsertOverwrite(#[strategy(0..32_u32)] u32, #[strategy(0..32_u32)] u32),
+        #[weight(3)]
+        EntryInsertOverwrite(
+            #[strategy(0..32_u32)] u32,
+            #[strategy(0..32_u32)] u32,
+        ),
+        #[weight(2)]
+        EntryRemove(#[strategy(0..32_u32)] u32, #[strategy(0..32_u32)] u32),
         #[weight(2)]
         Remove1(#[strategy(0..32_u32)] u32),
         #[weight(2)]
@@ -1308,10 +1315,10 @@ mod proptest_panic_safety {
     impl PanickyAction {
         /// Classify panic safety for this action.
         ///
-        /// * `BiHashMap::insert_overwrite` runs
-        ///   `remove1; remove2; insert_unique;` as sequential commits,
-        ///   so a mid-sequence panic can leave the map in a different
-        ///   (but still valid) state.
+        /// * `BiHashMap::insert_overwrite`, `OccupiedEntry::insert`, and
+        ///   `OccupiedEntry::remove` run their key removals and insertion
+        ///   as sequential commits, so a mid-sequence panic can leave the
+        ///   map in a different (but still valid) state.
         /// * `RetainModulo` and `Clear` loop over per-step atomic item
         ///   destruction.
         /// * `Extend` calls `HashTable::reserve` up front, which on a
@@ -1321,7 +1328,9 @@ mod proptest_panic_safety {
         fn panic_safety(&self) -> PanicSafety {
             match self {
                 PanickyAction::InsertUnique(_, _) => PanicSafety::Atomic,
-                PanickyAction::InsertOverwrite(_, _) => PanicSafety::StepAtomic,
+                PanickyAction::InsertOverwrite(_, _)
+                | PanickyAction::EntryInsertOverwrite(_, _)
+                | PanickyAction::EntryRemove(_, _) => PanicSafety::StepAtomic,
                 PanickyAction::Remove1(_)
                 | PanickyAction::Remove2(_)
                 | PanickyAction::Get1(_)
@@ -1347,6 +1356,22 @@ mod proptest_panic_safety {
                     drop_unarmed(
                         map.insert_overwrite(PanickyHashItem { key1, key2 }),
                     );
+                }
+                PanickyAction::EntryInsertOverwrite(key1, key2) => {
+                    let entry = map.entry(PanickyKey(key1), PanickyKey(key2));
+
+                    if let bi_hash_map::Entry::Occupied(mut entry) = entry {
+                        drop_unarmed(
+                            entry.insert(PanickyHashItem { key1, key2 }),
+                        );
+                    }
+                }
+                PanickyAction::EntryRemove(key1, key2) => {
+                    let entry = map.entry(PanickyKey(key1), PanickyKey(key2));
+
+                    if let bi_hash_map::Entry::Occupied(entry) = entry {
+                        drop_unarmed(entry.remove());
+                    }
                 }
                 PanickyAction::Remove1(key1) => {
                     drop_unarmed(map.remove1(&PanickySearchKey(key1)));
