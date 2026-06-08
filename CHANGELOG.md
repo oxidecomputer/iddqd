@@ -3,6 +3,8 @@
 <!-- next-header -->
 ## Unreleased - ReleaseDate
 
+## [0.4.3] - 2026-06-08
+
 ### Fixed
 
 - The `insert_overwrite` paths on `BiHashMap` and `TriHashMap` are now atomic in case user code panics. Thanks to [SG-devel](https://github.com/SG-devel) for your first contribution!
@@ -255,6 +257,7 @@ Thanks to [aatifsyed](https://github.com/aatifsyed) for your first contribution!
 Initial release.
 
 <!-- next-url -->
+[0.4.3]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.4.3
 [0.4.2]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.4.2
 [0.4.1]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.4.1
 [0.4.0]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.4.0
