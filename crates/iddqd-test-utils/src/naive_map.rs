@@ -130,6 +130,25 @@ impl NaiveMap {
         Some(self.items.remove(index))
     }
 
+    /// Removes and returns every item covered by a `BiHashMap` entry keyed on
+    /// `(key1, key2)`, i.e., every item matching `key1` *or* `key2`.
+    ///
+    /// Mirrors `bi_hash_map::OccupiedEntry::remove`. An empty result
+    /// corresponds to a vacant entry.
+    pub fn entry_remove12(&mut self, key1: u8, key2: char) -> Vec<TestItem> {
+        let indexes = self
+            .items
+            .iter()
+            .enumerate()
+            .filter_map(|(i, e)| {
+                (e.key1 == key1 || e.key2 == key2).then_some(i)
+            })
+            .collect::<Vec<_>>();
+
+        // Remove in reverse so earlier indexes stay valid as items shift.
+        indexes.iter().rev().map(|&i| self.items.remove(i)).collect()
+    }
+
     /// Returns the item whose three keys all match, if any.
     ///
     /// Mirrors `TriHashMap::get_unique`: a hit requires `key1`, `key2`, *and*
