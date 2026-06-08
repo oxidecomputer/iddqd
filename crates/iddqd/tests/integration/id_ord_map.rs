@@ -1098,9 +1098,12 @@ struct PanickyOrdItem {
 
 impl IdOrdItem for PanickyOrdItem {
     type Key<'a> = iddqd_test_utils::panic_safety::PanickyKey;
+
     fn key(&self) -> Self::Key<'_> {
+        iddqd_test_utils::panic_safety::observe_panicky_call("key");
         iddqd_test_utils::panic_safety::PanickyKey(self.key)
     }
+
     id_upcast!();
 }
 

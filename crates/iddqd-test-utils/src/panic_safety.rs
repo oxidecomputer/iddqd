@@ -207,13 +207,14 @@ where
                 7 => Just(None),
                 // Retains dense coverage of early panics.
                 2 => (0..16_u32).prop_map(Some),
-                // This bucket explores single-key atomic ops (Insert/Remove
-                // have been observed to run to up to ~75 calls) and
-                // `*HashMap::InsertOverwrite` (~38).
-                1 => (16..64_u32).prop_map(Some),
+                // This bucket covers single-key atomic ops (`IdOrdMap`
+                // insert/overwrite/remove go up to ~114 calls) and
+                // `*HashMap::InsertOverwrite` (~63).
+                1 => (16..128_u32).prop_map(Some),
                 // This bucket covers bulk ops, with `Extend`, `RetainModulo`,
-                // and `Clear` observed running to ~321 calls.
-                1 => (64..384_u32).prop_map(Some),
+                // and `Clear` observed running to ~503 calls
+                // (`IdOrdMap::Extend`).
+                1 => (128..640_u32).prop_map(Some),
             ]
             .boxed()
         };
