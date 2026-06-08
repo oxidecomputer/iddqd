@@ -901,9 +901,12 @@ struct PanickyHashItem {
 #[cfg(all(feature = "default-hasher", feature = "allocator-api2"))]
 impl IdHashItem for PanickyHashItem {
     type Key<'a> = iddqd_test_utils::panic_safety::PanickyKey;
+
     fn key(&self) -> Self::Key<'_> {
+        iddqd_test_utils::panic_safety::observe_panicky_call("key");
         iddqd_test_utils::panic_safety::PanickyKey(self.key)
     }
+
     id_upcast!();
 }
 
@@ -920,7 +923,7 @@ mod proptest_panic_safety {
     use allocator_api2::alloc::Global;
     use iddqd_test_utils::panic_safety::{
         PANIC_PROPTEST_CASES, PANIC_PROPTEST_MAX_OPS, PanicSafety,
-        PanickyAlloc, PanickyOp, PanickySearchKey,
+        PanickyAlloc, PanickyKey, PanickyOp, PanickySearchKey,
         assert_panic_fired_as_expected, assert_post_op_invariants,
         drop_unarmed, record_observation, run_armed, sorted_keys,
     };
@@ -940,6 +943,10 @@ mod proptest_panic_safety {
         InsertUnique(#[strategy(0..32_u32)] u32),
         #[weight(3)]
         InsertOverwrite(#[strategy(0..32_u32)] u32),
+        #[weight(3)]
+        EntryInsertOverwrite(#[strategy(0..32_u32)] u32),
+        #[weight(2)]
+        EntryRemove(#[strategy(0..32_u32)] u32),
         #[weight(2)]
         Remove(#[strategy(0..32_u32)] u32),
         #[weight(2)]
@@ -970,6 +977,8 @@ mod proptest_panic_safety {
             match self {
                 PanickyAction::InsertUnique(_)
                 | PanickyAction::InsertOverwrite(_)
+                | PanickyAction::EntryInsertOverwrite(_)
+                | PanickyAction::EntryRemove(_)
                 | PanickyAction::Remove(_)
                 | PanickyAction::Get(_)
                 | PanickyAction::ContainsKey(_)
@@ -988,6 +997,20 @@ mod proptest_panic_safety {
                 }
                 PanickyAction::InsertOverwrite(key) => {
                     drop_unarmed(map.insert_overwrite(PanickyHashItem { key }));
+                }
+                PanickyAction::EntryInsertOverwrite(key) => {
+                    let entry = map.entry(PanickyKey(key));
+
+                    if let id_hash_map::Entry::Occupied(mut entry) = entry {
+                        drop_unarmed(entry.insert(PanickyHashItem { key }));
+                    }
+                }
+                PanickyAction::EntryRemove(key) => {
+                    let entry = map.entry(PanickyKey(key));
+
+                    if let id_hash_map::Entry::Occupied(entry) = entry {
+                        drop_unarmed(entry.remove());
+                    }
                 }
                 PanickyAction::Remove(key) => {
                     drop_unarmed(map.remove(&PanickySearchKey(key)));

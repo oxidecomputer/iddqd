@@ -1281,6 +1281,8 @@ mod proptest_panic_safety {
             #[strategy(0..32_u32)] u32,
         ),
         #[weight(2)]
+        EntryRemove(#[strategy(0..32_u32)] u32, #[strategy(0..32_u32)] u32),
+        #[weight(2)]
         Remove1(#[strategy(0..32_u32)] u32),
         #[weight(2)]
         Remove2(#[strategy(0..32_u32)] u32),
@@ -1324,6 +1326,7 @@ mod proptest_panic_safety {
                 PanickyAction::InsertUnique(_, _)
                 | PanickyAction::InsertOverwrite(_, _)
                 | PanickyAction::EntryInsertOverwrite(_, _)
+                | PanickyAction::EntryRemove(_, _)
                 | PanickyAction::Remove1(_)
                 | PanickyAction::Remove2(_)
                 | PanickyAction::Get1(_)
@@ -1357,6 +1360,13 @@ mod proptest_panic_safety {
                         drop_unarmed(
                             entry.insert(PanickyHashItem { key1, key2 }),
                         );
+                    }
+                }
+                PanickyAction::EntryRemove(key1, key2) => {
+                    let entry = map.entry(PanickyKey(key1), PanickyKey(key2));
+
+                    if let bi_hash_map::Entry::Occupied(entry) = entry {
+                        drop_unarmed(entry.remove());
                     }
                 }
                 PanickyAction::Remove1(key1) => {
