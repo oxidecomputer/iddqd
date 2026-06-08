@@ -1293,8 +1293,9 @@ fn pop_after_chaos_no_ub() {
 mod allocator_tests {
     use super::*;
     use allocator_api2::alloc::Global;
-    use iddqd_test_utils::panic_safety::{
-        PanickyAlloc, arm_panic_after, disarm_panic,
+    use iddqd_test_utils::{
+        alloc_failure::{FailingAlloc, with_failing_alloc},
+        panic_safety::{PanickyAlloc, arm_panic_after, disarm_panic},
     };
     use std::{collections::BTreeSet, panic::AssertUnwindSafe};
 
@@ -1368,5 +1369,92 @@ mod allocator_tests {
             "map should be structurally valid (and compact) after the \
              shrink_to_fit panic",
         );
+    }
+
+    // Ensures that when a brand-new key forces the item set to grow,
+    // `insert_overwrite` reserves that capacity up front, so a reservation
+    // failure leaves the map unchanged.
+    //
+    // The reserve-before-remove ordering on the duplicate path is covered by
+    // the `PanickyAlloc` panic-safety proptest.
+    #[test]
+    fn bi_insert_overwrite_atomic_on_alloc_failure() {
+        let mut map: BiHashMap<_, _, FailingAlloc<Global>> =
+            BiHashMap::with_hasher_in(
+                foldhash::fast::FixedState::with_seed(0),
+                FailingAlloc(Global),
+            );
+        for id in 0..4u32 {
+            map.insert_unique(ForgettableBiHashItem { id, alt: id + 100 })
+                .unwrap();
+        }
+        // Compact the item set so a brand-new key forces a fresh allocation.
+        map.shrink_to_fit();
+
+        let before: BTreeSet<_> =
+            map.iter().map(|item| (item.id, item.alt)).collect();
+
+        let result = catch_panic(AssertUnwindSafe(|| {
+            with_failing_alloc(|| {
+                map.insert_overwrite(ForgettableBiHashItem { id: 99, alt: 999 })
+            })
+        }));
+        assert!(
+            result.is_none(),
+            "insert_overwrite should panic when the reservation fails"
+        );
+
+        let after: BTreeSet<_> =
+            map.iter().map(|item| (item.id, item.alt)).collect();
+        assert_eq!(
+            after, before,
+            "map must be unchanged after a failed reserve"
+        );
+        map.validate(ValidateCompact::Compact)
+            .expect("map remains valid and compact after a failed reservation");
+    }
+
+    #[test]
+    fn tri_insert_overwrite_atomic_on_alloc_failure() {
+        let mut map: TriHashMap<_, _, FailingAlloc<Global>> =
+            TriHashMap::with_hasher_in(
+                foldhash::fast::FixedState::with_seed(0),
+                FailingAlloc(Global),
+            );
+        for id in 0..4u32 {
+            map.insert_unique(ForgettableTriHashItem {
+                id,
+                alt: id + 100,
+                third: id + 200,
+            })
+            .unwrap();
+        }
+        map.shrink_to_fit();
+
+        let before: BTreeSet<_> =
+            map.iter().map(|item| (item.id, item.alt, item.third)).collect();
+
+        let result = catch_panic(AssertUnwindSafe(|| {
+            with_failing_alloc(|| {
+                map.insert_overwrite(ForgettableTriHashItem {
+                    id: 99,
+                    alt: 999,
+                    third: 888,
+                })
+            })
+        }));
+        assert!(
+            result.is_none(),
+            "insert_overwrite should panic when the reservation fails"
+        );
+
+        let after: BTreeSet<_> =
+            map.iter().map(|item| (item.id, item.alt, item.third)).collect();
+        assert_eq!(
+            after, before,
+            "map must be unchanged after a failed reserve"
+        );
+        map.validate(ValidateCompact::Compact)
+            .expect("map remains valid and compact after a failed reservation");
     }
 }
