@@ -8,8 +8,8 @@
 use core::cell::Cell;
 use iddqd::{
     BiHashItem, BiHashMap, Comparable, Equivalent, IdHashItem, IdHashMap,
-    IdOrdItem, IdOrdMap, TriHashItem, TriHashMap, bi_upcast, id_hash_map,
-    id_ord_map, id_upcast,
+    IdOrdItem, IdOrdMap, TriHashItem, TriHashMap, bi_hash_map, bi_upcast,
+    id_hash_map, id_ord_map, id_upcast,
     internal::{ValidateChaos, ValidateCompact},
     tri_upcast,
 };
@@ -883,6 +883,126 @@ fn tri_hash_silent_secondary_key_change_retain_no_panic() {
     assert!(map.is_empty());
     map.validate(ValidateCompact::NonCompact)
         .expect("map remains valid after silent-mutation retain");
+}
+
+// Tests the scenario where:
+//
+// * A silent key change strands that key's table entry in its old hash bucket.
+// * A later `insert_overwrite` finds the item through a different, unchanged key.
+//
+// This must still clean up the stranded entry by doing a linear scan.
+#[test]
+fn bi_hash_silent_secondary_key_change_insert_overwrite() {
+    let mut map: BiHashMap<ForgettableBiHashItem, _> =
+        BiHashMap::with_capacity_and_hasher(
+            8,
+            foldhash::fast::FixedState::with_seed(0),
+        );
+    for id in 0..8u32 {
+        map.insert_unique(ForgettableBiHashItem { id, alt: id + 100 }).unwrap();
+    }
+
+    // Move id=3's key2 from 103 to 10_000, stranding the k2 entry in hash(103).
+    let mut ref_mut = map.get1_mut(&ForgettableHashKey(3)).unwrap();
+    ref_mut.alt = 10_000;
+    // RefMut would panic if its Drop were allowed to run. Forget it to avoid the panic.
+    std::mem::forget(ref_mut);
+    // This lookup fails -- this acts as evidence that while cleaning up the
+    // stranded entry, we will in fact do a linear scan.
+    assert!(
+        map.get2(&ForgettableHashKey(10_000)).is_none(),
+        "key2=10_000 must be unreachable by its new hash"
+    );
+
+    // Now try overwriting with a different value.
+    let dups =
+        map.insert_overwrite(ForgettableBiHashItem { id: 3, alt: 9_999 });
+    assert_eq!(dups.len(), 1);
+    assert_eq!(dups[0].alt, 10_000);
+
+    for id in [0u32, 1, 2, 4, 5, 6, 7] {
+        assert!(map.contains_key1(&ForgettableHashKey(id)));
+    }
+    assert_eq!(map.get1(&ForgettableHashKey(3)).unwrap().alt, 9_999);
+    map.validate(ValidateCompact::NonCompact)
+        .expect("map remains valid after silent-mutation insert_overwrite");
+}
+
+// Same test as above but using the Entry API.
+#[test]
+fn bi_hash_silent_secondary_key_change_entry_remove() {
+    let mut map: BiHashMap<ForgettableBiHashItem, _> =
+        BiHashMap::with_capacity_and_hasher(
+            8,
+            foldhash::fast::FixedState::with_seed(0),
+        );
+    for id in 0..8u32 {
+        map.insert_unique(ForgettableBiHashItem { id, alt: id + 100 }).unwrap();
+    }
+
+    let mut ref_mut = map.get1_mut(&ForgettableHashKey(3)).unwrap();
+    ref_mut.alt = 10_000;
+    std::mem::forget(ref_mut);
+    assert!(
+        map.get2(&ForgettableHashKey(10_000)).is_none(),
+        "key2=10_000 must be unreachable by its new hash"
+    );
+
+    let bi_hash_map::Entry::Occupied(entry) =
+        map.entry(ForgettableHashKey(3), ForgettableHashKey(9_999))
+    else {
+        panic!("key1=3 is present, so the entry is occupied");
+    };
+    let removed = entry.remove();
+    assert_eq!(removed.len(), 1);
+    assert_eq!(removed[0].alt, 10_000);
+
+    assert!(!map.contains_key1(&ForgettableHashKey(3)));
+    for id in [0u32, 1, 2, 4, 5, 6, 7] {
+        assert!(map.contains_key1(&ForgettableHashKey(id)));
+    }
+    map.validate(ValidateCompact::NonCompact)
+        .expect("map remains valid after silent-mutation entry remove");
+}
+
+// Same test as above but using `TriHashMap`.
+#[test]
+fn tri_hash_silent_tertiary_key_change_insert_overwrite() {
+    let mut map: TriHashMap<ForgettableTriHashItem, _> =
+        TriHashMap::with_capacity_and_hasher(
+            8,
+            foldhash::fast::FixedState::with_seed(0),
+        );
+    for id in 0..8u32 {
+        map.insert_unique(ForgettableTriHashItem {
+            id,
+            alt: id + 100,
+            third: id + 200,
+        })
+        .unwrap();
+    }
+
+    let mut ref_mut = map.get1_mut(&ForgettableHashKey(3)).unwrap();
+    ref_mut.third = 10_000;
+    std::mem::forget(ref_mut);
+    assert!(
+        map.get3(&ForgettableHashKey(10_000)).is_none(),
+        "key3=10_000 must be unreachable by its new hash"
+    );
+
+    let dups = map.insert_overwrite(ForgettableTriHashItem {
+        id: 3,
+        alt: 999,
+        third: 888,
+    });
+    assert_eq!(dups.len(), 1);
+    assert_eq!(dups[0].third, 10_000);
+
+    for id in [0u32, 1, 2, 4, 5, 6, 7] {
+        assert!(map.contains_key1(&ForgettableHashKey(id)));
+    }
+    map.validate(ValidateCompact::NonCompact)
+        .expect("map remains valid after silent-mutation insert_overwrite");
 }
 
 #[test]
