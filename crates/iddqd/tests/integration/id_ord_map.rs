@@ -245,6 +245,10 @@ enum Operation {
     #[weight(4)]
     InsertOverwrite(TestItem),
     #[weight(2)]
+    EntryInsertOverwrite(TestItem),
+    #[weight(2)]
+    EntryRemove(u8),
+    #[weight(2)]
     Get(u8),
     #[weight(2)]
     Remove(u8),
@@ -287,6 +291,8 @@ impl Operation {
             // The act of removing items, including calls to insert_overwrite,
             // can make the map non-compact.
             Operation::InsertOverwrite(_)
+            | Operation::EntryInsertOverwrite(_)
+            | Operation::EntryRemove(_)
             | Operation::Remove(_)
             | Operation::PopFirst
             | Operation::PopLast
@@ -342,6 +348,43 @@ fn proptest_ops(
                 assert_eq!(
                     map_dups, naive_dup,
                     "map and naive map should agree on insert_overwrite dup"
+                );
+                map.validate(compactness, ValidateChaos::No)
+                    .expect("map should be valid");
+            }
+            Operation::EntryInsertOverwrite(item) => {
+                let map_res = match map.entry(item.key()) {
+                    id_ord_map::Entry::Occupied(mut entry) => {
+                        Some(entry.insert(item.clone()))
+                    }
+                    id_ord_map::Entry::Vacant(_) => None,
+                };
+
+                let occupied = naive_map.get1(item.key1).is_some();
+                let naive_res = occupied.then(|| {
+                    let mut dups = naive_map.insert_overwrite(item.clone());
+                    assert!(dups.len() <= 1, "max one conflict");
+                    dups.pop().expect("occupied entry has one duplicate")
+                });
+
+                assert_eq!(
+                    map_res, naive_res,
+                    "map and naive map should agree on Entry::insert"
+                );
+                map.validate(compactness, ValidateChaos::No)
+                    .expect("map should be valid");
+            }
+            Operation::EntryRemove(key) => {
+                let map_res = match map.entry(TestKey1::new(&key)) {
+                    id_ord_map::Entry::Occupied(entry) => Some(entry.remove()),
+                    id_ord_map::Entry::Vacant(_) => None,
+                };
+
+                let naive_res = naive_map.remove1(key);
+
+                assert_eq!(
+                    map_res, naive_res,
+                    "map and naive map should agree on Entry::remove"
                 );
                 map.validate(compactness, ValidateChaos::No)
                     .expect("map should be valid");
