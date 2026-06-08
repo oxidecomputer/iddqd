@@ -289,6 +289,10 @@ enum Operation {
     #[weight(3)]
     InsertOverwrite(TestItem),
     #[weight(2)]
+    EntryInsertOverwrite(TestItem),
+    #[weight(2)]
+    EntryRemove(UniqueKeysOp),
+    #[weight(2)]
     Get1(u8),
     #[weight(2)]
     Get2(char),
@@ -334,6 +338,8 @@ impl Operation {
             // The act of removing items, including calls to insert_overwrite,
             // can make the map non-compact.
             Operation::InsertOverwrite(_)
+            | Operation::EntryInsertOverwrite(_)
+            | Operation::EntryRemove(_)
             | Operation::Remove1(_)
             | Operation::Remove2(_)
             | Operation::RemoveUnique(_)
@@ -398,6 +404,53 @@ fn proptest_ops(
                 assert_eq!(
                     map_dups, naive_dups,
                     "map and naive map should agree on insert_overwrite dups"
+                );
+                map.validate(compactness).expect("map should be valid");
+            }
+            Operation::EntryInsertOverwrite(item) => {
+                let map_res = match map.entry(item.key1(), item.key2()) {
+                    bi_hash_map::Entry::Occupied(mut entry) => {
+                        let mut dups = entry.insert(item.clone());
+                        dups.sort();
+                        Some(dups)
+                    }
+                    bi_hash_map::Entry::Vacant(_) => None,
+                };
+
+                let occupied = naive_map.get1(item.key1).is_some()
+                    || naive_map.get2(item.key2).is_some();
+                let naive_res = occupied.then(|| {
+                    let mut dups = naive_map.insert_overwrite(item.clone());
+                    dups.sort();
+                    dups
+                });
+
+                assert_eq!(
+                    map_res, naive_res,
+                    "map and naive map should agree on Entry::insert dups"
+                );
+                map.validate(compactness).expect("map should be valid");
+            }
+            Operation::EntryRemove(keys) => {
+                let (key1, key2) = keys.resolve(&naive_map);
+
+                let map_res = match map
+                    .entry(TestKey1::new(&key1), TestKey2::new(key2))
+                {
+                    bi_hash_map::Entry::Occupied(entry) => {
+                        let mut removed = entry.remove();
+                        removed.sort();
+                        removed
+                    }
+                    bi_hash_map::Entry::Vacant(_) => Vec::new(),
+                };
+
+                let mut naive_res = naive_map.entry_remove12(key1, key2);
+                naive_res.sort();
+
+                assert_eq!(
+                    map_res, naive_res,
+                    "map and naive map should agree on Entry::remove items"
                 );
                 map.validate(compactness).expect("map should be valid");
             }
