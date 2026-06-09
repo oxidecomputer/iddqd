@@ -2799,9 +2799,7 @@ impl<T: BiHashItem, S: Clone + BuildHasher + Default, A: Default + Allocator>
 {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let mut map = BiHashMap::default();
-        for item in iter {
-            map.insert_overwrite(item);
-        }
+        map.extend(iter);
         map
     }
 }

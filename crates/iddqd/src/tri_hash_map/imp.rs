@@ -3167,14 +3167,67 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> IntoIterator
 
 /// The `FromIterator` implementation for `TriHashMap` overwrites duplicate
 /// items.
+///
+/// # Examples
+///
+/// ```
+/// # #[cfg(feature = "default-hasher")] {
+/// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
+///
+/// #[derive(Debug, PartialEq, Eq)]
+/// struct Item {
+///     id: u32,
+///     name: String,
+///     email: String,
+/// }
+///
+/// impl TriHashItem for Item {
+///     type K1<'a> = u32;
+///     type K2<'a> = &'a str;
+///     type K3<'a> = &'a str;
+///     fn key1(&self) -> Self::K1<'_> {
+///         self.id
+///     }
+///     fn key2(&self) -> Self::K2<'_> {
+///         &self.name
+///     }
+///     fn key3(&self) -> Self::K3<'_> {
+///         &self.email
+///     }
+///     tri_upcast!();
+/// }
+///
+/// let items = vec![
+///     Item {
+///         id: 1,
+///         name: "foo".to_string(),
+///         email: "foo@example.com".to_string(),
+///     },
+///     Item {
+///         id: 2,
+///         name: "bar".to_string(),
+///         email: "bar@example.com".to_string(),
+///     },
+///     Item {
+///         id: 1,
+///         name: "baz".to_string(),
+///         email: "baz@example.com".to_string(),
+///     }, // overwrites first item
+/// ];
+///
+/// let map: TriHashMap<Item> = items.into_iter().collect();
+/// assert_eq!(map.len(), 2);
+/// assert_eq!(map.get1(&1).unwrap().name, "baz"); // overwritten
+/// assert_eq!(map.get1(&1).unwrap().email, "baz@example.com");
+/// assert_eq!(map.get1(&2).unwrap().name, "bar");
+/// # }
+/// ```
 impl<T: TriHashItem, S: Default + Clone + BuildHasher, A: Default + Allocator>
     FromIterator<T> for TriHashMap<T, S, A>
 {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let mut map = TriHashMap::default();
-        for item in iter {
-            map.insert_overwrite(item);
-        }
+        map.extend(iter);
         map
     }
 }

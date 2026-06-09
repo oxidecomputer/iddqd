@@ -1671,12 +1671,43 @@ impl<T: IdOrdItem> IntoIterator for IdOrdMap<T> {
 /// items.
 ///
 /// To reject duplicates, use [`IdOrdMap::from_iter_unique`].
+///
+/// # Examples
+///
+/// ```
+/// use iddqd::{IdOrdItem, IdOrdMap, id_upcast};
+///
+/// #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+/// struct Item {
+///     id: String,
+///     value: u32,
+/// }
+///
+/// impl IdOrdItem for Item {
+///     type Key<'a> = &'a str;
+///
+///     fn key(&self) -> Self::Key<'_> {
+///         &self.id
+///     }
+///
+///     id_upcast!();
+/// }
+///
+/// let items = vec![
+///     Item { id: "foo".to_string(), value: 42 },
+///     Item { id: "bar".to_string(), value: 20 },
+///     Item { id: "foo".to_string(), value: 100 }, // duplicate key, overwrites
+/// ];
+///
+/// let map: IdOrdMap<Item> = items.into_iter().collect();
+/// assert_eq!(map.len(), 2);
+/// assert_eq!(map.get("foo").unwrap().value, 100); // last value wins
+/// assert_eq!(map.get("bar").unwrap().value, 20);
+/// ```
 impl<T: IdOrdItem> FromIterator<T> for IdOrdMap<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let mut map = IdOrdMap::new();
-        for value in iter {
-            map.insert_overwrite(value);
-        }
+        map.extend(iter);
         map
     }
 }
