@@ -1674,9 +1674,7 @@ impl<T: IdOrdItem> IntoIterator for IdOrdMap<T> {
 impl<T: IdOrdItem> FromIterator<T> for IdOrdMap<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let mut map = IdOrdMap::new();
-        for value in iter {
-            map.insert_overwrite(value);
-        }
+        map.extend(iter);
         map
     }
 }

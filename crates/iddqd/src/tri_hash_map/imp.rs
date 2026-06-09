@@ -3172,9 +3172,7 @@ impl<T: TriHashItem, S: Default + Clone + BuildHasher, A: Default + Allocator>
 {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let mut map = TriHashMap::default();
-        for item in iter {
-            map.insert_overwrite(item);
-        }
+        map.extend(iter);
         map
     }
 }

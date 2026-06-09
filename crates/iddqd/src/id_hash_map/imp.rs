@@ -1817,9 +1817,7 @@ impl<T: IdHashItem, S: Default + Clone + BuildHasher, A: Allocator + Default>
 {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         let mut map = IdHashMap::default();
-        for item in iter {
-            map.insert_overwrite(item);
-        }
+        map.extend(iter);
         map
     }
 }
