@@ -203,14 +203,14 @@ address this, the crates.io ecosystem has standardized on the [`Equivalent`](htt
 and [`Comparable`](https://docs.rs/equivalent/1.0.2/equivalent/trait.Comparable.html) traits as generalizations of `Borrow`. The map types in
 this crate require these traits.
 
-For a key type `T::Key<'_>` and a lookup type `L`:
+For a key type `T::Key<'_>` and a query type `Q`:
 
-* The hash map types require `L: Hash + Equivalent<T::Key<'_>>`. Also, `L`
+* The hash map types require `Q: Hash + Equivalent<T::Key<'_>>`. Also, `Q`
   must hash in the same way as `T::Key<'_>`. Typically, this is done by
   ensuring that enum variants and struct fields are in the same
   order[^proptest].
-* [`IdOrdMap`](https://docs.rs/iddqd/0.4.3/iddqd/id_ord_map/imp/struct.IdOrdMap.html) requires `L: Comparable<T::Key<'_>>`, which in turn requires
-  `Equivalent<T::Key<'_>>`. (There’s no need for `L` to implement `Ord` or
+* [`IdOrdMap`](https://docs.rs/iddqd/0.4.3/iddqd/id_ord_map/imp/struct.IdOrdMap.html) requires `Q: Comparable<T::Key<'_>>`, which in turn requires
+  `Equivalent<T::Key<'_>>`. (There’s no need for `Q` to implement `Ord` or
   `Eq` itself.)
 
 [^proptest]: We recommend that you test this with e.g. a property-based
