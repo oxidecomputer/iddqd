@@ -200,14 +200,14 @@
 //! and [`Comparable`] traits as generalizations of `Borrow`. The map types in
 //! this crate require these traits.
 //!
-//! For a key type `T::Key<'_>` and a lookup type `L`:
+//! For a key type `T::Key<'_>` and a query type `Q`:
 //!
-//! * The hash map types require `L: Hash + Equivalent<T::Key<'_>>`. Also, `L`
+//! * The hash map types require `Q: Hash + Equivalent<T::Key<'_>>`. Also, `Q`
 //!   must hash in the same way as `T::Key<'_>`. Typically, this is done by
 //!   ensuring that enum variants and struct fields are in the same
 //!   order[^proptest].
-//! * [`IdOrdMap`] requires `L: Comparable<T::Key<'_>>`, which in turn requires
-//!   `Equivalent<T::Key<'_>>`. (There's no need for `L` to implement `Ord` or
+//! * [`IdOrdMap`] requires `Q: Comparable<T::Key<'_>>`, which in turn requires
+//!   `Equivalent<T::Key<'_>>`. (There's no need for `Q` to implement `Ord` or
 //!   `Eq` itself.)
 //!
 //! [^proptest]: We recommend that you test this with e.g. a property-based
