@@ -3,6 +3,10 @@
 <!-- next-header -->
 ## Unreleased - ReleaseDate
 
+### Changed
+
+- The `FromIterator` implementations now reserve capacity at the start of the operation.
+
 ## [0.4.3] - 2026-06-08
 
 ### Fixed
