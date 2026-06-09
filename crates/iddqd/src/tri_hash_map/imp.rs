@@ -3198,9 +3198,21 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> IntoIterator
 /// }
 ///
 /// let items = vec![
-///     Item { id: 1, name: "foo".to_string(), email: "foo@example.com".to_string() },
-///     Item { id: 2, name: "bar".to_string(), email: "bar@example.com".to_string() },
-///     Item { id: 1, name: "baz".to_string(), email: "baz@example.com".to_string() }, // overwrites first item
+///     Item {
+///         id: 1,
+///         name: "foo".to_string(),
+///         email: "foo@example.com".to_string(),
+///     },
+///     Item {
+///         id: 2,
+///         name: "bar".to_string(),
+///         email: "bar@example.com".to_string(),
+///     },
+///     Item {
+///         id: 1,
+///         name: "baz".to_string(),
+///         email: "baz@example.com".to_string(),
+///     }, // overwrites first item
 /// ];
 ///
 /// let map: TriHashMap<Item> = items.into_iter().collect();
