@@ -3,6 +3,8 @@
 <!-- next-header -->
 ## Unreleased - ReleaseDate
 
+## [0.4.4] - 2026-06-09
+
 ### Changed
 
 - The `FromIterator` implementations now reserve capacity at the start of the operation.
@@ -261,6 +263,7 @@ Thanks to [aatifsyed](https://github.com/aatifsyed) for your first contribution!
 Initial release.
 
 <!-- next-url -->
+[0.4.4]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.4.4
 [0.4.3]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.4.3
 [0.4.2]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.4.2
 [0.4.1]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.4.1
