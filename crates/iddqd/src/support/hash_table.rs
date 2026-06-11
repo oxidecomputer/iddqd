@@ -23,6 +23,13 @@
 //! This does add a u64 to every entry, but for the kinds of items iddqd is
 //! targeting (fat database records) the overhead is ideally minimal.
 
+// Under `cfg(soteria)`, swap hashbrown's `HashTable` for the linear-scan
+// reference table.
+//
+// Soteria's memory model cannot execute hashbrown's SwissTable. See
+// `hash_table_reference` for the rationale and fidelity notes.
+#[cfg(soteria)]
+use super::hash_table_reference::{HashTable, hash_table};
 use super::{
     ItemIndex,
     alloc::{AllocWrapper, Allocator},
@@ -36,6 +43,7 @@ use core::{
     hash::{BuildHasher, Hash},
 };
 use equivalent::Equivalent;
+#[cfg(not(soteria))]
 use hashbrown::{HashTable, hash_table};
 
 /// An [`ItemIndex`] stored in [`MapHashTable`] together with the cached hash
