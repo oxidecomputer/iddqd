@@ -18,6 +18,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
 
 [[package]]
+name = "allocator-api2"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c880a97d28a3681c0267bd29cff89621202715b065127cd445fa0f0fe0aa2880"
+
+[[package]]
 name = "anes"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -58,7 +64,7 @@ version = "3.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "46c5e41b57b8bba42a04676d81cb89e9ee8e859a1a66f80a5a72e1cb76b34d43"
 dependencies = [
- "allocator-api2",
+ "allocator-api2 0.2.21",
 ]
 
 [[package]]
@@ -333,7 +339,7 @@ version = "0.15.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5971ac85611da7067dbfcabef3c70ebb5606018acd9e2a3903a0da507521e0d5"
 dependencies = [
- "allocator-api2",
+ "allocator-api2 0.2.21",
  "equivalent",
  "foldhash 0.1.5",
 ]
@@ -344,7 +350,7 @@ version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5419bdc4f6a9207fbeba6d11b604d481addf78ecd10c11ad51e76c2f6482748d"
 dependencies = [
- "allocator-api2",
+ "allocator-api2 0.2.21",
 ]
 
 [[package]]
@@ -365,7 +371,7 @@ version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "542733215a252c27c674e5d875a910d7de509cb74123d0bdbaa050f871ec84c2"
 dependencies = [
- "allocator-api2",
+ "allocator-api2 0.2.21",
  "libc",
  "sptr",
 ]
@@ -374,7 +380,7 @@ dependencies = [
 name = "iddqd"
 version = "0.4.4"
 dependencies = [
- "allocator-api2",
+ "allocator-api2 0.4.0",
  "daft",
  "equivalent",
  "expectorate",
@@ -417,7 +423,7 @@ dependencies = [
 name = "iddqd-test-utils"
 version = "0.1.0"
 dependencies = [
- "allocator-api2",
+ "allocator-api2 0.4.0",
  "bumpalo",
  "camino",
  "equivalent",
