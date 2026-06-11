@@ -510,6 +510,8 @@ fn id_hash_misdirected_eq_remove_reinsert_retain_no_aliasing() {
     let removed = map.remove(&ExactLookupKey { id: 1 }).unwrap();
     MISDIRECTED_EQ_MODE.with(|c| c.set(false));
     assert_eq!(removed.id, 1);
+    map.validate_structural(ValidateCompact::NonCompact)
+        .expect("structurally sound after misdirected remove");
 
     map.insert_unique(MisdirectedEqIdHashItem { id: 2 }).unwrap();
 
@@ -554,6 +556,8 @@ fn bi_hash_misdirected_eq_remove_reinsert_retain_no_aliasing() {
     let removed = map.remove1(&ExactLookupKey { id: 1 }).unwrap();
     MISDIRECTED_EQ_MODE.with(|c| c.set(false));
     assert_eq!(removed.id, 1);
+    map.validate_structural(ValidateCompact::NonCompact)
+        .expect("structurally sound after misdirected remove");
 
     map.insert_unique(MisdirectedEqBiHashItem { id: 2 }).unwrap();
 
@@ -602,6 +606,8 @@ fn tri_hash_misdirected_eq_remove_reinsert_retain_no_aliasing() {
     let removed = map.remove1(&ExactLookupKey { id: 1 }).unwrap();
     MISDIRECTED_EQ_MODE.with(|c| c.set(false));
     assert_eq!(removed.id, 1);
+    map.validate_structural(ValidateCompact::NonCompact)
+        .expect("structurally sound after misdirected remove");
 
     map.insert_unique(MisdirectedEqTriHashItem { id: 2 }).unwrap();
 
@@ -852,6 +858,8 @@ fn bi_hash_silent_secondary_key_change_retain_no_panic() {
     // This bypasses the drop-time hash equality check on key2, leaving the k2
     // table entry in the old hash bucket.
     std::mem::forget(ref_mut);
+    map.validate_structural(ValidateCompact::NonCompact)
+        .expect("structurally sound with a stranded key2 entry");
 
     map.retain(|_| false);
 
@@ -877,6 +885,8 @@ fn tri_hash_silent_secondary_key_change_retain_no_panic() {
     // This bypasses the drop-time hash equality check on key3, leaving the k3
     // table entry in the old hash bucket.
     std::mem::forget(ref_mut);
+    map.validate_structural(ValidateCompact::NonCompact)
+        .expect("structurally sound with a stranded key3 entry");
 
     map.retain(|_| false);
 

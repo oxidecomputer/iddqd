@@ -897,10 +897,12 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
     where
         T: fmt::Debug,
     {
-        self.items.validate(compactness)?;
-        self.tables.validate(self.len(), compactness)?;
+        self.validate_structural(compactness)?;
 
         // Check that the indexes are all correct.
+        //
+        // Unlike the structural checks above, this re-looks up each key through
+        // the user `Hash`, so it only holds when that `Hash` is lawful.
         for (ix, item) in self.items.iter() {
             let key = item.key();
             let Some(ix1) = self.find_index(&key) else {
@@ -916,6 +918,27 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
             }
         }
 
+        Ok(())
+    }
+
+    /// Checks the structural invariants of the map:
+    ///
+    /// * The item set is well-formed.
+    /// * The hash table holds exactly one entry per live item, with no
+    ///   duplicate `ItemIndex`es.
+    ///
+    /// Unlike [`validate`](Self::validate), this does not re-look-up keys
+    /// through the user `Hash`, so it holds regardless of whether that `Hash`
+    /// is lawful. A buggy hasher can desync the logical key→item mapping, but
+    /// it must never break these structural invariants! Doing so would be
+    /// unsoundness, e.g. duplicate indexes enabling mutable aliasing.
+    #[doc(hidden)]
+    pub fn validate_structural(
+        &self,
+        compactness: ValidateCompact,
+    ) -> Result<(), ValidationError> {
+        self.items.validate(compactness)?;
+        self.tables.validate(self.len(), compactness)?;
         Ok(())
     }
 
