@@ -11,7 +11,8 @@ rust-version = "1.85"
 undocumented_unsafe_blocks = { level = "warn" }
 
 [workspace.lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ["cfg(doc_cfg)"] }
+# `cfg(soteria)` is set by the Soteria symbolic-execution frontend.
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(doc_cfg)", "cfg(soteria)"] }
 
 [workspace.dependencies]
 allocator-api2 = { version = "0.2.21", default-features = false, features = ["alloc"] }
