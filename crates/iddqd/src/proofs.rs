@@ -19,7 +19,7 @@ fn nondet_index_below(n: u32) -> u32 {
 }
 
 #[soteria::test]
-fn item_set_insert_assigns_dense_indices() {
+fn item_set_insert_assigns_dense_indexes() {
     let mut set: ItemSet<u32, Global> = ItemSet::new();
     let a = set.assert_can_grow().insert(10);
     let b = set.assert_can_grow().insert(20);

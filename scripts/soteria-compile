@@ -29,4 +29,4 @@ echo "soteria-compile: building library ULLBC..."
 # Soteria doesn't appear to have a --no-run flag, so we pick a single
 # fast-running proof to match against.
 "$wrapper" exec crates/iddqd --no-color --ignore-leaks \
-    --filter '::item_set_insert_assigns_dense_indices$'
+    --filter '::item_set_insert_assigns_dense_indexes$'

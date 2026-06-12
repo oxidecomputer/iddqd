@@ -46,5 +46,5 @@ macro_rules! lib_proof {
 }
 
 // Keep in sync with the `#[soteria::test]` entrypoints in iddqd/src/proofs.rs.
-lib_proof!(item_set_insert_assigns_dense_indices);
+lib_proof!(item_set_insert_assigns_dense_indexes);
 lib_proof!(item_set_remove_then_insert_reuses_freed_slot);
