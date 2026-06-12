@@ -195,5 +195,14 @@ jobs:
         run: |
           cargo install soteria --git https://github.com/soteria-tools/cargo-soteria.git
           cargo soteria setup
+      # The cache covers ~/.soteria but not the rustc toolchain Charon pins (a
+      # specific nightly under ~/.rustup), which `cargo soteria setup` installs
+      # via `obol toolchain-path`. On a cache hit that step is skipped, so
+      # provision it directly from the cached bundle's obol -- this picks up
+      # whatever nightly the bundle needs and no-ops if it's already installed.
+      - name: Provision Charon toolchain
+        run: |
+          obol="$(find ~/.soteria -mindepth 2 -maxdepth 2 -type d -name bin | sort -V | tail -1)/obol"
+          "$obol" toolchain-path
       - name: Run proofs
         run: just soteria
