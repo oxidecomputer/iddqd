@@ -181,7 +181,7 @@ jobs:
       - uses: taiki-e/install-action@just
       - uses: taiki-e/install-action@nextest
       # Soteria publishes only a single rolling `nightly` bundle, and `cargo
-      # soteria setup` always installs whatever the tag points out. The cache
+      # soteria setup` always installs whatever the tag points to. The cache
       # below is mainly for speed -- it (unfortunately) doesn't provide any
       # determinism.
       - name: Cache Soteria toolchain

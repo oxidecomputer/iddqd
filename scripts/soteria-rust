@@ -4,7 +4,7 @@
 # the right environment.
 set -euo pipefail
 
-bin="$(ls -d "${SOTERIA_HOME:-$HOME/.soteria}"/*/bin 2>/dev/null | sort -V | tail -1 || true)"
+bin="$(find "${SOTERIA_HOME:-$HOME/.soteria}" -mindepth 2 -maxdepth 2 -type d -name bin 2>/dev/null | sort -V | tail -1 || true)"
 if [[ -z "$bin" ]]; then
     echo "error: Soteria not found under ${SOTERIA_HOME:-$HOME/.soteria}. Install with:" >&2
     echo "  cargo install soteria --git https://github.com/soteria-tools/cargo-soteria.git" >&2
@@ -12,7 +12,9 @@ if [[ -z "$bin" ]]; then
     exit 1
 fi
 
-export SOTERIA_RUST_PLUGINS="$(dirname "$bin")/plugins"
+# Putting the definition and export on separate lines makes shellcheck SC2155 happy.
+SOTERIA_RUST_PLUGINS="$(dirname "$bin")/plugins"
+export SOTERIA_RUST_PLUGINS
 export SOTERIA_OBOL_PATH="$bin/obol"
 export SOTERIA_CHARON_PATH="$bin/charon"
 export SOTERIA_Z3_PATH="$bin/z3"
@@ -27,6 +29,6 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export CARGO_TARGET_DIR="${SOTERIA_TARGET_DIR:-$repo_root/target/soteria}"
 
 # Invoke the binary directly (as of 2026-06-11, the `cargo soteria`
-# cargo-subcommand wrapper leaks cargo's `soteria` token through as a stray
-# positional arg.
+# cargo-subcommand wrapper seems to pass cargo's `soteria` as a stray
+# positional arg, which seems like a bug in cargo-soteria?)
 exec soteria-rust "$@"

@@ -23,7 +23,7 @@ generate-readmes:
 
 # Run the Soteria symbolic-execution proofs in parallel (process-per-test).
 soteria *args:
-    cargo nextest run --profile soteria --run-ignored all -E 'binary_id(iddqd-soteria-runner::runner)' {{args}}
+    cargo nextest run -p iddqd-soteria-runner --profile soteria --run-ignored all -E 'binary_id(iddqd-soteria-runner::runner)' {{args}}
 
 # Run cargo release in CI.
 ci-cargo-release:
