@@ -21,7 +21,7 @@ jobs:
       - uses: rust-lang/crates-io-auth-action@v1
         id: auth
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8 # stable
       - name: Install cargo release
         uses: taiki-e/install-action@62da238c048aa0f865cc5a322082957d34e7fc1a # v2
         with:
