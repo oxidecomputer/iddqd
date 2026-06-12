@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+
+# nextest setup script: compile the Soteria ULLBC once, up front, so the
+# per-proof runner tests can each reuse it with `--no-compile`.
+#
+# Produces the library artifact in crates/iddqd/:
+#   * crate.llbc.json -- the library entrypoints (src/proofs.rs)
+set -euo pipefail
+
+here="$(cd "$(dirname "$0")" && pwd)"
+cd "$here/.."
+wrapper="$here/soteria-rust"
+
+# Resolve the Soteria-only target dir once and hand it to the per-proof runs via
+# nextest's NEXTEST_ENV, so the compile and every proof share a target
+# directory. At runtime, each proof uses `--no-compile`, which reuses what we
+# build here.
+export SOTERIA_TARGET_DIR="${SOTERIA_TARGET_DIR:-$(pwd)/target/soteria}"
+if [[ -n "${NEXTEST_ENV:-}" ]]; then
+    echo "SOTERIA_TARGET_DIR=$SOTERIA_TARGET_DIR" >> "$NEXTEST_ENV"
+fi
+
+# Obol's incremental build state is not reliable across runs, so start each
+# compile from scratch. Removing this Soteria-only dir does not touch the normal
+# `cargo`/`nextest` target dir.
+rm -rf "$SOTERIA_TARGET_DIR"
+
+echo "soteria-compile: building library ULLBC..."
+# Soteria doesn't appear to have a --no-run flag, so we pick a single
+# fast-running proof to match against.
+"$wrapper" exec crates/iddqd --no-color --ignore-leaks \
+    --filter '::item_set_insert_assigns_dense_indexes$'

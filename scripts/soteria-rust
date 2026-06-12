@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+
+# Wrapper that resolves the local Soteria install and runs `soteria-rust` with
+# the right environment.
+set -euo pipefail
+
+bin="$(find "${SOTERIA_HOME:-$HOME/.soteria}" -mindepth 2 -maxdepth 2 -type d -name bin 2>/dev/null | sort -V | tail -1 || true)"
+if [[ -z "$bin" ]]; then
+    echo "error: Soteria not found under ${SOTERIA_HOME:-$HOME/.soteria}. Install with:" >&2
+    echo "  cargo install soteria --git https://github.com/soteria-tools/cargo-soteria.git" >&2
+    echo "  cargo soteria setup" >&2
+    exit 1
+fi
+
+# Putting the definition and export on separate lines makes shellcheck SC2155 happy.
+SOTERIA_RUST_PLUGINS="$(dirname "$bin")/plugins"
+export SOTERIA_RUST_PLUGINS
+export SOTERIA_OBOL_PATH="$bin/obol"
+export SOTERIA_CHARON_PATH="$bin/charon"
+export SOTERIA_Z3_PATH="$bin/z3"
+export PATH="$bin:$PATH"
+
+# Build into a Soteria-only target dir.
+#
+# Under `just soteria`, SOTERIA_TARGET_DIR is resolved by
+# scripts/soteria-compile and propagated via nextest's NEXTEST_ENV. The fallback
+# below is for direct (non-nextest) runs.
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+export CARGO_TARGET_DIR="${SOTERIA_TARGET_DIR:-$repo_root/target/soteria}"
+
+# Invoke the binary directly (as of 2026-06-11, the `cargo soteria`
+# cargo-subcommand wrapper seems to pass cargo's `soteria` as a stray
+# positional arg, which seems like a bug in cargo-soteria?)
+exec soteria-rust "$@"

@@ -168,3 +168,41 @@ jobs:
         run: cargo +nightly miri nextest run -p iddqd
       - name: Doctests
         run: cargo +nightly miri test --doc -p iddqd
+
+  soteria:
+    name: Soteria proofs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2.8.0
+        with:
+          key: soteria
+      - uses: taiki-e/install-action@just
+      - uses: taiki-e/install-action@nextest
+      # Soteria publishes only a single rolling `nightly` bundle, and `cargo
+      # soteria setup` always installs whatever the tag points to. The cache
+      # below is mainly for speed -- it (unfortunately) doesn't provide any
+      # determinism.
+      - name: Cache Soteria toolchain
+        id: soteria-cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: ~/.soteria
+          key: soteria-bundle-v1
+      - name: Install Soteria
+        if: steps.soteria-cache.outputs.cache-hit != 'true'
+        run: |
+          cargo install soteria --git https://github.com/soteria-tools/cargo-soteria.git
+          cargo soteria setup
+      # The cache covers ~/.soteria but not the rustc toolchain Charon pins (a
+      # specific nightly under ~/.rustup), which `cargo soteria setup` installs
+      # via `obol toolchain-path`. On a cache hit that step is skipped, so
+      # provision it directly from the cached bundle's obol -- this picks up
+      # whatever nightly the bundle needs and no-ops if it's already installed.
+      - name: Provision Charon toolchain
+        run: |
+          obol="$(find ~/.soteria -mindepth 2 -maxdepth 2 -type d -name bin | sort -V | tail -1)/obol"
+          "$obol" toolchain-path
+      - name: Run proofs
+        run: just soteria
