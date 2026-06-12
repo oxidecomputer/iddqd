@@ -388,6 +388,8 @@ pub mod id_hash_map;
 pub mod id_ord_map;
 #[doc(hidden)]
 pub mod internal;
+#[cfg(soteria)]
+mod proofs;
 mod support;
 pub mod tri_hash_map;
 

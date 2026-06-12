@@ -1,2 +1,4 @@
 /target
 /mutants.out*
+# Soteria symbolic-execution frontend output (see `just soteria`).
+*.llbc.json
