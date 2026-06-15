@@ -6,5 +6,6 @@
 mod bi_hash_map;
 mod hasher;
 mod id_hash_map;
+mod id_ord_map;
 mod params;
 mod tri_hash_map;
