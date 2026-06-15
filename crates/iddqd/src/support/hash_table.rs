@@ -37,7 +37,7 @@ use super::{
     map_hash::MapHash,
 };
 use crate::internal::{TableValidationError, ValidateCompact};
-use alloc::{collections::BTreeSet, vec::Vec};
+use alloc::vec::Vec;
 use core::{
     fmt,
     hash::{BuildHasher, Hash},
@@ -125,13 +125,20 @@ impl<A: Allocator> MapHashTable<A> {
             }
             ValidateCompact::NonCompact => {
                 // There should be no duplicates.
-                let values: Vec<_> = self.items.iter().map(|h| h.ix).collect();
-                let value_set: BTreeSet<_> = values.iter().copied().collect();
-                if value_set.len() != values.len() {
+                //
+                // A sort and dedup is equivalent to a `BTreeSet`, but is much
+                // faster under the Soteria model checker.
+                let mut values: Vec<_> =
+                    self.items.iter().map(|h| h.ix).collect();
+                let total = values.len();
+                values.sort_unstable();
+                values.dedup();
+                if values.len() != total {
                     return Err(TableValidationError::new(format!(
-                        "expected no duplicates, but found {} duplicates \
-                         (values: {:?})",
-                        values.len() - value_set.len(),
+                        "expected {} values with no duplicates, but only found \
+                         {} values (unique values: {:?})",
+                        total,
+                        values.len(),
                         values,
                     )));
                 }
