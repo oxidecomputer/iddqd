@@ -1,5 +1,7 @@
-use crate::hasher::{LawfulHasher, LawlessHasher};
-use crate::params::{SEQ_KEYS, SEQ_OPS, nondet_u8_below};
+use crate::{
+    hasher::{LawfulHasher, LawlessHasher},
+    params::{SEQ_KEYS, SEQ_OPS, nondet_u8_below},
+};
 use iddqd::{BiHashItem, BiHashMap, internal::ValidateCompact};
 
 #[derive(Debug)]

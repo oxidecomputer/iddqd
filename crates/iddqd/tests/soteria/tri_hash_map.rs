@@ -1,8 +1,10 @@
 //! TriHashMap proofs: three keys per value, all unique, backed by three hash
 //! tables. Same `cfg(soteria)` reference table underneath.
 
-use crate::hasher::{LawfulHasher, LawlessHasher};
-use crate::params::{SEQ_KEYS, TRI_SEQ_OPS, nondet_u8_below};
+use crate::{
+    hasher::{LawfulHasher, LawlessHasher},
+    params::{SEQ_KEYS, TRI_SEQ_OPS, nondet_u8_below},
+};
 use iddqd::{TriHashItem, TriHashMap, internal::ValidateCompact};
 
 #[derive(Debug)]
