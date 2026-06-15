@@ -3,8 +3,9 @@
 # nextest setup script: compile the Soteria ULLBC once, up front, so the
 # per-proof runner tests can each reuse it with `--no-compile`.
 #
-# Produces the library artifact in crates/iddqd/:
-#   * crate.llbc.json -- the library entrypoints (src/proofs.rs)
+# Produces two artifacts in crates/iddqd/:
+#   * crate.llbc.json        -- the library entrypoints (src/proofs.rs)
+#   * test-soteria.llbc.json -- the `soteria` test target (tests/soteria/)
 set -euo pipefail
 
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -30,3 +31,7 @@ echo "soteria-compile: building library ULLBC..."
 # fast-running proof to match against.
 "$wrapper" exec crates/iddqd --no-color --ignore-leaks \
     --filter '::item_set_insert_assigns_dense_indexes$'
+
+echo "soteria-compile: building test-target ULLBC..."
+"$wrapper" exec crates/iddqd --test soteria --no-color --ignore-leaks \
+    --filter '::id_hash_map::lawful_roundtrip$'

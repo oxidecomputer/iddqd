@@ -19,8 +19,9 @@ fn workspace_root() -> PathBuf {
 
 /// Shells out to one Soteria entrypoint, reusing the pre-compiled ULLBC.
 ///
-/// `name` is matched as a trailing path segment (`::name$`), which is robust to
-/// the module nesting in `tests/soteria/`.
+/// `name` is matched as a trailing path (`::name$`); for test-target proofs it
+/// is module-qualified (e.g. `id_hash_map::lawful_roundtrip`) so short names
+/// stay unique across the per-map modules.
 fn run(mode_args: &[&str], name: &str) {
     let root = workspace_root();
     let status = Command::new(root.join("scripts/soteria-rust"))
@@ -45,6 +46,33 @@ macro_rules! lib_proof {
     };
 }
 
+/// The proofs in one `tests/soteria/<module>.rs` module.
+///
+/// Each becomes a nextest test `<module>::<name>`.
+macro_rules! test_module {
+    ($module:ident { $($name:ident),+ $(,)? }) => {
+        mod $module {
+            $(
+                #[test]
+                #[ignore = "Soteria proof; run via `just soteria`"]
+                fn $name() {
+                    super::run(
+                        &["--test", "soteria"],
+                        concat!(stringify!($module), "::", stringify!($name)),
+                    );
+                }
+            )+
+        }
+    };
+}
+
 // Keep in sync with the `#[soteria::test]` entrypoints in iddqd/src/proofs.rs.
 lib_proof!(item_set_insert_assigns_dense_indexes);
 lib_proof!(item_set_remove_then_insert_reuses_freed_slot);
+
+// Keep in sync with the `#[test]` entrypoints in iddqd/tests/soteria/.
+test_module!(id_hash_map {
+    lawful_roundtrip,
+    lawless_operation_sequence,
+    overwrite_fail_fast_is_sound,
+});
