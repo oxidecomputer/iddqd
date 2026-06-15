@@ -76,3 +76,15 @@ test_module!(id_hash_map {
     lawless_operation_sequence,
     overwrite_fail_fast_is_sound,
 });
+
+test_module!(bi_hash_map {
+    lawful_roundtrip,
+    lawless_operation_sequence,
+    overwrite_fail_fast_is_sound,
+});
+
+test_module!(tri_hash_map {
+    lawful_roundtrip,
+    lawless_operation_sequence,
+    overwrite_fail_fast_is_sound,
+});
