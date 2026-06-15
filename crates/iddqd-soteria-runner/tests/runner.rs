@@ -77,6 +77,12 @@ test_module!(id_hash_map {
     overwrite_fail_fast_is_sound,
 });
 
+test_module!(id_ord_map {
+    lawful_roundtrip,
+    lawless_operation_sequence,
+    overwrite_fail_fast_is_sound,
+});
+
 test_module!(bi_hash_map {
     lawful_roundtrip,
     lawless_operation_sequence,

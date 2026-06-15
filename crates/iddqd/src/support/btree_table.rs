@@ -7,7 +7,7 @@
 use super::{ItemIndex, item_set::IndexRemap, map_hash::MapHash};
 use crate::internal::{TableValidationError, ValidateCompact};
 use alloc::{
-    collections::{BTreeMap, BTreeSet, btree_map},
+    collections::{BTreeMap, btree_map},
     vec::Vec,
 };
 use core::{
@@ -138,19 +138,24 @@ impl MapBTreeTable {
             ValidateCompact::NonCompact => {
                 // There should be no duplicates, and the sentinel value
                 // should not be stored.
-                let indexes: Vec<ItemIndex> =
+                //
+                // A sort and dedup is equivalent to a `BTreeSet`, but is much
+                // faster under the Soteria model checker.
+                let mut values: Vec<ItemIndex> =
                     self.items.keys().map(|ix| ix.value()).collect();
-                let index_set: BTreeSet<ItemIndex> =
-                    indexes.iter().copied().collect();
-                if index_set.len() != indexes.len() {
+                let total = values.len();
+                values.sort_unstable();
+                values.dedup();
+                if values.len() != total {
                     return Err(TableValidationError::new(format!(
-                        "expected no duplicates, but found {} duplicates \
-                         (values: {:?})",
-                        indexes.len() - index_set.len(),
-                        indexes,
+                        "expected {} values with no duplicates, but only found \
+                         {} values (unique values: {:?})",
+                        total,
+                        values.len(),
+                        values,
                     )));
                 }
-                if index_set.contains(&Index::SENTINEL_VALUE) {
+                if values.contains(&Index::SENTINEL_VALUE) {
                     return Err(TableValidationError::new(
                         "sentinel value should not be stored in map",
                     ));

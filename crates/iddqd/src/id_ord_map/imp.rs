@@ -644,6 +644,27 @@ impl<T: IdOrdItem> IdOrdMap<T> {
         Ok(())
     }
 
+    /// Checks the structural invariants of the map:
+    ///
+    /// * The item set is well-formed.
+    /// * The B-tree table holds exactly one entry per live item, with no
+    ///   duplicate `ItemIndex`es.
+    ///
+    /// Unlike [`validate`](Self::validate), this does not re-look-up keys
+    /// through the user `Ord`, so it holds regardless of whether that `Ord` is
+    /// lawful. A buggy comparator can desync the logical key to item mapping,
+    /// but it must never break these structural invariants! Doing so would
+    /// cause unsoundness, e.g. duplicate indexes enabling mutable aliasing.
+    #[doc(hidden)]
+    pub fn validate_structural(
+        &self,
+        compactness: ValidateCompact,
+    ) -> Result<(), ValidationError> {
+        self.items.validate(compactness)?;
+        self.tables.validate(self.len(), compactness)?;
+        Ok(())
+    }
+
     /// Inserts a value into the set, returning an error if any duplicates were
     /// added.
     ///
