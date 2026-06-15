@@ -1,7 +1,9 @@
 //! IdHashMap proofs.
 
-use crate::hasher::{LawfulHasher, LawlessHasher};
-use crate::params::{SEQ_KEYS, SEQ_OPS, nondet_u8_below};
+use crate::{
+    hasher::{LawfulHasher, LawlessHasher},
+    params::{SEQ_KEYS, SEQ_OPS, nondet_u8_below},
+};
 use iddqd::{IdHashItem, IdHashMap, internal::ValidateCompact};
 
 /// A minimal [`IdHashItem`]: a `u8` key with a `u32` value.
@@ -63,7 +65,7 @@ fn lawful_roundtrip() {
 /// for `insert_overwrite` below.
 ///
 /// We only call `validate_structural`, not full `validate`, since under
-/// a adversarial hash we can end up not finding items by their key. Only
+/// an adversarial hash we can end up not finding items by their key. Only
 /// structural validity is required to prevent unsoundness.
 #[test]
 fn lawless_operation_sequence() {
@@ -73,35 +75,22 @@ fn lawless_operation_sequence() {
     for _ in 0..SEQ_OPS {
         let key = nondet_u8_below(SEQ_KEYS);
         let op: u8 = soteria::nondet_bytes();
-        soteria::assume(op < 3);
+        soteria::assume(op < 2);
 
         match op {
             0 => {
                 let _ = map.insert_unique(Item { key, value: 0 });
             }
-            1 => {
+            // op == 1
+            _ => {
                 let _ = map.remove(&key);
             }
-            // op == 2
-            _ => {
-                if let Some(item) = map.get(&key) {
-                    soteria::assert(
-                        item.key == key,
-                        "a lookup hit returns the queried key",
-                    );
-                }
-            }
         }
-    }
 
-    // A single check at the end is sufficient. Why? For example, consider the
-    // case in which `[op1, op2]` causes structural inconsistency. Since `get`
-    // doesn't modify the map, `[op1, op2, get]` will also catch the same
-    // inconsistency. Profiling shows that validation is quite expensive, so we
-    // just call it once at the end.
-    map.validate_structural(ValidateCompact::NonCompact).expect(
-        "every reachable state under a lawless hash stays structurally sound",
-    );
+        map.validate_structural(ValidateCompact::NonCompact).expect(
+            "the map stays structurally sound after every op under any hash",
+        );
+    }
 
     // Drop is quite slow under Soteria and not relevant to soundness today.
     // Since we set `--ignore-leaks`, we can skip it.
