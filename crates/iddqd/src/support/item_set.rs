@@ -51,7 +51,7 @@ use super::{
 };
 use crate::{
     errors::TryReserveError,
-    internal::{ValidateCompact, ValidationError},
+    internal::{ValidateCompact, ValidationError, general_validation_fail},
 };
 use allocator_api2::vec::Vec;
 use core::{
@@ -316,10 +316,11 @@ impl<T, A: Allocator> ItemSet<T, A> {
         let occupied_count =
             self.items.iter().filter(|e| e.is_occupied()).count();
         if occupied_count != self.len as usize {
-            return Err(ValidationError::General(format!(
+            general_validation_fail!(
                 "ItemSet len ({}) disagrees with occupied-slot count ({})",
-                self.len, occupied_count,
-            )));
+                self.len,
+                occupied_count,
+            );
         }
 
         // Walk the free chain and verify the following properties:
@@ -332,11 +333,11 @@ impl<T, A: Allocator> ItemSet<T, A> {
         let Some(expected_vacant) =
             self.items.len().checked_sub(self.len as usize)
         else {
-            return Err(ValidationError::General(format!(
+            general_validation_fail!(
                 "ItemSet len ({}) exceeds items.len() ({})",
                 self.len,
                 self.items.len(),
-            )));
+            );
         };
 
         let mut walked = 0usize;
@@ -344,44 +345,44 @@ impl<T, A: Allocator> ItemSet<T, A> {
         while cursor != ItemIndex::SENTINEL {
             let cursor_idx = cursor.as_u32() as usize;
             if cursor_idx >= self.items.len() {
-                return Err(ValidationError::General(format!(
+                general_validation_fail!(
                     "ItemSet free chain has out-of-range index {cursor}"
-                )));
+                );
             }
             match &self.items[cursor_idx] {
                 ItemSlot::Occupied(_) => {
-                    return Err(ValidationError::General(format!(
+                    general_validation_fail!(
                         "ItemSet free chain points at occupied slot \
                          {cursor}"
-                    )));
+                    );
                 }
                 ItemSlot::Vacant { next } => {
                     walked += 1;
                     if walked > expected_vacant {
-                        return Err(ValidationError::General(format!(
+                        general_validation_fail!(
                             "ItemSet free chain cycles or overshoots: \
                              walked {walked} vacant slots, expected \
                              {expected_vacant}"
-                        )));
+                        );
                     }
                     cursor = *next;
                 }
             }
         }
         if walked != expected_vacant {
-            return Err(ValidationError::General(format!(
+            general_validation_fail!(
                 "ItemSet free chain length {walked} disagrees with \
                  vacant-slot count {expected_vacant}"
-            )));
+            );
         }
 
         match compactness {
             ValidateCompact::Compact => {
                 if expected_vacant != 0 {
-                    return Err(ValidationError::General(format!(
+                    general_validation_fail!(
                         "ItemSet is not compact: {expected_vacant} \
                          vacant slots",
-                    )));
+                    );
                 }
             }
             ValidateCompact::NonCompact => {}

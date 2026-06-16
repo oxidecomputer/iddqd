@@ -4,6 +4,42 @@ pub use crate::support::alloc::Global;
 use alloc::string::String;
 use core::fmt;
 
+/// Bails out of a validation function with a [`TableValidationError`].
+///
+/// This panics under Soteria and returns an error otherwise. (Soteria can't
+/// handle `format!` too well at the moment.)
+macro_rules! table_validation_fail {
+    ($lit:literal $(, $arg:expr)* $(,)?) => {{
+        #[cfg(soteria)]
+        ::soteria::panic($lit);
+        #[cfg(not(soteria))]
+        return ::core::result::Result::Err(
+            $crate::internal::TableValidationError::new(::alloc::format!(
+                $lit $(, $arg)*
+            )),
+        );
+    }};
+}
+
+/// Bails out of a validation function with a general [`ValidationError`].
+///
+/// This panics under Soteria and returns an error otherwise. (Soteria can't
+/// handle `format!` too well at the moment.)
+macro_rules! general_validation_fail {
+    ($lit:literal $(, $arg:expr)* $(,)?) => {{
+        #[cfg(soteria)]
+        ::soteria::panic($lit);
+        #[cfg(not(soteria))]
+        return ::core::result::Result::Err(
+            $crate::internal::ValidationError::General(::alloc::format!(
+                $lit $(, $arg)*
+            )),
+        );
+    }};
+}
+
+pub(crate) use {general_validation_fail, table_validation_fail};
+
 /// For validation, indicate whether we expect integer tables to be compact
 /// (have all values in the range 0..table.len()).
 ///

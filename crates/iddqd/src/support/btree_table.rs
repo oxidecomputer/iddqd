@@ -5,7 +5,9 @@
 //! comparator.
 
 use super::{ItemIndex, item_set::IndexRemap, map_hash::MapHash};
-use crate::internal::{TableValidationError, ValidateCompact};
+use crate::internal::{
+    TableValidationError, ValidateCompact, table_validation_fail,
+};
 use alloc::{
     collections::{BTreeMap, btree_map},
     vec::Vec,
@@ -104,10 +106,10 @@ impl MapBTreeTable {
         compactness: ValidateCompact,
     ) -> Result<(), TableValidationError> {
         if self.len() != expected_len {
-            return Err(TableValidationError::new(format!(
+            table_validation_fail!(
                 "expected length {expected_len}, was {}",
                 self.len(),
-            )));
+            );
         }
 
         match compactness {
@@ -120,18 +122,18 @@ impl MapBTreeTable {
                 for index in self.items.keys() {
                     let v = index.value();
                     if v == Index::SENTINEL_VALUE {
-                        return Err(TableValidationError::new(
+                        table_validation_fail!(
                             "sentinel value should not be stored in map",
-                        ));
+                        );
                     }
                     indexes.push(v);
                 }
                 indexes.sort_unstable();
                 for (i, index) in indexes.iter().enumerate() {
                     if index.as_u32() as usize != i {
-                        return Err(TableValidationError::new(format!(
+                        table_validation_fail!(
                             "value at index {i} should be {i}, was {index}",
-                        )));
+                        );
                     }
                 }
             }
@@ -147,18 +149,18 @@ impl MapBTreeTable {
                 values.sort_unstable();
                 values.dedup();
                 if values.len() != total {
-                    return Err(TableValidationError::new(format!(
+                    table_validation_fail!(
                         "expected {} values with no duplicates, but only found \
                          {} values (unique values: {:?})",
                         total,
                         values.len(),
                         values,
-                    )));
+                    );
                 }
                 if values.contains(&Index::SENTINEL_VALUE) {
-                    return Err(TableValidationError::new(
+                    table_validation_fail!(
                         "sentinel value should not be stored in map",
-                    ));
+                    );
                 }
             }
         }

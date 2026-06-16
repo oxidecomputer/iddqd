@@ -36,7 +36,9 @@ use super::{
     item_set::IndexRemap,
     map_hash::MapHash,
 };
-use crate::internal::{TableValidationError, ValidateCompact};
+use crate::internal::{
+    TableValidationError, ValidateCompact, table_validation_fail,
+};
 use alloc::vec::Vec;
 use core::{
     fmt,
@@ -102,10 +104,10 @@ impl<A: Allocator> MapHashTable<A> {
         compactness: ValidateCompact,
     ) -> Result<(), TableValidationError> {
         if self.len() != expected_len {
-            return Err(TableValidationError::new(format!(
+            table_validation_fail!(
                 "expected length {expected_len}, was {}",
                 self.len()
-            )));
+            );
         }
 
         match compactness {
@@ -117,9 +119,9 @@ impl<A: Allocator> MapHashTable<A> {
                 values.sort_unstable();
                 for (i, value) in values.iter().enumerate() {
                     if value.as_u32() as usize != i {
-                        return Err(TableValidationError::new(format!(
+                        table_validation_fail!(
                             "expected value at index {i} to be {i}, was {value}"
-                        )));
+                        );
                     }
                 }
             }
@@ -134,13 +136,13 @@ impl<A: Allocator> MapHashTable<A> {
                 values.sort_unstable();
                 values.dedup();
                 if values.len() != total {
-                    return Err(TableValidationError::new(format!(
+                    table_validation_fail!(
                         "expected {} values with no duplicates, but only found \
                          {} values (unique values: {:?})",
                         total,
                         values.len(),
                         values,
-                    )));
+                    );
                 }
             }
         }
