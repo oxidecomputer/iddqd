@@ -38,7 +38,8 @@ macro_rules! general_validation_fail {
     }};
 }
 
-pub(crate) use {general_validation_fail, table_validation_fail};
+pub(crate) use general_validation_fail;
+pub(crate) use table_validation_fail;
 
 /// For validation, indicate whether we expect integer tables to be compact
 /// (have all values in the range 0..table.len()).
