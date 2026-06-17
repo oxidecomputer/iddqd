@@ -415,7 +415,7 @@ dependencies = [
 
 [[package]]
 name = "iddqd-soteria-runner"
-version = "0.4.5"
+version = "0.1.0"
 
 [[package]]
 name = "iddqd-test-utils"
