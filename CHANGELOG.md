@@ -3,6 +3,8 @@
 <!-- next-header -->
 ## Unreleased - ReleaseDate
 
+## [0.4.5] - 2026-06-17
+
 ### Added
 
 - `iddqd`'s core invariants are now formally verified under adversarial `Hash` and `Ord` impls using the [Soteria](https://soteria-tools.com) symbolic executor. No new bugs were found during this process.
@@ -273,6 +275,7 @@ Thanks to [aatifsyed](https://github.com/aatifsyed) for your first contribution!
 Initial release.
 
 <!-- next-url -->
+[0.4.5]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.4.5
 [0.4.4]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.4.4
 [0.4.3]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.4.3
 [0.4.2]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.4.2
