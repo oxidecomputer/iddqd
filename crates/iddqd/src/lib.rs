@@ -277,7 +277,7 @@
 //! [`Borrow`], so if your type already implements [`Borrow`], there aren't any
 //! extra steps to take.
 //!
-//! # Testing
+//! # Testing and verification
 //!
 //! This crate is validated through a combination of:
 //!
@@ -289,9 +289,14 @@
 //! * Miri tests for unsafe code, checked against both Stacked and Tree Borrows
 //! * Compile-fail UI tests to ensure invalid patterns are rejected by the
 //!   borrow checker
+//! * Bounded formal verification for core invariants and UB using
+//!   [Soteria](https://soteria-tools.com)
 //!
 //! Pathological user implementations written in safe Rust might corrupt
 //! internal map state and result in panics, but should never cause UB.
+//!
+//! For more information on our validation philosophy, see [this Oxide blog
+//! entry](https://oxide.computer/blog/iddqd-unsafe).
 //!
 //! If you see a gap in testing, new tests are welcome. Thank you!
 //!
