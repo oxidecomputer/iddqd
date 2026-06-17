@@ -11,6 +11,131 @@ use alloc::vec::Vec;
 use core::{fmt, hash::BuildHasher};
 
 /// An implementation of the Entry API for [`BiHashMap`].
+///
+/// # Differences from single-key entries
+///
+/// The shape of this type differs from those provided for the other map types,
+/// because it is possible for one of the two keys provided to correspond to an
+/// existing entry, while the other does not.
+///
+/// [`VacantEntry`] corresponds to situations where neither key is present. To
+/// insert an entry corresponding to the two keys, use [`VacantEntry::insert`].
+///
+/// [`OccupiedEntry`] represents situations where either the keys correspond to
+/// different entries, or where only one of the keys is present. It provides the
+/// following methods:
+///
+/// * [`OccupiedEntry::is_unique`] and [`OccupiedEntry::is_non_unique`] return
+///   `true` if the keys correspond to a unique or duplicate entry in the map,
+///   respectively.
+/// * [`OccupiedEntry::get`] returns an [`OccupiedEntryRef`] enum that can be
+///   matched on.
+///   * [`OccupiedEntryRef::as_unique`] returns the unique entry, if one exists.
+///   * [`OccupiedEntryRef::by_key1`] and [`OccupiedEntryRef::by_key2`] return the
+///     entry corresponding to the given key, if one exists.
+/// * Similarly, [`OccupiedEntry::get_mut`] returns an [`OccupiedEntryMut`] enum
+///   that can be matched on.
+///   * [`OccupiedEntryMut::as_unique`] returns a mutable reference to the unique
+///     entry, if one exists.
+///   * [`OccupiedEntryMut::by_key1`] and [`OccupiedEntryMut::by_key2`] return a
+///     mutable reference to the entry corresponding to the given key, if one
+///     exists.
+///
+/// # Examples
+///
+/// ```
+/// # #[cfg(feature = "default-hasher")] {
+/// use iddqd::{BiHashItem, BiHashMap, bi_hash_map, bi_upcast};
+///
+/// #[derive(Debug, PartialEq, Eq)]
+/// struct Item {
+///     id: u32,
+///     name: String,
+///     value: i32,
+/// }
+///
+/// impl BiHashItem for Item {
+///     type K1<'a> = u32;
+///     type K2<'a> = &'a str;
+///
+///     fn key1(&self) -> Self::K1<'_> {
+///         self.id
+///     }
+///     fn key2(&self) -> Self::K2<'_> {
+///         &self.name
+///     }
+///     bi_upcast!();
+/// }
+///
+/// let mut map = BiHashMap::new();
+/// map.insert_unique(Item { id: 1, name: "foo".to_string(), value: 42 })
+///     .unwrap();
+///
+/// // Get an existing entry. Both keys point to the same item, so the
+/// // entry is unique.
+/// match map.entry(1, "foo") {
+///     bi_hash_map::Entry::Occupied(entry) => {
+///         assert!(entry.is_unique());
+///         assert_eq!(entry.get().as_unique().unwrap().value, 42);
+///     }
+///     bi_hash_map::Entry::Vacant(_) => panic!("Should be occupied"),
+/// }
+///
+/// // Try to get a non-existing entry.
+/// match map.entry(2, "bar") {
+///     bi_hash_map::Entry::Occupied(_) => panic!("Should be vacant"),
+///     bi_hash_map::Entry::Vacant(entry) => {
+///         entry.insert(Item { id: 2, name: "bar".to_string(), value: 99 });
+///     }
+/// }
+///
+/// assert_eq!(map.len(), 2);
+///
+/// // An entry is non-unique when its two keys point to different items.
+/// // Here, id 1 belongs to "foo" but name "bar" belongs to id 2.
+/// match map.entry(1, "bar") {
+///     bi_hash_map::Entry::Occupied(entry) => {
+///         assert!(entry.is_non_unique());
+///         let entry_ref = entry.get();
+///         assert_eq!(entry_ref.by_key1().unwrap().name, "foo");
+///         assert_eq!(entry_ref.by_key2().unwrap().id, 2);
+///         assert_eq!(entry_ref.as_unique(), None);
+///     }
+///     bi_hash_map::Entry::Vacant(_) => panic!("Should be occupied"),
+/// }
+///
+/// // An entry is also non-unique when only one of its keys is present.
+/// match map.entry(1, "nonexistent") {
+///     bi_hash_map::Entry::Occupied(mut entry) => {
+///         assert!(entry.is_non_unique());
+///         let entry_ref = entry.get();
+///         assert_eq!(entry_ref.by_key1().unwrap().id, 1);
+///         assert_eq!(entry_ref.by_key2(), None);
+///
+///         // Inserting overwrites whichever items the keys matched,
+///         // returning them. Only id 1 ("foo") was present, so it alone
+///         // is returned.
+///         let replaced = entry.insert(Item {
+///             id: 1,
+///             name: "nonexistent".to_string(),
+///             value: 7,
+///         });
+///         assert_eq!(replaced.len(), 1);
+///         assert_eq!(replaced[0].name, "foo");
+///
+///         // The entry is now unique: both keys point to the new item.
+///         assert!(entry.is_unique());
+///         assert_eq!(entry.get().as_unique().unwrap().value, 7);
+///     }
+///     bi_hash_map::Entry::Vacant(_) => panic!("Should be occupied"),
+/// }
+///
+/// // "foo" was overwritten in place, so the map still holds two items.
+/// assert_eq!(map.get1(&1).unwrap().name, "nonexistent");
+/// assert_eq!(map.get2(&"foo"), None);
+/// assert_eq!(map.len(), 2);
+/// # }
+/// ```
 pub enum Entry<'a, T: BiHashItem, S = DefaultHashBuilder, A: Allocator = Global>
 {
     /// A vacant entry: none of the provided keys are present.

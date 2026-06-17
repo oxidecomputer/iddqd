@@ -1820,6 +1820,15 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
     /// Due to borrow checker limitations, this always accepts owned keys rather
     /// than a borrowed form of them.
     ///
+    /// # Differences from single-key entries
+    ///
+    /// The [`Entry`] returned by this method differs from those provided
+    /// for the other map types, because it is possible for one of the two keys
+    /// provided to correspond to an existing entry, while the other does not.
+    ///
+    /// For more information, and examples covering non-unique entries, see the
+    /// type-level documentation for [`Entry`].
+    ///
     /// # Examples
     ///
     /// ```
@@ -1850,7 +1859,7 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
     /// map.insert_unique(Item { id: 1, name: "foo".to_string(), value: 42 })
     ///     .unwrap();
     ///
-    /// // Get existing entry
+    /// // Get an existing entry.
     /// match map.entry(1, "foo") {
     ///     bi_hash_map::Entry::Occupied(entry) => {
     ///         assert_eq!(entry.get().as_unique().unwrap().value, 42);
@@ -1858,7 +1867,7 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
     ///     bi_hash_map::Entry::Vacant(_) => panic!("Should be occupied"),
     /// }
     ///
-    /// // Try to get a non-existing entry
+    /// // Try to get a non-existing entry.
     /// match map.entry(2, "bar") {
     ///     bi_hash_map::Entry::Occupied(_) => panic!("Should be vacant"),
     ///     bi_hash_map::Entry::Vacant(entry) => {
@@ -1869,6 +1878,8 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
     /// assert_eq!(map.len(), 2);
     /// # }
     /// ```
+    ///
+    /// For an expanded example, see the type-level documentation for [`Entry`].
     pub fn entry<'a>(
         &'a mut self,
         key1: T::K1<'_>,
