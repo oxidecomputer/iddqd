@@ -7,3 +7,6 @@ publish = false
 
 [lints]
 workspace = true
+
+[package.metadata.release]
+release = false
