@@ -1820,6 +1820,15 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
     /// Due to borrow checker limitations, this always accepts owned keys rather
     /// than a borrowed form of them.
     ///
+    /// # Differences from single-key entries
+    ///
+    /// The [`Entry`] returned by this method differs from those provided
+    /// for the other map types, because it is possible for one of the two keys
+    /// provided to correspond to an existing entry, while the other does not.
+    ///
+    /// For more information, and examples covering non-unique entries, see the
+    /// type-level documentation for [`Entry`].
+    ///
     /// # Examples
     ///
     /// ```
@@ -1850,11 +1859,9 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
     /// map.insert_unique(Item { id: 1, name: "foo".to_string(), value: 42 })
     ///     .unwrap();
     ///
-    /// // Get an existing entry. Both keys point to the same item, so the
-    /// // entry is unique.
+    /// // Get an existing entry.
     /// match map.entry(1, "foo") {
     ///     bi_hash_map::Entry::Occupied(entry) => {
-    ///         assert!(entry.is_unique());
     ///         assert_eq!(entry.get().as_unique().unwrap().value, 42);
     ///     }
     ///     bi_hash_map::Entry::Vacant(_) => panic!("Should be occupied"),
@@ -1869,52 +1876,10 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
     /// }
     ///
     /// assert_eq!(map.len(), 2);
-    ///
-    /// // An entry is non-unique when its two keys point to different items.
-    /// // Here, id 1 belongs to "foo" but name "bar" belongs to id 2.
-    /// match map.entry(1, "bar") {
-    ///     bi_hash_map::Entry::Occupied(entry) => {
-    ///         assert!(entry.is_non_unique());
-    ///         let entry_ref = entry.get();
-    ///         assert_eq!(entry_ref.by_key1().unwrap().name, "foo");
-    ///         assert_eq!(entry_ref.by_key2().unwrap().id, 2);
-    ///         assert_eq!(entry_ref.as_unique(), None);
-    ///     }
-    ///     bi_hash_map::Entry::Vacant(_) => panic!("Should be occupied"),
-    /// }
-    ///
-    /// // An entry is also non-unique when only one of its keys is present.
-    /// match map.entry(1, "nonexistent") {
-    ///     bi_hash_map::Entry::Occupied(mut entry) => {
-    ///         assert!(entry.is_non_unique());
-    ///         let entry_ref = entry.get();
-    ///         assert_eq!(entry_ref.by_key1().unwrap().id, 1);
-    ///         assert_eq!(entry_ref.by_key2(), None);
-    ///
-    ///         // Inserting overwrites whichever items the keys matched,
-    ///         // returning them. Only id 1 ("foo") was present, so it alone
-    ///         // is returned.
-    ///         let replaced = entry.insert(Item {
-    ///             id: 1,
-    ///             name: "nonexistent".to_string(),
-    ///             value: 7,
-    ///         });
-    ///         assert_eq!(replaced.len(), 1);
-    ///         assert_eq!(replaced[0].name, "foo");
-    ///
-    ///         // The entry is now unique: both keys point to the new item.
-    ///         assert!(entry.is_unique());
-    ///         assert_eq!(entry.get().as_unique().unwrap().value, 7);
-    ///     }
-    ///     bi_hash_map::Entry::Vacant(_) => panic!("Should be occupied"),
-    /// }
-    ///
-    /// // "foo" was overwritten in place, so the map still holds two items.
-    /// assert_eq!(map.get1(&1).unwrap().name, "nonexistent");
-    /// assert_eq!(map.get2(&"foo"), None);
-    /// assert_eq!(map.len(), 2);
     /// # }
     /// ```
+    ///
+    /// For an expanded example, see the type-level documentation for [`Entry`].
     pub fn entry<'a>(
         &'a mut self,
         key1: T::K1<'_>,
