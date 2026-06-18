@@ -24,9 +24,9 @@ use equivalent::Equivalent;
 
 /// A hash map where the key is part of the value.
 ///
-/// The storage mechanism is a fast hash table of integer indexes to items, with
-/// these indexes stored in a hash table. This allows for efficient lookups by
-/// the key and prevents duplicates.
+/// The storage mechanism is a list of items with an embedded free chain, with
+/// indexes to occupied slots stored in a hash table. This allows for efficient
+/// lookups by the key and prevents duplicates.
 ///
 /// # Examples
 ///

@@ -70,9 +70,9 @@ impl PreparedInsertOverwrite {
 
 /// A 1:1:1 (trijective) map for three keys and a value.
 ///
-/// The storage mechanism is a fast hash table of integer indexes to items, with
-/// these indexes stored in three hashmaps. This allows for efficient lookups by
-/// any of the three keys, while preventing duplicates.
+/// The storage mechanism is a list of items with an embedded free chain, with
+/// indexes to occupied slots stored in three hash tables. This allows for
+/// efficient lookups by any of the three keys, while preventing duplicates.
 ///
 /// # Examples
 ///

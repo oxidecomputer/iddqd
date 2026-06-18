@@ -22,8 +22,8 @@ use equivalent::{Comparable, Equivalent};
 
 /// An ordered map where the keys are part of the values, based on a B-Tree.
 ///
-/// The storage mechanism is a fast hash table of integer indexes to items, with
-/// the indexes stored in a B-Tree map.
+/// The storage mechanism is a list of items with an embedded free chain, with
+/// indexes to occupied slots stored in a B-Tree map.
 ///
 /// # Examples
 ///

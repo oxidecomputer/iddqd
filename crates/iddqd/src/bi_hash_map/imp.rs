@@ -80,9 +80,9 @@ impl PreparedInsertOverwrite {
 
 /// A 1:1 (bijective) map for two keys and a value.
 ///
-/// The storage mechanism is a fast hash table of integer indexes to items, with
-/// these indexes stored in two hash tables. This allows for efficient lookups
-/// by either of the two keys and prevents duplicates.
+/// The storage mechanism is a list of items with an embedded free chain, with
+/// indexes to occupied slots stored in two hash tables. This allows for
+/// efficient lookups by either of the two keys and prevents duplicates.
 ///
 /// # Examples
 ///
