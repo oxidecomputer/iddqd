@@ -1,6 +1,8 @@
 use super::{
-    Entry, IntoIter, Iter, IterMut, OccupiedEntry, OccupiedEntryRef, RefMut,
-    VacantEntry, entry::NonUniqueEntryRef, entry_indexes::EntryIndexes,
+    Entry, IntoIter, Iter, IterMut, OccupiedEntry, OccupiedEntryMut,
+    OccupiedEntryRef, RefMut, VacantEntry,
+    entry::{NonUniqueEntryMut, NonUniqueEntryRef},
+    entry_indexes::EntryIndexes,
     tables::TriHashMapTables,
 };
 use crate::{
@@ -1330,6 +1332,42 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
                 }
                 OccupiedEntryRef::NonUnique(NonUniqueEntryRef::new(
                     values,
+                    distinct.len(),
+                    *distinct.key_to_slot(),
+                ))
+            }
+        }
+    }
+
+    pub(super) fn get_by_entry_index_mut(
+        &mut self,
+        indexes: EntryIndexes,
+    ) -> OccupiedEntryMut<'_, T, S> {
+        match indexes {
+            EntryIndexes::Unique(index) => {
+                let item = self.items.get_mut(index).expect("index is valid");
+                let state = self.tables.state.clone();
+                let hashes = self.tables.make_hashes_for_item(&item);
+                OccupiedEntryMut::Unique(RefMut::new(state, hashes, item))
+            }
+            EntryIndexes::NonUnique(_) => {
+                let distinct = indexes.distinct().expect("non-unique indexes");
+                let state = self.tables.state.clone();
+                let indexes = distinct.indexes();
+                let mut items = self.items.get_disjoint_mut([
+                    indexes[0].as_ref().expect("distinct slot is present"),
+                    indexes[1].as_ref().unwrap_or(&ItemIndex::SENTINEL),
+                    indexes[2].as_ref().unwrap_or(&ItemIndex::SENTINEL),
+                ]);
+                let mut refs = core::array::from_fn(|_| None);
+                for slot in 0..distinct.len() {
+                    let item =
+                        items[slot].take().expect("entry index is valid");
+                    let hashes = self.tables.make_hashes_for_item(&item);
+                    refs[slot] = Some(RefMut::new(state.clone(), hashes, item));
+                }
+                OccupiedEntryMut::NonUnique(NonUniqueEntryMut::new(
+                    refs,
                     distinct.len(),
                     *distinct.key_to_slot(),
                 ))

@@ -1,0 +1,9 @@
+error[E0499]: cannot borrow `refs` as mutable more than once at a time
+  --> tests/ui/invalid/tri_hash_occupied_entry_mut_alias.rs:42:20
+   |
+41 |     let _by_key1 = refs.by_key1().unwrap();
+   |                    ---- first mutable borrow occurs here
+42 |     let _by_key2 = refs.by_key2().unwrap();
+   |                    ^^^^ second mutable borrow occurs here
+43 | }
+   | - first borrow might be used here, when `_by_key1` is dropped and runs the `Drop` code for type `iddqd::tri_hash_map::RefMut`
