@@ -384,7 +384,7 @@ struct LyingEqItem {
     id: u32,
 }
 
-#[expect(clippy::derived_hash_with_manual_eq)]
+#[allow(clippy::derived_hash_with_manual_eq)]
 #[derive(Hash)]
 struct LyingEqKey {
     id: u32,

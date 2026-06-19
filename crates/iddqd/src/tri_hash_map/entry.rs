@@ -15,9 +15,153 @@ use core::{fmt, hash::BuildHasher};
 
 /// An implementation of the Entry API for [`TriHashMap`].
 ///
-/// A vacant entry means none of the three provided keys are present. An
-/// occupied entry is unique only when all three keys point to the same item;
-/// partial matches and mixed matches are occupied non-unique entries.
+/// # Differences from single-key entries
+///
+/// This entry API does not behave exactly like
+/// [`std::collections::HashMap::entry`], because three independent key lookups
+/// can match zero, one, or several existing items.
+///
+/// [`VacantEntry`] is returned only when none of `key1`, `key2`, or `key3`
+/// passed to [`TriHashMap::entry`] matches an item. [`VacantEntry::insert`] and
+/// [`VacantEntry::insert_entry`] insert the item for those three keys.
+///
+/// [`OccupiedEntry`] is returned whenever at least one key matches. It is
+/// unique only when all three key positions hit the same item (`A / A / A`).
+/// Partial hits (`A / A / None`, `A / None / A`, `None / A / A`) and mixed hits
+/// (`A / A / B`, `A / B / A`, `A / B / C`) are occupied non-unique entries, so
+/// [`Entry::or_insert`] and [`Entry::or_insert_with`] do not insert for them.
+///
+/// Non-unique access preserves the per-key mapping. For example, `A / A / B`
+/// means key 1 and key 2 both map to `A`, while key 3 maps to `B`. Shared and
+/// mutable accessors may therefore return the same item for more than one key
+/// position. Mutable non-unique access is accessor-backed: it stores one
+/// mutable reference per distinct item and maps key positions to those slots,
+/// so cases such as `A / A / B` do not expose aliased mutable references.
+/// Mutable accessors take `&mut self` and reborrow sequentially.
+///
+/// Methods that visit, remove, or replace multiple matched items use
+/// deterministic first-key-hit order and deduplicate repeated indexes:
+///
+/// * `A / A / None`, `A / None / A`, and `None / A / A` visit `[A]`.
+/// * `A / A / B` and `A / B / A` visit `[A, B]`.
+/// * `A / B / C` visits `[A, B, C]`.
+/// * `None / B / A` visits `[B, A]`.
+///
+/// [`Entry::and_modify`] visits each distinct occupied item once.
+/// [`OccupiedEntry::remove`] removes each distinct matched item once.
+/// [`OccupiedEntry::insert`] replaces each distinct matched item once, returns
+/// the removed items in first-key-hit order, and leaves the occupied entry
+/// unique for the replacement item after a successful replacement.
+///
+/// # Examples
+///
+/// ```
+/// # #[cfg(feature = "default-hasher")] {
+/// use iddqd::{TriHashItem, TriHashMap, tri_hash_map, tri_upcast};
+///
+/// #[derive(Debug, PartialEq, Eq)]
+/// struct Item {
+///     id: u32,
+///     name: String,
+///     tag: char,
+///     value: i32,
+/// }
+///
+/// impl TriHashItem for Item {
+///     type K1<'a> = u32;
+///     type K2<'a> = &'a str;
+///     type K3<'a> = char;
+///
+///     fn key1(&self) -> Self::K1<'_> {
+///         self.id
+///     }
+///     fn key2(&self) -> Self::K2<'_> {
+///         &self.name
+///     }
+///     fn key3(&self) -> Self::K3<'_> {
+///         self.tag
+///     }
+///     tri_upcast!();
+/// }
+///
+/// let mut map = TriHashMap::new();
+/// map.insert_unique(Item {
+///     id: 1,
+///     name: "foo".to_string(),
+///     tag: 'x',
+///     value: 10,
+/// })
+/// .unwrap();
+/// map.insert_unique(Item {
+///     id: 2,
+///     name: "bar".to_string(),
+///     tag: 'y',
+///     value: 20,
+/// })
+/// .unwrap();
+///
+/// // A / A / A: all three keys point to the same item, so the entry is unique.
+/// match map.entry(1, "foo", 'x') {
+///     tri_hash_map::Entry::Occupied(entry) => {
+///         assert!(entry.is_unique());
+///         assert_eq!(entry.get().as_unique().unwrap().value, 10);
+///     }
+///     tri_hash_map::Entry::Vacant(_) => panic!("should be occupied"),
+/// }
+///
+/// // None / None / None: no key is present, so the entry is vacant.
+/// map.entry(3, "baz", 'z').or_insert(Item {
+///     id: 3,
+///     name: "baz".to_string(),
+///     tag: 'z',
+///     value: 30,
+/// });
+/// assert_eq!(map.len(), 3);
+///
+/// // A / A / None: partial hits are occupied non-unique entries.
+/// let entry_ref = match map.entry(1, "foo", 'q') {
+///     tri_hash_map::Entry::Occupied(entry) => {
+///         assert!(entry.is_non_unique());
+///         entry.into_ref()
+///     }
+///     tri_hash_map::Entry::Vacant(_) => panic!("should be occupied"),
+/// };
+/// assert_eq!(entry_ref.by_key1().unwrap().id, 1);
+/// assert_eq!(entry_ref.by_key2().unwrap().id, 1);
+/// assert_eq!(entry_ref.by_key3(), None);
+///
+/// // A / A / B: mixed hits preserve per-key mapping and are not inserted into
+/// // by or_insert.
+/// let before = map.len();
+/// let mut entry_mut = map.entry(1, "foo", 'y').or_insert_with(|| {
+///     panic!("occupied non-unique entries do not call the default")
+/// });
+/// assert_eq!(entry_mut.by_key1().unwrap().id, 1);
+/// assert_eq!(entry_mut.by_key2().unwrap().id, 1);
+/// assert_eq!(entry_mut.by_key3().unwrap().id, 2);
+/// drop(entry_mut);
+/// assert_eq!(map.len(), before);
+///
+/// // Replacement removes each distinct matched item once in first-key-hit
+/// // order, then the entry becomes unique for the replacement.
+/// match map.entry(1, "foo", 'y') {
+///     tri_hash_map::Entry::Occupied(mut entry) => {
+///         let removed = entry.insert(Item {
+///             id: 1,
+///             name: "foo".to_string(),
+///             tag: 'y',
+///             value: 99,
+///         });
+///         assert_eq!(
+///             removed.iter().map(|item| item.id).collect::<Vec<_>>(),
+///             vec![1, 2]
+///         );
+///         assert!(entry.is_unique());
+///     }
+///     tri_hash_map::Entry::Vacant(_) => panic!("should be occupied"),
+/// }
+/// # }
+/// ```
 pub enum Entry<
     'a,
     T: TriHashItem,
@@ -46,8 +190,8 @@ impl<'a, T: TriHashItem, S, A: Allocator> fmt::Debug for Entry<'a, T, S, A> {
 impl<'a, T: TriHashItem, S: Clone + BuildHasher, A: Allocator>
     Entry<'a, T, S, A>
 {
-    /// Provides in-place mutable access to occupied entries before any
-    /// potential inserts into the map.
+    /// Provides in-place mutable access to occupied entries before returning
+    /// the entry for further chaining.
     ///
     /// `F` is called once for each distinct entry that matches the provided
     /// keys, in first-key-hit order. Vacant entries are left unchanged.
@@ -65,8 +209,16 @@ impl<'a, T: TriHashItem, S: Clone + BuildHasher, A: Allocator>
         }
     }
 
-    /// Ensures a value is in the entry by inserting `value` if vacant, and
-    /// returns mutable occupied access to the entry.
+    /// Ensures a value is in the entry by inserting `value` only if vacant,
+    /// and returns mutable occupied access to the entry.
+    ///
+    /// Partial and mixed occupied entries are not vacant, so this method does
+    /// not insert for states such as `A / A / None` or `A / A / B`.
+    ///
+    /// # Panics
+    ///
+    /// Panics before mutation if `value`'s key hashes differ from the hashes
+    /// of the keys passed to [`TriHashMap::entry`].
     #[inline]
     pub fn or_insert(self, value: T) -> OccupiedEntryMut<'a, T, S> {
         match self {
@@ -77,8 +229,15 @@ impl<'a, T: TriHashItem, S: Clone + BuildHasher, A: Allocator>
         }
     }
 
-    /// Ensures a value is in the entry by inserting the result of `default` if
-    /// vacant, and returns mutable occupied access to the entry.
+    /// Ensures a value is in the entry by inserting the result of `default`
+    /// only if vacant, and returns mutable occupied access to the entry.
+    ///
+    /// `default` is not called for unique, partial, or mixed occupied entries.
+    ///
+    /// # Panics
+    ///
+    /// Panics before mutation if the produced value's key hashes differ from
+    /// the hashes of the keys passed to [`TriHashMap::entry`].
     #[inline]
     pub fn or_insert_with<F>(self, default: F) -> OccupiedEntryMut<'a, T, S>
     where
@@ -93,6 +252,9 @@ impl<'a, T: TriHashItem, S: Clone + BuildHasher, A: Allocator>
     }
 }
 /// A vacant entry.
+///
+/// This is produced by [`TriHashMap::entry`] only when none of the three
+/// provided keys match an existing item.
 pub struct VacantEntry<
     'a,
     T: TriHashItem,
@@ -125,6 +287,8 @@ impl<'a, T: TriHashItem, S: Clone + BuildHasher, A: Allocator>
 
     /// Sets the entry to a new value, returning a mutable reference to it.
     ///
+    /// Validation is performed before mutation.
+    ///
     /// # Panics
     ///
     /// Panics before mutation if any value key hashes differently from the
@@ -140,7 +304,14 @@ impl<'a, T: TriHashItem, S: Clone + BuildHasher, A: Allocator>
         map.get_by_index_mut(index).expect("index is known to be valid")
     }
 
-    /// Sets the entry to a new value, and returns an `OccupiedEntry`.
+    /// Sets the entry to a new value, and returns a unique [`OccupiedEntry`].
+    ///
+    /// Validation is performed before mutation.
+    ///
+    /// # Panics
+    ///
+    /// Panics before mutation if any value key hashes differently from the
+    /// corresponding key passed to [`TriHashMap::entry`].
     #[inline]
     pub fn insert_entry(mut self, value: T) -> OccupiedEntry<'a, T, S, A> {
         let index = {
@@ -185,6 +356,10 @@ fn validate_hashes<T: TriHashItem, S: Clone + BuildHasher, A: Allocator>(
 }
 
 /// A view into an occupied entry in a [`TriHashMap`].
+///
+/// An occupied entry exists whenever at least one of the three key lookups
+/// matches. It is unique only when all three keys match the same item; partial
+/// and mixed hits are non-unique.
 pub struct OccupiedEntry<
     'a,
     T: TriHashItem,
@@ -234,6 +409,9 @@ impl<'a, T: TriHashItem, S: Clone + BuildHasher, A: Allocator>
     }
 
     /// Returns shared references to values that match the provided keys.
+    ///
+    /// Non-unique shared access preserves per-key mapping. Multiple key
+    /// positions may return the same item.
     pub fn get(&self) -> OccupiedEntryRef<'_, T> {
         // SAFETY: The safety assumption behind `Self::new` guarantees that the
         // original reference to the map is no longer used at this point, and
@@ -243,6 +421,9 @@ impl<'a, T: TriHashItem, S: Clone + BuildHasher, A: Allocator>
     }
 
     /// Returns mutable references to values that match the provided keys.
+    ///
+    /// Non-unique mutable access is accessor-backed and reborrows each
+    /// distinct item sequentially, preventing aliased mutable references.
     pub fn get_mut(&mut self) -> OccupiedEntryMut<'_, T, S> {
         // SAFETY: The safety assumption behind `Self::new` guarantees that the
         // original reference to the map is no longer used at this point, and
@@ -251,7 +432,8 @@ impl<'a, T: TriHashItem, S: Clone + BuildHasher, A: Allocator>
         map.get_by_entry_index_mut(self.indexes)
     }
 
-    /// Converts self into shared references to items that match the provided keys.
+    /// Converts self into shared references to items that match the provided
+    /// keys.
     pub fn into_ref(self) -> OccupiedEntryRef<'a, T> {
         // SAFETY: The safety assumption behind `Self::new` guarantees that the
         // original reference to the map is no longer used at this point, and
@@ -260,7 +442,8 @@ impl<'a, T: TriHashItem, S: Clone + BuildHasher, A: Allocator>
         map.get_by_entry_index(self.indexes)
     }
 
-    /// Converts self into mutable references to items that match the provided keys.
+    /// Converts self into mutable references to items that match the provided
+    /// keys.
     pub fn into_mut(self) -> OccupiedEntryMut<'a, T, S> {
         // SAFETY: The safety assumption behind `Self::new` guarantees that the
         // original reference to the map is no longer used at this point, and
@@ -270,6 +453,10 @@ impl<'a, T: TriHashItem, S: Clone + BuildHasher, A: Allocator>
     }
 
     /// Removes all distinct values matched by this entry.
+    ///
+    /// Each distinct matched item is removed once. Returned items are ordered
+    /// by first key hit: for example `A / A / B` returns `[A, B]`, while
+    /// `None / B / A` returns `[B, A]`.
     pub fn remove(self) -> Vec<T> {
         // SAFETY: The safety assumption behind `Self::new` guarantees that the
         // original reference to the map is no longer used at this point.
@@ -282,10 +469,14 @@ impl<'a, T: TriHashItem, S: Clone + BuildHasher, A: Allocator>
 
     /// Replaces all distinct values matched by this entry with `value`.
     ///
+    /// Each distinct matched item is replaced once. Removed items are returned
+    /// in first-key-hit order, and after success this entry is unique for the
+    /// replacement item.
+    ///
     /// # Panics
     ///
     /// Panics before mutation if `value` does not match the entry key hashes
-    /// or if its duplicate state is incompatible with this entry.
+    /// or if its duplicate/index state is incompatible with this entry.
     pub fn insert(&mut self, value: T) -> Vec<T> {
         // SAFETY: The safety assumption behind `Self::new` guarantees that the
         // original reference to the map is no longer used at this point, and
@@ -336,6 +527,9 @@ fn prepare_entry_removal<
 }
 
 /// Shared references to values matched by a [`TriHashMap`] occupied entry.
+///
+/// The unique variant means all three keys matched one item. The non-unique
+/// variant preserves per-key mapping for partial and mixed matches.
 #[derive(Debug)]
 pub enum OccupiedEntryRef<'a, T: TriHashItem> {
     /// All keys point to the same entry.
@@ -345,6 +539,10 @@ pub enum OccupiedEntryRef<'a, T: TriHashItem> {
 }
 
 /// Accessor-backed shared non-unique entry references.
+///
+/// This type stores each distinct matched item once, records which slot each
+/// key position matched, and exposes the mapping through accessor methods.
+/// `for_each` visits distinct items once in first-key-hit order.
 #[derive(Debug)]
 pub struct NonUniqueEntryRef<'a, T: TriHashItem> {
     values: [Option<&'a T>; 3],
@@ -448,6 +646,9 @@ impl<'a, T: TriHashItem> NonUniqueEntryRef<'a, T> {
 }
 
 /// Mutable references to values matched by a [`TriHashMap`] occupied entry.
+///
+/// Mutable non-unique access is accessor-backed. Accessors take `&mut self` and
+/// reborrow one distinct item at a time.
 pub enum OccupiedEntryMut<
     'a,
     T: TriHashItem,
@@ -475,6 +676,11 @@ impl<'a, T: TriHashItem + fmt::Debug, S: Clone + BuildHasher> fmt::Debug
 }
 
 /// Accessor-backed mutable non-unique entry references.
+///
+/// This type stores one mutable reference per distinct matched item and maps
+/// key positions to those slots. It does not expose public `by_key1`,
+/// `by_key2`, or `by_key3` fields, which prevents aliased mutable references
+/// in states such as `A / A / B`.
 pub struct NonUniqueEntryMut<
     'a,
     T: TriHashItem,

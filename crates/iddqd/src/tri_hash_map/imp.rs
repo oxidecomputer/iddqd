@@ -2642,9 +2642,15 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
 
     /// Gets the entry corresponding to the three provided keys.
     ///
-    /// A vacant entry is returned only when none of the keys are present. If all
-    /// three keys point to the same item, the occupied entry is unique. Partial
-    /// matches and mixed matches are occupied non-unique entries.
+    /// A vacant entry is returned only when none of `key1`, `key2`, or `key3`
+    /// is present. If all three keys point to the same item (`A / A / A`), the
+    /// occupied entry is unique. Partial hits (`A / A / None`,
+    /// `A / None / A`, `None / A / A`) and mixed hits (`A / A / B`,
+    /// `A / B / A`, `A / B / C`) are occupied non-unique entries.
+    ///
+    /// Non-unique entries preserve per-key mapping and visit distinct matched
+    /// items in first-key-hit order. See [`Entry`] for examples and the full
+    /// mutation semantics.
     pub fn entry<'a>(
         &'a mut self,
         key1: T::K1<'_>,

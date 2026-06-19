@@ -1664,20 +1664,21 @@ fn entry_insert_replaces_first_key_hit_order_and_becomes_unique() {
         ((9, 'b', 1), vec!["B", "A"]),
     ] {
         let mut map = entry_mut_map();
-        let mut entry = match map.entry(keys.0, keys.1, keys.2) {
-            tri_hash_map::Entry::Occupied(entry) => entry,
-            tri_hash_map::Entry::Vacant(_) => panic!("expected occupied"),
-        };
-        let removed = entry.insert(EntryMutItem {
-            key1: keys.0,
-            key2: keys.1,
-            key3: keys.2,
-            value: "R",
-        });
-        assert_eq!(removed_values(removed), expected);
-        assert!(entry.is_unique());
-        assert_eq!(entry.get().as_unique().unwrap().value, "R");
-        drop(entry);
+        {
+            let mut entry = match map.entry(keys.0, keys.1, keys.2) {
+                tri_hash_map::Entry::Occupied(entry) => entry,
+                tri_hash_map::Entry::Vacant(_) => panic!("expected occupied"),
+            };
+            let removed = entry.insert(EntryMutItem {
+                key1: keys.0,
+                key2: keys.1,
+                key3: keys.2,
+                value: "R",
+            });
+            assert_eq!(removed_values(removed), expected);
+            assert!(entry.is_unique());
+            assert_eq!(entry.get().as_unique().unwrap().value, "R");
+        }
         assert_eq!(map.get1(&keys.0).unwrap().value, "R");
         assert_eq!(map.get2(&keys.1).unwrap().value, "R");
         assert_eq!(map.get3(&keys.2).unwrap().value, "R");

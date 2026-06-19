@@ -407,12 +407,10 @@ pub fn record_observation(
 #[derive(Clone, Copy, Debug, Default)]
 pub struct PanickyAlloc<A>(pub A);
 
-// SAFETY:
-//
-// * On the non-panic path, forwards to the wrapped allocator.
-// * On the armed path, panics before any inner allocation, so no pointer is
-//   observable to the caller.
 #[cfg(all(feature = "default-hasher", feature = "allocator-api2"))]
+// SAFETY: On the non-panic path, this forwards to the wrapped allocator. On
+// the armed path, it panics before any inner allocation, so no pointer is
+// observable to the caller.
 unsafe impl<A: Allocator> Allocator for PanickyAlloc<A> {
     fn allocate(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
         observe_panicky_call("alloc");
