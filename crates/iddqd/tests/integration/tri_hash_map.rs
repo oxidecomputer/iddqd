@@ -1343,3 +1343,151 @@ mod proptest_panic_safety {
         }
     }
 }
+
+#[test]
+fn entry_vacant_insert_and_insert_entry() {
+    let mut map = TriHashMap::<SimpleItem, HashBuilder, Alloc>::make_new();
+
+    match map.entry(1, 'a', 1) {
+        tri_hash_map::Entry::Vacant(entry) => {
+            let inserted =
+                entry.insert(SimpleItem { key1: 1, key2: 'a', key3: 1 });
+            assert_eq!(inserted.key1, 1);
+        }
+        tri_hash_map::Entry::Occupied(_) => panic!("expected vacant"),
+    }
+    assert_eq!(map.len(), 1);
+
+    match map.entry(2, 'b', 2) {
+        tri_hash_map::Entry::Vacant(entry) => {
+            let occupied =
+                entry.insert_entry(SimpleItem { key1: 2, key2: 'b', key3: 2 });
+            assert!(occupied.is_unique());
+            assert_eq!(occupied.into_ref().as_unique().unwrap().key1, 2);
+        }
+        tri_hash_map::Entry::Occupied(_) => panic!("expected vacant"),
+    }
+}
+
+#[test]
+fn entry_classifies_unique_partial_and_mixed_lookups() {
+    let mut map = TriHashMap::<SimpleItem, HashBuilder, Alloc>::make_new();
+    map.insert_unique(SimpleItem { key1: 1, key2: 'a', key3: 1 }).unwrap();
+    map.insert_unique(SimpleItem { key1: 2, key2: 'b', key3: 2 }).unwrap();
+    map.insert_unique(SimpleItem { key1: 3, key2: 'c', key3: 3 }).unwrap();
+
+    match map.entry(1, 'a', 1) {
+        tri_hash_map::Entry::Occupied(entry) => assert!(entry.is_unique()),
+        tri_hash_map::Entry::Vacant(_) => panic!("expected occupied"),
+    }
+    for (key1, key2, key3) in [
+        (1, 'a', 9),
+        (1, 'z', 1),
+        (9, 'a', 1),
+        (1, 'a', 2),
+        (1, 'b', 1),
+        (1, 'b', 3),
+    ] {
+        match map.entry(key1, key2, key3) {
+            tri_hash_map::Entry::Occupied(entry) => {
+                assert!(entry.is_non_unique())
+            }
+            tri_hash_map::Entry::Vacant(_) => panic!("expected occupied"),
+        }
+    }
+}
+
+#[test]
+fn entry_shared_access_preserves_mapping_and_distinct_order() {
+    let mut map = TriHashMap::<SimpleItem, HashBuilder, Alloc>::make_new();
+    map.insert_unique(SimpleItem { key1: 1, key2: 'a', key3: 1 }).unwrap();
+    map.insert_unique(SimpleItem { key1: 2, key2: 'b', key3: 2 }).unwrap();
+
+    match map.entry(1, 'a', 2) {
+        tri_hash_map::Entry::Occupied(entry) => {
+            let entry_ref = entry.get();
+            assert_eq!(entry_ref.by_key1().unwrap().key1, 1);
+            assert_eq!(entry_ref.by_key2().unwrap().key1, 1);
+            assert_eq!(entry_ref.by_key3().unwrap().key1, 2);
+            let tri_hash_map::OccupiedEntryRef::NonUnique(non_unique) =
+                entry_ref
+            else {
+                panic!("expected non-unique entry ref");
+            };
+            assert_eq!(non_unique.by_key1().unwrap().key1, 1);
+            assert_eq!(non_unique.by_key2().unwrap().key1, 1);
+            assert_eq!(non_unique.by_key3().unwrap().key1, 2);
+            let mut seen = Vec::new();
+            non_unique.for_each(|item| seen.push(item.key1));
+            assert_eq!(seen, vec![1, 2]);
+        }
+        tri_hash_map::Entry::Vacant(_) => panic!("expected occupied"),
+    }
+
+    match map.entry(1, 'z', 1) {
+        tri_hash_map::Entry::Occupied(entry) => {
+            let entry_ref = entry.get();
+            assert_eq!(entry_ref.by_key1().unwrap().key1, 1);
+            assert!(entry_ref.by_key2().is_none());
+            assert_eq!(entry_ref.by_key3().unwrap().key1, 1);
+            let tri_hash_map::OccupiedEntryRef::NonUnique(non_unique) =
+                entry_ref
+            else {
+                panic!("expected non-unique entry ref");
+            };
+            assert_eq!(non_unique.by_key1().unwrap().key1, 1);
+            assert!(non_unique.by_key2().is_none());
+            assert_eq!(non_unique.by_key3().unwrap().key1, 1);
+            let mut seen = Vec::new();
+            non_unique.for_each(|item| seen.push(item.key1));
+            assert_eq!(seen, vec![1]);
+        }
+        tri_hash_map::Entry::Vacant(_) => panic!("expected occupied"),
+    }
+
+    match map.entry(9, 'b', 1) {
+        tri_hash_map::Entry::Occupied(entry) => {
+            let entry_ref = entry.get();
+            assert!(entry_ref.by_key1().is_none());
+            assert_eq!(entry_ref.by_key2().unwrap().key1, 2);
+            assert_eq!(entry_ref.by_key3().unwrap().key1, 1);
+            let mut seen = Vec::new();
+            entry_ref.for_each(|item| seen.push(item.key1));
+            assert_eq!(seen, vec![2, 1]);
+        }
+        tri_hash_map::Entry::Vacant(_) => panic!("expected occupied"),
+    }
+}
+
+#[test]
+#[should_panic(expected = "key1 hashes do not match")]
+fn entry_vacant_insert_panics_on_mismatched_key1() {
+    let mut map = TriHashMap::<SimpleItem, HashBuilder, Alloc>::make_new();
+    let entry = match map.entry(1, 'a', 1) {
+        tri_hash_map::Entry::Vacant(entry) => entry,
+        tri_hash_map::Entry::Occupied(_) => panic!("expected vacant"),
+    };
+    entry.insert(SimpleItem { key1: 2, key2: 'a', key3: 1 });
+}
+
+#[test]
+#[should_panic(expected = "key2 hashes do not match")]
+fn entry_vacant_insert_panics_on_mismatched_key2() {
+    let mut map = TriHashMap::<SimpleItem, HashBuilder, Alloc>::make_new();
+    let entry = match map.entry(1, 'a', 1) {
+        tri_hash_map::Entry::Vacant(entry) => entry,
+        tri_hash_map::Entry::Occupied(_) => panic!("expected vacant"),
+    };
+    entry.insert(SimpleItem { key1: 1, key2: 'b', key3: 1 });
+}
+
+#[test]
+#[should_panic(expected = "key3 hashes do not match")]
+fn entry_vacant_insert_panics_on_mismatched_key3() {
+    let mut map = TriHashMap::<SimpleItem, HashBuilder, Alloc>::make_new();
+    let entry = match map.entry(1, 'a', 1) {
+        tri_hash_map::Entry::Vacant(entry) => entry,
+        tri_hash_map::Entry::Occupied(_) => panic!("expected vacant"),
+    };
+    entry.insert(SimpleItem { key1: 1, key2: 'a', key3: 2 });
+}

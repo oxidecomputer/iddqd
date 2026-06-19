@@ -1,4 +1,8 @@
-use super::{IntoIter, Iter, IterMut, RefMut, tables::TriHashMapTables};
+use super::{
+    Entry, IntoIter, Iter, IterMut, OccupiedEntry, OccupiedEntryRef, RefMut,
+    VacantEntry, entry::NonUniqueEntryRef, entry_indexes::EntryIndexes,
+    tables::TriHashMapTables,
+};
 use crate::{
     DefaultHashBuilder, TriHashItem,
     errors::{DuplicateItem, TryReserveError},
@@ -7,6 +11,7 @@ use crate::{
         ItemIndex,
         alloc::{Allocator, Global, global_alloc},
         borrow::DormantMutRef,
+        entry::EntryLookup,
         fmt_utils::StrDisplayAsDebug,
         hash_table,
         item_set::ItemSet,
@@ -1302,6 +1307,89 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
         Ok(())
     }
 
+    pub(super) fn get_by_entry_index(
+        &self,
+        indexes: EntryIndexes,
+    ) -> OccupiedEntryRef<'_, T> {
+        match indexes {
+            EntryIndexes::Unique(index) => OccupiedEntryRef::Unique(
+                self.items.get(index).expect("index is valid"),
+            ),
+            EntryIndexes::NonUnique(_) => {
+                let distinct = indexes.distinct().expect("non-unique indexes");
+                let mut values = [None; 3];
+                for (slot, index) in distinct.indexes()[..distinct.len()]
+                    .iter()
+                    .copied()
+                    .flatten()
+                    .enumerate()
+                {
+                    values[slot] = Some(
+                        self.items.get(index).expect("entry index is valid"),
+                    );
+                }
+                OccupiedEntryRef::NonUnique(NonUniqueEntryRef::new(
+                    values,
+                    distinct.len(),
+                    *distinct.key_to_slot(),
+                ))
+            }
+        }
+    }
+
+    pub(super) fn get_by_index_mut(
+        &mut self,
+        index: ItemIndex,
+    ) -> Option<RefMut<'_, T, S>> {
+        let item = self.items.get_mut(index)?;
+        let state = self.tables.state.clone();
+        let hashes = self.tables.make_hashes_for_item(&item);
+        Some(RefMut::new(state, hashes, item))
+    }
+
+    pub(super) fn insert_unique_impl(
+        &mut self,
+        value: T,
+    ) -> Result<ItemIndex, DuplicateItem<T, &T>> {
+        let mut duplicates = BTreeSet::new();
+        let state = &self.tables.state;
+        let (e1, e2, e3) = {
+            let k1 = value.key1();
+            let k2 = value.key2();
+            let k3 = value.key3();
+            let e1 = detect_dup_or_insert(
+                self.tables
+                    .k1_to_item
+                    .entry(state, k1, |index| self.items[index].key1()),
+                &mut duplicates,
+            );
+            let e2 = detect_dup_or_insert(
+                self.tables
+                    .k2_to_item
+                    .entry(state, k2, |index| self.items[index].key2()),
+                &mut duplicates,
+            );
+            let e3 = detect_dup_or_insert(
+                self.tables
+                    .k3_to_item
+                    .entry(state, k3, |index| self.items[index].key3()),
+                &mut duplicates,
+            );
+            (e1, e2, e3)
+        };
+        if !duplicates.is_empty() {
+            return Err(DuplicateItem::__internal_new(
+                value,
+                duplicates.iter().map(|ix| &self.items[*ix]).collect(),
+            ));
+        }
+        let next_index = self.items.assert_can_grow().insert(value);
+        e1.unwrap().insert(next_index);
+        e2.unwrap().insert(next_index);
+        e3.unwrap().insert(next_index);
+        Ok(next_index)
+    }
+
     /// Checks the structural invariants of the map:
     ///
     /// * The item set is well-formed.
@@ -1489,52 +1577,7 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
         &mut self,
         value: T,
     ) -> Result<(), DuplicateItem<T, &T>> {
-        let mut duplicates = BTreeSet::new();
-
-        // Check for duplicates *before* inserting the new item, because we
-        // don't want to partially insert the new item and then have to roll
-        // back.
-        let state = &self.tables.state;
-        let (e1, e2, e3) = {
-            let k1 = value.key1();
-            let k2 = value.key2();
-            let k3 = value.key3();
-
-            let e1 = detect_dup_or_insert(
-                self.tables
-                    .k1_to_item
-                    .entry(state, k1, |index| self.items[index].key1()),
-                &mut duplicates,
-            );
-            let e2 = detect_dup_or_insert(
-                self.tables
-                    .k2_to_item
-                    .entry(state, k2, |index| self.items[index].key2()),
-                &mut duplicates,
-            );
-            let e3 = detect_dup_or_insert(
-                self.tables
-                    .k3_to_item
-                    .entry(state, k3, |index| self.items[index].key3()),
-                &mut duplicates,
-            );
-            (e1, e2, e3)
-        };
-
-        if !duplicates.is_empty() {
-            return Err(DuplicateItem::__internal_new(
-                value,
-                duplicates.iter().map(|ix| &self.items[*ix]).collect(),
-            ));
-        }
-
-        let next_index = self.items.assert_can_grow().insert(value);
-        // e1, e2 and e3 are all Some because if they were None, duplicates
-        // would be non-empty, and we'd have bailed out earlier.
-        e1.unwrap().insert(next_index);
-        e2.unwrap().insert(next_index);
-        e3.unwrap().insert(next_index);
-
+        let _ = self.insert_unique_impl(value)?;
         Ok(())
     }
 
@@ -2556,6 +2599,68 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
         let awakened_map = unsafe { dormant_map.awaken() };
 
         awakened_map.remove_by_index(remove_index)
+    }
+
+    /// Gets the entry corresponding to the three provided keys.
+    ///
+    /// A vacant entry is returned only when none of the keys are present. If all
+    /// three keys point to the same item, the occupied entry is unique. Partial
+    /// matches and mixed matches are occupied non-unique entries.
+    pub fn entry<'a>(
+        &'a mut self,
+        key1: T::K1<'_>,
+        key2: T::K2<'_>,
+        key3: T::K3<'_>,
+    ) -> Entry<'a, T, S, A> {
+        // As with BiHashMap::entry, owned keys avoid borrowing caller-owned
+        // query keys for the entire entry lifetime.
+        let (map, dormant_map) = DormantMutRef::new(self);
+        let key1 = T::upcast_key1(key1);
+        let key2 = T::upcast_key2(key2);
+        let key3 = T::upcast_key3(key3);
+        let (index1, index2, index3) = {
+            let index1: Option<ItemIndex> = map.tables.k1_to_item.find_index(
+                &map.tables.state,
+                &key1,
+                |index| map.items[index].key1(),
+            );
+            let index2: Option<ItemIndex> = map.tables.k2_to_item.find_index(
+                &map.tables.state,
+                &key2,
+                |index| map.items[index].key2(),
+            );
+            let index3: Option<ItemIndex> = map.tables.k3_to_item.find_index(
+                &map.tables.state,
+                &key3,
+                |index| map.items[index].key3(),
+            );
+            (index1, index2, index3)
+        };
+
+        match EntryIndexes::classify(index1, index2, index3) {
+            EntryLookup::Unique(index) => Entry::Occupied(
+                // SAFETY: `map` is not used after this point.
+                unsafe {
+                    OccupiedEntry::new(dormant_map, EntryIndexes::Unique(index))
+                },
+            ),
+            EntryLookup::Vacant => {
+                let hashes = map.tables.make_hashes::<T>(&key1, &key2, &key3);
+                Entry::Vacant(
+                    // SAFETY: `map` is not used after this point.
+                    unsafe { VacantEntry::new(dormant_map, hashes) },
+                )
+            }
+            EntryLookup::NonUnique(indexes) => Entry::Occupied(
+                // SAFETY: `map` is not used after this point.
+                unsafe {
+                    OccupiedEntry::new(
+                        dormant_map,
+                        EntryIndexes::from_non_unique(indexes),
+                    )
+                },
+            ),
+        }
     }
 
     /// Retains only the elements specified by the predicate.

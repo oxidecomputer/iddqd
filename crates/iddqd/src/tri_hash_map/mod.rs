@@ -4,6 +4,8 @@
 
 #[cfg(feature = "daft")]
 mod daft_impls;
+mod entry;
+mod entry_indexes;
 pub(crate) mod imp;
 mod iter;
 #[cfg(feature = "proptest")]
@@ -18,6 +20,9 @@ pub(crate) mod trait_defs;
 
 #[cfg(feature = "daft")]
 pub use daft_impls::{ByK1, ByK2, ByK3, Diff, MapLeaf};
+pub use entry::{
+    Entry, NonUniqueEntryRef, OccupiedEntry, OccupiedEntryRef, VacantEntry,
+};
 pub use imp::TriHashMap;
 pub use iter::{IntoIter, Iter, IterMut};
 #[cfg(all(feature = "proptest", feature = "default-hasher"))]
