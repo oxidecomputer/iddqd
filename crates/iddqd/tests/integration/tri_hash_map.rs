@@ -1626,3 +1626,114 @@ fn entry_and_modify_visits_distinct_occupied_items_only() {
     assert_eq!(map.len(), 3);
     assert!(map.get1(&9).is_none());
 }
+
+fn removed_values(items: Vec<EntryMutItem>) -> Vec<&'static str> {
+    items.into_iter().map(|item| item.value).collect()
+}
+
+#[test]
+fn entry_remove_returns_first_key_hit_order_and_removes_once() {
+    for (keys, expected) in [
+        ((1, 'a', 9), vec!["A"]),
+        ((1, 'z', 1), vec!["A"]),
+        ((9, 'a', 1), vec!["A"]),
+        ((1, 'a', 2), vec!["A", "B"]),
+        ((1, 'b', 1), vec!["A", "B"]),
+        ((1, 'b', 3), vec!["A", "B", "C"]),
+        ((9, 'b', 1), vec!["B", "A"]),
+    ] {
+        let mut map = entry_mut_map();
+        let removed = match map.entry(keys.0, keys.1, keys.2) {
+            tri_hash_map::Entry::Occupied(entry) => entry.remove(),
+            tri_hash_map::Entry::Vacant(_) => panic!("expected occupied"),
+        };
+        assert_eq!(removed_values(removed), expected);
+        assert!(map.validate(ValidateCompact::NonCompact).is_ok());
+    }
+}
+
+#[test]
+fn entry_insert_replaces_first_key_hit_order_and_becomes_unique() {
+    for (keys, expected) in [
+        ((1, 'a', 9), vec!["A"]),
+        ((1, 'z', 1), vec!["A"]),
+        ((9, 'a', 1), vec!["A"]),
+        ((1, 'a', 2), vec!["A", "B"]),
+        ((1, 'b', 1), vec!["A", "B"]),
+        ((1, 'b', 3), vec!["A", "B", "C"]),
+        ((9, 'b', 1), vec!["B", "A"]),
+    ] {
+        let mut map = entry_mut_map();
+        let mut entry = match map.entry(keys.0, keys.1, keys.2) {
+            tri_hash_map::Entry::Occupied(entry) => entry,
+            tri_hash_map::Entry::Vacant(_) => panic!("expected occupied"),
+        };
+        let removed = entry.insert(EntryMutItem {
+            key1: keys.0,
+            key2: keys.1,
+            key3: keys.2,
+            value: "R",
+        });
+        assert_eq!(removed_values(removed), expected);
+        assert!(entry.is_unique());
+        assert_eq!(entry.get().as_unique().unwrap().value, "R");
+        drop(entry);
+        assert_eq!(map.get1(&keys.0).unwrap().value, "R");
+        assert_eq!(map.get2(&keys.1).unwrap().value, "R");
+        assert_eq!(map.get3(&keys.2).unwrap().value, "R");
+        assert!(map.validate(ValidateCompact::NonCompact).is_ok());
+    }
+}
+
+#[test]
+fn entry_or_insert_only_inserts_vacant_and_or_insert_with_is_lazy() {
+    let mut map = entry_mut_map();
+    let mut inserted = map.entry(4, 'd', 4).or_insert(EntryMutItem {
+        key1: 4,
+        key2: 'd',
+        key3: 4,
+        value: "D",
+    });
+    assert_eq!(inserted.as_unique().unwrap().value, "D");
+    drop(inserted);
+    assert_eq!(map.len(), 4);
+
+    for keys in
+        [(1, 'a', 9), (1, 'z', 1), (9, 'a', 1), (1, 'a', 2), (1, 'b', 3)]
+    {
+        let before = map.len();
+        let view = map.entry(keys.0, keys.1, keys.2).or_insert_with(|| {
+            panic!("or_insert_with called for occupied entry")
+        });
+        assert!(view.is_non_unique());
+        drop(view);
+        assert_eq!(map.len(), before);
+    }
+}
+
+#[test]
+fn entry_insert_panics_before_mutation_before_changing_map() {
+    for bad in [
+        EntryMutItem { key1: 9, key2: 'a', key3: 2, value: "bad-k1" },
+        EntryMutItem { key1: 1, key2: 'z', key3: 2, value: "bad-k2" },
+        EntryMutItem { key1: 1, key2: 'a', key3: 9, value: "bad-k3" },
+        EntryMutItem { key1: 1, key2: 'a', key3: 1, value: "bad-dup" },
+    ] {
+        let mut map = entry_mut_map();
+        let result =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                let mut entry = match map.entry(1, 'a', 2) {
+                    tri_hash_map::Entry::Occupied(entry) => entry,
+                    tri_hash_map::Entry::Vacant(_) => {
+                        panic!("expected occupied")
+                    }
+                };
+                entry.insert(bad);
+            }));
+        assert!(result.is_err());
+        assert_eq!(map.len(), 3);
+        assert_eq!(map.get1(&1).unwrap().value, "A");
+        assert_eq!(map.get1(&2).unwrap().value, "B");
+        assert!(map.validate(ValidateCompact::NonCompact).is_ok());
+    }
+}

@@ -4,11 +4,13 @@ use super::{
 use crate::{
     DefaultHashBuilder,
     support::{
+        ItemIndex,
         alloc::{Allocator, Global},
         borrow::DormantMutRef,
         map_hash::MapHash,
     },
 };
+use alloc::vec::Vec;
 use core::{fmt, hash::BuildHasher};
 
 /// An implementation of the Entry API for [`TriHashMap`].
@@ -62,6 +64,33 @@ impl<'a, T: TriHashItem, S: Clone + BuildHasher, A: Allocator>
             Entry::Vacant(entry) => Entry::Vacant(entry),
         }
     }
+
+    /// Ensures a value is in the entry by inserting `value` if vacant, and
+    /// returns mutable occupied access to the entry.
+    #[inline]
+    pub fn or_insert(self, value: T) -> OccupiedEntryMut<'a, T, S> {
+        match self {
+            Entry::Occupied(entry) => entry.into_mut(),
+            Entry::Vacant(entry) => {
+                OccupiedEntryMut::Unique(entry.insert(value))
+            }
+        }
+    }
+
+    /// Ensures a value is in the entry by inserting the result of `default` if
+    /// vacant, and returns mutable occupied access to the entry.
+    #[inline]
+    pub fn or_insert_with<F>(self, default: F) -> OccupiedEntryMut<'a, T, S>
+    where
+        F: FnOnce() -> T,
+    {
+        match self {
+            Entry::Occupied(entry) => entry.into_mut(),
+            Entry::Vacant(entry) => {
+                OccupiedEntryMut::Unique(entry.insert(default()))
+            }
+        }
+    }
 }
 /// A vacant entry.
 pub struct VacantEntry<
@@ -104,7 +133,7 @@ impl<'a, T: TriHashItem, S: Clone + BuildHasher, A: Allocator>
         // SAFETY: The safety assumption behind `Self::new` guarantees that the
         // original reference to the map is no longer used at this point.
         let map = unsafe { self.map.awaken() };
-        validate_hashes(map, self.hashes, &value);
+        validate_hashes(map, self.hashes.clone(), &value);
         let Ok(index) = map.insert_unique_impl(value) else {
             panic!("key already present in map");
         };
@@ -119,7 +148,7 @@ impl<'a, T: TriHashItem, S: Clone + BuildHasher, A: Allocator>
             // the original reference to the map is no longer used at this
             // point.
             let map = unsafe { self.map.reborrow() };
-            validate_hashes(map, self.hashes, &value);
+            validate_hashes(map, self.hashes.clone(), &value);
             let Ok(index) = map.insert_unique_impl(value) else {
                 panic!("key already present in map");
             };
@@ -128,7 +157,13 @@ impl<'a, T: TriHashItem, S: Clone + BuildHasher, A: Allocator>
 
         // SAFETY: `map`, as well as anything borrowed from it, is dropped
         // above, so the temporary reborrow has ended before awakening again.
-        unsafe { OccupiedEntry::new(self.map, EntryIndexes::Unique(index)) }
+        unsafe {
+            OccupiedEntry::new(
+                self.map,
+                EntryIndexes::Unique(index),
+                self.hashes,
+            )
+        }
     }
 }
 
@@ -158,6 +193,7 @@ pub struct OccupiedEntry<
 > {
     map: DormantMutRef<'a, TriHashMap<T, S, A>>,
     indexes: EntryIndexes,
+    hashes: [MapHash; 3],
 }
 
 impl<'a, T: TriHashItem, S, A: Allocator> fmt::Debug
@@ -180,8 +216,9 @@ impl<'a, T: TriHashItem, S: Clone + BuildHasher, A: Allocator>
     pub(super) unsafe fn new(
         map: DormantMutRef<'a, TriHashMap<T, S, A>>,
         indexes: EntryIndexes,
+        hashes: [MapHash; 3],
     ) -> Self {
-        OccupiedEntry { map, indexes }
+        OccupiedEntry { map, indexes, hashes }
     }
 
     /// Returns true if all three keys point to exactly one item.
@@ -231,6 +268,71 @@ impl<'a, T: TriHashItem, S: Clone + BuildHasher, A: Allocator>
         let map = unsafe { self.map.awaken() };
         map.get_by_entry_index_mut(self.indexes)
     }
+
+    /// Removes all distinct values matched by this entry.
+    pub fn remove(self) -> Vec<T> {
+        // SAFETY: The safety assumption behind `Self::new` guarantees that the
+        // original reference to the map is no longer used at this point.
+        let map = unsafe { self.map.awaken() };
+        let duplicates = prepare_entry_removal(map, self.indexes);
+        let mut removed = Vec::with_capacity(duplicates.len());
+        map.remove_prepared_duplicates(duplicates, &mut removed);
+        removed
+    }
+
+    /// Replaces all distinct values matched by this entry with `value`.
+    ///
+    /// # Panics
+    ///
+    /// Panics before mutation if `value` does not match the entry key hashes
+    /// or if its duplicate state is incompatible with this entry.
+    pub fn insert(&mut self, value: T) -> Vec<T> {
+        // SAFETY: The safety assumption behind `Self::new` guarantees that the
+        // original reference to the map is no longer used at this point, and
+        // there is no active temporary reborrow.
+        let map = unsafe { self.map.reborrow() };
+        validate_hashes(map, self.hashes.clone(), &value);
+        let prepared = map.prepare_insert_overwrite(&value);
+        validate_prepared_indexes(self.indexes, prepared.indexes);
+
+        let mut removed = Vec::with_capacity(prepared.duplicate_count());
+        map.try_reserve_insert_overwrite_commit(prepared.needs_new_item_slot())
+            .expect("reserved capacity for entry replacement commit");
+        let next_index =
+            map.commit_insert_overwrite(value, prepared, &mut removed);
+        self.indexes = EntryIndexes::Unique(next_index);
+        removed
+    }
+}
+
+fn validate_prepared_indexes(
+    indexes: EntryIndexes,
+    prepared: [Option<ItemIndex>; 3],
+) {
+    let expected = match indexes {
+        EntryIndexes::Unique(index) => [Some(index), Some(index), Some(index)],
+        EntryIndexes::NonUnique(indexes) => *indexes.indexes(),
+    };
+    if prepared != expected {
+        panic!("replacement duplicate state does not match entry lookup");
+    }
+}
+
+fn prepare_entry_removal<
+    T: TriHashItem,
+    S: Clone + BuildHasher,
+    A: Allocator,
+>(
+    map: &TriHashMap<T, S, A>,
+    indexes: EntryIndexes,
+) -> Vec<super::imp::PreparedDuplicate> {
+    let distinct = match indexes {
+        EntryIndexes::Unique(index) => [Some(index), None, None],
+        EntryIndexes::NonUnique(indexes) => *indexes.distinct().indexes(),
+    };
+    super::imp::PreparedDuplicate::from_indexes(distinct, |index| {
+        map.prepare_duplicate(index)
+    })
 }
 
 /// Shared references to values matched by a [`TriHashMap`] occupied entry.

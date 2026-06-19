@@ -29,13 +29,13 @@ use equivalent::Equivalent;
 
 #[derive(Debug)]
 #[must_use]
-struct PreparedDuplicate {
-    index: ItemIndex,
-    hashes: [MapHash; 3],
+pub(super) struct PreparedDuplicate {
+    pub(super) index: ItemIndex,
+    pub(super) hashes: [MapHash; 3],
 }
 
 impl PreparedDuplicate {
-    fn from_indexes<const N: usize>(
+    pub(super) fn from_indexes<const N: usize>(
         indexes: [Option<ItemIndex>; N],
         mut prepare: impl FnMut(ItemIndex) -> Self,
     ) -> Vec<Self> {
@@ -58,19 +58,20 @@ impl PreparedDuplicate {
 
 #[derive(Debug)]
 #[must_use]
-struct PreparedInsertOverwrite {
-    duplicates: Vec<PreparedDuplicate>,
-    hashes: [MapHash; 3],
+pub(super) struct PreparedInsertOverwrite {
+    pub(super) indexes: [Option<ItemIndex>; 3],
+    pub(super) duplicates: Vec<PreparedDuplicate>,
+    pub(super) hashes: [MapHash; 3],
 }
 
 impl PreparedInsertOverwrite {
     #[inline]
-    fn duplicate_count(&self) -> usize {
+    pub(super) fn duplicate_count(&self) -> usize {
         self.duplicates.len()
     }
 
     #[inline]
-    fn needs_new_item_slot(&self) -> bool {
+    pub(super) fn needs_new_item_slot(&self) -> bool {
         self.duplicates.is_empty()
     }
 }
@@ -1514,7 +1515,7 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
         self.try_reserve_insert_overwrite_commit(
             prepared.needs_new_item_slot(),
         )
-        .expect("reserved space successfully");
+        .expect("reserved capacity for entry replacement commit");
 
         self.commit_insert_overwrite(value, prepared, &mut duplicates);
 
@@ -2675,15 +2676,20 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
             (index1, index2, index3)
         };
 
+        let hashes = map.tables.make_hashes::<T>(&key1, &key2, &key3);
+
         match EntryIndexes::classify(index1, index2, index3) {
             EntryLookup::Unique(index) => Entry::Occupied(
                 // SAFETY: `map` is not used after this point.
                 unsafe {
-                    OccupiedEntry::new(dormant_map, EntryIndexes::Unique(index))
+                    OccupiedEntry::new(
+                        dormant_map,
+                        EntryIndexes::Unique(index),
+                        hashes,
+                    )
                 },
             ),
             EntryLookup::Vacant => {
-                let hashes = map.tables.make_hashes::<T>(&key1, &key2, &key3);
                 Entry::Vacant(
                     // SAFETY: `map` is not used after this point.
                     unsafe { VacantEntry::new(dormant_map, hashes) },
@@ -2695,6 +2701,7 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
                     OccupiedEntry::new(
                         dormant_map,
                         EntryIndexes::from_non_unique(indexes),
+                        hashes,
                     )
                 },
             ),
@@ -2936,7 +2943,10 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
             .find_index(&self.tables.state, k, |index| self.items[index].key3())
     }
 
-    fn prepare_insert_overwrite(&self, value: &T) -> PreparedInsertOverwrite {
+    pub(super) fn prepare_insert_overwrite(
+        &self,
+        value: &T,
+    ) -> PreparedInsertOverwrite {
         let key1 = value.key1();
         let key2 = value.key2();
         let key3 = value.key3();
@@ -2951,17 +2961,24 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
             |index| self.prepare_duplicate(index),
         );
 
-        PreparedInsertOverwrite { duplicates, hashes }
+        PreparedInsertOverwrite {
+            indexes: [index1, index2, index3],
+            duplicates,
+            hashes,
+        }
     }
 
-    fn prepare_duplicate(&self, index: ItemIndex) -> PreparedDuplicate {
+    pub(super) fn prepare_duplicate(
+        &self,
+        index: ItemIndex,
+    ) -> PreparedDuplicate {
         let item = &self.items[index];
         let hashes = self.tables.make_hashes_for_item::<T>(item);
 
         PreparedDuplicate { index, hashes }
     }
 
-    fn try_reserve_insert_overwrite_commit(
+    pub(super) fn try_reserve_insert_overwrite_commit(
         &mut self,
         needs_new_item_slot: bool,
     ) -> Result<(), TryReserveError> {
@@ -2987,7 +3004,7 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
         Ok(())
     }
 
-    fn commit_insert_overwrite(
+    pub(super) fn commit_insert_overwrite(
         &mut self,
         value: T,
         prepared: PreparedInsertOverwrite,
@@ -2998,7 +3015,7 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
         for duplicate in prepared.duplicates {
             duplicates.push(
                 self.remove_duplicate(duplicate)
-                    .expect("duplicate index was prepared"),
+                    .expect("prepared duplicate index was present"),
             );
         }
 
@@ -3095,6 +3112,19 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     /// prehashed lookup misses, this falls back to removing by `ItemIndex`,
     /// which performs a linear scan over cached indexes and does not re-enter
     /// user code.
+    pub(super) fn remove_prepared_duplicates(
+        &mut self,
+        duplicates: Vec<PreparedDuplicate>,
+        removed: &mut Vec<T>,
+    ) {
+        for duplicate in duplicates {
+            removed.push(
+                self.remove_duplicate(duplicate)
+                    .expect("prepared duplicate index was present"),
+            );
+        }
+    }
+
     fn remove_duplicate(&mut self, duplicate: PreparedDuplicate) -> Option<T> {
         let _ = self.items.get(duplicate.index)?;
 
