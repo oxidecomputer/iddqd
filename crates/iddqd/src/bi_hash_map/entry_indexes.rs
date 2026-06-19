@@ -1,17 +1,36 @@
-use crate::support::ItemIndex;
+use crate::support::{
+    ItemIndex,
+    entry::{
+        EntryIndexes as SupportEntryIndexes, EntryLookup, NonUniqueIndexes,
+    },
+};
 
 #[derive(Clone, Copy, Debug)]
 pub(super) enum EntryIndexes {
     Unique(ItemIndex),
     NonUnique {
-        // Invariant: at least one index is Some, and indexes are different from
-        // each other.
+        // Invariant: at least one index is Some, and indexes are not all the
+        // same Some value.
         index1: Option<ItemIndex>,
         index2: Option<ItemIndex>,
     },
 }
 
 impl EntryIndexes {
+    #[inline]
+    pub(super) fn classify(
+        index1: Option<ItemIndex>,
+        index2: Option<ItemIndex>,
+    ) -> EntryLookup<2> {
+        SupportEntryIndexes::new([index1, index2]).classify()
+    }
+
+    #[inline]
+    pub(super) fn from_non_unique(indexes: NonUniqueIndexes<2>) -> Self {
+        let [index1, index2] = *indexes.indexes();
+        EntryIndexes::NonUnique { index1, index2 }
+    }
+
     #[inline]
     pub(super) fn is_unique(&self) -> bool {
         matches!(self, EntryIndexes::Unique(_))

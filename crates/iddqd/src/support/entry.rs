@@ -1,8 +1,3 @@
-#![expect(
-    dead_code,
-    reason = "temporary until the next PR wires the support primitive into BiHashMap"
-)]
-
 //! Crate-internal support for classifying multi-key entry lookups.
 //!
 //! This module is intentionally independent of the map implementations. It only
@@ -52,6 +47,10 @@ impl<const N: usize> EntryIndexes<N> {
     }
 
     #[inline]
+    #[expect(
+        dead_code,
+        reason = "reserved for upcoming TriHashMap entry wiring"
+    )]
     pub(crate) const fn indexes(&self) -> &[Option<ItemIndex>; N] {
         &self.indexes
     }
@@ -90,6 +89,13 @@ impl<const N: usize> NonUniqueIndexes<N> {
     }
 
     #[inline]
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "reserved for upcoming TriHashMap entry deduplication"
+        )
+    )]
     pub(crate) fn distinct(self) -> DistinctIndexes<N> {
         DistinctIndexes::from_indexes(self.indexes)
     }
@@ -133,16 +139,37 @@ impl<const N: usize> DistinctIndexes<N> {
     }
 
     #[inline]
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "reserved for upcoming TriHashMap entry deduplication"
+        )
+    )]
     pub(crate) const fn indexes(&self) -> &[Option<ItemIndex>; N] {
         &self.indexes
     }
 
     #[inline]
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "reserved for upcoming TriHashMap entry deduplication"
+        )
+    )]
     pub(crate) const fn len(&self) -> usize {
         self.len
     }
 
     #[inline]
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "reserved for upcoming TriHashMap entry deduplication"
+        )
+    )]
     pub(crate) const fn key_to_slot(&self) -> &[Option<usize>; N] {
         &self.key_to_slot
     }
