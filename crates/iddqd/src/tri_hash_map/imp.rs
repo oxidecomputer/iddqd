@@ -136,7 +136,7 @@ pub struct TriHashMap<T, S = DefaultHashBuilder, A: Allocator = Global> {
     pub(super) items: ItemSet<T, A>,
     // Invariant: the values (ItemIndex) in these tables are valid indexes into
     // `items`, and are a 1:1 mapping.
-    tables: TriHashMapTables<S, A>,
+    pub(super) tables: TriHashMapTables<S, A>,
 }
 
 impl<T: TriHashItem, S: Default, A: Allocator + Default> Default
@@ -1760,7 +1760,7 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
         let awakened_map = unsafe { dormant_map.awaken() };
         let item = &mut awakened_map.items[index];
         let state = awakened_map.tables.state.clone();
-        let hashes = awakened_map.tables.make_hashes(&item);
+        let hashes = awakened_map.tables.make_hashes_for_item(&item);
         Some(RefMut::new(state, hashes, item))
     }
 
@@ -2016,7 +2016,7 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
         let awakened_map = unsafe { dormant_map.awaken() };
         let item = &mut awakened_map.items[index];
         let state = awakened_map.tables.state.clone();
-        let hashes = awakened_map.tables.make_hashes(&item);
+        let hashes = awakened_map.tables.make_hashes_for_item(&item);
         Some(RefMut::new(state, hashes, item))
     }
 
@@ -2253,7 +2253,7 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
         let awakened_map = unsafe { dormant_map.awaken() };
         let item = &mut awakened_map.items[index];
         let state = awakened_map.tables.state.clone();
-        let hashes = awakened_map.tables.make_hashes(&item);
+        let hashes = awakened_map.tables.make_hashes_for_item(&item);
         Some(RefMut::new(state, hashes, item))
     }
 
@@ -2490,7 +2490,7 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
         let awakened_map = unsafe { dormant_map.awaken() };
         let item = &mut awakened_map.items[index];
         let state = awakened_map.tables.state.clone();
-        let hashes = awakened_map.tables.make_hashes(&item);
+        let hashes = awakened_map.tables.make_hashes_for_item(&item);
         Some(RefMut::new(state, hashes, item))
     }
 
@@ -2801,7 +2801,7 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
         let index1 = self.find1_index(&key1);
         let index2 = self.find2_index(&key2);
         let index3 = self.find3_index(&key3);
-        let hashes = self.tables.make_hashes_for_keys::<T>(&key1, &key2, &key3);
+        let hashes = self.tables.make_hashes::<T>(&key1, &key2, &key3);
 
         let duplicates = PreparedDuplicate::from_indexes(
             [index1, index2, index3],
@@ -2813,7 +2813,7 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
 
     fn prepare_duplicate(&self, index: ItemIndex) -> PreparedDuplicate {
         let item = &self.items[index];
-        let hashes = self.tables.make_hashes::<T>(item);
+        let hashes = self.tables.make_hashes_for_item::<T>(item);
 
         PreparedDuplicate { index, hashes }
     }

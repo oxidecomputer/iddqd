@@ -68,15 +68,18 @@ impl<S: Clone + BuildHasher, A: Allocator> TriHashMapTables<S, A> {
         Ok(())
     }
 
-    pub(super) fn make_hashes<T: TriHashItem>(&self, item: &T) -> [MapHash; 3] {
+    pub(super) fn make_hashes_for_item<T: TriHashItem>(
+        &self,
+        item: &T,
+    ) -> [MapHash; 3] {
         let k1 = item.key1();
         let k2 = item.key2();
         let k3 = item.key3();
 
-        self.make_hashes_for_keys::<T>(&k1, &k2, &k3)
+        self.make_hashes::<T>(&k1, &k2, &k3)
     }
 
-    pub(super) fn make_hashes_for_keys<T: TriHashItem>(
+    pub(super) fn make_hashes<T: TriHashItem>(
         &self,
         key1: &T::K1<'_>,
         key2: &T::K2<'_>,
