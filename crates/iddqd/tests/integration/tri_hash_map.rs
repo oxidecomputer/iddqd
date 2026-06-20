@@ -204,6 +204,38 @@ fn test_insert_unique() {
     assert_eq!(map.remove_unique(&v5.key1(), &v5.key2(), &v5.key3()), Some(v5));
 }
 
+#[test]
+fn entry_non_unique_preserves_repeated_key_mapping() {
+    let mut map = TriHashMap::<TestItem, HashBuilder, Alloc>::make_new();
+
+    let a = TestItem::new(1, 'a', "x", "a");
+    let b = TestItem::new(2, 'b', "y", "b");
+
+    map.insert_unique(a.clone()).unwrap();
+    map.insert_unique(b.clone()).unwrap();
+
+    // A / B / A: key1 and key3 both match `a`, while key2 matches `b`.
+    let entry_ref = match map.entry(
+        TestKey1::new(&a.key1),
+        TestKey2::new(b.key2),
+        TestKey3::new(&a.key3),
+    ) {
+        tri_hash_map::Entry::Occupied(entry) => {
+            assert!(entry.is_non_unique());
+            entry.into_ref()
+        }
+        tri_hash_map::Entry::Vacant(_) => panic!("entry should be occupied"),
+    };
+
+    assert_eq!(entry_ref.by_key1(), Some(&a));
+    assert_eq!(entry_ref.by_key2(), Some(&b));
+    assert_eq!(entry_ref.by_key3(), Some(&a));
+
+    let mut visited = Vec::new();
+    entry_ref.for_each(|item| visited.push(item.value.as_str()));
+    assert_eq!(visited, vec!["a", "b"]);
+}
+
 // Test that the unsafe block within RefMut doesn't trip up miri.
 #[test]
 fn test_ref_mut_aliasing() {
