@@ -47,15 +47,6 @@ impl<const N: usize> EntryIndexes<N> {
     }
 
     #[inline]
-    #[expect(
-        dead_code,
-        reason = "reserved for upcoming TriHashMap occupied entry replacement validation"
-    )]
-    pub(crate) const fn indexes(&self) -> &[Option<ItemIndex>; N] {
-        &self.indexes
-    }
-
-    #[inline]
     pub(crate) fn classify(self) -> EntryLookup<N> {
         let mut first = None;
         let mut saw_none = false;

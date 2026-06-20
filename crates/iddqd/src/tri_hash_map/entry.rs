@@ -543,11 +543,20 @@ pub enum OccupiedEntryRef<'a, T: TriHashItem> {
 /// This type stores each distinct matched item once, records which slot each
 /// key position matched, and exposes the mapping through accessor methods.
 /// `for_each` visits distinct items once in first-key-hit order.
-#[derive(Debug)]
 pub struct NonUniqueEntryRef<'a, T: TriHashItem> {
     values: [Option<&'a T>; 3],
     len: usize,
     key_to_slot: [Option<usize>; 3],
+}
+
+impl<'a, T: TriHashItem + fmt::Debug> fmt::Debug for NonUniqueEntryRef<'a, T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("NonUniqueEntryRef")
+            .field("by_key1", &self.by_key1())
+            .field("by_key2", &self.by_key2())
+            .field("by_key3", &self.by_key3())
+            .finish()
+    }
 }
 
 impl<'a, T: TriHashItem> OccupiedEntryRef<'a, T> {
@@ -691,14 +700,23 @@ pub struct NonUniqueEntryMut<
     key_to_slot: [Option<usize>; 3],
 }
 
-impl<'a, T: TriHashItem + fmt::Debug, S: Clone + BuildHasher> fmt::Debug
-    for NonUniqueEntryMut<'a, T, S>
+impl<'a, T: TriHashItem, S: Clone + BuildHasher> NonUniqueEntryMut<'a, T, S> {
+    #[inline]
+    fn fmt_by_key(&self, key: usize) -> Option<&RefMut<'a, T, S>> {
+        self.key_to_slot[key].and_then(|slot| self.refs[slot].as_ref())
+    }
+}
+
+impl<'a, T, S> fmt::Debug for NonUniqueEntryMut<'a, T, S>
+where
+    T: TriHashItem + fmt::Debug,
+    S: Clone + BuildHasher,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("NonUniqueEntryMut")
-            .field("refs", &self.refs)
-            .field("len", &self.len)
-            .field("key_to_slot", &self.key_to_slot)
+            .field("by_key1", &self.fmt_by_key(0))
+            .field("by_key2", &self.fmt_by_key(1))
+            .field("by_key3", &self.fmt_by_key(2))
             .finish()
     }
 }
