@@ -345,6 +345,25 @@ impl UniqueKeysOp {
     }
 }
 
+/// A replacement operation for `TriHashMap::entry(...).insert(...)`.
+///
+/// The entry keys are resolved the same way as `UniqueKeysOp`, which makes
+/// partial and mixed occupied entries common. The replacement value is then
+/// constructed from those exact entry keys so `OccupiedEntry::insert` is testing
+/// compatible replacement, not panic behavior.
+#[derive(Clone, Debug, Arbitrary)]
+struct EntryInsertOverwriteOp {
+    keys: UniqueKeysOp,
+    value: String,
+}
+
+impl EntryInsertOverwriteOp {
+    fn resolve(&self, naive_map: &NaiveMap) -> TestItem {
+        let (key1, key2, key3) = self.keys.resolve(naive_map);
+        TestItem::new(key1, key2, key3, self.value.clone())
+    }
+}
+
 #[derive(Debug, Arbitrary)]
 enum Operation {
     // Make inserts a bit more common to try and fill up the map.
@@ -352,6 +371,10 @@ enum Operation {
     InsertUnique(TestItem),
     #[weight(3)]
     InsertOverwrite(TestItem),
+    #[weight(2)]
+    EntryInsertOverwrite(EntryInsertOverwriteOp),
+    #[weight(2)]
+    EntryRemove(UniqueKeysOp),
     #[weight(2)]
     Get1(u8),
     #[weight(2)]
@@ -403,6 +426,8 @@ impl Operation {
             // The act of removing items, including calls to insert_overwrite,
             // can make the map non-compact.
             Operation::InsertOverwrite(_)
+            | Operation::EntryInsertOverwrite(_)
+            | Operation::EntryRemove(_)
             | Operation::Remove1(_)
             | Operation::Remove2(_)
             | Operation::Remove3(_)
@@ -468,6 +493,48 @@ fn proptest_ops(
                 assert_eq!(
                     map_dups, naive_dups,
                     "map and naive map should agree on insert_overwrite dups"
+                );
+                map.validate(compactness).expect("map should be valid");
+            }
+            Operation::EntryInsertOverwrite(op) => {
+                let item = op.resolve(&naive_map);
+
+                let map_res = match map.entry(
+                    TestKey1::new(&item.key1),
+                    TestKey2::new(item.key2),
+                    TestKey3::new(&item.key3),
+                ) {
+                    tri_hash_map::Entry::Occupied(mut entry) => {
+                        Some(entry.insert(item.clone()))
+                    }
+                    tri_hash_map::Entry::Vacant(_) => None,
+                };
+
+                let naive_res = naive_map.entry_insert_overwrite123(item);
+
+                assert_eq!(
+                    map_res, naive_res,
+                    "map and naive map should agree on Entry::insert removed items"
+                );
+                map.validate(compactness).expect("map should be valid");
+            }
+            Operation::EntryRemove(keys) => {
+                let (key1, key2, key3) = keys.resolve(&naive_map);
+
+                let map_res = match map.entry(
+                    TestKey1::new(&key1),
+                    TestKey2::new(key2),
+                    TestKey3::new(&key3),
+                ) {
+                    tri_hash_map::Entry::Occupied(entry) => entry.remove(),
+                    tri_hash_map::Entry::Vacant(_) => Vec::new(),
+                };
+
+                let naive_res = naive_map.entry_remove123(key1, key2, &key3);
+
+                assert_eq!(
+                    map_res, naive_res,
+                    "map and naive map should agree on Entry::remove items"
                 );
                 map.validate(compactness).expect("map should be valid");
             }
@@ -1503,6 +1570,17 @@ fn entry_vacant_insert_panics_on_mismatched_key1() {
 }
 
 #[test]
+#[should_panic(expected = "key1 hashes do not match")]
+fn entry_vacant_insert_entry_panics_on_mismatched_key1() {
+    let mut map = TriHashMap::<SimpleItem, HashBuilder, Alloc>::make_new();
+    let entry = match map.entry(1, 'a', 1) {
+        tri_hash_map::Entry::Vacant(entry) => entry,
+        tri_hash_map::Entry::Occupied(_) => panic!("expected vacant"),
+    };
+    entry.insert_entry(SimpleItem { key1: 2, key2: 'a', key3: 1 });
+}
+
+#[test]
 #[should_panic(expected = "key2 hashes do not match")]
 fn entry_vacant_insert_panics_on_mismatched_key2() {
     let mut map = TriHashMap::<SimpleItem, HashBuilder, Alloc>::make_new();
@@ -1514,6 +1592,17 @@ fn entry_vacant_insert_panics_on_mismatched_key2() {
 }
 
 #[test]
+#[should_panic(expected = "key2 hashes do not match")]
+fn entry_vacant_insert_entry_panics_on_mismatched_key2() {
+    let mut map = TriHashMap::<SimpleItem, HashBuilder, Alloc>::make_new();
+    let entry = match map.entry(1, 'a', 1) {
+        tri_hash_map::Entry::Vacant(entry) => entry,
+        tri_hash_map::Entry::Occupied(_) => panic!("expected vacant"),
+    };
+    entry.insert_entry(SimpleItem { key1: 1, key2: 'b', key3: 1 });
+}
+
+#[test]
 #[should_panic(expected = "key3 hashes do not match")]
 fn entry_vacant_insert_panics_on_mismatched_key3() {
     let mut map = TriHashMap::<SimpleItem, HashBuilder, Alloc>::make_new();
@@ -1522,6 +1611,17 @@ fn entry_vacant_insert_panics_on_mismatched_key3() {
         tri_hash_map::Entry::Occupied(_) => panic!("expected vacant"),
     };
     entry.insert(SimpleItem { key1: 1, key2: 'a', key3: 2 });
+}
+
+#[test]
+#[should_panic(expected = "key3 hashes do not match")]
+fn entry_vacant_insert_entry_panics_on_mismatched_key3() {
+    let mut map = TriHashMap::<SimpleItem, HashBuilder, Alloc>::make_new();
+    let entry = match map.entry(1, 'a', 1) {
+        tri_hash_map::Entry::Vacant(entry) => entry,
+        tri_hash_map::Entry::Occupied(_) => panic!("expected vacant"),
+    };
+    entry.insert_entry(SimpleItem { key1: 1, key2: 'a', key3: 2 });
 }
 
 #[derive(Clone, Debug)]
@@ -1666,6 +1766,7 @@ fn removed_values(items: Vec<EntryMutItem>) -> Vec<&'static str> {
 #[test]
 fn entry_remove_returns_first_key_hit_order_and_removes_once() {
     for (keys, expected) in [
+        ((1, 'a', 1), vec!["A"]),
         ((1, 'a', 9), vec!["A"]),
         ((1, 'z', 1), vec!["A"]),
         ((9, 'a', 1), vec!["A"]),
@@ -1687,6 +1788,7 @@ fn entry_remove_returns_first_key_hit_order_and_removes_once() {
 #[test]
 fn entry_insert_replaces_first_key_hit_order_and_becomes_unique() {
     for (keys, expected) in [
+        ((1, 'a', 1), vec!["A"]),
         ((1, 'a', 9), vec!["A"]),
         ((1, 'z', 1), vec!["A"]),
         ((9, 'a', 1), vec!["A"]),
@@ -1731,14 +1833,23 @@ fn entry_or_insert_only_inserts_vacant_and_or_insert_with_is_lazy() {
     drop(inserted);
     assert_eq!(map.len(), 4);
 
-    for keys in
-        [(1, 'a', 9), (1, 'z', 1), (9, 'a', 1), (1, 'a', 2), (1, 'b', 3)]
-    {
+    for (keys, is_unique) in [
+        ((1, 'a', 1), true),
+        ((1, 'a', 9), false),
+        ((1, 'z', 1), false),
+        ((9, 'a', 1), false),
+        ((1, 'a', 2), false),
+        ((1, 'b', 1), false),
+        ((1, 'b', 3), false),
+    ] {
         let before = map.len();
         let view = map.entry(keys.0, keys.1, keys.2).or_insert_with(|| {
             panic!("or_insert_with called for occupied entry")
         });
-        assert!(view.is_non_unique());
+
+        assert_eq!(view.is_unique(), is_unique);
+        assert_eq!(view.is_non_unique(), !is_unique);
+
         drop(view);
         assert_eq!(map.len(), before);
     }

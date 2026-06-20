@@ -1515,7 +1515,7 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
         self.try_reserve_insert_overwrite_commit(
             prepared.needs_new_item_slot(),
         )
-        .expect("reserved capacity for entry replacement commit");
+        .expect("reserved capacity for insert_overwrite commit");
 
         self.commit_insert_overwrite(value, prepared, &mut duplicates);
 

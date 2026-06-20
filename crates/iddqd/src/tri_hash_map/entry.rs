@@ -23,7 +23,8 @@ use core::{fmt, hash::BuildHasher};
 ///
 /// [`VacantEntry`] is returned only when none of `key1`, `key2`, or `key3`
 /// passed to [`TriHashMap::entry`] matches an item. [`VacantEntry::insert`] and
-/// [`VacantEntry::insert_entry`] insert the item for those three keys.
+/// [`VacantEntry::insert_entry`] insert only after checking that the inserted
+/// value's key hashes match the hashes of those three entry keys.
 ///
 /// [`OccupiedEntry`] is returned whenever at least one key matches. It is
 /// unique only when all three key positions hit the same item (`A / A / A`).
@@ -505,7 +506,7 @@ fn validate_prepared_indexes(
         EntryIndexes::NonUnique(indexes) => *indexes.indexes(),
     };
     if prepared != expected {
-        panic!("replacement duplicate state does not match entry lookup");
+        panic!("replacement item keys do not match this occupied entry");
     }
 }
 
