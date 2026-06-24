@@ -1,4 +1,5 @@
 mod bi_hash_map;
+mod hegel_support;
 mod id_hash_map;
 #[cfg(feature = "std")]
 mod id_ord_map;

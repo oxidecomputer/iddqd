@@ -1,3 +1,8 @@
+use crate::hegel_support::{
+    draw_fill_batch, draw_lookup_key1, draw_lookup_key2, draw_lookup_keys12,
+    draw_shuffle, test_item,
+};
+use hegel::{TestCase, generators as gs};
 use iddqd::{
     BiHashItem, BiHashMap, bi_hash_map, bi_upcast, internal::ValidateCompact,
 };
@@ -7,15 +12,13 @@ use iddqd_test_utils::{
     naive_map::NaiveMap,
     test_item::{
         Alloc, HashBuilder, ItemMap, TestItem, TestKey1, TestKey2,
-        assert_iter_eq, test_item_permutation_strategy,
+        assert_iter_eq,
     },
 };
-use proptest::prelude::*;
 use std::{
     borrow::Cow,
     path::{Path, PathBuf},
 };
-use test_strategy::{Arbitrary, proptest};
 
 #[derive(Clone, Debug)]
 struct SimpleItem {
@@ -245,134 +248,30 @@ impl CompactnessChange {
     }
 }
 
-/// A keys-pair sourced from a mix of "an existing item in the map" and random
-/// fallback values.
-///
-/// Each component independently either copies a key from an item at
-/// `key{1,2}_from % naive_map.len()` (when the map is non-empty), or falls back
-/// to the random `rand_key{1,2}` value. This mix-and-match makes "right key1,
-/// wrong key2" (and vice versa) triples common in the proptest stream, which is
-/// what the `_unique` methods need to be exercised on.
-#[derive(Clone, Debug, Arbitrary)]
-struct UniqueKeysOp {
-    key1_from: Option<u8>,
-    key2_from: Option<u8>,
-    rand_key1: u8,
-    rand_key2: char,
+struct BiHashMapMachine {
+    map: BiHashMap<TestItem, HashBuilder, Alloc>,
+    naive: NaiveMap,
+    compactness: ValidateCompact,
 }
 
-impl UniqueKeysOp {
-    /// Resolves the pair against the current oracle state.
-    fn resolve(&self, naive_map: &NaiveMap) -> (u8, char) {
-        let items: Vec<&TestItem> = naive_map.iter().collect();
-        let pick_from = |from: Option<u8>| -> Option<&TestItem> {
-            let len = items.len();
-            from.and_then(|i| {
-                if len == 0 { None } else { Some(items[i as usize % len]) }
-            })
-        };
-        let key1 = pick_from(self.key1_from)
-            .map(|item| item.key1)
-            .unwrap_or(self.rand_key1);
-        let key2 = pick_from(self.key2_from)
-            .map(|item| item.key2)
-            .unwrap_or(self.rand_key2);
-        (key1, key2)
+impl BiHashMapMachine {
+    fn check_valid(&mut self, change: CompactnessChange) {
+        self.compactness = change.apply(self.compactness);
+        self.map.validate(self.compactness).expect("map should be valid");
     }
 }
 
-#[derive(Debug, Arbitrary)]
-enum Operation {
-    // Make inserts a bit more common to try and fill up the map.
-    #[weight(4)]
-    InsertUnique(TestItem),
-    #[weight(3)]
-    InsertOverwrite(TestItem),
-    #[weight(2)]
-    EntryInsertOverwrite(TestItem),
-    #[weight(2)]
-    EntryRemove(UniqueKeysOp),
-    #[weight(2)]
-    Get1(u8),
-    #[weight(2)]
-    Get2(char),
-    #[weight(2)]
-    GetUnique(UniqueKeysOp),
-    #[weight(2)]
-    GetMutUnique(UniqueKeysOp),
-    #[weight(2)]
-    Remove1(u8),
-    #[weight(2)]
-    Remove2(char),
-    #[weight(2)]
-    RemoveUnique(UniqueKeysOp),
-    #[weight(2)]
-    RetainValueContains(char, bool),
-    #[weight(2)]
-    RetainModulo(#[strategy(0..3_u8)] u8, #[strategy(1..4_u8)] u8, bool),
-    #[weight(2)]
-    Extend(
-        #[strategy(prop::collection::vec(any::<TestItem>(), 0..16))]
-        Vec<TestItem>,
-    ),
-    Clear,
-    // `additional` is kept modest so that reservations frequently
-    // exceed the current `growth_left` and so trigger hashbrown's
-    // rehash path.
-    Reserve(#[strategy(0..256_usize)] usize),
-    TryReserve(#[strategy(0..256_usize)] usize),
-    ShrinkToFit,
-    ShrinkTo(#[strategy(0..256_usize)] usize),
-}
+mod indent0 {
+    mod indent1 {
+        use super::super::*;
 
-impl Operation {
-    fn compactness_change(&self) -> CompactnessChange {
-        match self {
-            Operation::InsertUnique(_)
-            | Operation::Get1(_)
-            | Operation::Get2(_)
-            | Operation::GetUnique(_)
-            | Operation::GetMutUnique(_)
-            | Operation::Reserve(_)
-            | Operation::TryReserve(_) => CompactnessChange::NoChange,
-            // The act of removing items, including calls to insert_overwrite,
-            // can make the map non-compact.
-            Operation::InsertOverwrite(_)
-            | Operation::EntryInsertOverwrite(_)
-            | Operation::EntryRemove(_)
-            | Operation::Remove1(_)
-            | Operation::Remove2(_)
-            | Operation::RemoveUnique(_)
-            | Operation::RetainValueContains(_, _)
-            | Operation::RetainModulo(_, _, _)
-            | Operation::Extend(_) => CompactnessChange::NoLongerCompact,
-            // Clear always makes the map compact (empty). Shrink
-            // fully compacts the backing store, restoring the
-            // `Compact` invariant.
-            Operation::Clear
-            | Operation::ShrinkToFit
-            | Operation::ShrinkTo(_) => CompactnessChange::BecomesCompact,
-        }
-    }
-}
-
-#[proptest(cases = 16)]
-fn proptest_ops(
-    #[strategy(prop::collection::vec(any::<Operation>(), 0..1024))] ops: Vec<
-        Operation,
-    >,
-) {
-    let mut map = BiHashMap::<TestItem, HashBuilder, Alloc>::make_new();
-    let mut naive_map = NaiveMap::new_key12();
-
-    let mut compactness = ValidateCompact::Compact;
-
-    // Now perform the operations on both maps.
-    for op in ops.into_iter() {
-        compactness = op.compactness_change().apply(compactness);
-
-        match op {
-            Operation::InsertUnique(item) => {
+        #[hegel::state_machine]
+        impl BiHashMapMachine {
+            #[rule]
+            fn insert_unique(&mut self, tc: TestCase) {
+                let map = &mut self.map;
+                let naive_map = &mut self.naive;
+                let item = tc.draw(test_item());
                 let map_res = map.insert_unique(item.clone());
                 let naive_res = naive_map.insert_unique(item.clone());
 
@@ -393,9 +292,14 @@ fn proptest_ops(
                     assert_eq!(map_err_dups, naive_err_dups);
                 }
 
-                map.validate(compactness).expect("map should be valid");
+                self.check_valid(CompactnessChange::NoChange);
             }
-            Operation::InsertOverwrite(item) => {
+
+            #[rule]
+            fn insert_overwrite(&mut self, tc: TestCase) {
+                let map = &mut self.map;
+                let naive_map = &mut self.naive;
+                let item = tc.draw(test_item());
                 let mut map_dups = map.insert_overwrite(item.clone());
                 map_dups.sort();
                 let mut naive_dups = naive_map.insert_overwrite(item.clone());
@@ -405,9 +309,14 @@ fn proptest_ops(
                     map_dups, naive_dups,
                     "map and naive map should agree on insert_overwrite dups"
                 );
-                map.validate(compactness).expect("map should be valid");
+                self.check_valid(CompactnessChange::NoLongerCompact);
             }
-            Operation::EntryInsertOverwrite(item) => {
+
+            #[rule]
+            fn entry_insert_overwrite(&mut self, tc: TestCase) {
+                let map = &mut self.map;
+                let naive_map = &mut self.naive;
+                let item = tc.draw(test_item());
                 let map_res = match map.entry(item.key1(), item.key2()) {
                     bi_hash_map::Entry::Occupied(mut entry) => {
                         let mut dups = entry.insert(item.clone());
@@ -429,10 +338,14 @@ fn proptest_ops(
                     map_res, naive_res,
                     "map and naive map should agree on Entry::insert dups"
                 );
-                map.validate(compactness).expect("map should be valid");
+                self.check_valid(CompactnessChange::NoLongerCompact);
             }
-            Operation::EntryRemove(keys) => {
-                let (key1, key2) = keys.resolve(&naive_map);
+
+            #[rule]
+            fn entry_remove(&mut self, tc: TestCase) {
+                let (key1, key2) = draw_lookup_keys12(&tc, &self.naive);
+                let map = &mut self.map;
+                let naive_map = &mut self.naive;
 
                 let map_res = match map
                     .entry(TestKey1::new(&key1), TestKey2::new(key2))
@@ -452,62 +365,100 @@ fn proptest_ops(
                     map_res, naive_res,
                     "map and naive map should agree on Entry::remove items"
                 );
-                map.validate(compactness).expect("map should be valid");
+                self.check_valid(CompactnessChange::NoLongerCompact);
             }
-            Operation::Get1(key1) => {
+
+            #[rule]
+            fn get1(&mut self, tc: TestCase) {
+                let key1 = draw_lookup_key1(&tc, &self.naive);
+                let map = &mut self.map;
+                let naive_map = &mut self.naive;
                 let map_res = map.get1(&TestKey1::new(&key1));
                 let naive_res = naive_map.get1(key1);
 
                 assert_eq!(map_res, naive_res);
             }
-            Operation::Get2(key2) => {
+
+            #[rule]
+            fn get2(&mut self, tc: TestCase) {
+                let key2 = draw_lookup_key2(&tc, &self.naive);
+                let map = &mut self.map;
+                let naive_map = &mut self.naive;
                 let map_res = map.get2(&TestKey2::new(key2));
                 let naive_res = naive_map.get2(key2);
 
                 assert_eq!(map_res, naive_res);
             }
-            Operation::GetUnique(keys) => {
-                let (key1, key2) = keys.resolve(&naive_map);
+
+            #[rule]
+            fn get_unique(&mut self, tc: TestCase) {
+                let (key1, key2) = draw_lookup_keys12(&tc, &self.naive);
+                let map = &mut self.map;
+                let naive_map = &mut self.naive;
                 let map_res =
                     map.get_unique(&TestKey1::new(&key1), &TestKey2::new(key2));
                 let naive_res = naive_map.get_unique12(key1, key2);
 
                 assert_eq!(map_res, naive_res);
             }
-            Operation::GetMutUnique(keys) => {
-                let (key1, key2) = keys.resolve(&naive_map);
+
+            #[rule]
+            fn get_mut_unique(&mut self, tc: TestCase) {
+                let (key1, key2) = draw_lookup_keys12(&tc, &self.naive);
+                let map = &mut self.map;
+                let naive_map = &mut self.naive;
                 let map_res = map
                     .get_mut_unique(&TestKey1::new(&key1), &TestKey2::new(key2))
                     .map(|r| (*r).clone());
                 let naive_res = naive_map.get_mut_unique12(key1, key2).cloned();
 
                 assert_eq!(map_res, naive_res);
-                map.validate(compactness).expect("map should be valid");
+                self.check_valid(CompactnessChange::NoChange);
             }
-            Operation::Remove1(key1) => {
+
+            #[rule]
+            fn remove1(&mut self, tc: TestCase) {
+                let key1 = draw_lookup_key1(&tc, &self.naive);
+                let map = &mut self.map;
+                let naive_map = &mut self.naive;
                 let map_res = map.remove1(&TestKey1::new(&key1));
                 let naive_res = naive_map.remove1(key1);
 
                 assert_eq!(map_res, naive_res);
-                map.validate(compactness).expect("map should be valid");
+                self.check_valid(CompactnessChange::NoLongerCompact);
             }
-            Operation::Remove2(key2) => {
+
+            #[rule]
+            fn remove2(&mut self, tc: TestCase) {
+                let key2 = draw_lookup_key2(&tc, &self.naive);
+                let map = &mut self.map;
+                let naive_map = &mut self.naive;
                 let map_res = map.remove2(&TestKey2::new(key2));
                 let naive_res = naive_map.remove2(key2);
 
                 assert_eq!(map_res, naive_res);
-                map.validate(compactness).expect("map should be valid");
+                self.check_valid(CompactnessChange::NoLongerCompact);
             }
-            Operation::RemoveUnique(keys) => {
-                let (key1, key2) = keys.resolve(&naive_map);
+
+            #[rule]
+            fn remove_unique(&mut self, tc: TestCase) {
+                let (key1, key2) = draw_lookup_keys12(&tc, &self.naive);
+                let map = &mut self.map;
+                let naive_map = &mut self.naive;
                 let map_res = map
                     .remove_unique(&TestKey1::new(&key1), &TestKey2::new(key2));
                 let naive_res = naive_map.remove_unique12(key1, key2);
 
                 assert_eq!(map_res, naive_res);
-                map.validate(compactness).expect("map should be valid");
+                self.check_valid(CompactnessChange::NoLongerCompact);
             }
-            Operation::RetainValueContains(ch, equals) => {
+
+            #[rule]
+            fn retain_value_contains(&mut self, tc: TestCase) {
+                let map = &mut self.map;
+                let naive_map = &mut self.naive;
+                let ch = tc.draw(gs::characters());
+                let equals = tc.draw(gs::booleans());
                 map.retain(|item| {
                     let contains = item.value.contains(ch);
                     if equals { contains } else { !contains }
@@ -516,9 +467,16 @@ fn proptest_ops(
                     let contains = item.value.contains(ch);
                     if equals { contains } else { !contains }
                 });
-                map.validate(compactness).expect("map should be valid");
+                self.check_valid(CompactnessChange::NoLongerCompact);
             }
-            Operation::RetainModulo(a, b, equals) => {
+
+            #[rule]
+            fn retain_modulo(&mut self, tc: TestCase) {
+                let map = &mut self.map;
+                let naive_map = &mut self.naive;
+                let a = tc.draw(gs::integers::<u8>().max_value(2));
+                let b = tc.draw(gs::integers::<u8>().min_value(1).max_value(3));
+                let equals = tc.draw(gs::booleans());
                 let modulo = a + b;
                 let remainder = a;
                 map.retain(|item| {
@@ -529,70 +487,117 @@ fn proptest_ops(
                     let matches = item.key1 % modulo == remainder;
                     if equals { matches } else { !matches }
                 });
-                map.validate(compactness).expect("map should be valid");
+                self.check_valid(CompactnessChange::NoLongerCompact);
             }
-            Operation::Extend(items) => {
+
+            #[rule]
+            fn extend(&mut self, tc: TestCase) {
+                let map = &mut self.map;
+                let naive_map = &mut self.naive;
+                let items = tc.draw(gs::vecs(test_item()).max_size(15));
                 map.extend(items.clone());
                 naive_map.extend(items);
-                map.validate(compactness).expect("map should be valid");
+                self.check_valid(CompactnessChange::NoLongerCompact);
             }
-            Operation::Reserve(additional) => {
+
+            // Fill up the map to ensure later operations use a larger map.
+            #[rule]
+            fn fill(&mut self, tc: TestCase) {
+                let map = &mut self.map;
+                let naive_map = &mut self.naive;
+                let items = draw_fill_batch(&tc);
+                map.extend(items.clone());
+                naive_map.extend(items);
+                self.check_valid(CompactnessChange::NoLongerCompact);
+            }
+
+            #[rule]
+            fn reserve(&mut self, tc: TestCase) {
+                let map = &mut self.map;
+                let additional =
+                    tc.draw(gs::integers::<usize>().max_value(255));
                 map.reserve(additional);
-                // `reserve` has no observable effect beyond capacity; the
-                // naive map has no equivalent. `validate` is the real
-                // check — it iterates items and asks `find_index` for
-                // each, which catches a hash-table left mis-bucketed by
-                // a regrowth rehash.
-                map.validate(compactness).expect("map should be valid");
+                // `reserve` has no observable effect beyond capacity -- the
+                // naive map has no equivalent. `check_valid` will iterate items
+                // and ask `find_index` for each, which catches a hash-table
+                // left mis-bucketed by a regrowth rehash.
+                self.check_valid(CompactnessChange::NoChange);
             }
-            Operation::TryReserve(additional) => {
-                // Mirror `Reserve`; we don't assert `Ok` because the
-                // allocator could (legitimately) refuse a large request,
-                // and bailing on that would mask the actual regression
-                // we care about (silent hash-table corruption).
+
+            #[rule]
+            fn try_reserve(&mut self, tc: TestCase) {
+                let map = &mut self.map;
+                let additional =
+                    tc.draw(gs::integers::<usize>().max_value(255));
                 let _ = map.try_reserve(additional);
-                map.validate(compactness).expect("map should be valid");
+                // See the comment on `reserve` above for why this is only
+                // `check_valid`.
+                self.check_valid(CompactnessChange::NoChange);
             }
-            Operation::ShrinkToFit => {
+
+            #[rule]
+            fn shrink_to_fit(&mut self, _: TestCase) {
+                let map = &mut self.map;
                 map.shrink_to_fit();
-                map.validate(compactness).expect("map should be valid");
+                self.check_valid(CompactnessChange::BecomesCompact);
             }
-            Operation::ShrinkTo(min_capacity) => {
+
+            #[rule]
+            fn shrink_to(&mut self, tc: TestCase) {
+                let map = &mut self.map;
+                let min_capacity =
+                    tc.draw(gs::integers::<usize>().max_value(255));
                 map.shrink_to(min_capacity);
-                map.validate(compactness).expect("map should be valid");
+                self.check_valid(CompactnessChange::BecomesCompact);
             }
-            Operation::Clear => {
+
+            #[rule]
+            fn clear(&mut self, _: TestCase) {
+                let map = &mut self.map;
+                let naive_map = &mut self.naive;
                 map.clear();
                 naive_map.clear();
-                map.validate(compactness).expect("map should be valid");
+                self.check_valid(CompactnessChange::BecomesCompact);
+            }
+
+            #[invariant]
+            fn iter_matches(&mut self, _: TestCase) {
+                let map = &self.map;
+                let naive_map = &self.naive;
+                let mut naive_items = naive_map.iter().collect::<Vec<_>>();
+                naive_items.sort_by(|a, b| a.key1().cmp(&b.key1()));
+                assert_iter_eq(map.clone(), naive_items);
             }
         }
-
-        // Check that the iterators work correctly.
-        let mut naive_items = naive_map.iter().collect::<Vec<_>>();
-        naive_items.sort_by(|a, b| a.key1().cmp(&b.key1()));
-
-        assert_iter_eq(map.clone(), naive_items);
     }
 }
 
-#[proptest(cases = 64)]
-fn proptest_permutation_eq(
-    #[strategy(test_item_permutation_strategy::<BiHashMap<TestItem, HashBuilder, Alloc>>(0..256))]
-    items: (Vec<TestItem>, Vec<TestItem>),
-) {
-    let (items1, items2) = items;
+#[hegel::test(test_cases = 512)]
+fn proptest_ops(tc: TestCase) {
+    let machine = BiHashMapMachine {
+        map: BiHashMap::<TestItem, HashBuilder, Alloc>::make_new(),
+        naive: NaiveMap::new_key12(),
+        compactness: ValidateCompact::Compact,
+    };
+    hegel::stateful::run(machine, tc);
+}
+
+#[hegel::test(test_cases = 64)]
+fn proptest_permutation_eq(tc: TestCase) {
+    // draw_fill_batch generates unique keys so there's no need to deduplicate.
+    let set = draw_fill_batch(&tc);
+    let set2 = draw_shuffle(&tc, &set);
+
     let mut map1 = BiHashMap::<TestItem, HashBuilder, Alloc>::make_new();
     let mut map2 = BiHashMap::<TestItem, HashBuilder, Alloc>::make_new();
-
-    for item in items1 {
-        map1.insert_unique(item.clone()).unwrap();
+    for item in set {
+        map1.insert_unique(item).expect("set is deduplicated");
     }
-    for item in items2 {
-        map2.insert_unique(item.clone()).unwrap();
+    for item in set2 {
+        map2.insert_unique(item).expect("set is deduplicated");
     }
 
-    assert_eq_props(map1, map2);
+    assert_eq_props(&map1, &map2);
 }
 
 // Test various conditions for non-equality.
@@ -1234,20 +1239,25 @@ mod macro_tests {
 
 #[cfg(feature = "serde")]
 mod serde_tests {
+    use crate::hegel_support::draw_random_batch;
+    use hegel::TestCase;
     use iddqd::BiHashMap;
     use iddqd_test_utils::{
         serde_utils::assert_serialize_roundtrip,
         test_item::{Alloc, HashBuilder, TestItem},
     };
-    use test_strategy::proptest;
 
-    #[proptest]
-    fn proptest_serialize_roundtrip(values: Vec<TestItem>) {
+    #[hegel::test(test_cases = 256)]
+    fn proptest_serialize_roundtrip(tc: TestCase) {
+        let values = draw_random_batch(&tc);
         assert_serialize_roundtrip::<BiHashMap<TestItem, HashBuilder, Alloc>>(
             values,
         );
     }
 }
+
+#[cfg(feature = "proptest")]
+use test_strategy::proptest;
 
 #[cfg(feature = "proptest")]
 #[proptest(cases = 16)]
@@ -1305,209 +1315,303 @@ impl Drop for PanickyHashItem {
 #[cfg(all(feature = "default-hasher", feature = "allocator-api2"))]
 mod proptest_panic_safety {
     use super::*;
+    use crate::hegel_support::{MAX_PANIC_KEY, draw_armed};
     use allocator_api2::alloc::Global;
     use iddqd_test_utils::panic_safety::{
-        PANIC_PROPTEST_CASES, PANIC_PROPTEST_MAX_OPS, PanicSafety,
-        PanickyAlloc, PanickyKey, PanickyOp, PanickySearchKey,
+        PanicSafety, PanickyAlloc, PanickyKey, PanickySearchKey,
         assert_panic_fired_as_expected, assert_post_op_invariants,
         drop_unarmed, record_observation, run_armed, sorted_keys,
     };
 
-    /// Map type used by these tests.
     type PanickyMap = BiHashMap<
         PanickyHashItem,
         iddqd::DefaultHashBuilder,
         PanickyAlloc<Global>,
     >;
 
-    // Keys are kept in a small range so hits and misses both happen
-    // frequently against a 16-ish-element map.
-    #[derive(Debug, Arbitrary)]
-    enum PanickyAction {
-        #[weight(4)]
-        InsertUnique(#[strategy(0..32_u32)] u32, #[strategy(0..32_u32)] u32),
-        #[weight(3)]
-        InsertOverwrite(#[strategy(0..32_u32)] u32, #[strategy(0..32_u32)] u32),
-        #[weight(3)]
-        EntryInsertOverwrite(
-            #[strategy(0..32_u32)] u32,
-            #[strategy(0..32_u32)] u32,
-        ),
-        #[weight(2)]
-        EntryRemove(#[strategy(0..32_u32)] u32, #[strategy(0..32_u32)] u32),
-        #[weight(2)]
-        Remove1(#[strategy(0..32_u32)] u32),
-        #[weight(2)]
-        Remove2(#[strategy(0..32_u32)] u32),
-        #[weight(1)]
-        Get1(#[strategy(0..32_u32)] u32),
-        #[weight(1)]
-        Get2(#[strategy(0..32_u32)] u32),
-        #[weight(1)]
-        ContainsKey1(#[strategy(0..32_u32)] u32),
-        #[weight(1)]
-        ContainsKey2(#[strategy(0..32_u32)] u32),
-        #[weight(2)]
-        RetainModulo(
-            #[strategy(0..3_u32)] u32,
-            #[strategy(1..4_u32)] u32,
-            bool,
-        ),
-        #[weight(2)]
-        Extend(
-            #[strategy(prop::collection::vec(
-                (0..32_u32, 0..32_u32), 0..8,
-            ))]
-            Vec<(u32, u32)>,
-        ),
-        Clear,
-        ShrinkToFit,
-        ShrinkTo(#[strategy(0..32_usize)] usize),
+    struct PanicMachine {
+        map: PanickyMap,
+        step: usize,
+        pending: Option<Pending>,
     }
 
-    impl PanickyAction {
-        /// Classify panic safety for this action.
-        ///
-        /// * `RetainModulo` and `Clear` loop over per-step atomic item
-        ///   destruction.
-        /// * `Extend` calls `HashTable::reserve` up front, which on a
-        ///   tombstone-heavy map drops into hashbrown's
-        ///   `rehash_in_place` — documented as not panic-safe under a
-        ///   user `Hash` panic, so the proptest skips arming for it.
-        fn panic_safety(&self) -> PanicSafety {
-            match self {
-                PanickyAction::InsertUnique(_, _)
-                | PanickyAction::InsertOverwrite(_, _)
-                | PanickyAction::EntryInsertOverwrite(_, _)
-                | PanickyAction::EntryRemove(_, _)
-                | PanickyAction::Remove1(_)
-                | PanickyAction::Remove2(_)
-                | PanickyAction::Get1(_)
-                | PanickyAction::Get2(_)
-                | PanickyAction::ContainsKey1(_)
-                | PanickyAction::ContainsKey2(_)
-                | PanickyAction::ShrinkToFit
-                | PanickyAction::ShrinkTo(_) => PanicSafety::Atomic,
-                PanickyAction::RetainModulo(_, _, _)
-                | PanickyAction::Extend(_)
-                | PanickyAction::Clear => PanicSafety::StepAtomic,
-            }
+    struct Pending {
+        label: &'static str,
+        panic_safety: PanicSafety,
+        armed: Option<u32>,
+        panicked: bool,
+        pre_state: Vec<(u32, u32)>,
+    }
+
+    impl PanicMachine {
+        fn armed_op(
+            &mut self,
+            tc: &TestCase,
+            label: &'static str,
+            panic_safety: PanicSafety,
+            op: impl FnOnce(&mut PanickyMap),
+        ) {
+            // hegel runs the `#[invariant]` (which consumes `pending`) after
+            // every successful rule, so `pending` must be `None` here -- if
+            // not, a prior op's post-op checks were silently skipped.
+            assert!(
+                self.pending.is_none(),
+                "previous op's post-op invariant did not run before this op",
+            );
+            let armed = draw_armed(tc);
+            let pre_state =
+                sorted_keys(&self.map, |item| (item.key1, item.key2));
+            let (panicked, ops) = run_armed(armed, || op(&mut self.map));
+            record_observation("bi_hash_map", label, ops);
+            assert_panic_fired_as_expected(&label, armed, panicked, ops);
+
+            // `self.pending` is set at the end of this function, after all
+            // fallible draws.
+            self.pending = Some(Pending {
+                label,
+                panic_safety,
+                armed,
+                panicked,
+                pre_state,
+            });
+        }
+    }
+
+    #[hegel::state_machine]
+    impl PanicMachine {
+        #[rule]
+        fn insert_unique(&mut self, tc: TestCase) {
+            let key1 = tc.draw(gs::integers::<u32>().max_value(MAX_PANIC_KEY));
+            let key2 = tc.draw(gs::integers::<u32>().max_value(MAX_PANIC_KEY));
+            self.armed_op(&tc, "insert_unique", PanicSafety::Atomic, |map| {
+                drop_unarmed(map.insert_unique(PanickyHashItem { key1, key2 }));
+            });
         }
 
-        fn run(self, map: &mut PanickyMap) {
-            match self {
-                PanickyAction::InsertUnique(key1, key2) => {
-                    drop_unarmed(
-                        map.insert_unique(PanickyHashItem { key1, key2 }),
-                    );
-                }
-                PanickyAction::InsertOverwrite(key1, key2) => {
+        #[rule]
+        fn insert_overwrite(&mut self, tc: TestCase) {
+            let key1 = tc.draw(gs::integers::<u32>().max_value(MAX_PANIC_KEY));
+            let key2 = tc.draw(gs::integers::<u32>().max_value(MAX_PANIC_KEY));
+            self.armed_op(
+                &tc,
+                "insert_overwrite",
+                PanicSafety::Atomic,
+                |map| {
                     drop_unarmed(
                         map.insert_overwrite(PanickyHashItem { key1, key2 }),
                     );
-                }
-                PanickyAction::EntryInsertOverwrite(key1, key2) => {
-                    let entry = map.entry(PanickyKey(key1), PanickyKey(key2));
+                },
+            );
+        }
 
+        #[rule]
+        fn entry_insert_overwrite(&mut self, tc: TestCase) {
+            let key1 = tc.draw(gs::integers::<u32>().max_value(MAX_PANIC_KEY));
+            let key2 = tc.draw(gs::integers::<u32>().max_value(MAX_PANIC_KEY));
+            self.armed_op(
+                &tc,
+                "entry_insert_overwrite",
+                PanicSafety::Atomic,
+                |map| {
+                    let entry = map.entry(PanickyKey(key1), PanickyKey(key2));
                     if let bi_hash_map::Entry::Occupied(mut entry) = entry {
                         drop_unarmed(
                             entry.insert(PanickyHashItem { key1, key2 }),
                         );
                     }
-                }
-                PanickyAction::EntryRemove(key1, key2) => {
-                    let entry = map.entry(PanickyKey(key1), PanickyKey(key2));
+                },
+            );
+        }
 
-                    if let bi_hash_map::Entry::Occupied(entry) = entry {
-                        drop_unarmed(entry.remove());
-                    }
+        #[rule]
+        fn entry_remove(&mut self, tc: TestCase) {
+            let key1 = tc.draw(gs::integers::<u32>().max_value(MAX_PANIC_KEY));
+            let key2 = tc.draw(gs::integers::<u32>().max_value(MAX_PANIC_KEY));
+            self.armed_op(&tc, "entry_remove", PanicSafety::Atomic, |map| {
+                let entry = map.entry(PanickyKey(key1), PanickyKey(key2));
+                if let bi_hash_map::Entry::Occupied(entry) = entry {
+                    drop_unarmed(entry.remove());
                 }
-                PanickyAction::Remove1(key1) => {
-                    drop_unarmed(map.remove1(&PanickySearchKey(key1)));
-                }
-                PanickyAction::Remove2(key2) => {
-                    drop_unarmed(map.remove2(&PanickySearchKey(key2)));
-                }
-                PanickyAction::Get1(key1) => {
-                    let _ = map.get1(&PanickySearchKey(key1));
-                }
-                PanickyAction::Get2(key2) => {
-                    let _ = map.get2(&PanickySearchKey(key2));
-                }
-                PanickyAction::ContainsKey1(key1) => {
-                    let _ = map.contains_key1(&PanickySearchKey(key1));
-                }
-                PanickyAction::ContainsKey2(key2) => {
-                    let _ = map.contains_key2(&PanickySearchKey(key2));
-                }
-                PanickyAction::RetainModulo(rem, modulo, keep) => {
+            });
+        }
+
+        #[rule]
+        fn remove1(&mut self, tc: TestCase) {
+            let key1 = tc.draw(gs::integers::<u32>().max_value(MAX_PANIC_KEY));
+            self.armed_op(&tc, "remove1", PanicSafety::Atomic, |map| {
+                drop_unarmed(map.remove1(&PanickySearchKey(key1)));
+            });
+        }
+
+        #[rule]
+        fn remove2(&mut self, tc: TestCase) {
+            let key2 = tc.draw(gs::integers::<u32>().max_value(MAX_PANIC_KEY));
+            self.armed_op(&tc, "remove2", PanicSafety::Atomic, |map| {
+                drop_unarmed(map.remove2(&PanickySearchKey(key2)));
+            });
+        }
+
+        #[rule]
+        fn get1(&mut self, tc: TestCase) {
+            let key1 = tc.draw(gs::integers::<u32>().max_value(MAX_PANIC_KEY));
+            self.armed_op(&tc, "get1", PanicSafety::Atomic, |map| {
+                let _ = map.get1(&PanickySearchKey(key1));
+            });
+        }
+
+        #[rule]
+        fn get2(&mut self, tc: TestCase) {
+            let key2 = tc.draw(gs::integers::<u32>().max_value(MAX_PANIC_KEY));
+            self.armed_op(&tc, "get2", PanicSafety::Atomic, |map| {
+                let _ = map.get2(&PanickySearchKey(key2));
+            });
+        }
+
+        #[rule]
+        fn contains_key1(&mut self, tc: TestCase) {
+            let key1 = tc.draw(gs::integers::<u32>().max_value(MAX_PANIC_KEY));
+            self.armed_op(&tc, "contains_key1", PanicSafety::Atomic, |map| {
+                let _ = map.contains_key1(&PanickySearchKey(key1));
+            });
+        }
+
+        #[rule]
+        fn contains_key2(&mut self, tc: TestCase) {
+            let key2 = tc.draw(gs::integers::<u32>().max_value(MAX_PANIC_KEY));
+            self.armed_op(&tc, "contains_key2", PanicSafety::Atomic, |map| {
+                let _ = map.contains_key2(&PanickySearchKey(key2));
+            });
+        }
+
+        #[rule]
+        fn retain_modulo(&mut self, tc: TestCase) {
+            let rem = tc.draw(gs::integers::<u32>().max_value(2));
+            let modulo =
+                tc.draw(gs::integers::<u32>().min_value(1).max_value(3));
+            let keep = tc.draw(gs::booleans());
+            self.armed_op(
+                &tc,
+                "retain_modulo",
+                // `retain_modulo` loops over per-step atomic operations.
+                PanicSafety::StepAtomic,
+                |map| {
                     map.retain(|item| {
                         let matches = item.key1 % modulo == rem;
                         if keep { matches } else { !matches }
                     });
-                }
-                PanickyAction::Extend(pairs) => {
-                    map.extend(
-                        pairs
-                            .into_iter()
-                            .map(|(key1, key2)| PanickyHashItem { key1, key2 }),
-                    );
-                }
-                PanickyAction::Clear => map.clear(),
-                PanickyAction::ShrinkToFit => map.shrink_to_fit(),
-                PanickyAction::ShrinkTo(min_capacity) => {
-                    map.shrink_to(min_capacity);
-                }
-            }
-        }
-    }
-
-    #[proptest(cases = PANIC_PROPTEST_CASES)]
-    fn proptest_panic_ops(
-        #[strategy(prop::collection::vec(
-            any::<PanickyOp<PanickyAction>>(), 0..PANIC_PROPTEST_MAX_OPS,
-        ))]
-        ops: Vec<PanickyOp<PanickyAction>>,
-    ) {
-        let mut map: PanickyMap = BiHashMap::with_hasher_in(
-            iddqd::DefaultHashBuilder::default(),
-            PanickyAlloc::default(),
-        );
-
-        for (i, op) in ops.into_iter().enumerate() {
-            let action = op.action;
-            let action_label = format!("{action:?}");
-            let panic_safety = action.panic_safety();
-            let armed = op.armed;
-
-            let pre_state = sorted_keys(&map, |item| (item.key1, item.key2));
-            let (panicked, ops) = run_armed(armed, || action.run(&mut map));
-            record_observation("bi_hash_map", &action_label, ops);
-            assert_panic_fired_as_expected(&action_label, armed, panicked, ops);
-
-            // `NonCompact` since step-atomic panics can leave compactness in an
-            // indeterminate state.
-            map.validate(ValidateCompact::NonCompact).unwrap_or_else(|err| {
-                panic!(
-                    "map invalid after op {i} ({action_label}, \
-                     armed: {armed:?}, panicked: {panicked}): {err}"
-                )
-            });
-
-            let post_state = sorted_keys(&map, |item| (item.key1, item.key2));
-            assert_post_op_invariants(
-                i,
-                &action_label,
-                armed,
-                panicked,
-                panic_safety,
-                &pre_state,
-                &post_state,
-                |&(k1, k2)| {
-                    map.contains_key1(&PanickySearchKey(k1))
-                        && map.contains_key2(&PanickySearchKey(k2))
                 },
             );
         }
+
+        #[rule]
+        fn extend(&mut self, tc: TestCase) {
+            let pairs = tc.draw(
+                gs::vecs(gs::tuples!(
+                    gs::integers::<u32>().max_value(MAX_PANIC_KEY),
+                    gs::integers::<u32>().max_value(MAX_PANIC_KEY),
+                ))
+                .max_size(7),
+            );
+            // `extend` does per-step atomic operations.
+            self.armed_op(&tc, "extend", PanicSafety::StepAtomic, |map| {
+                map.extend(
+                    pairs
+                        .into_iter()
+                        .map(|(key1, key2)| PanickyHashItem { key1, key2 }),
+                );
+            });
+        }
+
+        #[rule]
+        fn fill(&mut self, tc: TestCase) {
+            let pairs = tc.draw(
+                gs::vecs(gs::tuples!(
+                    gs::integers::<u32>().max_value(MAX_PANIC_KEY),
+                    gs::integers::<u32>().max_value(MAX_PANIC_KEY),
+                ))
+                .max_size(64),
+            );
+            for (key1, key2) in pairs {
+                let _ = self.map.insert_unique(PanickyHashItem { key1, key2 });
+            }
+        }
+
+        #[rule]
+        fn clear(&mut self, tc: TestCase) {
+            self.armed_op(
+                &tc,
+                "clear",
+                // `clear` does per-table atomic operations.
+                PanicSafety::StepAtomic,
+                |map| {
+                    map.clear();
+                },
+            );
+        }
+
+        #[rule]
+        fn shrink_to_fit(&mut self, tc: TestCase) {
+            self.armed_op(&tc, "shrink_to_fit", PanicSafety::Atomic, |map| {
+                map.shrink_to_fit();
+            });
+        }
+
+        #[rule]
+        fn shrink_to(&mut self, tc: TestCase) {
+            let min_capacity = tc.draw(
+                gs::integers::<usize>().max_value(MAX_PANIC_KEY as usize),
+            );
+            self.armed_op(&tc, "shrink_to", PanicSafety::Atomic, |map| {
+                map.shrink_to(min_capacity);
+            });
+        }
+
+        #[invariant]
+        fn check_post_op(&mut self, _: TestCase) {
+            let Some(p) = self.pending.take() else {
+                self.map
+                    .validate(ValidateCompact::NonCompact)
+                    .expect("map should be valid");
+                return;
+            };
+            let step = self.step;
+
+            // `NonCompact` since step-atomic panics can leave compactness in an
+            // indeterminate state.
+            self.map.validate(ValidateCompact::NonCompact).unwrap_or_else(
+                |err| {
+                    panic!(
+                        "map invalid after op {step} ({}, armed: {:?}, \
+                         panicked: {}): {err}",
+                        p.label, p.armed, p.panicked
+                    )
+                },
+            );
+            let post_state =
+                sorted_keys(&self.map, |item| (item.key1, item.key2));
+            assert_post_op_invariants(
+                step,
+                &p.label,
+                p.armed,
+                p.panicked,
+                p.panic_safety,
+                &p.pre_state,
+                &post_state,
+                |&(k1, k2)| {
+                    self.map.contains_key1(&PanickySearchKey(k1))
+                        && self.map.contains_key2(&PanickySearchKey(k2))
+                },
+            );
+            self.step += 1;
+        }
+    }
+
+    #[hegel::test(test_cases = 512)]
+    fn proptest_panic_ops(tc: TestCase) {
+        let map: PanickyMap = BiHashMap::with_hasher_in(
+            iddqd::DefaultHashBuilder::default(),
+            PanickyAlloc::default(),
+        );
+        hegel::stateful::run(PanicMachine { map, step: 0, pending: None }, tc);
     }
 }
