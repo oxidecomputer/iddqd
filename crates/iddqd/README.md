@@ -5,7 +5,7 @@
 ![License: MIT OR Apache-2.0](https://img.shields.io/crates/l/iddqd.svg?)
 [![crates.io](https://img.shields.io/crates/v/iddqd.svg?logo=rust)](https://crates.io/crates/iddqd)
 [![docs.rs](https://img.shields.io/docsrs/iddqd.svg?logo=docs.rs)](https://docs.rs/iddqd)
-[![Rust: ^1.85.0](https://img.shields.io/badge/rust-^1.85.0-93450a.svg?logo=rust)](https://doc.rust-lang.org/cargo/reference/manifest.html#the-rust-version-field)
+[![Rust: ^1.86.0](https://img.shields.io/badge/rust-^1.86.0-93450a.svg?logo=rust)](https://doc.rust-lang.org/cargo/reference/manifest.html#the-rust-version-field)
 <!-- cargo-sync-rdme ]] -->
 <!-- cargo-sync-rdme rustdoc [[ -->
 Maps where keys are borrowed from values.
@@ -326,7 +326,7 @@ platform-specific notion of thread locals, would suffice to make
 
 ## Minimum supported Rust version (MSRV)
 
-This crate’s MSRV is **Rust 1.85**. In general we aim for 6 months of Rust
+This crate’s MSRV is **Rust 1.86**. In general we aim for 6 months of Rust
 compatibility.
 
 ## What does iddqd mean?

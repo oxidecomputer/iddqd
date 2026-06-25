@@ -190,6 +190,10 @@ impl NaiveMap {
         Some(self.items.remove(index))
     }
 
+    pub fn items(&self) -> &[TestItem] {
+        &self.items
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = &TestItem> {
         self.items.iter()
     }

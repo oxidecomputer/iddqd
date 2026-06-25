@@ -37,6 +37,7 @@ proptest = { workspace = true, optional = true }
 [dev-dependencies]
 expectorate.workspace = true
 foldhash.workspace = true
+hegeltest.workspace = true
 iddqd-test-utils.workspace = true
 proptest.workspace = true
 serde.workspace = true
