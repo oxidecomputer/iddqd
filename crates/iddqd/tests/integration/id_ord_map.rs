@@ -254,303 +254,256 @@ impl IdOrdMapMachine {
     }
 }
 
-mod indent0 {
-    mod indent1 {
-        use super::super::*;
+#[hegel::state_machine]
+impl IdOrdMapMachine {
+    #[rule]
+    fn insert_unique(&mut self, tc: TestCase) {
+        let item = tc.draw(test_item());
+        let map_res = self.map.insert_unique(item.clone());
+        let naive_res = self.naive.insert_unique(item.clone());
 
-        #[hegel::state_machine]
-        impl IdOrdMapMachine {
-            #[rule]
-            fn insert_unique(&mut self, tc: TestCase) {
-                let map = &mut self.map;
-                let naive_map = &mut self.naive;
-                let item = tc.draw(test_item());
-                let map_res = map.insert_unique(item.clone());
-                let naive_res = naive_map.insert_unique(item.clone());
+        assert_eq!(map_res.is_ok(), naive_res.is_ok());
+        if let Err(map_err) = map_res {
+            let naive_err = naive_res.unwrap_err();
+            assert_eq!(map_err.new_item(), naive_err.new_item());
+            assert_eq!(map_err.duplicates(), naive_err.duplicates());
+        }
 
-                assert_eq!(map_res.is_ok(), naive_res.is_ok());
-                if let Err(map_err) = map_res {
-                    let naive_err = naive_res.unwrap_err();
-                    assert_eq!(map_err.new_item(), naive_err.new_item());
-                    assert_eq!(map_err.duplicates(), naive_err.duplicates());
-                }
+        self.check_valid(CompactnessChange::NoChange);
+    }
 
-                self.check_valid(CompactnessChange::NoChange);
+    #[rule]
+    fn insert_overwrite(&mut self, tc: TestCase) {
+        let item = tc.draw(test_item());
+        let map_dups = self.map.insert_overwrite(item.clone());
+        let mut naive_dups = self.naive.insert_overwrite(item.clone());
+        assert!(naive_dups.len() <= 1, "max one conflict");
+        let naive_dup = naive_dups.pop();
+
+        assert_eq!(
+            map_dups, naive_dup,
+            "map and naive map should agree on insert_overwrite dup"
+        );
+        self.check_valid(CompactnessChange::NoLongerCompact);
+    }
+
+    #[rule]
+    fn entry_insert_overwrite(&mut self, tc: TestCase) {
+        let item = tc.draw(test_item());
+        let map_res = match self.map.entry(item.key()) {
+            id_ord_map::Entry::Occupied(mut entry) => {
+                Some(entry.insert(item.clone()))
             }
+            id_ord_map::Entry::Vacant(_) => None,
+        };
 
-            #[rule]
-            fn insert_overwrite(&mut self, tc: TestCase) {
-                let map = &mut self.map;
-                let naive_map = &mut self.naive;
-                let item = tc.draw(test_item());
-                let map_dups = map.insert_overwrite(item.clone());
-                let mut naive_dups = naive_map.insert_overwrite(item.clone());
-                assert!(naive_dups.len() <= 1, "max one conflict");
-                let naive_dup = naive_dups.pop();
+        let occupied = self.naive.get1(item.key1).is_some();
+        let naive_res = occupied.then(|| {
+            let mut dups = self.naive.insert_overwrite(item.clone());
+            assert!(dups.len() <= 1, "max one conflict");
+            dups.pop().expect("occupied entry has one duplicate")
+        });
 
+        assert_eq!(
+            map_res, naive_res,
+            "map and naive map should agree on Entry::insert"
+        );
+        self.check_valid(CompactnessChange::NoLongerCompact);
+    }
+
+    #[rule]
+    fn entry_remove(&mut self, tc: TestCase) {
+        let key = draw_lookup_key1(&tc, &self.naive);
+        let map_res = match self.map.entry(TestKey1::new(&key)) {
+            id_ord_map::Entry::Occupied(entry) => Some(entry.remove()),
+            id_ord_map::Entry::Vacant(_) => None,
+        };
+
+        let naive_res = self.naive.remove1(key);
+
+        assert_eq!(
+            map_res, naive_res,
+            "map and naive map should agree on Entry::remove"
+        );
+        self.check_valid(CompactnessChange::NoLongerCompact);
+    }
+
+    #[rule]
+    fn get(&mut self, tc: TestCase) {
+        let key = draw_lookup_key1(&tc, &self.naive);
+        let map_res = self.map.get(&TestKey1::new(&key));
+        let naive_res = self.naive.get1(key);
+
+        assert_eq!(map_res, naive_res);
+    }
+
+    #[rule]
+    fn remove(&mut self, tc: TestCase) {
+        let key = draw_lookup_key1(&tc, &self.naive);
+        let map_res = self.map.remove(&TestKey1::new(&key));
+        let naive_res = self.naive.remove1(key);
+
+        assert_eq!(map_res, naive_res);
+        self.check_valid(CompactnessChange::NoLongerCompact);
+    }
+
+    #[rule]
+    fn first(&mut self, _: TestCase) {
+        let map_res = self.map.first();
+        let naive_res = self.naive.first();
+
+        assert_eq!(map_res, naive_res);
+    }
+
+    #[rule]
+    fn last(&mut self, _: TestCase) {
+        let map_res = self.map.last();
+        let naive_res = self.naive.last();
+
+        assert_eq!(map_res, naive_res);
+    }
+
+    #[rule]
+    fn pop_first(&mut self, _: TestCase) {
+        let map_res = self.map.pop_first();
+        let naive_res = self.naive.pop_first();
+
+        assert_eq!(map_res, naive_res);
+        self.check_valid(CompactnessChange::NoLongerCompact);
+    }
+
+    #[rule]
+    fn pop_last(&mut self, _: TestCase) {
+        let map_res = self.map.pop_last();
+        let naive_res = self.naive.pop_last();
+
+        assert_eq!(map_res, naive_res);
+        self.check_valid(CompactnessChange::NoLongerCompact);
+    }
+
+    #[rule]
+    fn first_entry_modify(&mut self, tc: TestCase) {
+        let new_value = tc.draw(gs::text());
+        match (self.map.first_entry(), self.naive.first_mut()) {
+            (Some(mut entry), Some(item)) => {
+                let key1 = entry.get().key1;
+                entry.get_mut().value = new_value.clone();
+                item.value = new_value.clone();
                 assert_eq!(
-                    map_dups, naive_dup,
-                    "map and naive map should agree on insert_overwrite dup"
+                    self.map.get(&TestKey1::new(&key1)).unwrap().value,
+                    new_value
                 );
-                self.check_valid(CompactnessChange::NoLongerCompact);
             }
-
-            #[rule]
-            fn entry_insert_overwrite(&mut self, tc: TestCase) {
-                let map = &mut self.map;
-                let naive_map = &mut self.naive;
-                let item = tc.draw(test_item());
-                let map_res = match map.entry(item.key()) {
-                    id_ord_map::Entry::Occupied(mut entry) => {
-                        Some(entry.insert(item.clone()))
-                    }
-                    id_ord_map::Entry::Vacant(_) => None,
-                };
-
-                let occupied = naive_map.get1(item.key1).is_some();
-                let naive_res = occupied.then(|| {
-                    let mut dups = naive_map.insert_overwrite(item.clone());
-                    assert!(dups.len() <= 1, "max one conflict");
-                    dups.pop().expect("occupied entry has one duplicate")
-                });
-
-                assert_eq!(
-                    map_res, naive_res,
-                    "map and naive map should agree on Entry::insert"
+            (None, None) => {
+                // Both empty, this is fine.
+            }
+            _ => {
+                panic!(
+                    "map and naive_map should agree on first_entry/first_mut"
                 );
-                self.check_valid(CompactnessChange::NoLongerCompact);
-            }
-
-            #[rule]
-            fn entry_remove(&mut self, tc: TestCase) {
-                let key = draw_lookup_key1(&tc, &self.naive);
-                let map = &mut self.map;
-                let naive_map = &mut self.naive;
-                let map_res = match map.entry(TestKey1::new(&key)) {
-                    id_ord_map::Entry::Occupied(entry) => Some(entry.remove()),
-                    id_ord_map::Entry::Vacant(_) => None,
-                };
-
-                let naive_res = naive_map.remove1(key);
-
-                assert_eq!(
-                    map_res, naive_res,
-                    "map and naive map should agree on Entry::remove"
-                );
-                self.check_valid(CompactnessChange::NoLongerCompact);
-            }
-
-            #[rule]
-            fn get(&mut self, tc: TestCase) {
-                let key = draw_lookup_key1(&tc, &self.naive);
-                let map = &mut self.map;
-                let naive_map = &mut self.naive;
-                let map_res = map.get(&TestKey1::new(&key));
-                let naive_res = naive_map.get1(key);
-
-                assert_eq!(map_res, naive_res);
-            }
-
-            #[rule]
-            fn remove(&mut self, tc: TestCase) {
-                let key = draw_lookup_key1(&tc, &self.naive);
-                let map = &mut self.map;
-                let naive_map = &mut self.naive;
-                let map_res = map.remove(&TestKey1::new(&key));
-                let naive_res = naive_map.remove1(key);
-
-                assert_eq!(map_res, naive_res);
-                self.check_valid(CompactnessChange::NoLongerCompact);
-            }
-
-            #[rule]
-            fn first(&mut self, _: TestCase) {
-                let map = &mut self.map;
-                let naive_map = &mut self.naive;
-                let map_res = map.first();
-                let naive_res = naive_map.first();
-
-                assert_eq!(map_res, naive_res);
-            }
-
-            #[rule]
-            fn last(&mut self, _: TestCase) {
-                let map = &mut self.map;
-                let naive_map = &mut self.naive;
-                let map_res = map.last();
-                let naive_res = naive_map.last();
-
-                assert_eq!(map_res, naive_res);
-            }
-
-            #[rule]
-            fn pop_first(&mut self, _: TestCase) {
-                let map = &mut self.map;
-                let naive_map = &mut self.naive;
-                let map_res = map.pop_first();
-                let naive_res = naive_map.pop_first();
-
-                assert_eq!(map_res, naive_res);
-                self.check_valid(CompactnessChange::NoLongerCompact);
-            }
-
-            #[rule]
-            fn pop_last(&mut self, _: TestCase) {
-                let map = &mut self.map;
-                let naive_map = &mut self.naive;
-                let map_res = map.pop_last();
-                let naive_res = naive_map.pop_last();
-
-                assert_eq!(map_res, naive_res);
-                self.check_valid(CompactnessChange::NoLongerCompact);
-            }
-
-            #[rule]
-            fn first_entry_modify(&mut self, tc: TestCase) {
-                let map = &mut self.map;
-                let naive_map = &mut self.naive;
-                let new_value = tc.draw(gs::text());
-                match (map.first_entry(), naive_map.first_mut()) {
-                    (Some(mut entry), Some(item)) => {
-                        let key1 = entry.get().key1;
-                        entry.get_mut().value = new_value.clone();
-                        item.value = new_value.clone();
-                        assert_eq!(
-                            map.get(&TestKey1::new(&key1)).unwrap().value,
-                            new_value
-                        );
-                    }
-                    (None, None) => {
-                        // Both empty, this is fine.
-                    }
-                    _ => {
-                        panic!(
-                            "map and naive_map should agree on first_entry/first_mut"
-                        );
-                    }
-                }
-                self.check_valid(CompactnessChange::NoChange);
-            }
-
-            #[rule]
-            fn last_entry_modify(&mut self, tc: TestCase) {
-                let map = &mut self.map;
-                let naive_map = &mut self.naive;
-                let new_value = tc.draw(gs::text());
-                match (map.last_entry(), naive_map.last_mut()) {
-                    (Some(mut entry), Some(item)) => {
-                        let key1 = entry.get().key1;
-                        entry.get_mut().value = new_value.clone();
-                        item.value = new_value.clone();
-                        assert_eq!(
-                            map.get(&TestKey1::new(&key1)).unwrap().value,
-                            new_value
-                        );
-                    }
-                    (None, None) => {
-                        // Both empty, this is fine.
-                    }
-                    _ => {
-                        panic!(
-                            "map and naive_map should agree on last_entry/last_mut"
-                        );
-                    }
-                }
-                self.check_valid(CompactnessChange::NoChange);
-            }
-
-            #[rule]
-            fn retain_value_contains(&mut self, tc: TestCase) {
-                let map = &mut self.map;
-                let naive_map = &mut self.naive;
-                let ch = tc.draw(gs::characters());
-                let equals = tc.draw(gs::booleans());
-                map.retain(|item| {
-                    let contains = item.value.contains(ch);
-                    if equals { contains } else { !contains }
-                });
-                naive_map.retain(|item| {
-                    let contains = item.value.contains(ch);
-                    if equals { contains } else { !contains }
-                });
-                self.check_valid(CompactnessChange::NoLongerCompact);
-            }
-
-            #[rule]
-            fn retain_modulo(&mut self, tc: TestCase) {
-                let map = &mut self.map;
-                let naive_map = &mut self.naive;
-                let a = tc.draw(gs::integers::<u8>().max_value(2));
-                let b = tc.draw(gs::integers::<u8>().min_value(1).max_value(3));
-                let equals = tc.draw(gs::booleans());
-                let modulo = a + b;
-                let remainder = a;
-                map.retain(|item| {
-                    let matches = item.key1 % modulo == remainder;
-                    if equals { matches } else { !matches }
-                });
-                naive_map.retain(|item| {
-                    let matches = item.key1 % modulo == remainder;
-                    if equals { matches } else { !matches }
-                });
-                self.check_valid(CompactnessChange::NoLongerCompact);
-            }
-
-            #[rule]
-            fn extend(&mut self, tc: TestCase) {
-                let map = &mut self.map;
-                let naive_map = &mut self.naive;
-                let items = tc.draw(gs::vecs(test_item()).max_size(15));
-                map.extend(items.clone());
-                naive_map.extend(items);
-                self.check_valid(CompactnessChange::NoLongerCompact);
-            }
-
-            // Fill up the map to ensure later operations use a larger map.
-            #[rule]
-            fn fill(&mut self, tc: TestCase) {
-                let map = &mut self.map;
-                let naive_map = &mut self.naive;
-                let items = draw_fill_batch(&tc);
-                map.extend(items.clone());
-                naive_map.extend(items);
-                self.check_valid(CompactnessChange::NoLongerCompact);
-            }
-
-            #[rule]
-            fn clear(&mut self, _: TestCase) {
-                let map = &mut self.map;
-                let naive_map = &mut self.naive;
-                map.clear();
-                naive_map.clear();
-                self.check_valid(CompactnessChange::BecomesCompact);
-            }
-
-            #[rule]
-            fn shrink_to_fit(&mut self, _: TestCase) {
-                let map = &mut self.map;
-                map.shrink_to_fit();
-                self.check_valid(CompactnessChange::BecomesCompact);
-            }
-
-            #[rule]
-            fn shrink_to(&mut self, tc: TestCase) {
-                let map = &mut self.map;
-                let min_capacity =
-                    tc.draw(gs::integers::<usize>().max_value(255));
-                map.shrink_to(min_capacity);
-                self.check_valid(CompactnessChange::BecomesCompact);
-            }
-
-            #[invariant]
-            fn iter_matches(&mut self, _: TestCase) {
-                let map = &self.map;
-                let naive_map = &self.naive;
-                let mut naive_items = naive_map.iter().collect::<Vec<_>>();
-                naive_items.sort_by(|a, b| a.key().cmp(&b.key()));
-                assert_iter_eq(map.clone(), naive_items);
             }
         }
+        self.check_valid(CompactnessChange::NoChange);
+    }
+
+    #[rule]
+    fn last_entry_modify(&mut self, tc: TestCase) {
+        let new_value = tc.draw(gs::text());
+        match (self.map.last_entry(), self.naive.last_mut()) {
+            (Some(mut entry), Some(item)) => {
+                let key1 = entry.get().key1;
+                entry.get_mut().value = new_value.clone();
+                item.value = new_value.clone();
+                assert_eq!(
+                    self.map.get(&TestKey1::new(&key1)).unwrap().value,
+                    new_value
+                );
+            }
+            (None, None) => {
+                // Both empty, this is fine.
+            }
+            _ => {
+                panic!("map and naive_map should agree on last_entry/last_mut");
+            }
+        }
+        self.check_valid(CompactnessChange::NoChange);
+    }
+
+    #[rule]
+    fn retain_value_contains(&mut self, tc: TestCase) {
+        let ch = tc.draw(gs::characters());
+        let equals = tc.draw(gs::booleans());
+        self.map.retain(|item| {
+            let contains = item.value.contains(ch);
+            if equals { contains } else { !contains }
+        });
+        self.naive.retain(|item| {
+            let contains = item.value.contains(ch);
+            if equals { contains } else { !contains }
+        });
+        self.check_valid(CompactnessChange::NoLongerCompact);
+    }
+
+    #[rule]
+    fn retain_modulo(&mut self, tc: TestCase) {
+        let a = tc.draw(gs::integers::<u8>().max_value(2));
+        let b = tc.draw(gs::integers::<u8>().min_value(1).max_value(3));
+        let equals = tc.draw(gs::booleans());
+        let modulo = a + b;
+        let remainder = a;
+        self.map.retain(|item| {
+            let matches = item.key1 % modulo == remainder;
+            if equals { matches } else { !matches }
+        });
+        self.naive.retain(|item| {
+            let matches = item.key1 % modulo == remainder;
+            if equals { matches } else { !matches }
+        });
+        self.check_valid(CompactnessChange::NoLongerCompact);
+    }
+
+    #[rule]
+    fn extend(&mut self, tc: TestCase) {
+        let items = tc.draw(gs::vecs(test_item()).max_size(15));
+        self.map.extend(items.clone());
+        self.naive.extend(items);
+        self.check_valid(CompactnessChange::NoLongerCompact);
+    }
+
+    // Fill up the map to ensure later operations use a larger map.
+    #[rule]
+    fn fill(&mut self, tc: TestCase) {
+        let items = draw_fill_batch(&tc);
+        self.map.extend(items.clone());
+        self.naive.extend(items);
+        self.check_valid(CompactnessChange::NoLongerCompact);
+    }
+
+    #[rule]
+    fn clear(&mut self, _: TestCase) {
+        self.map.clear();
+        self.naive.clear();
+        self.check_valid(CompactnessChange::BecomesCompact);
+    }
+
+    #[rule]
+    fn shrink_to_fit(&mut self, _: TestCase) {
+        self.map.shrink_to_fit();
+        self.check_valid(CompactnessChange::BecomesCompact);
+    }
+
+    #[rule]
+    fn shrink_to(&mut self, tc: TestCase) {
+        let min_capacity = tc.draw(gs::integers::<usize>().max_value(255));
+        self.map.shrink_to(min_capacity);
+        self.check_valid(CompactnessChange::BecomesCompact);
+    }
+
+    #[invariant]
+    fn iter_matches(&mut self, _: TestCase) {
+        let mut naive_items = self.naive.iter().collect::<Vec<_>>();
+        naive_items.sort_by(|a, b| a.key().cmp(&b.key()));
+        assert_iter_eq(self.map.clone(), naive_items);
     }
 }
 

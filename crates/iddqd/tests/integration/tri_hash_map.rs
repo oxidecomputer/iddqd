@@ -287,292 +287,246 @@ impl TriHashMapMachine {
     }
 }
 
-mod indent0 {
-    mod indent1 {
-        use super::super::*;
+#[hegel::state_machine]
+impl TriHashMapMachine {
+    #[rule]
+    fn insert_unique(&mut self, tc: TestCase) {
+        let item = tc.draw(test_item());
+        let map_res = self.map.insert_unique(item.clone());
+        let naive_res = self.naive.insert_unique(item.clone());
 
-        #[hegel::state_machine]
-        impl TriHashMapMachine {
-            #[rule]
-            fn insert_unique(&mut self, tc: TestCase) {
-                let map = &mut self.map;
-                let naive_map = &mut self.naive;
-                let item = tc.draw(test_item());
-                let map_res = map.insert_unique(item.clone());
-                let naive_res = naive_map.insert_unique(item.clone());
-
-                assert_eq!(
-                    map_res.is_ok(),
-                    naive_res.is_ok(),
-                    "map and naive map should agree on insert result"
-                );
-                if let Err(map_err) = map_res {
-                    let naive_err = naive_res.unwrap_err();
-                    assert_eq!(map_err.new_item(), naive_err.new_item());
-                    // The duplicates may be in any order, so sort them before
-                    // comparing.
-                    let mut map_err_dups = map_err.duplicates().to_vec();
-                    let mut naive_err_dups = naive_err.duplicates().to_vec();
-                    map_err_dups.sort();
-                    naive_err_dups.sort();
-                    assert_eq!(map_err_dups, naive_err_dups);
-                }
-
-                self.check_valid(CompactnessChange::NoChange);
-            }
-
-            #[rule]
-            fn insert_overwrite(&mut self, tc: TestCase) {
-                let map = &mut self.map;
-                let naive_map = &mut self.naive;
-                let item = tc.draw(test_item());
-                let mut map_dups = map.insert_overwrite(item.clone());
-                map_dups.sort();
-                let mut naive_dups = naive_map.insert_overwrite(item.clone());
-                naive_dups.sort();
-
-                assert_eq!(
-                    map_dups, naive_dups,
-                    "map and naive map should agree on insert_overwrite dups"
-                );
-                self.check_valid(CompactnessChange::NoLongerCompact);
-            }
-
-            #[rule]
-            fn get1(&mut self, tc: TestCase) {
-                let key1 = draw_lookup_key1(&tc, &self.naive);
-                let map = &mut self.map;
-                let naive_map = &mut self.naive;
-                let map_res = map.get1(&TestKey1::new(&key1));
-                let naive_res = naive_map.get1(key1);
-
-                assert_eq!(map_res, naive_res);
-            }
-
-            #[rule]
-            fn get2(&mut self, tc: TestCase) {
-                let key2 = draw_lookup_key2(&tc, &self.naive);
-                let map = &mut self.map;
-                let naive_map = &mut self.naive;
-                let map_res = map.get2(&TestKey2::new(key2));
-                let naive_res = naive_map.get2(key2);
-
-                assert_eq!(map_res, naive_res);
-            }
-
-            #[rule]
-            fn get3(&mut self, tc: TestCase) {
-                let key3 = draw_lookup_key3(&tc, &self.naive);
-                let map = &mut self.map;
-                let naive_map = &mut self.naive;
-                let map_res = map.get3(&TestKey3::new(&key3));
-                let naive_res = naive_map.get3(&key3);
-
-                assert_eq!(map_res, naive_res);
-            }
-
-            #[rule]
-            fn get_unique(&mut self, tc: TestCase) {
-                let (key1, key2, key3) = draw_lookup_keys123(&tc, &self.naive);
-                let map = &mut self.map;
-                let naive_map = &mut self.naive;
-                let map_res = map.get_unique(
-                    &TestKey1::new(&key1),
-                    &TestKey2::new(key2),
-                    &TestKey3::new(&key3),
-                );
-                let naive_res = naive_map.get_unique123(key1, key2, &key3);
-
-                assert_eq!(map_res, naive_res);
-            }
-
-            #[rule]
-            fn get_mut_unique(&mut self, tc: TestCase) {
-                let (key1, key2, key3) = draw_lookup_keys123(&tc, &self.naive);
-                let map = &mut self.map;
-                let naive_map = &mut self.naive;
-                let map_res = map
-                    .get_mut_unique(
-                        &TestKey1::new(&key1),
-                        &TestKey2::new(key2),
-                        &TestKey3::new(&key3),
-                    )
-                    .map(|r| (*r).clone());
-                let naive_res =
-                    naive_map.get_mut_unique123(key1, key2, &key3).cloned();
-
-                assert_eq!(map_res, naive_res);
-                self.check_valid(CompactnessChange::NoChange);
-            }
-
-            #[rule]
-            fn remove1(&mut self, tc: TestCase) {
-                let key1 = draw_lookup_key1(&tc, &self.naive);
-                let map = &mut self.map;
-                let naive_map = &mut self.naive;
-                let map_res = map.remove1(&TestKey1::new(&key1));
-                let naive_res = naive_map.remove1(key1);
-
-                assert_eq!(map_res, naive_res);
-                self.check_valid(CompactnessChange::NoLongerCompact);
-            }
-
-            #[rule]
-            fn remove2(&mut self, tc: TestCase) {
-                let key2 = draw_lookup_key2(&tc, &self.naive);
-                let map = &mut self.map;
-                let naive_map = &mut self.naive;
-                let map_res = map.remove2(&TestKey2::new(key2));
-                let naive_res = naive_map.remove2(key2);
-
-                assert_eq!(map_res, naive_res);
-                self.check_valid(CompactnessChange::NoLongerCompact);
-            }
-
-            #[rule]
-            fn remove3(&mut self, tc: TestCase) {
-                let key3 = draw_lookup_key3(&tc, &self.naive);
-                let map = &mut self.map;
-                let naive_map = &mut self.naive;
-                let map_res = map.remove3(&TestKey3::new(&key3));
-                let naive_res = naive_map.remove3(&key3);
-
-                assert_eq!(map_res, naive_res);
-                self.check_valid(CompactnessChange::NoLongerCompact);
-            }
-
-            #[rule]
-            fn remove_unique(&mut self, tc: TestCase) {
-                let (key1, key2, key3) = draw_lookup_keys123(&tc, &self.naive);
-                let map = &mut self.map;
-                let naive_map = &mut self.naive;
-                let map_res = map.remove_unique(
-                    &TestKey1::new(&key1),
-                    &TestKey2::new(key2),
-                    &TestKey3::new(&key3),
-                );
-                let naive_res = naive_map.remove_unique123(key1, key2, &key3);
-
-                assert_eq!(map_res, naive_res);
-                self.check_valid(CompactnessChange::NoLongerCompact);
-            }
-
-            #[rule]
-            fn retain_value_contains(&mut self, tc: TestCase) {
-                let map = &mut self.map;
-                let naive_map = &mut self.naive;
-                let ch = tc.draw(gs::characters());
-                let equals = tc.draw(gs::booleans());
-                map.retain(|item| {
-                    let contains = item.value.contains(ch);
-                    if equals { contains } else { !contains }
-                });
-                naive_map.retain(|item| {
-                    let contains = item.value.contains(ch);
-                    if equals { contains } else { !contains }
-                });
-                self.check_valid(CompactnessChange::NoLongerCompact);
-            }
-
-            #[rule]
-            fn retain_modulo(&mut self, tc: TestCase) {
-                let map = &mut self.map;
-                let naive_map = &mut self.naive;
-                let a = tc.draw(gs::integers::<u8>().max_value(2));
-                let b = tc.draw(gs::integers::<u8>().min_value(1).max_value(3));
-                let equals = tc.draw(gs::booleans());
-                let modulo = a + b;
-                let remainder = a;
-                map.retain(|item| {
-                    let matches = item.key1 % modulo == remainder;
-                    if equals { matches } else { !matches }
-                });
-                naive_map.retain(|item| {
-                    let matches = item.key1 % modulo == remainder;
-                    if equals { matches } else { !matches }
-                });
-                self.check_valid(CompactnessChange::NoLongerCompact);
-            }
-
-            #[rule]
-            fn extend(&mut self, tc: TestCase) {
-                let map = &mut self.map;
-                let naive_map = &mut self.naive;
-                let items = tc.draw(gs::vecs(test_item()).max_size(15));
-                map.extend(items.clone());
-                naive_map.extend(items);
-                self.check_valid(CompactnessChange::NoLongerCompact);
-            }
-
-            // Fill up the map to ensure later operations use a larger map.
-            #[rule]
-            fn fill(&mut self, tc: TestCase) {
-                let map = &mut self.map;
-                let naive_map = &mut self.naive;
-                let items = draw_fill_batch(&tc);
-                map.extend(items.clone());
-                naive_map.extend(items);
-                self.check_valid(CompactnessChange::NoLongerCompact);
-            }
-
-            #[rule]
-            fn clear(&mut self, _: TestCase) {
-                let map = &mut self.map;
-                let naive_map = &mut self.naive;
-                map.clear();
-                naive_map.clear();
-                self.check_valid(CompactnessChange::BecomesCompact);
-            }
-
-            #[rule]
-            fn reserve(&mut self, tc: TestCase) {
-                let map = &mut self.map;
-                let additional =
-                    tc.draw(gs::integers::<usize>().max_value(255));
-                map.reserve(additional);
-                // `reserve` has no observable effect beyond capacity -- the
-                // naive map has no equivalent. `check_valid` will iterate items
-                // and ask `find_index` for each, which catches a hash-table
-                // left mis-bucketed by a regrowth rehash.
-                self.check_valid(CompactnessChange::NoChange);
-            }
-
-            #[rule]
-            fn try_reserve(&mut self, tc: TestCase) {
-                let map = &mut self.map;
-                let additional =
-                    tc.draw(gs::integers::<usize>().max_value(255));
-                let _ = map.try_reserve(additional);
-                // See the comment on `reserve` above for why this is only
-                // `check_valid`.
-                self.check_valid(CompactnessChange::NoChange);
-            }
-
-            #[rule]
-            fn shrink_to_fit(&mut self, _: TestCase) {
-                let map = &mut self.map;
-                map.shrink_to_fit();
-                self.check_valid(CompactnessChange::BecomesCompact);
-            }
-
-            #[rule]
-            fn shrink_to(&mut self, tc: TestCase) {
-                let map = &mut self.map;
-                let min_capacity =
-                    tc.draw(gs::integers::<usize>().max_value(255));
-                map.shrink_to(min_capacity);
-                self.check_valid(CompactnessChange::BecomesCompact);
-            }
-
-            #[invariant]
-            fn iter_matches(&mut self, _: TestCase) {
-                let map = &self.map;
-                let naive_map = &self.naive;
-                let mut naive_items = naive_map.iter().collect::<Vec<_>>();
-                naive_items.sort_by(|a, b| a.key1().cmp(&b.key1()));
-                assert_iter_eq(map.clone(), naive_items);
-            }
+        assert_eq!(
+            map_res.is_ok(),
+            naive_res.is_ok(),
+            "map and naive map should agree on insert result"
+        );
+        if let Err(map_err) = map_res {
+            let naive_err = naive_res.unwrap_err();
+            assert_eq!(map_err.new_item(), naive_err.new_item());
+            // The duplicates may be in any order, so sort them before
+            // comparing.
+            let mut map_err_dups = map_err.duplicates().to_vec();
+            let mut naive_err_dups = naive_err.duplicates().to_vec();
+            map_err_dups.sort();
+            naive_err_dups.sort();
+            assert_eq!(map_err_dups, naive_err_dups);
         }
+
+        self.check_valid(CompactnessChange::NoChange);
+    }
+
+    #[rule]
+    fn insert_overwrite(&mut self, tc: TestCase) {
+        let item = tc.draw(test_item());
+        let mut map_dups = self.map.insert_overwrite(item.clone());
+        map_dups.sort();
+        let mut naive_dups = self.naive.insert_overwrite(item.clone());
+        naive_dups.sort();
+
+        assert_eq!(
+            map_dups, naive_dups,
+            "map and naive map should agree on insert_overwrite dups"
+        );
+        self.check_valid(CompactnessChange::NoLongerCompact);
+    }
+
+    #[rule]
+    fn get1(&mut self, tc: TestCase) {
+        let key1 = draw_lookup_key1(&tc, &self.naive);
+        let map_res = self.map.get1(&TestKey1::new(&key1));
+        let naive_res = self.naive.get1(key1);
+
+        assert_eq!(map_res, naive_res);
+    }
+
+    #[rule]
+    fn get2(&mut self, tc: TestCase) {
+        let key2 = draw_lookup_key2(&tc, &self.naive);
+        let map_res = self.map.get2(&TestKey2::new(key2));
+        let naive_res = self.naive.get2(key2);
+
+        assert_eq!(map_res, naive_res);
+    }
+
+    #[rule]
+    fn get3(&mut self, tc: TestCase) {
+        let key3 = draw_lookup_key3(&tc, &self.naive);
+        let map_res = self.map.get3(&TestKey3::new(&key3));
+        let naive_res = self.naive.get3(&key3);
+
+        assert_eq!(map_res, naive_res);
+    }
+
+    #[rule]
+    fn get_unique(&mut self, tc: TestCase) {
+        let (key1, key2, key3) = draw_lookup_keys123(&tc, &self.naive);
+        let map_res = self.map.get_unique(
+            &TestKey1::new(&key1),
+            &TestKey2::new(key2),
+            &TestKey3::new(&key3),
+        );
+        let naive_res = self.naive.get_unique123(key1, key2, &key3);
+
+        assert_eq!(map_res, naive_res);
+    }
+
+    #[rule]
+    fn get_mut_unique(&mut self, tc: TestCase) {
+        let (key1, key2, key3) = draw_lookup_keys123(&tc, &self.naive);
+        let map_res = self
+            .map
+            .get_mut_unique(
+                &TestKey1::new(&key1),
+                &TestKey2::new(key2),
+                &TestKey3::new(&key3),
+            )
+            .map(|r| (*r).clone());
+        let naive_res =
+            self.naive.get_mut_unique123(key1, key2, &key3).cloned();
+
+        assert_eq!(map_res, naive_res);
+        self.check_valid(CompactnessChange::NoChange);
+    }
+
+    #[rule]
+    fn remove1(&mut self, tc: TestCase) {
+        let key1 = draw_lookup_key1(&tc, &self.naive);
+        let map_res = self.map.remove1(&TestKey1::new(&key1));
+        let naive_res = self.naive.remove1(key1);
+
+        assert_eq!(map_res, naive_res);
+        self.check_valid(CompactnessChange::NoLongerCompact);
+    }
+
+    #[rule]
+    fn remove2(&mut self, tc: TestCase) {
+        let key2 = draw_lookup_key2(&tc, &self.naive);
+        let map_res = self.map.remove2(&TestKey2::new(key2));
+        let naive_res = self.naive.remove2(key2);
+
+        assert_eq!(map_res, naive_res);
+        self.check_valid(CompactnessChange::NoLongerCompact);
+    }
+
+    #[rule]
+    fn remove3(&mut self, tc: TestCase) {
+        let key3 = draw_lookup_key3(&tc, &self.naive);
+        let map_res = self.map.remove3(&TestKey3::new(&key3));
+        let naive_res = self.naive.remove3(&key3);
+
+        assert_eq!(map_res, naive_res);
+        self.check_valid(CompactnessChange::NoLongerCompact);
+    }
+
+    #[rule]
+    fn remove_unique(&mut self, tc: TestCase) {
+        let (key1, key2, key3) = draw_lookup_keys123(&tc, &self.naive);
+        let map_res = self.map.remove_unique(
+            &TestKey1::new(&key1),
+            &TestKey2::new(key2),
+            &TestKey3::new(&key3),
+        );
+        let naive_res = self.naive.remove_unique123(key1, key2, &key3);
+
+        assert_eq!(map_res, naive_res);
+        self.check_valid(CompactnessChange::NoLongerCompact);
+    }
+
+    #[rule]
+    fn retain_value_contains(&mut self, tc: TestCase) {
+        let ch = tc.draw(gs::characters());
+        let equals = tc.draw(gs::booleans());
+        self.map.retain(|item| {
+            let contains = item.value.contains(ch);
+            if equals { contains } else { !contains }
+        });
+        self.naive.retain(|item| {
+            let contains = item.value.contains(ch);
+            if equals { contains } else { !contains }
+        });
+        self.check_valid(CompactnessChange::NoLongerCompact);
+    }
+
+    #[rule]
+    fn retain_modulo(&mut self, tc: TestCase) {
+        let a = tc.draw(gs::integers::<u8>().max_value(2));
+        let b = tc.draw(gs::integers::<u8>().min_value(1).max_value(3));
+        let equals = tc.draw(gs::booleans());
+        let modulo = a + b;
+        let remainder = a;
+        self.map.retain(|item| {
+            let matches = item.key1 % modulo == remainder;
+            if equals { matches } else { !matches }
+        });
+        self.naive.retain(|item| {
+            let matches = item.key1 % modulo == remainder;
+            if equals { matches } else { !matches }
+        });
+        self.check_valid(CompactnessChange::NoLongerCompact);
+    }
+
+    #[rule]
+    fn extend(&mut self, tc: TestCase) {
+        let items = tc.draw(gs::vecs(test_item()).max_size(15));
+        self.map.extend(items.clone());
+        self.naive.extend(items);
+        self.check_valid(CompactnessChange::NoLongerCompact);
+    }
+
+    // Fill up the map to ensure later operations use a larger map.
+    #[rule]
+    fn fill(&mut self, tc: TestCase) {
+        let items = draw_fill_batch(&tc);
+        self.map.extend(items.clone());
+        self.naive.extend(items);
+        self.check_valid(CompactnessChange::NoLongerCompact);
+    }
+
+    #[rule]
+    fn clear(&mut self, _: TestCase) {
+        self.map.clear();
+        self.naive.clear();
+        self.check_valid(CompactnessChange::BecomesCompact);
+    }
+
+    #[rule]
+    fn reserve(&mut self, tc: TestCase) {
+        let additional = tc.draw(gs::integers::<usize>().max_value(255));
+        self.map.reserve(additional);
+        // `reserve` has no observable effect beyond capacity -- the
+        // naive map has no equivalent. `check_valid` will iterate items
+        // and ask `find_index` for each, which catches a hash-table
+        // left mis-bucketed by a regrowth rehash.
+        self.check_valid(CompactnessChange::NoChange);
+    }
+
+    #[rule]
+    fn try_reserve(&mut self, tc: TestCase) {
+        let additional = tc.draw(gs::integers::<usize>().max_value(255));
+        let _ = self.map.try_reserve(additional);
+        // See the comment on `reserve` above for why this is only
+        // `check_valid`.
+        self.check_valid(CompactnessChange::NoChange);
+    }
+
+    #[rule]
+    fn shrink_to_fit(&mut self, _: TestCase) {
+        self.map.shrink_to_fit();
+        self.check_valid(CompactnessChange::BecomesCompact);
+    }
+
+    #[rule]
+    fn shrink_to(&mut self, tc: TestCase) {
+        let min_capacity = tc.draw(gs::integers::<usize>().max_value(255));
+        self.map.shrink_to(min_capacity);
+        self.check_valid(CompactnessChange::BecomesCompact);
+    }
+
+    #[invariant]
+    fn iter_matches(&mut self, _: TestCase) {
+        let mut naive_items = self.naive.iter().collect::<Vec<_>>();
+        naive_items.sort_by(|a, b| a.key1().cmp(&b.key1()));
+        assert_iter_eq(self.map.clone(), naive_items);
     }
 }
 
