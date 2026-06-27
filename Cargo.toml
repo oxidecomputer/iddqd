@@ -5,7 +5,7 @@ members = ["crates/*"]
 [workspace.package]
 edition = "2024"
 license = "MIT OR Apache-2.0"
-rust-version = "1.85"
+rust-version = "1.86"
 
 [workspace.lints.clippy]
 undocumented_unsafe_blocks = { level = "warn" }
@@ -29,6 +29,7 @@ foldhash = "0.2.0"
 # allocator-api2 is turned on, then for e.g. IdHashMap<T, S, A>, otherwise
 # IdHashMap<T, S>.)
 hashbrown = { version = "0.16.0", default-features = false, features = ["allocator-api2", "inline-more"] }
+hegeltest = "0.23.1"
 hugealloc = "0.1.1"
 iddqd = { path = "crates/iddqd", default-features = false }
 iddqd-test-utils = { path = "crates/iddqd-test-utils" }

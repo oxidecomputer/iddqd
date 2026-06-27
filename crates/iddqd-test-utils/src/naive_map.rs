@@ -190,6 +190,10 @@ impl NaiveMap {
         Some(self.items.remove(index))
     }
 
+    pub fn items(&self) -> &[TestItem] {
+        &self.items
+    }
+
     /// Removes and returns every item covered by a `TriHashMap` entry keyed on
     /// `(key1, key2, key3)`, i.e. every distinct item matching `key1`, `key2`,
     /// or `key3`.
