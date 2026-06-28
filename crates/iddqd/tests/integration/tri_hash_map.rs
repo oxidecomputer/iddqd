@@ -278,98 +278,63 @@ mod entry_api {
     }
 
     #[test]
-    fn entry_non_unique_preserves_repeated_key_mapping() {
+    fn entry_shared_access_preserves_mapping_and_distinct_order() {
         let mut map = TriHashMap::<TestItem, HashBuilder, Alloc>::make_new();
 
         let a = TestItem::new(1, 'a', "x", "a");
         let b = TestItem::new(2, 'b', "y", "b");
+        let c = TestItem::new(3, 'c', "z", "c");
 
         map.insert_unique(a.clone()).unwrap();
         map.insert_unique(b.clone()).unwrap();
+        map.insert_unique(c.clone()).unwrap();
 
-        // A / B / A: key1 and key3 both match `a`, while key2 matches `b`.
-        let entry_ref = match map.entry(
-            TestKey1::new(&a.key1),
-            TestKey2::new(b.key2),
-            TestKey3::new(&a.key3),
-        ) {
-            tri_hash_map::Entry::Occupied(entry) => {
-                assert!(entry.is_non_unique());
-                entry.into_ref()
-            }
-            tri_hash_map::Entry::Vacant(_) => {
-                panic!("entry should be occupied")
-            }
-        };
+        for (keys, expected_by_key, expected_visit_order) in [
+            // A / A / B: key1 and key2 match A, key3 matches B.
+            ((1, 'a', "y"), [Some(&a), Some(&a), Some(&b)], vec![&a, &b]),
+            // A / A / None: key1 and key2 match A, key3 is absent.
+            ((1, 'a', "missing"), [Some(&a), Some(&a), None], vec![&a]),
+            // A / None / A: key1 and key3 match A, key2 is absent.
+            ((1, 'q', "x"), [Some(&a), None, Some(&a)], vec![&a]),
+            // None / A / A: key2 and key3 match A, key1 is absent.
+            ((99, 'a', "x"), [None, Some(&a), Some(&a)], vec![&a]),
+            // A / B / A: repeated non-unique mapping promised by the PR body.
+            ((1, 'b', "x"), [Some(&a), Some(&b), Some(&a)], vec![&a, &b]),
+            // A / B / C: all three keys match distinct items.
+            ((1, 'b', "z"), [Some(&a), Some(&b), Some(&c)], vec![&a, &b, &c]),
+            // None / B / A: visit order is first-key-hit order, not item order.
+            ((99, 'b', "x"), [None, Some(&b), Some(&a)], vec![&b, &a]),
+        ] {
+            let entry_ref = match map.entry(
+                TestKey1::new(&keys.0),
+                TestKey2::new(keys.1),
+                TestKey3::new(keys.2),
+            ) {
+                tri_hash_map::Entry::Occupied(entry) => {
+                    assert!(entry.is_non_unique());
+                    entry.into_ref()
+                }
+                tri_hash_map::Entry::Vacant(_) => panic!("expected occupied"),
+            };
 
-        assert_eq!(entry_ref.by_key1(), Some(&a));
-        assert_eq!(entry_ref.by_key2(), Some(&b));
-        assert_eq!(entry_ref.by_key3(), Some(&a));
+            assert!(entry_ref.is_non_unique());
+            assert_eq!(entry_ref.by_key1(), expected_by_key[0]);
+            assert_eq!(entry_ref.by_key2(), expected_by_key[1]);
+            assert_eq!(entry_ref.by_key3(), expected_by_key[2]);
 
-        let mut visited = Vec::new();
-        entry_ref.for_each(|item| visited.push(item.value.as_str()));
-        assert_eq!(visited, vec!["a", "b"]);
-    }
+            let tri_hash_map::OccupiedEntryRef::NonUnique(non_unique) =
+                entry_ref
+            else {
+                panic!("expected non-unique entry ref");
+            };
 
-    #[test]
-    fn entry_shared_access_preserves_mapping_and_distinct_order() {
-        let mut map = TriHashMap::<SimpleItem, HashBuilder, Alloc>::make_new();
-        map.insert_unique(SimpleItem { key1: 1, key2: 'a', key3: 1 }).unwrap();
-        map.insert_unique(SimpleItem { key1: 2, key2: 'b', key3: 2 }).unwrap();
+            assert_eq!(non_unique.by_key1(), expected_by_key[0]);
+            assert_eq!(non_unique.by_key2(), expected_by_key[1]);
+            assert_eq!(non_unique.by_key3(), expected_by_key[2]);
 
-        match map.entry(1, 'a', 2) {
-            tri_hash_map::Entry::Occupied(entry) => {
-                let entry_ref = entry.get();
-                assert_eq!(entry_ref.by_key1().unwrap().key1, 1);
-                assert_eq!(entry_ref.by_key2().unwrap().key1, 1);
-                assert_eq!(entry_ref.by_key3().unwrap().key1, 2);
-                let tri_hash_map::OccupiedEntryRef::NonUnique(non_unique) =
-                    entry_ref
-                else {
-                    panic!("expected non-unique entry ref");
-                };
-                assert_eq!(non_unique.by_key1().unwrap().key1, 1);
-                assert_eq!(non_unique.by_key2().unwrap().key1, 1);
-                assert_eq!(non_unique.by_key3().unwrap().key1, 2);
-                let mut seen = Vec::new();
-                non_unique.for_each(|item| seen.push(item.key1));
-                assert_eq!(seen, vec![1, 2]);
-            }
-            tri_hash_map::Entry::Vacant(_) => panic!("expected occupied"),
-        }
-
-        match map.entry(1, 'z', 1) {
-            tri_hash_map::Entry::Occupied(entry) => {
-                let entry_ref = entry.get();
-                assert_eq!(entry_ref.by_key1().unwrap().key1, 1);
-                assert!(entry_ref.by_key2().is_none());
-                assert_eq!(entry_ref.by_key3().unwrap().key1, 1);
-                let tri_hash_map::OccupiedEntryRef::NonUnique(non_unique) =
-                    entry_ref
-                else {
-                    panic!("expected non-unique entry ref");
-                };
-                assert_eq!(non_unique.by_key1().unwrap().key1, 1);
-                assert!(non_unique.by_key2().is_none());
-                assert_eq!(non_unique.by_key3().unwrap().key1, 1);
-                let mut seen = Vec::new();
-                non_unique.for_each(|item| seen.push(item.key1));
-                assert_eq!(seen, vec![1]);
-            }
-            tri_hash_map::Entry::Vacant(_) => panic!("expected occupied"),
-        }
-
-        match map.entry(9, 'b', 1) {
-            tri_hash_map::Entry::Occupied(entry) => {
-                let entry_ref = entry.get();
-                assert!(entry_ref.by_key1().is_none());
-                assert_eq!(entry_ref.by_key2().unwrap().key1, 2);
-                assert_eq!(entry_ref.by_key3().unwrap().key1, 1);
-                let mut seen = Vec::new();
-                entry_ref.for_each(|item| seen.push(item.key1));
-                assert_eq!(seen, vec![2, 1]);
-            }
-            tri_hash_map::Entry::Vacant(_) => panic!("expected occupied"),
+            let mut seen = Vec::new();
+            non_unique.for_each(|item| seen.push(item));
+            assert_eq!(seen, expected_visit_order);
         }
     }
 
