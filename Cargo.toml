@@ -19,7 +19,7 @@ allocator-api2 = { version = "0.2.21", default-features = false, features = ["al
 bumpalo = { version = "3.19.0", features = ["allocator-api2", "collections"] }
 camino = "1.2.4"
 criterion = "0.7.0"
-daft = { version = "0.1.5", default-features = false }
+daft = { version = "0.1.7", default-features = false }
 equivalent = "1.0.2"
 expectorate = "1.2.0"
 foldhash = "0.2.0"
