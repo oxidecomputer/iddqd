@@ -237,8 +237,8 @@ impl<T: IdOrdItem> IdOrdMap<T> {
                         vec![duplicate],
                     ));
                 }
-                Entry::Vacant(entry) => {
-                    entry.insert_ref(value);
+                Entry::Vacant(_) => {
+                    map.insert_known_unique_impl(value);
                 }
             }
         }
@@ -1491,6 +1491,10 @@ impl<T: IdOrdItem> IdOrdMap<T> {
             }
         }
 
+        Ok(self.insert_known_unique_impl(value))
+    }
+
+    fn insert_known_unique_impl(&mut self, value: T) -> ItemIndex {
         // Take the `GrowHandle` after the read-only duplicate check but before
         // the B-tree mutation. With this approach, a panic from
         // `assert_can_grow` (which means that the map is full) cannot leave the
@@ -1528,7 +1532,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
         grow_handle.insert(value);
         insert.insert();
 
-        Ok(next_index)
+        next_index
     }
 
     pub(super) fn remove_by_index(
