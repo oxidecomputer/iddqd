@@ -1494,6 +1494,11 @@ impl<T: IdOrdItem> IdOrdMap<T> {
         Ok(self.insert_known_unique_impl(value))
     }
 
+    /// Inserts `value` without checking for duplicates.
+    ///
+    /// Only call this after verifying that `value` does not conflict with any
+    /// existing item. Callers that haven't determined uniqueness should use
+    /// `insert_unique_impl` instead.
     fn insert_known_unique_impl(&mut self, value: T) -> ItemIndex {
         // Take the `GrowHandle` after the read-only duplicate check but before
         // the B-tree mutation. With this approach, a panic from
