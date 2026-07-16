@@ -225,9 +225,9 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     ) -> Result<Self, DuplicateItem<T>> {
         let mut map = IdOrdMap::new();
         for value in iter {
-            // It would be nice to use insert_unique here, but that would
-            // return a `DuplicateItem<T, &T>`, which can only be converted into
-            // an owned value if T: Clone. Doing this via the Entry API means we
+            // It would be nice to use insert_unique here, but that would return
+            // a `DuplicateItem<T, &T>`, which can only be converted into an
+            // owned value if T: Clone. Doing this via the Entry API means we
             // can return a `DuplicateItem<T>` without requiring T to be Clone.
             match map.entry(value.key()) {
                 Entry::Occupied(entry) => {
