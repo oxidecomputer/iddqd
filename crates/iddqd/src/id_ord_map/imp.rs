@@ -223,7 +223,8 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     pub fn from_iter_unique<I: IntoIterator<Item = T>>(
         iter: I,
     ) -> Result<Self, DuplicateItem<T>> {
-        let mut map = IdOrdMap::new();
+        let iter = iter.into_iter();
+        let mut map = IdOrdMap::with_capacity(iter.size_hint().0);
         for value in iter {
             // It would be nice to use insert_unique here, but that would return
             // a `DuplicateItem<T, &T>`, which can only be converted into an
