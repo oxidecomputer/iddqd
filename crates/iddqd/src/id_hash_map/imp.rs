@@ -983,13 +983,15 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
         // mutation. A panic in user code therefore leaves the map in its
         // pre-call state.
         //
-        // We use `vacant.insert_entry` rather than `vacant.insert` to avoid
-        // creating a `RefMut`, which would (unnecessarily) re-hash the key
-        // after the mutation when that `RefMut` is created.
+        // In the vacant case, the Entry lookup has already established that the
+        // key is unique. Calling `vacant.insert_entry` would route back through
+        // `insert_unique_impl` and check for duplicates again, while
+        // `vacant.insert` would also create a `RefMut` and re-hash the key. We
+        // use `insert_known_unique_impl` instead, which avoids both.
         match self.entry(value.key()) {
             Entry::Occupied(mut occupied) => Some(occupied.insert(value)),
-            Entry::Vacant(vacant) => {
-                vacant.insert_entry(value);
+            Entry::Vacant(_) => {
+                self.insert_known_unique_impl(value);
                 None
             }
         }
@@ -1462,6 +1464,19 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
         entry.unwrap().insert(next_index);
 
         Ok(next_index)
+    }
+
+    /// Inserts `value` without checking for duplicates.
+    ///
+    /// Only call this after verifying that `value` does not conflict with any
+    /// existing item. Callers that cannot prove uniqueness should use
+    /// `insert_unique_impl` instead.
+    fn insert_known_unique_impl(&mut self, value: T) -> ItemIndex {
+        let hash = self.make_hash(&value);
+        self.tables.key_to_item.reserve(1);
+        let next_index = self.items.assert_can_grow().insert(value);
+        self.tables.key_to_item.insert_prehashed_unchecked(hash, next_index);
+        next_index
     }
 
     pub(super) fn remove_by_index(
