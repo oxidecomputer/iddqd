@@ -145,7 +145,9 @@ impl<'a, T: IdHashItem, S: Clone + BuildHasher, A: Allocator>
         let map = unsafe { self.map.awaken() };
         map.tables.key_to_item.reserve(1);
         let next_index = map.items.assert_can_grow().insert(value);
-        map.tables.key_to_item.insert_prehashed_unchecked(self.hash, next_index);
+        map.tables
+            .key_to_item
+            .insert_prehashed_unchecked(self.hash, next_index);
     }
 
     /// Sets the value of the entry, and returns an `OccupiedEntry`.
