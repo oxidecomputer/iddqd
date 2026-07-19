@@ -1019,7 +1019,7 @@ fn assert_panic_message(f: impl FnOnce(), expected: &str) {
     let payload = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f))
         .expect_err("the armed flip should trigger a fail-fast panic");
     let message: &str = if let Some(s) = payload.downcast_ref::<&str>() {
-        *s
+        s
     } else if let Some(s) = payload.downcast_ref::<String>() {
         s.as_str()
     } else {
