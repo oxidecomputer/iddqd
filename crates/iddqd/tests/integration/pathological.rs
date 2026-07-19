@@ -1018,10 +1018,14 @@ fn tri_hash_silent_tertiary_key_change_insert_overwrite() {
 fn assert_panic_message(f: impl FnOnce(), expected: &str) {
     let payload = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f))
         .expect_err("the armed flip should trigger a fail-fast panic");
-    let message = payload
-        .downcast_ref::<&str>()
-        .expect("fail-fast panics carry a static string payload");
-    assert_eq!(*message, expected);
+    let message: &str = if let Some(s) = payload.downcast_ref::<&str>() {
+        *s
+    } else if let Some(s) = payload.downcast_ref::<String>() {
+        s.as_str()
+    } else {
+        panic!("fail-fast panics carry a string payload");
+    };
+    assert_eq!(message, expected);
 }
 
 #[derive(Debug)]
