@@ -1015,6 +1015,132 @@ fn tri_hash_silent_tertiary_key_change_insert_overwrite() {
         .expect("map remains valid after silent-mutation insert_overwrite");
 }
 
+fn assert_panic_message(f: impl FnOnce(), expected: &str) {
+    let payload = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f))
+        .expect_err("the armed flip should trigger a fail-fast panic");
+    let message = payload
+        .downcast_ref::<&str>()
+        .expect("fail-fast panics carry a static string payload");
+    assert_eq!(*message, expected);
+}
+
+#[derive(Debug)]
+struct FlipItem {
+    id: u32,
+    flip_id: u32,
+    flip_after: Cell<Option<u32>>,
+}
+
+impl FlipItem {
+    fn plain(id: u32) -> Self {
+        FlipItem { id, flip_id: id, flip_after: Cell::new(None) }
+    }
+
+    fn flips_after_first_key_call(id: u32, flip_id: u32) -> Self {
+        FlipItem { id, flip_id, flip_after: Cell::new(Some(1)) }
+    }
+
+    fn current_key(&self) -> u32 {
+        match self.flip_after.get() {
+            None => self.id,
+            Some(0) => self.flip_id,
+            Some(n) => {
+                self.flip_after.set(Some(n - 1));
+                self.id
+            }
+        }
+    }
+}
+
+impl IdHashItem for FlipItem {
+    type Key<'a> = u32;
+    fn key(&self) -> Self::Key<'_> {
+        self.current_key()
+    }
+    id_upcast!();
+}
+
+impl IdOrdItem for FlipItem {
+    type Key<'a> = u32;
+    fn key(&self) -> Self::Key<'_> {
+        self.current_key()
+    }
+    id_upcast!();
+}
+
+#[test]
+fn id_hash_flip_key_insert_overwrite_panics() {
+    let mut map: IdHashMap<FlipItem, _> = IdHashMap::with_capacity_and_hasher(
+        8,
+        foldhash::fast::FixedState::with_seed(0),
+    );
+    for id in 0..8u32 {
+        map.insert_unique(FlipItem::plain(id)).unwrap();
+    }
+
+    assert_panic_message(
+        || {
+            map.insert_overwrite(FlipItem::flips_after_first_key_call(99, 42));
+        },
+        "key hashes do not match",
+    );
+
+    assert_eq!(map.len(), 8);
+    assert!(map.get(&99u32).is_none());
+    assert!(map.get(&42u32).is_none());
+    map.validate(ValidateCompact::NonCompact)
+        .expect("map remains valid after a flip-key insert_overwrite panic");
+}
+
+#[test]
+fn id_ord_flip_key_insert_overwrite_panics() {
+    let mut map = IdOrdMap::<FlipItem>::new();
+    for id in 0..8u32 {
+        map.insert_unique(FlipItem::plain(id)).unwrap();
+    }
+
+    assert_panic_message(
+        || {
+            map.insert_overwrite(FlipItem::flips_after_first_key_call(99, 3));
+        },
+        "key already present in map",
+    );
+
+    assert_eq!(map.len(), 8);
+    assert!(map.get(&99u32).is_none());
+    assert_eq!(map.get(&3u32).expect("original id 3 remains").id, 3);
+    map.validate(ValidateCompact::NonCompact, ValidateChaos::No)
+        .expect("map remains valid after a flip-key insert_overwrite panic");
+}
+
+#[test]
+#[should_panic = "key already present in map"]
+fn id_ord_flip_key_from_iter_unique_existing_key_panics() {
+    let _ = IdOrdMap::<FlipItem>::from_iter_unique([
+        FlipItem::plain(0),
+        FlipItem::plain(1),
+        FlipItem::plain(2),
+        FlipItem::flips_after_first_key_call(99, 1),
+    ]);
+}
+
+#[test]
+fn id_ord_flip_key_from_iter_unique_inserts_under_flipped_key() {
+    let map = IdOrdMap::<FlipItem>::from_iter_unique([
+        FlipItem::plain(0),
+        FlipItem::plain(1),
+        FlipItem::plain(2),
+        FlipItem::flips_after_first_key_call(99, 100),
+    ])
+    .expect("from_iter_unique inserts the flipped key without a duplicate");
+
+    assert_eq!(map.len(), 4);
+    assert!(map.get(&99u32).is_none());
+    assert_eq!(map.get(&100u32).expect("item stored under flipped key").id, 99);
+    map.validate(ValidateCompact::NonCompact, ValidateChaos::No)
+        .expect("map remains valid after a flip-key from_iter_unique");
+}
+
 #[test]
 fn lying_ord_remove_must_not_remove_wrong_btree_entry() {
     // Build a 64-element map under an honest `Ord`. The B-tree is sorted by
