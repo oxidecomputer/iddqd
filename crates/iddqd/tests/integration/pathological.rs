@@ -1015,19 +1015,6 @@ fn tri_hash_silent_tertiary_key_change_insert_overwrite() {
         .expect("map remains valid after silent-mutation insert_overwrite");
 }
 
-fn assert_panic_message(f: impl FnOnce(), expected: &str) {
-    let payload = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f))
-        .expect_err("the armed flip should trigger a fail-fast panic");
-    let message: &str = if let Some(s) = payload.downcast_ref::<&str>() {
-        s
-    } else if let Some(s) = payload.downcast_ref::<String>() {
-        s.as_str()
-    } else {
-        panic!("fail-fast panics carry a string payload");
-    };
-    assert_eq!(message, expected);
-}
-
 #[derive(Debug)]
 struct FlipItem {
     id: u32,
@@ -1073,7 +1060,7 @@ impl IdOrdItem for FlipItem {
 }
 
 #[test]
-fn id_hash_flip_key_insert_overwrite_panics() {
+fn id_hash_flip_key_insert_overwrite_inserts_under_stale_hash() {
     let mut map: IdHashMap<FlipItem, _> = IdHashMap::with_capacity_and_hasher(
         8,
         foldhash::fast::FixedState::with_seed(0),
@@ -1082,50 +1069,65 @@ fn id_hash_flip_key_insert_overwrite_panics() {
         map.insert_unique(FlipItem::plain(id)).unwrap();
     }
 
-    assert_panic_message(
-        || {
-            map.insert_overwrite(FlipItem::flips_after_first_key_call(99, 42));
-        },
-        "key hashes do not match",
-    );
+    let displaced =
+        map.insert_overwrite(FlipItem::flips_after_first_key_call(99, 42));
+    assert!(displaced.is_none(), "the flipped key displaced nothing");
 
-    assert_eq!(map.len(), 8);
+    assert_eq!(map.len(), 9);
     assert!(map.get(&99u32).is_none());
     assert!(map.get(&42u32).is_none());
-    map.validate(ValidateCompact::NonCompact)
-        .expect("map remains valid after a flip-key insert_overwrite panic");
+    assert!(
+        map.validate(ValidateCompact::NonCompact).is_err(),
+        "the stale-hash item is unfindable by its current key"
+    );
+    map.validate_structural(ValidateCompact::NonCompact).expect(
+        "map remains structurally sound after a flip-key insert_overwrite",
+    );
 }
 
 #[test]
-fn id_ord_flip_key_insert_overwrite_panics() {
+fn id_ord_flip_key_insert_overwrite_inserts_logical_duplicate() {
     let mut map = IdOrdMap::<FlipItem>::new();
     for id in 0..8u32 {
         map.insert_unique(FlipItem::plain(id)).unwrap();
     }
 
-    assert_panic_message(
-        || {
-            map.insert_overwrite(FlipItem::flips_after_first_key_call(99, 3));
-        },
-        "key already present in map",
-    );
+    let displaced =
+        map.insert_overwrite(FlipItem::flips_after_first_key_call(99, 3));
+    assert!(displaced.is_none(), "the flipped key displaced nothing");
 
-    assert_eq!(map.len(), 8);
+    assert_eq!(map.len(), 9);
     assert!(map.get(&99u32).is_none());
-    assert_eq!(map.get(&3u32).expect("original id 3 remains").id, 3);
-    map.validate(ValidateCompact::NonCompact, ValidateChaos::No)
-        .expect("map remains valid after a flip-key insert_overwrite panic");
+    assert_eq!(map.get(&3u32).expect("key 3 still resolves").id, 3);
+    assert!(
+        map.validate(ValidateCompact::NonCompact, ValidateChaos::No).is_err(),
+        "one of the two key-3 items is unfindable"
+    );
+    map.validate_structural(ValidateCompact::NonCompact).expect(
+        "map remains structurally sound after a flip-key insert_overwrite",
+    );
 }
 
 #[test]
-#[should_panic = "key already present in map"]
-fn id_ord_flip_key_from_iter_unique_existing_key_panics() {
-    let _ = IdOrdMap::<FlipItem>::from_iter_unique([
+fn id_ord_flip_key_from_iter_unique_inserts_logical_duplicate() {
+    let map = IdOrdMap::<FlipItem>::from_iter_unique([
         FlipItem::plain(0),
         FlipItem::plain(1),
         FlipItem::plain(2),
         FlipItem::flips_after_first_key_call(99, 1),
-    ]);
+    ])
+    .expect("the flip evades the duplicate check");
+
+    assert_eq!(map.len(), 4);
+    assert!(map.get(&99u32).is_none());
+    assert_eq!(map.get(&1u32).expect("key 1 still resolves").id, 1);
+    assert!(
+        map.validate(ValidateCompact::NonCompact, ValidateChaos::No).is_err(),
+        "one of the two key-1 items is unfindable"
+    );
+    map.validate_structural(ValidateCompact::NonCompact).expect(
+        "map remains structurally sound after a flip-key from_iter_unique",
+    );
 }
 
 #[test]

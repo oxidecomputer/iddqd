@@ -59,10 +59,8 @@ fn lawful_roundtrip() {
 ///
 /// # Notes
 ///
-/// We don't cover `insert_overwrite` here since that will panic under
-/// adversarial input. We could catch the panic here but that slows down
-/// proof execution tremendously. So instead, we have a separate proof
-/// for `insert_overwrite` below.
+/// We don't cover `insert_overwrite` here to avoid bloating up the runtime too
+/// much. We have a separate proof for `insert_overwrite` below.
 ///
 /// We only call `validate_structural`, not full `validate`, since under
 /// an adversarial hash we can end up not finding items by their key. Only
@@ -100,26 +98,24 @@ fn lawless_operation_sequence() {
     std::mem::forget(map);
 }
 
-/// `insert_overwrite` is structurally sound under a lawless hash, whether it
-/// completes or trips iddqd's own `is_same_hash` fail-fast guard (which the
-/// lawless hash induces by disagreeing on the recomputed key hash).
+/// Prove that `insert_overwrite` is structurally sound under a lawless hash,
+/// whichever arm the lawless lookup steers it into:
 ///
-/// Note that this isn't proving panic safety in general, only that an
-/// `insert_overwrite` panic leaves the map in a valid state. For panic safety,
-/// see the corresponding model-based tests.
+/// * If the existing item is found, an in-place replace.
+/// * If the item is not found, an unchecked insert that reuses the vacant entry's
+///   stored hash.
+///
+/// This proof shows that in either case, the map is still structurally valid.
 #[test]
-fn overwrite_fail_fast_is_sound() {
+fn lawless_overwrite_is_sound() {
     let mut map: IdHashMap<Item, LawlessHasher> =
         IdHashMap::with_hasher(LawlessHasher);
     let k = nondet_u8_below(2);
 
     let _ = map.insert_unique(Item { key: k, value: 0 });
-    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let _ = map.insert_overwrite(Item { key: k, value: 1 });
-    }));
+    let _ = map.insert_overwrite(Item { key: k, value: 1 });
 
-    map.validate_structural(ValidateCompact::NonCompact).expect(
-        "sound whether insert_overwrite completed or fail-fast panicked",
-    );
+    map.validate_structural(ValidateCompact::NonCompact)
+        .expect("sound whether the overwrite replaced or duplicated");
     std::mem::forget(map);
 }

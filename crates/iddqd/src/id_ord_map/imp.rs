@@ -112,7 +112,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
 
     /// Creates a new `IdOrdMap` with the given capacity.
     ///
-    /// The capacity will be used to initialize the underlying hash table.
+    /// The capacity will be used to initialize the underlying item set.
     ///
     /// # Examples
     ///
@@ -223,7 +223,8 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     pub fn from_iter_unique<I: IntoIterator<Item = T>>(
         iter: I,
     ) -> Result<Self, DuplicateItem<T>> {
-        let mut map = IdOrdMap::new();
+        let iter = iter.into_iter();
+        let mut map = IdOrdMap::with_capacity(iter.size_hint().0);
         for value in iter {
             // It would be nice to use insert_unique here, but that would return
             // a `DuplicateItem<T, &T>`, which can only be converted into an
@@ -237,8 +238,8 @@ impl<T: IdOrdItem> IdOrdMap<T> {
                         vec![duplicate],
                     ));
                 }
-                Entry::Vacant(entry) => {
-                    entry.insert_ref(value);
+                Entry::Vacant(_) => {
+                    map.insert_known_unique_impl(value);
                 }
             }
         }
@@ -756,13 +757,15 @@ impl<T: IdOrdItem> IdOrdMap<T> {
         // mutation. A panic in user code therefore leaves the map in its
         // pre-call state.
         //
-        // We use `vacant.insert_entry` rather than `vacant.insert` to avoid
-        // creating a `RefMut`, which would (unnecessarily) re-hash the key
-        // after the mutation when that `RefMut` is created.
+        // In the vacant case, the Entry lookup has already established that the
+        // key is unique. Calling `vacant.insert_entry` would route back through
+        // `insert_unique_impl` and check for duplicates again, while
+        // `vacant.insert` would also create a `RefMut` and hash the key. We use
+        // `insert_known_unique_impl` instead, which avoids both.
         match self.entry(value.key()) {
             Entry::Occupied(mut occupied) => Some(occupied.insert(value)),
-            Entry::Vacant(vacant) => {
-                vacant.insert_entry(value);
+            Entry::Vacant(_) => {
+                self.insert_known_unique_impl(value);
                 None
             }
         }
@@ -1491,10 +1494,20 @@ impl<T: IdOrdItem> IdOrdMap<T> {
             }
         }
 
-        // Take the `GrowHandle` after the read-only duplicate check but before
-        // the B-tree mutation. With this approach, a panic from
-        // `assert_can_grow` (which means that the map is full) cannot leave the
-        // B-tree referencing an index that was never assigned to an item.
+        Ok(self.insert_known_unique_impl(value))
+    }
+
+    /// Inserts `value` without checking for duplicates.
+    ///
+    /// Only call this after verifying that `value` does not conflict with any
+    /// existing item. Callers that haven't determined uniqueness should use
+    /// `insert_unique_impl` instead.
+    fn insert_known_unique_impl(&mut self, value: T) -> ItemIndex {
+        // Take the `GrowHandle` now, after the caller has checked that `value`
+        // does not conflict with any existing item, but before the B-tree
+        // mutation. With this approach, a panic from `assert_can_grow` (which
+        // means that the map is full) cannot leave the B-tree referencing an
+        // index that was never assigned to an item.
         //
         // The handle holds `&mut self.items` and is consumed by
         // `GrowHandle::insert`, so the type system enforces that we cannot
@@ -1528,7 +1541,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
         grow_handle.insert(value);
         insert.insert();
 
-        Ok(next_index)
+        next_index
     }
 
     pub(super) fn remove_by_index(
