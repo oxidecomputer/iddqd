@@ -207,6 +207,489 @@ fn test_insert_unique() {
     assert_eq!(map.remove_unique(&v5.key1(), &v5.key2(), &v5.key3()), Some(v5));
 }
 
+// Focused example-based coverage for the TriHashMap Entry API.
+// These tests complement the Hegel state-machine tests below by checking
+// public API shape, per-key non-unique mapping, deterministic visit order,
+// laziness, and panic-before-mutation behavior.
+mod entry_api {
+    use super::{
+        Alloc, HashBuilder, SimpleItem, TestItem, TestKey1, TestKey2, TestKey3,
+    };
+    use iddqd::{
+        TriHashItem, TriHashMap, internal::ValidateCompact, tri_hash_map,
+        tri_upcast,
+    };
+    use iddqd_test_utils::test_item::ItemMap;
+
+    #[test]
+    fn entry_vacant_insert_and_insert_entry() {
+        let mut map = TriHashMap::<SimpleItem, HashBuilder, Alloc>::make_new();
+
+        match map.entry(1, 'a', 1) {
+            tri_hash_map::Entry::Vacant(entry) => {
+                let inserted =
+                    entry.insert(SimpleItem { key1: 1, key2: 'a', key3: 1 });
+                assert_eq!(inserted.key1, 1);
+            }
+            tri_hash_map::Entry::Occupied(_) => panic!("expected vacant"),
+        }
+        assert_eq!(map.len(), 1);
+
+        match map.entry(2, 'b', 2) {
+            tri_hash_map::Entry::Vacant(entry) => {
+                let occupied = entry.insert_entry(SimpleItem {
+                    key1: 2,
+                    key2: 'b',
+                    key3: 2,
+                });
+                assert!(occupied.is_unique());
+                assert_eq!(occupied.into_ref().as_unique().unwrap().key1, 2);
+            }
+            tri_hash_map::Entry::Occupied(_) => panic!("expected vacant"),
+        }
+    }
+
+    #[test]
+    fn entry_classifies_unique_partial_and_mixed_lookups() {
+        let mut map = TriHashMap::<SimpleItem, HashBuilder, Alloc>::make_new();
+        map.insert_unique(SimpleItem { key1: 1, key2: 'a', key3: 1 }).unwrap();
+        map.insert_unique(SimpleItem { key1: 2, key2: 'b', key3: 2 }).unwrap();
+        map.insert_unique(SimpleItem { key1: 3, key2: 'c', key3: 3 }).unwrap();
+
+        match map.entry(1, 'a', 1) {
+            tri_hash_map::Entry::Occupied(entry) => assert!(entry.is_unique()),
+            tri_hash_map::Entry::Vacant(_) => panic!("expected occupied"),
+        }
+        for (key1, key2, key3) in [
+            (1, 'a', 9),
+            (1, 'z', 1),
+            (9, 'a', 1),
+            (1, 'a', 2),
+            (1, 'b', 1),
+            (1, 'b', 3),
+        ] {
+            match map.entry(key1, key2, key3) {
+                tri_hash_map::Entry::Occupied(entry) => {
+                    assert!(entry.is_non_unique())
+                }
+                tri_hash_map::Entry::Vacant(_) => panic!("expected occupied"),
+            }
+        }
+    }
+
+    #[test]
+    fn entry_shared_access_preserves_mapping_and_distinct_order() {
+        let mut map = TriHashMap::<TestItem, HashBuilder, Alloc>::make_new();
+
+        let a = TestItem::new(1, 'a', "x", "a");
+        let b = TestItem::new(2, 'b', "y", "b");
+        let c = TestItem::new(3, 'c', "z", "c");
+
+        map.insert_unique(a.clone()).unwrap();
+        map.insert_unique(b.clone()).unwrap();
+        map.insert_unique(c.clone()).unwrap();
+
+        for (keys, expected_by_key, expected_visit_order) in [
+            // A / A / B: key1 and key2 match A, key3 matches B.
+            ((1, 'a', "y"), [Some(&a), Some(&a), Some(&b)], vec![&a, &b]),
+            // A / A / None: key1 and key2 match A, key3 is absent.
+            ((1, 'a', "missing"), [Some(&a), Some(&a), None], vec![&a]),
+            // A / None / A: key1 and key3 match A, key2 is absent.
+            ((1, 'q', "x"), [Some(&a), None, Some(&a)], vec![&a]),
+            // None / A / A: key2 and key3 match A, key1 is absent.
+            ((99, 'a', "x"), [None, Some(&a), Some(&a)], vec![&a]),
+            // A / B / A: repeated non-unique mapping promised by the PR body.
+            ((1, 'b', "x"), [Some(&a), Some(&b), Some(&a)], vec![&a, &b]),
+            // A / B / C: all three keys match distinct items.
+            ((1, 'b', "z"), [Some(&a), Some(&b), Some(&c)], vec![&a, &b, &c]),
+            // None / B / A: visit order is first-key-hit order, not item order.
+            ((99, 'b', "x"), [None, Some(&b), Some(&a)], vec![&b, &a]),
+        ] {
+            let entry_ref = match map.entry(
+                TestKey1::new(&keys.0),
+                TestKey2::new(keys.1),
+                TestKey3::new(keys.2),
+            ) {
+                tri_hash_map::Entry::Occupied(entry) => {
+                    assert!(entry.is_non_unique());
+                    entry.into_ref()
+                }
+                tri_hash_map::Entry::Vacant(_) => panic!("expected occupied"),
+            };
+
+            assert!(entry_ref.is_non_unique());
+            assert_eq!(entry_ref.by_key1(), expected_by_key[0]);
+            assert_eq!(entry_ref.by_key2(), expected_by_key[1]);
+            assert_eq!(entry_ref.by_key3(), expected_by_key[2]);
+
+            let tri_hash_map::OccupiedEntryRef::NonUnique(non_unique) =
+                entry_ref
+            else {
+                panic!("expected non-unique entry ref");
+            };
+
+            assert_eq!(non_unique.by_key1(), expected_by_key[0]);
+            assert_eq!(non_unique.by_key2(), expected_by_key[1]);
+            assert_eq!(non_unique.by_key3(), expected_by_key[2]);
+
+            let mut seen = Vec::new();
+            non_unique.for_each(|item| seen.push(item));
+            assert_eq!(seen, expected_visit_order);
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "key1 hashes do not match")]
+    fn entry_vacant_insert_panics_on_mismatched_key1() {
+        let mut map = TriHashMap::<SimpleItem, HashBuilder, Alloc>::make_new();
+        let entry = match map.entry(1, 'a', 1) {
+            tri_hash_map::Entry::Vacant(entry) => entry,
+            tri_hash_map::Entry::Occupied(_) => panic!("expected vacant"),
+        };
+        entry.insert(SimpleItem { key1: 2, key2: 'a', key3: 1 });
+    }
+
+    #[test]
+    #[should_panic(expected = "key1 hashes do not match")]
+    fn entry_vacant_insert_entry_panics_on_mismatched_key1() {
+        let mut map = TriHashMap::<SimpleItem, HashBuilder, Alloc>::make_new();
+        let entry = match map.entry(1, 'a', 1) {
+            tri_hash_map::Entry::Vacant(entry) => entry,
+            tri_hash_map::Entry::Occupied(_) => panic!("expected vacant"),
+        };
+        entry.insert_entry(SimpleItem { key1: 2, key2: 'a', key3: 1 });
+    }
+
+    #[test]
+    #[should_panic(expected = "key2 hashes do not match")]
+    fn entry_vacant_insert_panics_on_mismatched_key2() {
+        let mut map = TriHashMap::<SimpleItem, HashBuilder, Alloc>::make_new();
+        let entry = match map.entry(1, 'a', 1) {
+            tri_hash_map::Entry::Vacant(entry) => entry,
+            tri_hash_map::Entry::Occupied(_) => panic!("expected vacant"),
+        };
+        entry.insert(SimpleItem { key1: 1, key2: 'b', key3: 1 });
+    }
+
+    #[test]
+    #[should_panic(expected = "key2 hashes do not match")]
+    fn entry_vacant_insert_entry_panics_on_mismatched_key2() {
+        let mut map = TriHashMap::<SimpleItem, HashBuilder, Alloc>::make_new();
+        let entry = match map.entry(1, 'a', 1) {
+            tri_hash_map::Entry::Vacant(entry) => entry,
+            tri_hash_map::Entry::Occupied(_) => panic!("expected vacant"),
+        };
+        entry.insert_entry(SimpleItem { key1: 1, key2: 'b', key3: 1 });
+    }
+
+    #[test]
+    #[should_panic(expected = "key3 hashes do not match")]
+    fn entry_vacant_insert_panics_on_mismatched_key3() {
+        let mut map = TriHashMap::<SimpleItem, HashBuilder, Alloc>::make_new();
+        let entry = match map.entry(1, 'a', 1) {
+            tri_hash_map::Entry::Vacant(entry) => entry,
+            tri_hash_map::Entry::Occupied(_) => panic!("expected vacant"),
+        };
+        entry.insert(SimpleItem { key1: 1, key2: 'a', key3: 2 });
+    }
+
+    #[test]
+    #[should_panic(expected = "key3 hashes do not match")]
+    fn entry_vacant_insert_entry_panics_on_mismatched_key3() {
+        let mut map = TriHashMap::<SimpleItem, HashBuilder, Alloc>::make_new();
+        let entry = match map.entry(1, 'a', 1) {
+            tri_hash_map::Entry::Vacant(entry) => entry,
+            tri_hash_map::Entry::Occupied(_) => panic!("expected vacant"),
+        };
+        entry.insert_entry(SimpleItem { key1: 1, key2: 'a', key3: 2 });
+    }
+
+    #[derive(Clone, Debug)]
+    struct EntryMutItem {
+        key1: u32,
+        key2: char,
+        key3: u8,
+        value: &'static str,
+    }
+
+    impl TriHashItem for EntryMutItem {
+        type K1<'a> = u32;
+        type K2<'a> = char;
+        type K3<'a> = u8;
+
+        fn key1(&self) -> Self::K1<'_> {
+            self.key1
+        }
+        fn key2(&self) -> Self::K2<'_> {
+            self.key2
+        }
+        fn key3(&self) -> Self::K3<'_> {
+            self.key3
+        }
+        tri_upcast!();
+    }
+
+    fn entry_mut_map() -> TriHashMap<EntryMutItem, HashBuilder, Alloc> {
+        let mut map =
+            TriHashMap::<EntryMutItem, HashBuilder, Alloc>::make_new();
+        map.insert_unique(EntryMutItem {
+            key1: 1,
+            key2: 'a',
+            key3: 1,
+            value: "A",
+        })
+        .unwrap();
+        map.insert_unique(EntryMutItem {
+            key1: 2,
+            key2: 'b',
+            key3: 2,
+            value: "B",
+        })
+        .unwrap();
+        map.insert_unique(EntryMutItem {
+            key1: 3,
+            key2: 'c',
+            key3: 3,
+            value: "C",
+        })
+        .unwrap();
+        map
+    }
+
+    fn removed_values(items: Vec<EntryMutItem>) -> Vec<&'static str> {
+        items.into_iter().map(|item| item.value).collect()
+    }
+
+    #[test]
+    fn entry_mut_unique_and_non_unique_accessors_preserve_mapping() {
+        let mut map = entry_mut_map();
+        match map.entry(1, 'a', 1) {
+            tri_hash_map::Entry::Occupied(mut entry) => {
+                let mut view = entry.get_mut();
+                assert!(view.is_unique());
+                view.as_unique().unwrap().value = "unique";
+            }
+            tri_hash_map::Entry::Vacant(_) => panic!("expected occupied"),
+        }
+        assert_eq!(map.get1(&1).unwrap().value, "unique");
+
+        for (keys, expected) in [
+            ((1, 'a', 9), [Some("A"), Some("A"), None]),
+            ((1, 'z', 1), [Some("A"), None, Some("A")]),
+            ((9, 'a', 1), [None, Some("A"), Some("A")]),
+            ((1, 'a', 2), [Some("A"), Some("A"), Some("B")]),
+            ((1, 'b', 1), [Some("A"), Some("B"), Some("A")]),
+            ((1, 'b', 3), [Some("A"), Some("B"), Some("C")]),
+        ] {
+            let mut map = entry_mut_map();
+            match map.entry(keys.0, keys.1, keys.2) {
+                tri_hash_map::Entry::Occupied(mut entry) => {
+                    let mut view = entry.get_mut();
+                    assert!(view.is_non_unique());
+                    assert_eq!(
+                        view.by_key1().map(|item| item.value),
+                        expected[0]
+                    );
+                    assert_eq!(
+                        view.by_key2().map(|item| item.value),
+                        expected[1]
+                    );
+                    assert_eq!(
+                        view.by_key3().map(|item| item.value),
+                        expected[2]
+                    );
+                }
+                tri_hash_map::Entry::Vacant(_) => panic!("expected occupied"),
+            }
+        }
+    }
+
+    #[test]
+    fn entry_mut_sequential_overlapping_access_and_for_each_order() {
+        let mut map = entry_mut_map();
+        match map.entry(1, 'a', 9) {
+            tri_hash_map::Entry::Occupied(mut entry) => {
+                let mut view = entry.get_mut();
+                view.by_key1().unwrap().value = "first";
+                view.by_key2().unwrap().value = "second";
+                assert!(view.by_key3().is_none());
+                let mut seen = Vec::new();
+                view.for_each(|mut item| {
+                    seen.push(item.value);
+                    item.value = "done";
+                });
+                assert_eq!(seen, vec!["second"]);
+            }
+            tri_hash_map::Entry::Vacant(_) => panic!("expected occupied"),
+        }
+        assert_eq!(map.get1(&1).unwrap().value, "done");
+
+        for (keys, expected) in [
+            ((1, 'z', 1), vec!["A"]),
+            ((9, 'a', 1), vec!["A"]),
+            ((1, 'a', 2), vec!["A", "B"]),
+            ((1, 'b', 1), vec!["A", "B"]),
+            ((1, 'b', 3), vec!["A", "B", "C"]),
+        ] {
+            let mut map = entry_mut_map();
+            match map.entry(keys.0, keys.1, keys.2) {
+                tri_hash_map::Entry::Occupied(mut entry) => {
+                    let mut seen = Vec::new();
+                    entry.get_mut().for_each(|item| seen.push(item.value));
+                    assert_eq!(seen, expected);
+                }
+                tri_hash_map::Entry::Vacant(_) => panic!("expected occupied"),
+            }
+        }
+    }
+
+    #[test]
+    fn entry_and_modify_visits_distinct_occupied_items_only() {
+        let mut map = entry_mut_map();
+        map.entry(1, 'a', 9).and_modify(|mut item| item.value = "AA");
+        assert_eq!(map.get1(&1).unwrap().value, "AA");
+
+        map.entry(1, 'a', 2).and_modify(|mut item| {
+            item.value = match item.value {
+                "AA" => "A2",
+                "B" => "B2",
+                other => other,
+            };
+        });
+        assert_eq!(map.get1(&1).unwrap().value, "A2");
+        assert_eq!(map.get1(&2).unwrap().value, "B2");
+
+        let mut seen = Vec::new();
+        map.entry(1, 'b', 3).and_modify(|item| seen.push(item.value));
+        assert_eq!(seen, vec!["A2", "B2", "C"]);
+
+        map.entry(9, 'z', 9).and_modify(|mut item| item.value = "vacant");
+        assert_eq!(map.len(), 3);
+        assert!(map.get1(&9).is_none());
+    }
+
+    #[test]
+    fn entry_remove_returns_first_key_hit_order_and_removes_once() {
+        for (keys, expected) in [
+            ((1, 'a', 1), vec!["A"]),
+            ((1, 'a', 9), vec!["A"]),
+            ((1, 'z', 1), vec!["A"]),
+            ((9, 'a', 1), vec!["A"]),
+            ((1, 'a', 2), vec!["A", "B"]),
+            ((1, 'b', 1), vec!["A", "B"]),
+            ((1, 'b', 3), vec!["A", "B", "C"]),
+            ((9, 'b', 1), vec!["B", "A"]),
+        ] {
+            let mut map = entry_mut_map();
+            let removed = match map.entry(keys.0, keys.1, keys.2) {
+                tri_hash_map::Entry::Occupied(entry) => entry.remove(),
+                tri_hash_map::Entry::Vacant(_) => panic!("expected occupied"),
+            };
+            assert_eq!(removed_values(removed), expected);
+            assert!(map.validate(ValidateCompact::NonCompact).is_ok());
+        }
+    }
+
+    #[test]
+    fn entry_insert_replaces_first_key_hit_order_and_becomes_unique() {
+        for (keys, expected) in [
+            ((1, 'a', 1), vec!["A"]),
+            ((1, 'a', 9), vec!["A"]),
+            ((1, 'z', 1), vec!["A"]),
+            ((9, 'a', 1), vec!["A"]),
+            ((1, 'a', 2), vec!["A", "B"]),
+            ((1, 'b', 1), vec!["A", "B"]),
+            ((1, 'b', 3), vec!["A", "B", "C"]),
+            ((9, 'b', 1), vec!["B", "A"]),
+        ] {
+            let mut map = entry_mut_map();
+            {
+                let mut entry = match map.entry(keys.0, keys.1, keys.2) {
+                    tri_hash_map::Entry::Occupied(entry) => entry,
+                    tri_hash_map::Entry::Vacant(_) => {
+                        panic!("expected occupied")
+                    }
+                };
+                let removed = entry.insert(EntryMutItem {
+                    key1: keys.0,
+                    key2: keys.1,
+                    key3: keys.2,
+                    value: "R",
+                });
+                assert_eq!(removed_values(removed), expected);
+                assert!(entry.is_unique());
+                assert_eq!(entry.get().as_unique().unwrap().value, "R");
+            }
+            assert_eq!(map.get1(&keys.0).unwrap().value, "R");
+            assert_eq!(map.get2(&keys.1).unwrap().value, "R");
+            assert_eq!(map.get3(&keys.2).unwrap().value, "R");
+            assert!(map.validate(ValidateCompact::NonCompact).is_ok());
+        }
+    }
+
+    #[test]
+    fn entry_or_insert_only_inserts_vacant_and_or_insert_with_is_lazy() {
+        let mut map = entry_mut_map();
+        let mut inserted = map.entry(4, 'd', 4).or_insert(EntryMutItem {
+            key1: 4,
+            key2: 'd',
+            key3: 4,
+            value: "D",
+        });
+        assert_eq!(inserted.as_unique().unwrap().value, "D");
+        drop(inserted);
+        assert_eq!(map.len(), 4);
+
+        for (keys, is_unique) in [
+            ((1, 'a', 1), true),
+            ((1, 'a', 9), false),
+            ((1, 'z', 1), false),
+            ((9, 'a', 1), false),
+            ((1, 'a', 2), false),
+            ((1, 'b', 1), false),
+            ((1, 'b', 3), false),
+        ] {
+            let before = map.len();
+            let view = map.entry(keys.0, keys.1, keys.2).or_insert_with(|| {
+                panic!("or_insert_with called for occupied entry")
+            });
+
+            assert_eq!(view.is_unique(), is_unique);
+            assert_eq!(view.is_non_unique(), !is_unique);
+
+            drop(view);
+            assert_eq!(map.len(), before);
+        }
+    }
+
+    #[test]
+    fn entry_insert_panics_before_mutating_map() {
+        for bad in [
+            EntryMutItem { key1: 9, key2: 'a', key3: 2, value: "bad-k1" },
+            EntryMutItem { key1: 1, key2: 'z', key3: 2, value: "bad-k2" },
+            EntryMutItem { key1: 1, key2: 'a', key3: 9, value: "bad-k3" },
+            EntryMutItem { key1: 1, key2: 'a', key3: 1, value: "bad-dup" },
+        ] {
+            let mut map = entry_mut_map();
+            let result =
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    let mut entry = match map.entry(1, 'a', 2) {
+                        tri_hash_map::Entry::Occupied(entry) => entry,
+                        tri_hash_map::Entry::Vacant(_) => {
+                            panic!("expected occupied")
+                        }
+                    };
+                    entry.insert(bad);
+                }));
+            assert!(result.is_err());
+            assert_eq!(map.len(), 3);
+            assert_eq!(map.get1(&1).unwrap().value, "A");
+            assert_eq!(map.get1(&2).unwrap().value, "B");
+            assert!(map.validate(ValidateCompact::NonCompact).is_ok());
+        }
+    }
+}
+
 // Test that the unsafe block within RefMut doesn't trip up miri.
 #[test]
 fn test_ref_mut_aliasing() {
@@ -326,6 +809,54 @@ impl TriHashMapMachine {
         assert_eq!(
             map_dups, naive_dups,
             "map and naive map should agree on insert_overwrite dups"
+        );
+        self.check_valid(CompactnessChange::NoLongerCompact);
+    }
+
+    #[rule]
+    fn entry_insert_overwrite(&mut self, tc: TestCase) {
+        let (key1, key2, key3) = draw_lookup_keys123(&tc, &self.naive);
+        let value = tc.draw(gs::text());
+        let item = TestItem::new(key1, key2, key3, value);
+
+        let map_res = match self.map.entry(
+            TestKey1::new(&item.key1),
+            TestKey2::new(item.key2),
+            TestKey3::new(&item.key3),
+        ) {
+            tri_hash_map::Entry::Occupied(mut entry) => {
+                Some(entry.insert(item.clone()))
+            }
+            tri_hash_map::Entry::Vacant(_) => None,
+        };
+
+        let naive_res = self.naive.entry_insert_overwrite123(item);
+
+        assert_eq!(
+            map_res, naive_res,
+            "map and naive map should agree on Entry::insert removed items"
+        );
+        self.check_valid(CompactnessChange::NoLongerCompact);
+    }
+
+    #[rule]
+    fn entry_remove(&mut self, tc: TestCase) {
+        let (key1, key2, key3) = draw_lookup_keys123(&tc, &self.naive);
+
+        let map_res = match self.map.entry(
+            TestKey1::new(&key1),
+            TestKey2::new(key2),
+            TestKey3::new(&key3),
+        ) {
+            tri_hash_map::Entry::Occupied(entry) => entry.remove(),
+            tri_hash_map::Entry::Vacant(_) => Vec::new(),
+        };
+
+        let naive_res = self.naive.entry_remove123(key1, key2, &key3);
+
+        assert_eq!(
+            map_res, naive_res,
+            "map and naive map should agree on Entry::remove items"
         );
         self.check_valid(CompactnessChange::NoLongerCompact);
     }

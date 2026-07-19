@@ -13,6 +13,7 @@ use crate::{
         ItemIndex,
         alloc::{Allocator, Global, global_alloc},
         borrow::DormantMutRef,
+        entry::EntryLookup,
         fmt_utils::StrDisplayAsDebug,
         hash_table,
         item_set::ItemSet,
@@ -1918,8 +1919,8 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
             (index1, index2)
         };
 
-        match (index1, index2) {
-            (Some(index1), Some(index2)) if index1 == index2 => {
+        match EntryIndexes::classify(index1, index2) {
+            EntryLookup::Unique(index) => {
                 // The item is already in the map.
                 drop(key1);
                 Entry::Occupied(
@@ -1927,24 +1928,24 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
                     unsafe {
                         OccupiedEntry::new(
                             dormant_map,
-                            EntryIndexes::Unique(index1),
+                            EntryIndexes::Unique(index),
                         )
                     },
                 )
             }
-            (None, None) => {
+            EntryLookup::Vacant => {
                 let hashes = map.tables.make_hashes::<T>(&key1, &key2);
                 Entry::Vacant(
                     // SAFETY: `map` is not used after this point.
                     unsafe { VacantEntry::new(dormant_map, hashes) },
                 )
             }
-            (index1, index2) => Entry::Occupied(
+            EntryLookup::NonUnique(indexes) => Entry::Occupied(
                 // SAFETY: `map` is not used after this point.
                 unsafe {
                     OccupiedEntry::new(
                         dormant_map,
-                        EntryIndexes::NonUnique { index1, index2 },
+                        EntryIndexes::from_non_unique(indexes),
                     )
                 },
             ),

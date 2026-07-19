@@ -194,6 +194,84 @@ impl NaiveMap {
         &self.items
     }
 
+    /// Removes and returns every item covered by a `TriHashMap` entry keyed on
+    /// `(key1, key2, key3)`, i.e. every distinct item matching `key1`, `key2`,
+    /// or `key3`.
+    ///
+    /// Mirrors `tri_hash_map::OccupiedEntry::remove`. The returned items are in
+    /// first-key-hit order.
+    pub fn entry_remove123(
+        &mut self,
+        key1: u8,
+        key2: char,
+        key3: &str,
+    ) -> Vec<TestItem> {
+        fn push_unique(indexes: &mut Vec<usize>, index: Option<usize>) {
+            if let Some(index) = index {
+                if !indexes.contains(&index) {
+                    indexes.push(index);
+                }
+            }
+        }
+
+        let mut key_order = Vec::new();
+
+        push_unique(
+            &mut key_order,
+            self.items.iter().position(|e| e.key1 == key1),
+        );
+        push_unique(
+            &mut key_order,
+            self.items.iter().position(|e| e.key2 == key2),
+        );
+        push_unique(
+            &mut key_order,
+            self.items.iter().position(|e| e.key3 == key3),
+        );
+
+        let mut remove_order = key_order.clone();
+        remove_order.sort_unstable_by(|a, b| b.cmp(a));
+
+        let mut removed = Vec::with_capacity(remove_order.len());
+        for index in remove_order {
+            removed.push((index, self.items.remove(index)));
+        }
+
+        key_order
+            .into_iter()
+            .map(|index| {
+                let removed_index = removed
+                    .iter()
+                    .position(|(removed_index, _)| *removed_index == index)
+                    .expect("index was removed");
+                removed.swap_remove(removed_index).1
+            })
+            .collect()
+    }
+
+    /// Mirrors the test harness behavior for
+    /// `TriHashMap::entry(...).Occupied(...).insert(...)`.
+    ///
+    /// Returns `None` for a vacant entry and does not insert. Returns
+    /// `Some(removed)` for an occupied entry, where `removed` is in
+    /// first-key-hit order.
+    pub fn entry_insert_overwrite123(
+        &mut self,
+        item: TestItem,
+    ) -> Option<Vec<TestItem>> {
+        let occupied = self.get1(item.key1).is_some()
+            || self.get2(item.key2).is_some()
+            || self.get3(&item.key3).is_some();
+
+        if !occupied {
+            return None;
+        }
+
+        let removed = self.entry_remove123(item.key1, item.key2, &item.key3);
+        self.items.push(item);
+        Some(removed)
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = &TestItem> {
         self.items.iter()
     }
