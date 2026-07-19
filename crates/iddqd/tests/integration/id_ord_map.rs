@@ -193,6 +193,28 @@ fn test_insert_unique() {
     assert_eq!(*e2, v1);
 }
 
+#[test]
+fn from_iter_unique_duplicate_key_reports_error() {
+    let existing = TestItem::new(1, 'a', "x", "first");
+    let new_item = TestItem::new(1, 'c', "z", "dup");
+    let items = [
+        existing.clone(),
+        TestItem::new(2, 'b', "y", "second"),
+        new_item.clone(),
+    ];
+
+    let error = IdOrdMap::<TestItem>::from_iter_unique(items).unwrap_err();
+    assert_eq!(error.new_item(), &new_item);
+    assert_eq!(error.duplicates(), &[existing]);
+}
+
+#[test]
+fn from_iter_unique_empty_is_ok() {
+    let map = IdOrdMap::<TestItem>::from_iter_unique(Vec::new())
+        .expect("empty iterator yields an empty map");
+    assert!(map.is_empty());
+}
+
 // Test that the unsafe block within RefMut doesn't trip up miri.
 #[test]
 fn test_ref_mut_aliasing() {
