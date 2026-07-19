@@ -92,10 +92,8 @@ fn lawful_roundtrip() {
 /// We only exercise `remove1` -- `remove2` and `remove3` are symmetric, and we
 /// want to keep the proofs fast enough to run in CI.
 ///
-/// We don't cover `insert_overwrite` here since that will panic under
-/// adversarial input. We could catch the panic here but that slows down
-/// proof execution tremendously. So instead, we have a separate proof
-/// for `insert_overwrite` below.
+/// We don't cover `insert_overwrite` here to avoid bloating up the runtime too
+/// much. We have a separate proof for `insert_overwrite` below.
 ///
 /// We only call `validate_structural`, not full `validate`, since under
 /// an adversarial hash we can end up not finding items by their key. Only
@@ -142,13 +140,8 @@ fn lawless_operation_sequence() {
     std::mem::forget(map);
 }
 
-/// `insert_overwrite` is structurally sound under a lawless hash, whether it
-/// completes (displacing up to three conflicting items) or trips iddqd's own
-/// `is_same_hash` fail-fast guard. **Not** a general panic-safety claim —
-/// arbitrary user-code panics mid-operation are the fault-injection
-/// `proptest_panic_ops` tests' domain.
 #[test]
-fn overwrite_fail_fast_is_sound() {
+fn lawless_overwrite_is_sound() {
     let mut map: TriHashMap<TriItem, LawlessHasher> =
         TriHashMap::with_hasher(LawlessHasher);
     let k1 = nondet_u8_below(SEQ_KEYS);
@@ -157,17 +150,15 @@ fn overwrite_fail_fast_is_sound() {
 
     let _ =
         map.insert_unique(TriItem { key1: k1, key2: k2, key3: k3, value: 0 });
-    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let _ = map.insert_overwrite(TriItem {
-            key1: k1,
-            key2: k2,
-            key3: k3,
-            value: 1,
-        });
-    }));
+    let _ = map.insert_overwrite(TriItem {
+        key1: k1,
+        key2: k2,
+        key3: k3,
+        value: 1,
+    });
 
     map.validate_structural(ValidateCompact::NonCompact).expect(
-        "sound whether insert_overwrite completed or fail-fast panicked",
+        "sound whether the overwrite displaced the old item or duplicated it",
     );
     std::mem::forget(map);
 }

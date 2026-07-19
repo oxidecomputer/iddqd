@@ -74,7 +74,7 @@ lib_proof!(item_set_remove_then_insert_reuses_freed_slot);
 test_module!(id_hash_map {
     lawful_roundtrip,
     lawless_operation_sequence,
-    overwrite_fail_fast_is_sound,
+    lawless_overwrite_is_sound,
 });
 
 test_module!(id_ord_map {
@@ -86,11 +86,11 @@ test_module!(id_ord_map {
 test_module!(bi_hash_map {
     lawful_roundtrip,
     lawless_operation_sequence,
-    overwrite_fail_fast_is_sound,
+    lawless_overwrite_is_sound,
 });
 
 test_module!(tri_hash_map {
     lawful_roundtrip,
     lawless_operation_sequence,
-    overwrite_fail_fast_is_sound,
+    lawless_overwrite_is_sound,
 });
