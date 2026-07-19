@@ -133,6 +133,21 @@ impl<'a, T: IdHashItem, S: Clone + BuildHasher, A: Allocator>
         map.get_by_index_mut(index).expect("index is known to be valid")
     }
 
+    /// Sets the entry to a new value without checking for duplicates or
+    /// recomputing its key hash.
+    ///
+    /// Only call this on a vacant entry obtained from `value.key()`. Unlike
+    /// `insert`, this method does not validate the hash or recheck uniqueness.
+    #[inline]
+    pub(super) fn insert_known_unique(self, value: T) {
+        // SAFETY: The safety assumption behind `Self::new` guarantees that the
+        // original reference to the map is not used at this point.
+        let map = unsafe { self.map.awaken() };
+        map.tables.key_to_item.reserve(1);
+        let next_index = map.items.assert_can_grow().insert(value);
+        map.tables.key_to_item.insert_prehashed_unchecked(self.hash, next_index);
+    }
+
     /// Sets the value of the entry, and returns an `OccupiedEntry`.
     #[inline]
     pub fn insert_entry(mut self, value: T) -> OccupiedEntry<'a, T, S, A> {
