@@ -134,10 +134,12 @@ fn lawful_roundtrip() {
 ///
 /// # Notes
 ///
-/// We don't cover `insert_overwrite` here since that will panic under
-/// adversarial input. We could catch the panic here but that slows down
-/// proof execution tremendously. So instead, we have a separate proof
-/// for `insert_overwrite` below.
+/// We don't cover `insert_overwrite` here since its occupied arm can still
+/// panic under a lawless `Ord` (`replace_at_index`'s key-equality check,
+/// reached because `LawlessKey`'s `Eq` delegates to the lawless `cmp`). We
+/// could catch the panic here but that slows down proof execution
+/// tremendously. So instead, we have a separate proof for
+/// `insert_overwrite` below.
 ///
 /// We only call `validate_structural`, not full `validate`, since under
 /// an adversarial `Ord` we can end up not finding items by their key. Only
@@ -174,12 +176,22 @@ fn lawless_operation_sequence() {
     std::mem::forget(map);
 }
 
-/// `insert_overwrite` is structurally sound under a lawless `Ord`, whether it
-/// completes or trips a fail-fast guard.
+/// Prove that `insert_overwrite` is structurally sound under a lawless
+/// `Ord`, whichever arm the lawless lookup steers it into:
+///
+/// * If an existing item is found, an in-place replace. This arm can still
+///   fail fast: `replace_at_index` re-checks key equality, and
+///   `LawlessKey`'s `Eq` delegates to the lawless `cmp`. This is why this
+///   proof keeps `catch_unwind` while the hash-map proofs (whose key `Eq`
+///   is lawful) dropped it.
+/// * If no item is found, an unchecked insert that may create a logical
+///   duplicate. This arm no longer panics, but note that the B-tree
+///   comparator's index tiebreaker keeps the two entries structurally distinct
+///   (so structural soundness is preserved).
 ///
 /// Note that this isn't proving panic safety in general, only that an
-/// `insert_overwrite` panic leaves the map in a valid state. For panic safety,
-/// see the corresponding model-based tests.
+/// `insert_overwrite` panic leaves the map in a valid state. For panic
+/// safety, see the corresponding model-based tests.
 #[test]
 fn overwrite_fail_fast_is_sound() {
     let mut map: IdOrdMap<LawlessItem> = IdOrdMap::new();
