@@ -1086,6 +1086,29 @@ fn id_hash_flip_key_insert_overwrite_inserts_under_stale_hash() {
 }
 
 #[test]
+fn id_hash_flip_key_from_iter_unique_inserts_under_stale_hash() {
+    let map =
+        IdHashMap::<FlipItem, foldhash::fast::FixedState>::from_iter_unique([
+            FlipItem::plain(0),
+            FlipItem::plain(1),
+            FlipItem::plain(2),
+            FlipItem::flips_after_first_key_call(99, 42),
+        ])
+        .expect("the flip evades the duplicate check");
+
+    assert_eq!(map.len(), 4);
+    assert!(map.get(&99u32).is_none());
+    assert!(map.get(&42u32).is_none());
+    assert!(
+        map.validate(ValidateCompact::NonCompact).is_err(),
+        "the stale-hash item is unfindable by its current key"
+    );
+    map.validate_structural(ValidateCompact::NonCompact).expect(
+        "map remains structurally sound after a flip-key from_iter_unique",
+    );
+}
+
+#[test]
 fn id_ord_flip_key_insert_overwrite_inserts_logical_duplicate() {
     let mut map = IdOrdMap::<FlipItem>::new();
     for id in 0..8u32 {
