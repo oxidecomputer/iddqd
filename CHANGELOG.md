@@ -7,6 +7,12 @@
 
 - MSRV updated to Rust 1.86.
 
+### Fixed
+
+- The `insert_overwrite` path on `IdHashMap` no longer aborts when an allocation fails, matching the existing guarantee on `BiHashMap` and `TriHashMap`. Instead, it results in a catchable panic. (The map is left unchanged, similar to `BiHashMap` and `TriHashMap`.)
+
+  Note that `BTreeMap::insert_overwrite` will abort on allocation failure, because it calls into `std` which doesn't have an equivalent to `HashMap::try_reserve`.
+
 ## [0.4.5] - 2026-06-17
 
 ### Added

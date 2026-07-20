@@ -1466,6 +1466,17 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
         Ok(next_index)
     }
 
+    pub(super) fn try_reserve_insert_overwrite_commit(
+        &mut self,
+    ) -> Result<(), crate::errors::TryReserveError> {
+        self.items.try_reserve(1)?;
+        self.tables
+            .key_to_item
+            .try_reserve(1)
+            .map_err(crate::errors::TryReserveError::from_hashbrown)?;
+        Ok(())
+    }
+
     pub(super) fn remove_by_index(
         &mut self,
         remove_index: ItemIndex,
