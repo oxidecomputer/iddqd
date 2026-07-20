@@ -585,6 +585,110 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Clone + Allocator>
     }
 }
 
+impl<T: TriHashItem, S: Default + Clone + BuildHasher, A: Allocator + Default>
+    TriHashMap<T, S, A>
+{
+    /// Creates a new `TriHashMap` from an iterator of values, rejecting
+    /// duplicates.
+    ///
+    /// A value conflicts when any of its keys matches an already-inserted
+    /// item, so a single value can collide with up to three distinct
+    /// existing items (one per key). On the first conflict, this returns a
+    /// [`DuplicateItem`] error containing the new value and every
+    /// conflicting item.
+    ///
+    /// To overwrite duplicates instead, use [`TriHashMap::from_iter`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{TriHashItem, TriHashMap, tri_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Item {
+    ///     id: u32,
+    ///     name: String,
+    ///     email: String,
+    /// }
+    ///
+    /// impl TriHashItem for Item {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///     type K3<'a> = &'a str;
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.name
+    ///     }
+    ///     fn key3(&self) -> Self::K3<'_> {
+    ///         &self.email
+    ///     }
+    ///     tri_upcast!();
+    /// }
+    ///
+    /// let items = vec![
+    ///     Item {
+    ///         id: 1,
+    ///         name: "foo".to_string(),
+    ///         email: "foo@example.com".to_string(),
+    ///     },
+    ///     Item {
+    ///         id: 2,
+    ///         name: "bar".to_string(),
+    ///         email: "bar@example.com".to_string(),
+    ///     },
+    /// ];
+    ///
+    /// // Successful creation with unique keys.
+    /// let map: TriHashMap<Item> = TriHashMap::from_iter_unique(items).unwrap();
+    /// assert_eq!(map.len(), 2);
+    /// assert_eq!(map.get1(&1).unwrap().name, "foo");
+    ///
+    /// // Error with a duplicate key3.
+    /// let duplicate_items = vec![
+    ///     Item {
+    ///         id: 1,
+    ///         name: "foo".to_string(),
+    ///         email: "dup@example.com".to_string(),
+    ///     },
+    ///     Item {
+    ///         id: 2,
+    ///         name: "bar".to_string(),
+    ///         email: "dup@example.com".to_string(),
+    ///     },
+    /// ];
+    /// assert!(TriHashMap::<Item>::from_iter_unique(duplicate_items).is_err());
+    /// # }
+    /// ```
+    pub fn from_iter_unique<I: IntoIterator<Item = T>>(
+        iter: I,
+    ) -> Result<Self, DuplicateItem<T>> {
+        let iter = iter.into_iter();
+        let mut map = Self::default();
+        map.reserve(iter.size_hint().0);
+        for value in iter {
+            if let Err((value, indexes)) =
+                map.insert_unique_or_dup_indexes(value)
+            {
+                // Removal produces owned duplicates, so that we don't need to
+                // specify `T: Clone` here.
+                let duplicates = indexes
+                    .iter()
+                    .map(|ix| {
+                        map.remove_by_index(*ix)
+                            .expect("duplicate index is present")
+                    })
+                    .collect();
+                return Err(DuplicateItem::__internal_new(value, duplicates));
+            }
+        }
+
+        Ok(map)
+    }
+}
+
 impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     /// Returns the hasher.
     #[cfg(feature = "daft")]
@@ -1489,6 +1593,19 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
         &mut self,
         value: T,
     ) -> Result<(), DuplicateItem<T, &T>> {
+        match self.insert_unique_or_dup_indexes(value) {
+            Ok(_) => Ok(()),
+            Err((value, duplicates)) => Err(DuplicateItem::__internal_new(
+                value,
+                duplicates.iter().map(|ix| &self.items[*ix]).collect(),
+            )),
+        }
+    }
+
+    fn insert_unique_or_dup_indexes(
+        &mut self,
+        value: T,
+    ) -> Result<ItemIndex, (T, BTreeSet<ItemIndex>)> {
         let mut duplicates = BTreeSet::new();
 
         // Check for duplicates *before* inserting the new item, because we
@@ -1522,10 +1639,7 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
         };
 
         if !duplicates.is_empty() {
-            return Err(DuplicateItem::__internal_new(
-                value,
-                duplicates.iter().map(|ix| &self.items[*ix]).collect(),
-            ));
+            return Err((value, duplicates));
         }
 
         let next_index = self.items.assert_can_grow().insert(value);
@@ -1535,7 +1649,7 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
         e2.unwrap().insert(next_index);
         e3.unwrap().insert(next_index);
 
-        Ok(())
+        Ok(next_index)
     }
 
     /// Returns true if the map contains a single item that matches all three
@@ -3190,6 +3304,8 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> IntoIterator
 
 /// The `FromIterator` implementation for `TriHashMap` overwrites duplicate
 /// items.
+///
+/// To reject duplicates, use [`TriHashMap::from_iter_unique`].
 ///
 /// # Examples
 ///

@@ -3,6 +3,12 @@
 <!-- next-header -->
 ## Unreleased - ReleaseDate
 
+### Added
+
+- `from_iter_unique` constructors on `IdHashMap`, `BiHashMap`, and `TriHashMap`, matching the existing `IdOrdMap::from_iter_unique`. These build a map from an iterator and, rather than overwriting, return an error on the first item that conflicts with an already-inserted one.
+
+  Because a value in a `BiHashMap` or `TriHashMap` can conflict on more than one key at once, the error reports every distinct existing item it collides with (up to two for `BiHashMap` and up to three for `TriHashMap`).
+
 ### Changed
 
 - MSRV updated to Rust 1.86.

@@ -548,14 +548,23 @@ fn proptest_permutation_eq(tc: TestCase) {
 
     let mut map1 = TriHashMap::<TestItem, HashBuilder, Alloc>::make_new();
     let mut map2 = TriHashMap::<TestItem, HashBuilder, Alloc>::make_new();
-    for item in set {
+    for item in set.clone() {
         map1.insert_unique(item).expect("set is deduplicated");
     }
-    for item in set2 {
+    for item in set2.clone() {
         map2.insert_unique(item).expect("set is deduplicated");
     }
 
     assert_eq_props(&map1, &map2);
+
+    let map3 =
+        TriHashMap::<TestItem, HashBuilder, Alloc>::from_iter_unique(set)
+            .unwrap();
+    let map4 =
+        TriHashMap::<TestItem, HashBuilder, Alloc>::from_iter_unique(set2)
+            .unwrap();
+    assert_eq_props(&map1, &map3);
+    assert_eq_props(&map3, &map4);
 }
 
 // Test various conditions for non-equality.
@@ -630,6 +639,104 @@ fn test_permutation_eq_examples() {
         map2.insert_unique(TestItem::new(1, 'b', "y", "x")).unwrap();
         assert_ne_props(&map1, &map2);
     }
+}
+
+#[test]
+fn from_iter_unique_empty_is_ok() {
+    let map = TriHashMap::<TestItem, HashBuilder, Alloc>::from_iter_unique(
+        Vec::new(),
+    )
+    .expect("empty iterator yields an empty map");
+    assert!(map.is_empty());
+}
+
+#[test]
+fn from_iter_unique_success_matches_insert_unique() {
+    let items = [
+        TestItem::new(1, 'a', "x", "first"),
+        TestItem::new(2, 'b', "y", "second"),
+        TestItem::new(3, 'c', "z", "third"),
+    ];
+
+    let map = TriHashMap::<TestItem, HashBuilder, Alloc>::from_iter_unique(
+        items.clone(),
+    )
+    .expect("unique keys build a map");
+
+    let mut expected = TriHashMap::<TestItem, HashBuilder, Alloc>::make_new();
+    for item in items {
+        expected.insert_unique(item).expect("items are unique");
+    }
+
+    assert_eq_props(&map, &expected);
+}
+
+#[test]
+fn from_iter_unique_duplicate_key1_reports_error() {
+    let existing = TestItem::new(1, 'a', "x", "first");
+    let new_item = TestItem::new(1, 'z', "zz", "dup");
+    let items = [existing.clone(), new_item.clone()];
+
+    let error =
+        TriHashMap::<TestItem, HashBuilder, Alloc>::from_iter_unique(items)
+            .unwrap_err();
+    assert_eq!(error.new_item(), &new_item);
+    assert_eq!(error.duplicates(), &[existing]);
+}
+
+#[test]
+fn from_iter_unique_duplicate_key2_reports_error() {
+    let existing = TestItem::new(1, 'a', "x", "first");
+    let new_item = TestItem::new(9, 'a', "zz", "dup");
+    let items = [existing.clone(), new_item.clone()];
+
+    let error =
+        TriHashMap::<TestItem, HashBuilder, Alloc>::from_iter_unique(items)
+            .unwrap_err();
+    assert_eq!(error.new_item(), &new_item);
+    assert_eq!(error.duplicates(), &[existing]);
+}
+
+#[test]
+fn from_iter_unique_duplicate_key3_reports_error() {
+    let existing = TestItem::new(1, 'a', "x", "first");
+    let new_item = TestItem::new(9, 'z', "x", "dup");
+    let items = [existing.clone(), new_item.clone()];
+
+    let error =
+        TriHashMap::<TestItem, HashBuilder, Alloc>::from_iter_unique(items)
+            .unwrap_err();
+    assert_eq!(error.new_item(), &new_item);
+    assert_eq!(error.duplicates(), &[existing]);
+}
+
+#[test]
+fn from_iter_unique_all_keys_match_one_item_reports_single_duplicate() {
+    let existing = TestItem::new(1, 'a', "x", "first");
+    let other = TestItem::new(2, 'b', "y", "second");
+    let new_item = TestItem::new(1, 'a', "x", "dup");
+    let items = [existing.clone(), other, new_item.clone()];
+
+    let error =
+        TriHashMap::<TestItem, HashBuilder, Alloc>::from_iter_unique(items)
+            .unwrap_err();
+    assert_eq!(error.new_item(), &new_item);
+    assert_eq!(error.duplicates(), &[existing]);
+}
+
+#[test]
+fn from_iter_unique_keys_match_distinct_items_reports_all() {
+    let a = TestItem::new(1, 'a', "xa", "a");
+    let b = TestItem::new(2, 'b', "xb", "b");
+    let c = TestItem::new(3, 'c', "xc", "c");
+    let new_item = TestItem::new(1, 'b', "xc", "dup");
+    let items = [a.clone(), b.clone(), c.clone(), new_item.clone()];
+
+    let error =
+        TriHashMap::<TestItem, HashBuilder, Alloc>::from_iter_unique(items)
+            .unwrap_err();
+    assert_eq!(error.new_item(), &new_item);
+    assert_eq!(error.duplicates(), &[a, b, c]);
 }
 
 #[test]

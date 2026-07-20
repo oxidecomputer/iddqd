@@ -176,6 +176,52 @@ fn test_extend() {
     assert_eq!(map.get(&TestKey1::new(&2)).unwrap().value, "w");
 }
 
+#[test]
+fn from_iter_unique_duplicate_key_reports_error() {
+    let existing = TestItem::new(1, 'a', "x", "first");
+    let new_item = TestItem::new(1, 'c', "z", "dup");
+    let items = [
+        existing.clone(),
+        TestItem::new(2, 'b', "y", "second"),
+        new_item.clone(),
+    ];
+
+    let error =
+        IdHashMap::<TestItem, HashBuilder, Alloc>::from_iter_unique(items)
+            .unwrap_err();
+    assert_eq!(error.new_item(), &new_item);
+    assert_eq!(error.duplicates(), &[existing]);
+}
+
+#[test]
+fn from_iter_unique_empty_is_ok() {
+    let map =
+        IdHashMap::<TestItem, HashBuilder, Alloc>::from_iter_unique(Vec::new())
+            .expect("empty iterator yields an empty map");
+    assert!(map.is_empty());
+}
+
+#[test]
+fn from_iter_unique_success_matches_insert_unique() {
+    let items = [
+        TestItem::new(1, 'a', "x", "first"),
+        TestItem::new(2, 'b', "y", "second"),
+        TestItem::new(3, 'c', "z", "third"),
+    ];
+
+    let map = IdHashMap::<TestItem, HashBuilder, Alloc>::from_iter_unique(
+        items.clone(),
+    )
+    .expect("unique keys build a map");
+
+    let mut expected = IdHashMap::<TestItem, HashBuilder, Alloc>::make_new();
+    for item in items {
+        expected.insert_unique(item).expect("items are unique");
+    }
+
+    assert_eq_props(&map, &expected);
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum CompactnessChange {
     /// The operation makes the map non-compact.
@@ -424,14 +470,22 @@ fn proptest_permutation_eq(tc: TestCase) {
 
     let mut map1 = IdHashMap::<TestItem, HashBuilder, Alloc>::make_new();
     let mut map2 = IdHashMap::<TestItem, HashBuilder, Alloc>::make_new();
-    for item in set {
+    for item in set.clone() {
         map1.insert_unique(item).expect("set is deduplicated");
     }
-    for item in set2 {
+    for item in set2.clone() {
         map2.insert_unique(item).expect("set is deduplicated");
     }
 
     assert_eq_props(&map1, &map2);
+
+    let map3 = IdHashMap::<TestItem, HashBuilder, Alloc>::from_iter_unique(set)
+        .unwrap();
+    let map4 =
+        IdHashMap::<TestItem, HashBuilder, Alloc>::from_iter_unique(set2)
+            .unwrap();
+    assert_eq_props(&map1, &map3);
+    assert_eq_props(&map3, &map4);
 }
 
 // Test various conditions for non-equality.

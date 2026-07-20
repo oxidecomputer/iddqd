@@ -417,6 +417,81 @@ impl<T: IdHashItem, S: BuildHasher, A: Clone + Allocator> IdHashMap<T, S, A> {
     }
 }
 
+impl<T: IdHashItem, S: Default + Clone + BuildHasher, A: Allocator + Default>
+    IdHashMap<T, S, A>
+{
+    /// Creates a new `IdHashMap` from an iterator of values, rejecting
+    /// duplicates.
+    ///
+    /// To overwrite duplicates instead, use [`IdHashMap::from_iter`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{IdHashItem, IdHashMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, Hash)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdHashItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let items = vec![
+    ///     Item { id: "foo".to_string(), value: 42 },
+    ///     Item { id: "bar".to_string(), value: 99 },
+    /// ];
+    ///
+    /// // Successful creation with unique keys.
+    /// let map: IdHashMap<Item> = IdHashMap::from_iter_unique(items).unwrap();
+    /// assert_eq!(map.len(), 2);
+    /// assert_eq!(map.get("foo").unwrap().value, 42);
+    ///
+    /// // Error with duplicate keys.
+    /// let duplicate_items = vec![
+    ///     Item { id: "foo".to_string(), value: 42 },
+    ///     Item { id: "foo".to_string(), value: 99 },
+    /// ];
+    /// assert!(IdHashMap::<Item>::from_iter_unique(duplicate_items).is_err());
+    /// # }
+    /// ```
+    pub fn from_iter_unique<I: IntoIterator<Item = T>>(
+        iter: I,
+    ) -> Result<Self, DuplicateItem<T>> {
+        let iter = iter.into_iter();
+        let mut map = Self::default();
+        map.reserve(iter.size_hint().0);
+        for value in iter {
+            // It would be nice to use insert_unique here, but that would return
+            // a `DuplicateItem<T, &T>`, which can only be converted into an
+            // owned value if T: Clone. Doing this via the Entry API means we
+            // can return a `DuplicateItem<T>` without requiring T to be Clone.
+            match map.entry(value.key()) {
+                Entry::Occupied(entry) => {
+                    let duplicate = entry.remove();
+                    return Err(DuplicateItem::__internal_new(
+                        value,
+                        vec![duplicate],
+                    ));
+                }
+                Entry::Vacant(entry) => {
+                    entry.insert_known_unique(value);
+                }
+            }
+        }
+
+        Ok(map)
+    }
+}
+
 impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
     #[cfg(feature = "daft")]
     pub(crate) fn hasher(&self) -> &S {
@@ -1815,6 +1890,8 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IntoIterator
 
 /// The `FromIterator` implementation for `IdHashMap` overwrites duplicate
 /// items.
+///
+/// To reject duplicates, use [`IdHashMap::from_iter_unique`].
 ///
 /// # Examples
 ///

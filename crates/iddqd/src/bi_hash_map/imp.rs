@@ -540,6 +540,91 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Clone + Allocator>
     }
 }
 
+impl<T: BiHashItem, S: Default + Clone + BuildHasher, A: Allocator + Default>
+    BiHashMap<T, S, A>
+{
+    /// Creates a new `BiHashMap` from an iterator of values, rejecting
+    /// duplicates.
+    ///
+    /// A value conflicts when either of its keys matches an
+    /// already-inserted item, so a single value can collide with up to two
+    /// distinct existing items (one per key). On the first conflict, this
+    /// returns a [`DuplicateItem`] error containing the new value and every
+    /// conflicting item.
+    ///
+    /// To overwrite duplicates instead, use [`BiHashMap::from_iter`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{BiHashItem, BiHashMap, bi_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq)]
+    /// struct Item {
+    ///     id: u32,
+    ///     name: String,
+    ///     value: i32,
+    /// }
+    ///
+    /// impl BiHashItem for Item {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.name
+    ///     }
+    ///     bi_upcast!();
+    /// }
+    ///
+    /// let items = vec![
+    ///     Item { id: 1, name: "foo".to_string(), value: 42 },
+    ///     Item { id: 2, name: "bar".to_string(), value: 99 },
+    /// ];
+    ///
+    /// // Successful creation with unique keys.
+    /// let map: BiHashMap<Item> = BiHashMap::from_iter_unique(items).unwrap();
+    /// assert_eq!(map.len(), 2);
+    /// assert_eq!(map.get1(&1).unwrap().value, 42);
+    ///
+    /// // Error with a duplicate key1.
+    /// let duplicate_items = vec![
+    ///     Item { id: 1, name: "foo".to_string(), value: 42 },
+    ///     Item { id: 1, name: "baz".to_string(), value: 99 },
+    /// ];
+    /// assert!(BiHashMap::<Item>::from_iter_unique(duplicate_items).is_err());
+    /// # }
+    /// ```
+    pub fn from_iter_unique<I: IntoIterator<Item = T>>(
+        iter: I,
+    ) -> Result<Self, DuplicateItem<T>> {
+        let iter = iter.into_iter();
+        let mut map = Self::default();
+        map.reserve(iter.size_hint().0);
+        for value in iter {
+            if let Err((value, indexes)) =
+                map.insert_unique_or_dup_indexes(value)
+            {
+                // Removal produces owned duplicates, so that we don't need to
+                // specify `T: Clone` here.
+                let duplicates = indexes
+                    .iter()
+                    .map(|ix| {
+                        map.remove_by_index(*ix)
+                            .expect("duplicate index is present")
+                    })
+                    .collect();
+                return Err(DuplicateItem::__internal_new(value, duplicates));
+            }
+        }
+
+        Ok(map)
+    }
+}
+
 impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
     /// Returns the hasher.
     #[cfg(feature = "daft")]
@@ -2303,6 +2388,19 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
         &mut self,
         value: T,
     ) -> Result<ItemIndex, DuplicateItem<T, &T>> {
+        match self.insert_unique_or_dup_indexes(value) {
+            Ok(index) => Ok(index),
+            Err((value, duplicates)) => Err(DuplicateItem::__internal_new(
+                value,
+                duplicates.iter().map(|ix| &self.items[*ix]).collect(),
+            )),
+        }
+    }
+
+    fn insert_unique_or_dup_indexes(
+        &mut self,
+        value: T,
+    ) -> Result<ItemIndex, (T, BTreeSet<ItemIndex>)> {
         let mut duplicates = BTreeSet::new();
 
         // Check for duplicates *before* inserting the new item, because we
@@ -2329,10 +2427,7 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
         };
 
         if !duplicates.is_empty() {
-            return Err(DuplicateItem::__internal_new(
-                value,
-                duplicates.iter().map(|ix| &self.items[*ix]).collect(),
-            ));
+            return Err((value, duplicates));
         }
 
         let next_index = self.items.assert_can_grow().insert(value);
@@ -2788,6 +2883,8 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> IntoIterator
 
 /// The `FromIterator` implementation for `BiHashMap` overwrites duplicate
 /// items.
+///
+/// To reject duplicates, use [`BiHashMap::from_iter_unique`].
 ///
 /// # Examples
 ///
