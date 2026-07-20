@@ -1599,4 +1599,42 @@ mod allocator_tests {
         map.validate(ValidateCompact::Compact)
             .expect("map remains valid and compact after a failed reservation");
     }
+
+    #[test]
+    fn id_hash_insert_overwrite_atomic_on_alloc_failure() {
+        let mut map: IdHashMap<_, _, FailingAlloc<Global>> =
+            IdHashMap::with_hasher_in(
+                foldhash::fast::FixedState::with_seed(0),
+                FailingAlloc(Global),
+            );
+        for id in 0..4u32 {
+            map.insert_unique(ForgettableHashItem { id }).unwrap();
+        }
+        map.shrink_to_fit();
+
+        let before: BTreeSet<u32> = map.iter().map(|item| item.id).collect();
+
+        let result = catch_panic(AssertUnwindSafe(|| {
+            with_failing_alloc(|| {
+                map.insert_overwrite(ForgettableHashItem { id: 99 })
+            })
+        }));
+        assert!(
+            result.is_none(),
+            "insert_overwrite should panic when the reservation fails"
+        );
+
+        let after: BTreeSet<u32> = map.iter().map(|item| item.id).collect();
+        assert_eq!(
+            after, before,
+            "map must be unchanged after a failed reserve"
+        );
+        assert_eq!(map.len(), 4, "len is unchanged after a failed reserve");
+        assert!(
+            map.get(&ForgettableHashKey(99)).is_none(),
+            "the new key must be absent after a failed reserve"
+        );
+        map.validate(ValidateCompact::Compact)
+            .expect("map remains valid and compact after a failed reservation");
+    }
 }

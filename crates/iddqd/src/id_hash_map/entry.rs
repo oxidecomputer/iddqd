@@ -143,7 +143,8 @@ impl<'a, T: IdHashItem, S: Clone + BuildHasher, A: Allocator>
         // SAFETY: The safety assumption behind `Self::new` guarantees that the
         // original reference to the map is not used at this point.
         let map = unsafe { self.map.awaken() };
-        map.tables.key_to_item.reserve(1);
+        map.try_reserve_insert_overwrite_commit()
+            .expect("reserved space successfully");
         let next_index = map.items.assert_can_grow().insert(value);
         map.tables
             .key_to_item
