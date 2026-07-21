@@ -3,6 +3,8 @@
 <!-- next-header -->
 ## Unreleased - ReleaseDate
 
+## [0.4.6] - 2026-07-21
+
 ### Added
 
 - `from_iter_unique` constructors on `IdHashMap`, `BiHashMap`, and `TriHashMap`, matching the existing `IdOrdMap::from_iter_unique`. These build a map from an iterator and, rather than overwriting, return an error on the first item that conflicts with an already-inserted one.
@@ -297,6 +299,7 @@ Thanks to [aatifsyed](https://github.com/aatifsyed) for your first contribution!
 Initial release.
 
 <!-- next-url -->
+[0.4.6]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.4.6
 [0.4.5]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.4.5
 [0.4.4]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.4.4
 [0.4.3]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.4.3
