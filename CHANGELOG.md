@@ -21,6 +21,10 @@
 
   Note that `BTreeMap::insert_overwrite` will abort on allocation failure, because it calls into `std` which doesn't have an equivalent to `HashMap::try_reserve`.
 
+### Other improvements
+
+- The insert paths now do fewer redundant checks for duplicates. Thanks [izuzak](https://github.com/izuzak) for your first contribution!
+
 ## [0.4.5] - 2026-06-17
 
 ### Added
