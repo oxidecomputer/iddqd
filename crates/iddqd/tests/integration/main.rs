@@ -7,6 +7,8 @@ mod id_ord_map;
 mod pathological;
 #[cfg(feature = "schemars08")]
 mod schemars_tests;
+#[cfg(all(feature = "serde", feature = "std", feature = "default-hasher"))]
+mod serde_size_hint;
 #[cfg(all(
     feature = "std",
     feature = "default-hasher",

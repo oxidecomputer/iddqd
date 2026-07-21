@@ -15,6 +15,8 @@
 
 ### Fixed
 
+- Deserialization no longer preallocates based on an unbounded size hint. Length-prefixed formats such as bincode and postcard derive their size hint from the input, so a small hostile payload claiming a huge number of elements could previously cause an excessively large allocation before any element was read. Preallocation is now capped at 1 MiB worth of items, matching what `serde` does for the standard library's collections.
+
 - The `insert_overwrite` path on `IdHashMap` no longer aborts when an allocation fails, matching the existing guarantee on `BiHashMap` and `TriHashMap`. Instead, it results in a catchable panic. (The map is left unchanged, similar to `BiHashMap` and `TriHashMap`.)
 
   Note that `BTreeMap::insert_overwrite` will abort on allocation failure, because it calls into `std` which doesn't have an equivalent to `HashMap::try_reserve`.

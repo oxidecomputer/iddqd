@@ -14,5 +14,7 @@ pub(crate) mod item_set;
 pub(crate) mod map_hash;
 #[cfg(feature = "schemars08")]
 pub(crate) mod schemars_utils;
+#[cfg(feature = "serde")]
+pub(crate) mod size_hint;
 
 pub(crate) use item_index::ItemIndex;

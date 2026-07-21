@@ -1,6 +1,9 @@
 use crate::{
     BiHashItem, BiHashMap, DefaultHashBuilder,
-    support::alloc::{Allocator, Global},
+    support::{
+        alloc::{Allocator, Global},
+        size_hint::cautious,
+    },
 };
 use core::{fmt, hash::BuildHasher, marker::PhantomData};
 use serde_core::{
@@ -193,14 +196,11 @@ where
     where
         Access: SeqAccess<'de>,
     {
-        let mut map = match seq.size_hint() {
-            Some(size) => BiHashMap::with_capacity_and_hasher_in(
-                size,
-                self.hasher,
-                self.alloc,
-            ),
-            None => BiHashMap::with_hasher_in(self.hasher, self.alloc),
-        };
+        let mut map = BiHashMap::with_capacity_and_hasher_in(
+            cautious::<T>(seq.size_hint()),
+            self.hasher,
+            self.alloc,
+        );
 
         while let Some(element) = seq.next_element()? {
             map.insert_unique(element)
@@ -217,14 +217,11 @@ where
     where
         Access: MapAccess<'de>,
     {
-        let mut map = match map_access.size_hint() {
-            Some(size) => BiHashMap::with_capacity_and_hasher_in(
-                size,
-                self.hasher,
-                self.alloc,
-            ),
-            None => BiHashMap::with_hasher_in(self.hasher, self.alloc),
-        };
+        let mut map = BiHashMap::with_capacity_and_hasher_in(
+            cautious::<T>(map_access.size_hint()),
+            self.hasher,
+            self.alloc,
+        );
 
         while let Some((_, value)) =
             map_access.next_entry::<serde_core::de::IgnoredAny, T>()?
@@ -312,14 +309,11 @@ where
     where
         Access: MapAccess<'de>,
     {
-        let mut map = match map_access.size_hint() {
-            Some(size) => BiHashMap::with_capacity_and_hasher_in(
-                size,
-                self.hasher,
-                self.alloc,
-            ),
-            None => BiHashMap::with_hasher_in(self.hasher, self.alloc),
-        };
+        let mut map = BiHashMap::with_capacity_and_hasher_in(
+            cautious::<T>(map_access.size_hint()),
+            self.hasher,
+            self.alloc,
+        );
 
         while let Some((_, value)) =
             map_access.next_entry::<serde_core::de::IgnoredAny, T>()?

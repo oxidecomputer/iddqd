@@ -1,4 +1,5 @@
 use super::{IdOrdItem, IdOrdMap};
+use crate::support::size_hint::cautious;
 use core::{fmt, marker::PhantomData};
 use serde_core::{
     Deserialize, Deserializer, Serialize, Serializer,
@@ -110,10 +111,7 @@ where
     where
         Access: SeqAccess<'de>,
     {
-        let mut map = match seq.size_hint() {
-            Some(size) => IdOrdMap::with_capacity(size),
-            None => IdOrdMap::new(),
-        };
+        let mut map = IdOrdMap::with_capacity(cautious::<T>(seq.size_hint()));
 
         while let Some(element) = seq.next_element()? {
             map.insert_unique(element)
@@ -130,7 +128,8 @@ where
     where
         Access: MapAccess<'de>,
     {
-        let mut map = IdOrdMap::new();
+        let mut map =
+            IdOrdMap::with_capacity(cautious::<T>(map_access.size_hint()));
 
         while let Some((_, value)) =
             map_access.next_entry::<serde_core::de::IgnoredAny, T>()?
@@ -203,7 +202,8 @@ where
     where
         Access: MapAccess<'de>,
     {
-        let mut map = IdOrdMap::new();
+        let mut map =
+            IdOrdMap::with_capacity(cautious::<T>(map_access.size_hint()));
 
         while let Some((_, value)) =
             map_access.next_entry::<serde_core::de::IgnoredAny, T>()?
