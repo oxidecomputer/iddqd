@@ -13,7 +13,6 @@ use crate::{
         map_hash::MapHash,
     },
 };
-use alloc::collections::BTreeSet;
 use core::{
     fmt,
     hash::{BuildHasher, Hash},
@@ -1468,8 +1467,6 @@ impl<T: IdOrdItem> IdOrdMap<T> {
         &mut self,
         value: T,
     ) -> Result<ItemIndex, DuplicateItem<T, &T>> {
-        let mut duplicates = BTreeSet::new();
-
         // Check for duplicates *before* inserting the new item, because we
         // don't want to partially insert the new item and then have to roll
         // back.
@@ -1477,19 +1474,16 @@ impl<T: IdOrdItem> IdOrdMap<T> {
         // Scope this `key` to avoid lifetime issues.
         {
             let key = value.key();
-            if let Some(index) = self
+            let duplicate: Option<ItemIndex> = self
                 .tables
                 .key_to_item
-                .find_index(&key, |index| self.items[index].key())
-            {
-                duplicates.insert(index);
-            }
+                .find_index(&key, |index| self.items[index].key());
 
-            if !duplicates.is_empty() {
+            if let Some(index) = duplicate {
                 drop(key);
                 return Err(DuplicateItem::__internal_new(
                     value,
-                    duplicates.iter().map(|ix| &self.items[*ix]).collect(),
+                    vec![&self.items[index]],
                 ));
             }
         }
