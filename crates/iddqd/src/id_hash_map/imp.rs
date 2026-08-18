@@ -15,7 +15,6 @@ use crate::{
         map_hash::MapHash,
     },
 };
-use alloc::collections::BTreeSet;
 use core::{
     fmt,
     hash::{BuildHasher, Hash},
@@ -1508,8 +1507,6 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
         &mut self,
         value: T,
     ) -> Result<ItemIndex, DuplicateItem<T, &T>> {
-        let mut duplicates = BTreeSet::new();
-
         // Check for duplicates *before* inserting the new item, because we
         // don't want to partially insert the new item and then have to roll
         // back.
@@ -1522,21 +1519,17 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
             .entry(state, key, |index| self.items[index].key())
         {
             hash_table::Entry::Occupied(slot) => {
-                duplicates.insert(slot.get());
-                None
+                let index = slot.get();
+                return Err(DuplicateItem::__internal_new(
+                    value,
+                    vec![&self.items[index]],
+                ));
             }
-            hash_table::Entry::Vacant(slot) => Some(slot),
+            hash_table::Entry::Vacant(slot) => slot,
         };
 
-        if !duplicates.is_empty() {
-            return Err(DuplicateItem::__internal_new(
-                value,
-                duplicates.iter().map(|ix| &self.items[*ix]).collect(),
-            ));
-        }
-
         let next_index = self.items.assert_can_grow().insert(value);
-        entry.unwrap().insert(next_index);
+        entry.insert(next_index);
 
         Ok(next_index)
     }
