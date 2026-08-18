@@ -1474,12 +1474,11 @@ impl<T: IdOrdItem> IdOrdMap<T> {
         // Scope this `key` to avoid lifetime issues.
         {
             let key = value.key();
-            let duplicate: Option<ItemIndex> = self
+            if let Some(index) = self
                 .tables
                 .key_to_item
-                .find_index(&key, |index| self.items[index].key());
-
-            if let Some(index) = duplicate {
+                .find_index(&key, |index| self.items[index].key())
+            {
                 drop(key);
                 return Err(DuplicateItem::__internal_new(
                     value,

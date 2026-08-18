@@ -1507,8 +1507,6 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
         &mut self,
         value: T,
     ) -> Result<ItemIndex, DuplicateItem<T, &T>> {
-        let mut duplicate: Option<ItemIndex> = None;
-
         // Check for duplicates *before* inserting the new item, because we
         // don't want to partially insert the new item and then have to roll
         // back.
@@ -1521,21 +1519,17 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
             .entry(state, key, |index| self.items[index].key())
         {
             hash_table::Entry::Occupied(slot) => {
-                duplicate = Some(slot.get());
-                None
+                let index = slot.get();
+                return Err(DuplicateItem::__internal_new(
+                    value,
+                    vec![&self.items[index]],
+                ));
             }
-            hash_table::Entry::Vacant(slot) => Some(slot),
+            hash_table::Entry::Vacant(slot) => slot,
         };
 
-        if let Some(index) = duplicate {
-            return Err(DuplicateItem::__internal_new(
-                value,
-                vec![&self.items[index]],
-            ));
-        }
-
         let next_index = self.items.assert_can_grow().insert(value);
-        entry.unwrap().insert(next_index);
+        entry.insert(next_index);
 
         Ok(next_index)
     }
