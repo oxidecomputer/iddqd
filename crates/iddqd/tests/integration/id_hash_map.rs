@@ -34,6 +34,38 @@ impl IdHashItem for SimpleItem {
 }
 
 #[test]
+fn index_by_key() {
+    let mut map = IdHashMap::<SimpleItem, HashBuilder, Alloc>::make_new();
+    map.insert_unique(SimpleItem { key: 1 }).unwrap();
+    map.insert_unique(SimpleItem { key: 20 }).unwrap();
+
+    assert_eq!(map[&1].key, 1);
+    assert_eq!(map[&20].key, 20);
+}
+
+#[test]
+fn index_borrowed_key() {
+    let mut map = IdHashMap::<BorrowedItem, HashBuilder, Alloc>::make_new();
+    map.insert_unique(BorrowedItem {
+        key1: "foo",
+        key2: Cow::Borrowed(b"foo"),
+        key3: Path::new("foo"),
+    })
+    .unwrap();
+
+    // The query type `str` is shorter-lived than the stored `&'static str`
+    // keys, which exercises the `for<'k>` bound on the `Index` impl.
+    assert_eq!(map["foo"].key1, "foo");
+}
+
+#[test]
+#[should_panic(expected = "no entry found for key")]
+fn index_missing_key_panics() {
+    let map = IdHashMap::<SimpleItem, HashBuilder, Alloc>::make_new();
+    let _ = &map[&1];
+}
+
+#[test]
 fn debug_impls() {
     let mut map = IdHashMap::<SimpleItem, HashBuilder, Alloc>::make_new();
     map.insert_unique(SimpleItem { key: 1 }).unwrap();

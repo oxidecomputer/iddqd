@@ -3,6 +3,10 @@
 <!-- next-header -->
 ## Unreleased - ReleaseDate
 
+### Added
+
+- `Index` implementations for `IdHashMap` and `IdOrdMap`, so an item can be looked up with `map[&key]` the way `std`'s `HashMap` and `BTreeMap` allow. Like those, indexing panics if the key is absent; use `get` for a non-panicking lookup.
+
 ## [0.4.6] - 2026-07-21
 
 ### Added
