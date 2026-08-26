@@ -16,6 +16,7 @@ use crate::{
 use core::{
     fmt,
     hash::{BuildHasher, Hash},
+    ops::Index,
 };
 use equivalent::{Comparable, Equivalent};
 
@@ -1736,5 +1737,54 @@ impl<T: IdOrdItem> FromIterator<T> for IdOrdMap<T> {
         let mut map = IdOrdMap::new();
         map.extend(iter);
         map
+    }
+}
+
+/// Look up an item by its key.
+///
+/// The `for<'k>` bound is required because the index operation borrows keys
+/// from items for an unnamed lifetime, so the query type has to compare against
+/// keys of any lifetime. That holds for the usual cases like `&str` keys
+/// queried with `str`.
+///
+/// # Panics
+///
+/// Panics if no item with the given key is present. Use [`IdOrdMap::get`] for a
+/// non-panicking lookup.
+///
+/// # Examples
+///
+/// ```
+/// use iddqd::{IdOrdItem, IdOrdMap, id_upcast};
+///
+/// #[derive(Debug)]
+/// struct Item {
+///     id: String,
+///     value: u32,
+/// }
+///
+/// impl IdOrdItem for Item {
+///     type Key<'a> = &'a str;
+///     fn key(&self) -> Self::Key<'_> {
+///         &self.id
+///     }
+///     id_upcast!();
+/// }
+///
+/// let mut map = IdOrdMap::new();
+/// map.insert_unique(Item { id: "foo".to_string(), value: 42 }).unwrap();
+///
+/// assert_eq!(map["foo"].value, 42);
+/// ```
+impl<T, Q> Index<&Q> for IdOrdMap<T>
+where
+    T: IdOrdItem,
+    Q: ?Sized + for<'k> Comparable<T::Key<'k>>,
+{
+    type Output = T;
+
+    #[inline]
+    fn index(&self, key: &Q) -> &T {
+        self.get(key).expect("no entry found for key")
     }
 }
