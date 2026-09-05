@@ -17,14 +17,14 @@ jobs:
       RUSTFLAGS: -D warnings
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2.8.0
         with:
           key: partition-${{ matrix.partition }}
       - name: Install just, cargo-hack, and cargo-sync-rdme
-        uses: taiki-e/install-action@v2
+        uses: taiki-e/install-action@7b8d4719ee4aaa279bdf55df38dacb9ebfe12a6c # v2
         with:
           tool: just,cargo-hack,cargo-sync-rdme
       - name: Lint (clippy)
@@ -35,7 +35,7 @@ jobs:
         run: just rustdoc
       # Pin to a specific nightly for compatibility with cargo-sync-rdme.
       - name: Install nightly toolchain for cargo-sync-rdme
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@d1031067263f94b142dd6c0ce24c5eb9d02d52a0 # master
         with:
           toolchain: nightly-2026-04-30
       - name: Regenerate readmes
@@ -56,15 +56,15 @@ jobs:
       RUSTFLAGS: -D warnings
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
-      - uses: dtolnay/rust-toolchain@master
+      - uses: dtolnay/rust-toolchain@d1031067263f94b142dd6c0ce24c5eb9d02d52a0 # master
         with:
           toolchain: ${{ matrix.rust-version }}
       - uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2.8.0
         with:
           key: partition-${{ matrix.partition }}
-      - uses: taiki-e/install-action@cargo-hack
-      - uses: taiki-e/install-action@just
-      - uses: taiki-e/install-action@nextest
+      - uses: taiki-e/install-action@a659e3f8011e8f4fe0c24f1fe7c711df3a62d1c1 # cargo-hack
+      - uses: taiki-e/install-action@0fcb49d29f9345a853257a633d34efac54f50c7a # just
+      - uses: taiki-e/install-action@ef6302df50adb496d123b03ae2b53322d688ffa1 # nextest
       - name: Build
         run: just powerset --partition ${{ matrix.partition }}/10 build
       - name: Run tests
@@ -86,15 +86,15 @@ jobs:
       RUSTFLAGS: -D warnings
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
-      - uses: dtolnay/rust-toolchain@master
+      - uses: dtolnay/rust-toolchain@d1031067263f94b142dd6c0ce24c5eb9d02d52a0 # master
         with:
           toolchain: ${{ matrix.rust-version }}
       - uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2.8.0
         with:
           key: partition-${{ matrix.partition }}-msrv
-      - uses: taiki-e/install-action@cargo-hack
-      - uses: taiki-e/install-action@just
-      - uses: taiki-e/install-action@nextest
+      - uses: taiki-e/install-action@a659e3f8011e8f4fe0c24f1fe7c711df3a62d1c1 # cargo-hack
+      - uses: taiki-e/install-action@0fcb49d29f9345a853257a633d34efac54f50c7a # just
+      - uses: taiki-e/install-action@ef6302df50adb496d123b03ae2b53322d688ffa1 # nextest
       - name: Build
         run: just powerset --partition ${{ matrix.partition }}/10 build
       # We don't run UI tests on the MSRV since compiler output varies by
@@ -118,11 +118,11 @@ jobs:
       RUSTFLAGS: -D warnings
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
-      - uses: dtolnay/rust-toolchain@master
+      - uses: dtolnay/rust-toolchain@d1031067263f94b142dd6c0ce24c5eb9d02d52a0 # master
         with:
           toolchain: ${{ matrix.rust-version }}
       - uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2.8.0
-      - uses: taiki-e/install-action@cross
+      - uses: taiki-e/install-action@a82845735191974ac374fc0472388c6df0a158ca # cross
       - name: Check
         run: cross check --target thumbv7em-none-eabi --no-default-features -p iddqd
 
@@ -153,15 +153,15 @@ jobs:
       MIRIFLAGS: ${{ matrix.miri-flags }}
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
-      - uses: dtolnay/rust-toolchain@master
+      - uses: dtolnay/rust-toolchain@d1031067263f94b142dd6c0ce24c5eb9d02d52a0 # master
         with:
           toolchain: nightly
           components: miri
       - uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2.8.0
         with:
           key: miri-${{ matrix.aliasing-model }}
-      - uses: taiki-e/install-action@cargo-hack
-      - uses: taiki-e/install-action@nextest
+      - uses: taiki-e/install-action@a659e3f8011e8f4fe0c24f1fe7c711df3a62d1c1 # cargo-hack
+      - uses: taiki-e/install-action@ef6302df50adb496d123b03ae2b53322d688ffa1 # nextest
       # Run tests for all crates containing unsafe code. Currently, that's just
       # iddqd.
       - name: Run tests
@@ -174,12 +174,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
       - uses: Swatinem/rust-cache@98c8021b550208e191a6a3145459bfc9fb29c4c0 # v2.8.0
         with:
           key: soteria
-      - uses: taiki-e/install-action@just
-      - uses: taiki-e/install-action@nextest
+      - uses: taiki-e/install-action@0fcb49d29f9345a853257a633d34efac54f50c7a # just
+      - uses: taiki-e/install-action@ef6302df50adb496d123b03ae2b53322d688ffa1 # nextest
       # Soteria publishes only a single rolling `nightly` bundle, and `cargo
       # soteria setup` always installs whatever the tag points to. The cache
       # below is mainly for speed -- it (unfortunately) doesn't provide any
