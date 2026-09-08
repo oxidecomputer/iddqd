@@ -158,13 +158,8 @@ pub struct MapLeaf<
     pub after: &'daft TriHashMap<T, S, A>,
 }
 
-impl<'a, 'daft, T: TriHashItem + fmt::Debug, S, A: Allocator> fmt::Debug
+impl<'daft, T: TriHashItem + fmt::Debug, S, A: Allocator> fmt::Debug
     for MapLeaf<'daft, T, S, A>
-where
-    T::K1<'a>: fmt::Debug,
-    T::K2<'a>: fmt::Debug,
-    T::K3<'a>: fmt::Debug,
-    T: 'a,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("MapLeaf")
@@ -301,14 +296,9 @@ impl<'daft, T: ?Sized + TriHashItem, S: Default, A: Allocator + Default> Default
     }
 }
 
-impl<'a, 'daft, T, S, A: Allocator> fmt::Debug for Diff<'daft, T, S, A>
+impl<'daft, T, S, A: Allocator> fmt::Debug for Diff<'daft, T, S, A>
 where
     T: ?Sized + TriHashItem + fmt::Debug,
-    T::K1<'a>: fmt::Debug,
-    T::K2<'a>: fmt::Debug,
-    T::K3<'a>: fmt::Debug,
-    T: 'a,
-    'daft: 'a,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Diff")

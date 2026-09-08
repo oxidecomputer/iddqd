@@ -49,11 +49,15 @@ fn debug_impls() {
     map.insert_unique(SimpleItem { key1: 10, key2: 'c' }).unwrap();
 
     assert_eq!(
-        format!("{map:?}"),
+        format!("{:?}", map.debug_with_keys()),
         // Iteration is in insertion order.
         "{{k1: 1, k2: 'a'}: SimpleItem { key1: 1, key2: 'a' }, \
           {k1: 20, k2: 'b'}: SimpleItem { key1: 20, key2: 'b' }, \
-          {k1: 10, k2: 'c'}: SimpleItem { key1: 10, key2: 'c' }}",
+          {k1: 10, k2: 'c'}: SimpleItem { key1: 10, key2: 'c' }}"
+    );
+    assert_eq!(
+        format!("{map:?}"),
+        "{SimpleItem { key1: 1, key2: 'a' }, SimpleItem { key1: 20, key2: 'b' }, SimpleItem { key1: 10, key2: 'c' }}"
     );
     assert_eq!(
         format!("{:?}", map.get1_mut(&1).unwrap()),
@@ -71,8 +75,12 @@ fn debug_impls_borrowed() {
     };
 
     assert_eq!(
-        format!("{before:?}"),
+        format!("{:?}", before.debug_with_keys()),
         r#"{{k1: "a", k2: [98, 48]}: BorrowedItem { key1: "a", key2: [98, 48], key3: "path0" }, {k1: "b", k2: [98, 49]}: BorrowedItem { key1: "b", key2: [98, 49], key3: "path1" }, {k1: "c", k2: [98, 50]}: BorrowedItem { key1: "c", key2: [98, 50], key3: "path2" }}"#
+    );
+    assert_eq!(
+        format!("{before:?}"),
+        r#"{BorrowedItem { key1: "a", key2: [98, 48], key3: "path0" }, BorrowedItem { key1: "b", key2: [98, 49], key3: "path1" }, BorrowedItem { key1: "c", key2: [98, 50], key3: "path2" }}"#
     );
 
     #[cfg(feature = "daft")]
@@ -89,7 +97,7 @@ fn debug_impls_borrowed() {
         let diff = before.diff(&after).by_unique();
         assert_eq!(
             format!("{diff:?}"),
-            r#"Diff { common: {{k1: "a", k2: [98, 48]}: IdLeaf { before: BorrowedItem { key1: "a", key2: [98, 48], key3: "path0" }, after: BorrowedItem { key1: "a", key2: [98, 48], key3: "path0" } }}, added: {{k1: "c", k2: [98, 51]}: BorrowedItem { key1: "c", key2: [98, 51], key3: "path3" }, {k1: "d", k2: [98, 52]}: BorrowedItem { key1: "d", key2: [98, 52], key3: "path4" }}, removed: {{k1: "b", k2: [98, 49]}: BorrowedItem { key1: "b", key2: [98, 49], key3: "path1" }, {k1: "c", k2: [98, 50]}: BorrowedItem { key1: "c", key2: [98, 50], key3: "path2" }} }"#
+            r#"Diff { common: {IdLeaf { before: BorrowedItem { key1: "a", key2: [98, 48], key3: "path0" }, after: BorrowedItem { key1: "a", key2: [98, 48], key3: "path0" } }}, added: {BorrowedItem { key1: "c", key2: [98, 51], key3: "path3" }, BorrowedItem { key1: "d", key2: [98, 52], key3: "path4" }}, removed: {BorrowedItem { key1: "b", key2: [98, 49], key3: "path1" }, BorrowedItem { key1: "c", key2: [98, 50], key3: "path2" }} }"#
         );
     }
 }
@@ -978,13 +986,13 @@ fn borrowed_item() {
     let keys: Vec<_> = map.iter().map(|item| item.key1()).collect();
     assert_eq!(keys, vec!["foo", "bar"]);
 
-    // Check that we can print a Debug representation, even within a function
-    // (supporting this requires a little bit of unsafe code to get the
-    // lifetimes to line up).
+    // Check that we can print a Debug representation with keys, even within
+    // a function (the key type only needs to be Debug for the borrow's
+    // lifetime).
     fn fmt_debug(
         map: &BiHashMap<BorrowedItem<'_>, HashBuilder, Alloc>,
     ) -> String {
-        format!("{map:?}")
+        format!("{:?}", map.debug_with_keys())
     }
 
     #[cfg(feature = "serde")]
@@ -1003,7 +1011,7 @@ fn borrowed_item() {
         {k1: \"bar\", k2: [98, 97, 114]}: BorrowedItem { \
         key1: \"bar\", key2: [98, 97, 114], key3: \"bar\" }}";
 
-    assert_eq!(format!("{map:?}"), DEBUG_OUTPUT);
+    assert_eq!(format!("{:?}", map.debug_with_keys()), DEBUG_OUTPUT);
     assert_eq!(fmt_debug(&map), DEBUG_OUTPUT);
 
     #[cfg(feature = "serde")]

@@ -1,0 +1,19 @@
+error[E0597]: `map` does not live long enough
+  --> tests/ui/invalid/bi_hash_debug_with_keys_static_key.rs:40:29
+   |
+38 |     let mut map = BiHashMap::new();
+   |         ------- binding `map` declared here
+39 |     map.insert_unique(Item { id: "foo".to_owned() }).unwrap();
+40 |     let _ = format!("{:?}", map.debug_with_keys());
+   |                             ^^^------------------
+   |                             |
+   |                             borrowed value does not live long enough
+   |                             argument requires that `map` is borrowed for `'static`
+41 | }
+   | - `map` dropped here while still borrowed
+   |
+note: requirement that the value outlives `'static` introduced here
+  --> src/bi_hash_map/imp.rs
+   |
+   |         T::K1<'a>: fmt::Debug,
+   |                    ^^^^^^^^^^

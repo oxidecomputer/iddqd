@@ -1,0 +1,19 @@
+error[E0597]: `map` does not live long enough
+  --> tests/ui/invalid/tri_hash_debug_with_keys_static_key.rs:45:29
+   |
+43 |     let mut map = TriHashMap::new();
+   |         ------- binding `map` declared here
+44 |     map.insert_unique(Item { id: "foo".to_owned() }).unwrap();
+45 |     let _ = format!("{:?}", map.debug_with_keys());
+   |                             ^^^------------------
+   |                             |
+   |                             borrowed value does not live long enough
+   |                             argument requires that `map` is borrowed for `'static`
+46 | }
+   | - `map` dropped here while still borrowed
+   |
+note: requirement that the value outlives `'static` introduced here
+  --> src/tri_hash_map/imp.rs
+   |
+   |         T::K1<'a>: fmt::Debug,
+   |                    ^^^^^^^^^^

@@ -1608,34 +1608,79 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
     }
 }
 
-impl<'a, T, S, A: Allocator> fmt::Debug for IdHashMap<T, S, A>
-where
-    T: IdHashItem + fmt::Debug,
-    T::Key<'a>: fmt::Debug,
-    T: 'a,
+impl<T: IdHashItem + fmt::Debug, S, A: Allocator> IdHashMap<T, S, A> {
+    /// Returns a value that formats the map as `{key: item, ...}`, in
+    /// arbitrary order.
+    ///
+    /// The [`Debug`](fmt::Debug) impl for `IdHashMap` formats items only, as
+    /// a set, and requires just `T: Debug`. This method also requires the key
+    /// type to be `Debug` for the lifetime of the borrow.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{IdHashItem, IdHashMap, id_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, Hash)]
+    /// struct Item {
+    ///     id: String,
+    ///     value: u32,
+    /// }
+    ///
+    /// impl IdHashItem for Item {
+    ///     type Key<'a> = &'a str;
+    ///     fn key(&self) -> Self::Key<'_> {
+    ///         &self.id
+    ///     }
+    ///     id_upcast!();
+    /// }
+    ///
+    /// let mut map = IdHashMap::new();
+    /// map.insert_unique(Item { id: "foo".to_string(), value: 42 }).unwrap();
+    ///
+    /// assert_eq!(
+    ///     format!("{:?}", map.debug_with_keys()),
+    ///     "{\"foo\": Item { id: \"foo\", value: 42 }}",
+    /// );
+    /// assert_eq!(format!("{map:?}"), "{Item { id: \"foo\", value: 42 }}");
+    /// # }
+    /// ```
+    pub fn debug_with_keys<'a>(&'a self) -> impl fmt::Debug + 'a
+    where
+        T::Key<'a>: fmt::Debug,
+    {
+        struct DebugWithKeys<'a, T: IdHashItem, S, A: Allocator>(
+            &'a IdHashMap<T, S, A>,
+        );
+
+        impl<'a, T, S, A> fmt::Debug for DebugWithKeys<'a, T, S, A>
+        where
+            T: IdHashItem + fmt::Debug,
+            T::Key<'a>: fmt::Debug,
+            A: Allocator,
+        {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                let mut map = f.debug_map();
+                for item in self.0.items.values() {
+                    // `self.0` is borrowed for 'a, so `item: &'a T` and the
+                    // key is `T::Key<'a>` without any lifetime extension.
+                    let key: T::Key<'a> = item.key();
+                    map.entry(&key, item);
+                }
+                map.finish()
+            }
+        }
+
+        DebugWithKeys(self)
+    }
+}
+
+impl<T: IdHashItem + fmt::Debug, S, A: Allocator> fmt::Debug
+    for IdHashMap<T, S, A>
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut map = f.debug_map();
-
-        for item in self.items.values() {
-            let key = item.key();
-
-            // SAFETY:
-            //
-            // * Lifetime extension: for a type T and two lifetime params 'a and
-            //   'b, T<'a> and T<'b> aren't guaranteed to have the same layout,
-            //   but (a) that is true today and (b) it would be shocking and
-            //   break half the Rust ecosystem if that were to change in the
-            //   future.
-            // * We only use key within the scope of this block before immediately
-            //   dropping it. In particular, map.entry calls key.fmt() without
-            //   holding a reference to it.
-            let key: T::Key<'a> =
-                unsafe { core::mem::transmute::<T::Key<'_>, T::Key<'a>>(key) };
-
-            map.entry(&key, item);
-        }
-        map.finish()
+        f.debug_set().entries(self.items.values()).finish()
     }
 }
 
