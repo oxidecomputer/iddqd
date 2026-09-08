@@ -55,6 +55,7 @@ impl<'a, T: IdOrdItem> RefMut<'a, T>
 where
     T::Key<'a>: Hash,
 {
+    #[inline]
     pub(super) fn new(
         state: foldhash::fast::FixedState,
         hash: MapHash,
@@ -86,6 +87,7 @@ impl<'a, T: IdOrdItem> Drop for RefMut<'a, T>
 where
     T::Key<'a>: Hash,
 {
+    #[inline]
     fn drop(&mut self) {
         if let Some(inner) = self.inner.take() {
             inner.into_ref();
@@ -137,6 +139,7 @@ impl<'a, T: IdOrdItem> RefMutInner<'a, T>
 where
     T::Key<'a>: Hash,
 {
+    #[inline]
     fn into_ref(self) -> &'a T {
         // Convert the `&'a mut T` into a `&'a T`, so that borrowed.key()
         // returns `T::Key<'a>`.
