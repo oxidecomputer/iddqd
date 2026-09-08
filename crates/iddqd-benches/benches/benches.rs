@@ -14,6 +14,8 @@
 //!   overhead.
 //! * `iter_mut/...` — full mutable iteration over a populated map, touching
 //!   each item. For `IdOrdMap` this creates and drops one `RefMut` per item.
+//! * `entry_or_insert/...` — pre-fill, then `entry(key).or_insert(...)` for
+//!   keys that are already present, i.e. the cost of an entry-API lookup.
 //! * `and_modify/...` — pre-fill, then `entry(key).and_modify(...)` at steady
 //!   state. For `IdOrdMap` this exercises the entry API's key-change check.
 //! * `retain/...` — pre-fill, then retain every other item. For `IdOrdMap`
@@ -743,6 +745,65 @@ fn iter_mut_id_ord_map(c: &mut Criterion) {
     group.finish();
 }
 
+// ---------- entry_or_insert ------------------------------------------------
+
+/// Pre-fill with `size` records, then run `CHURN_OPS` `or_insert` calls
+/// against existing keys, so that no insertion happens.
+fn entry_or_insert_std_btree_map(c: &mut Criterion) {
+    let mut group = c.benchmark_group("entry_or_insert/std_btree_map");
+    for &size in SIZES {
+        group.bench_with_input(
+            BenchmarkId::from_parameter(size),
+            &size,
+            |b, &size| {
+                let mut map = BTreeMap::new();
+                for i in 0..size as u32 {
+                    map.insert(i, record(i));
+                }
+                b.iter(|| {
+                    let size = size as u32;
+                    let mut sum: u64 = 0;
+                    for step in 0..CHURN_OPS as u32 {
+                        let key = step % size;
+                        let r = map.entry(key).or_insert_with(|| record(key));
+                        sum = sum.wrapping_add(r.index as u64);
+                    }
+                    sum
+                });
+            },
+        );
+    }
+    group.finish();
+}
+
+fn entry_or_insert_id_ord_map(c: &mut Criterion) {
+    let mut group = c.benchmark_group("entry_or_insert/id_ord_map");
+    for &size in SIZES {
+        group.bench_with_input(
+            BenchmarkId::from_parameter(size),
+            &size,
+            |b, &size| {
+                let mut map = IdOrdMap::new();
+                for i in 0..size as u32 {
+                    map.insert_unique(record(i)).unwrap();
+                }
+                b.iter(|| {
+                    let size = size as u32;
+                    let mut sum: u64 = 0;
+                    for step in 0..CHURN_OPS as u32 {
+                        let key = step % size;
+                        let r =
+                            map.entry(key).or_insert_with_ref(|| record(key));
+                        sum = sum.wrapping_add(r.index as u64);
+                    }
+                    sum
+                });
+            },
+        );
+    }
+    group.finish();
+}
+
 // ---------- and_modify -----------------------------------------------------
 
 /// Pre-fill with `size` records, then run `CHURN_OPS` `and_modify` calls
@@ -1249,6 +1310,8 @@ criterion_group!(
     ref_mut_id_ord_map,
     iter_mut_std_btree_map,
     iter_mut_id_ord_map,
+    entry_or_insert_std_btree_map,
+    entry_or_insert_id_ord_map,
     and_modify_std_btree_map,
     and_modify_id_ord_map,
     retain_std_btree_map,
