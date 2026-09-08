@@ -18,6 +18,8 @@
 //!   keys that are already present, i.e. the cost of an entry-API lookup.
 //! * `and_modify/...` — pre-fill, then `entry(key).and_modify(...)` at steady
 //!   state. For `IdOrdMap` this exercises the entry API's key-change check.
+//! * `insert_entry/...` — pre-fill, then remove + reinsert the same key via
+//!   `entry(key).insert_entry(...)` at steady state.
 //! * `retain/...` — pre-fill, then retain every other item. For `IdOrdMap`
 //!   this exercises the per-item key-change check on the `retain` path.
 
@@ -856,6 +858,94 @@ fn and_modify_id_ord_map(c: &mut Criterion) {
     group.finish();
 }
 
+// ---------- insert_entry ---------------------------------------------------
+
+/// Pre-fill with `size` records, then remove + reinsert `CHURN_OPS` keys
+/// through the vacant-entry API.
+///
+/// This uses `VacantEntry::insert` rather than `insert_entry`, which was
+/// stabilized in Rust 1.92 and so is newer than our MSRV. In std, `insert`
+/// is `insert_entry(value).into_mut()`, so the tree work is identical.
+fn insert_entry_std_btree_map(c: &mut Criterion) {
+    let mut group = c.benchmark_group("insert_entry/std_btree_map");
+    for &size in SIZES {
+        group.bench_with_input(
+            BenchmarkId::from_parameter(size),
+            &size,
+            |b, &size| {
+                b.iter_batched_ref(
+                    || {
+                        let mut map = BTreeMap::new();
+                        for i in 0..size as u32 {
+                            map.insert(i, record(i));
+                        }
+                        map
+                    },
+                    |map| {
+                        let size = size as u32;
+                        for step in 0..CHURN_OPS as u32 {
+                            let key = step % size;
+                            let v = map.remove(&key).unwrap();
+                            match map.entry(key) {
+                                std::collections::btree_map::Entry::Vacant(
+                                    entry,
+                                ) => {
+                                    entry.insert(v);
+                                }
+                                std::collections::btree_map::Entry::Occupied(
+                                    _,
+                                ) => unreachable!("key was just removed"),
+                            }
+                        }
+                    },
+                    // See `churn_std_btree_map` for the batch size rationale.
+                    BatchSize::NumBatches(8),
+                );
+            },
+        );
+    }
+    group.finish();
+}
+
+fn insert_entry_id_ord_map(c: &mut Criterion) {
+    let mut group = c.benchmark_group("insert_entry/id_ord_map");
+    for &size in SIZES {
+        group.bench_with_input(
+            BenchmarkId::from_parameter(size),
+            &size,
+            |b, &size| {
+                b.iter_batched_ref(
+                    || {
+                        let mut map = IdOrdMap::new();
+                        for i in 0..size as u32 {
+                            map.insert_unique(record(i)).unwrap();
+                        }
+                        map
+                    },
+                    |map| {
+                        let size = size as u32;
+                        for step in 0..CHURN_OPS as u32 {
+                            let key = step % size;
+                            let v = map.remove(&key).unwrap();
+                            match map.entry(key) {
+                                iddqd::id_ord_map::Entry::Vacant(entry) => {
+                                    entry.insert_entry(v);
+                                }
+                                iddqd::id_ord_map::Entry::Occupied(_) => {
+                                    unreachable!("key was just removed")
+                                }
+                            }
+                        }
+                    },
+                    // See `churn_id_ord_map` for the batch size rationale.
+                    BatchSize::NumBatches(8),
+                );
+            },
+        );
+    }
+    group.finish();
+}
+
 // ---------- retain ---------------------------------------------------------
 
 /// Pre-fill with `size` records, then retain every other one.
@@ -1314,6 +1404,8 @@ criterion_group!(
     entry_or_insert_id_ord_map,
     and_modify_std_btree_map,
     and_modify_id_ord_map,
+    insert_entry_std_btree_map,
+    insert_entry_id_ord_map,
     retain_std_btree_map,
     retain_id_ord_map,
 );
