@@ -7,6 +7,12 @@
 
 - The `Debug` impl for `IdHashMap` no longer requires `S: Clone + BuildHasher`, matching `BiHashMap` and `TriHashMap`.
 
+### Fixed
+
+- Fixed a soundness hole in the `serialize` functions of `IdOrdMapAsMap`, `IdHashMapAsMap`, `BiHashMapAsMap`, and `TriHashMapAsMap`. The lifetime `'a` in `T::Key<'a>: Serialize` was not tied to the borrow of the map, so a contrived scenario where a `Serialize` impl was written only for `Key<'static>` could observe a key that actually borrowed from the map.
+
+  This is a breaking change only for `Serialize` impls that exist solely for a `'static` key type. In most cases, impls are generic over the key lifetime — those are unaffected.
+
 ## [0.4.6] - 2026-07-21
 
 ### Added

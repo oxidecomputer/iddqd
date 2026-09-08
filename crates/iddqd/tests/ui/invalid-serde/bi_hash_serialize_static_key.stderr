@@ -1,0 +1,13 @@
+error[E0597]: `map` does not live long enough
+  --> tests/ui/invalid-serde/bi_hash_serialize_static_key.rs:46:31
+   |
+44 |     let mut map = BiHashMap::new();
+   |         ------- binding `map` declared here
+45 |     map.insert_unique(Item { id: "foo".to_owned() }).unwrap();
+46 |     BiHashMapAsMap::serialize(&map, s)
+   |     --------------------------^^^^----
+   |     |                         |
+   |     |                         borrowed value does not live long enough
+   |     argument requires that `map` is borrowed for `'static`
+47 | }
+   | - `map` dropped here while still borrowed

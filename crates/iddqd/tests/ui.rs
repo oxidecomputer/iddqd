@@ -6,3 +6,10 @@ fn ui() {
     let t = trybuild::TestCases::new();
     t.compile_fail("tests/ui/invalid/*.rs");
 }
+
+#[cfg(all(feature = "std", feature = "default-hasher", feature = "serde"))]
+#[test]
+fn ui_serde() {
+    let t = trybuild::TestCases::new();
+    t.compile_fail("tests/ui/invalid-serde/*.rs");
+}

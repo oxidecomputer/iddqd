@@ -5,10 +5,10 @@ use iddqd::internal::ValidateCompact;
 use serde::Serialize;
 use std::collections::BTreeMap;
 
-pub fn assert_serialize_roundtrip<'a, M>(values: Vec<TestItem>)
+pub fn assert_serialize_roundtrip<M>(values: Vec<TestItem>)
 where
-    M: 'a + ItemMap<TestItem> + Serialize,
-    M::K1<'a>: Serialize,
+    M: 'static + ItemMap<TestItem> + Serialize,
+    for<'a> M::K1<'a>: Serialize,
 {
     let mut map = M::make_new();
     let mut first_error = None;
