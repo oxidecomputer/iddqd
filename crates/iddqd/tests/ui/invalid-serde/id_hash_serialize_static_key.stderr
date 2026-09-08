@@ -1,0 +1,13 @@
+error[E0597]: `map` does not live long enough
+  --> tests/ui/invalid-serde/id_hash_serialize_static_key.rs:41:31
+   |
+39 |     let mut map = IdHashMap::new();
+   |         ------- binding `map` declared here
+40 |     map.insert_unique(Item { id: "foo".to_owned() }).unwrap();
+41 |     IdHashMapAsMap::serialize(&map, s)
+   |     --------------------------^^^^----
+   |     |                         |
+   |     |                         borrowed value does not live long enough
+   |     argument requires that `map` is borrowed for `'static`
+42 | }
+   | - `map` dropped here while still borrowed

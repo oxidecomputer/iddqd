@@ -377,7 +377,7 @@ pub trait ItemMap<T>: Clone {
     fn make_with_capacity(capacity: usize) -> Self;
 
     #[cfg(feature = "serde")]
-    fn serialize_as_map<'a>(&self) -> Result<String, serde_json::Error>
+    fn serialize_as_map<'a>(&'a self) -> Result<String, serde_json::Error>
     where
         T: 'a + serde::Serialize,
         Self::K1<'a>: serde::Serialize;
@@ -452,7 +452,7 @@ impl<T: Clone + BiHashItem> ItemMap<T> for BiHashMap<T, HashBuilder, Alloc> {
     }
 
     #[cfg(feature = "serde")]
-    fn serialize_as_map<'a>(&self) -> Result<String, serde_json::Error>
+    fn serialize_as_map<'a>(&'a self) -> Result<String, serde_json::Error>
     where
         T: 'a + serde::Serialize,
         Self::K1<'a>: serde::Serialize,
@@ -571,7 +571,7 @@ where
     }
 
     #[cfg(feature = "serde")]
-    fn serialize_as_map<'a>(&self) -> Result<String, serde_json::Error>
+    fn serialize_as_map<'a>(&'a self) -> Result<String, serde_json::Error>
     where
         T: 'a + serde::Serialize,
         Self::K1<'a>: serde::Serialize,
@@ -676,7 +676,7 @@ where
     }
 
     #[cfg(feature = "serde")]
-    fn serialize_as_map<'a>(&self) -> Result<String, serde_json::Error>
+    fn serialize_as_map<'a>(&'a self) -> Result<String, serde_json::Error>
     where
         T: 'a + serde::Serialize,
         Self::K1<'a>: serde::Serialize,
@@ -786,7 +786,7 @@ where
     }
 
     #[cfg(feature = "serde")]
-    fn serialize_as_map<'a>(&self) -> Result<String, serde_json::Error>
+    fn serialize_as_map<'a>(&'a self) -> Result<String, serde_json::Error>
     where
         T: 'a + serde::Serialize,
         Self::K1<'a>: serde::Serialize,

@@ -321,7 +321,7 @@ where
 {
     /// Serializes an `IdHashMap` as a JSON object/map using `key()` as keys.
     pub fn serialize<'a, Ser>(
-        map: &IdHashMap<T, S, A>,
+        map: &'a IdHashMap<T, S, A>,
         serializer: Ser,
     ) -> Result<Ser::Ok, Ser::Error>
     where
@@ -331,20 +331,10 @@ where
     {
         let mut ser_map = serializer.serialize_map(Some(map.len()))?;
         for item in map.iter() {
-            let key = item.key();
-            // SAFETY:
-            //
-            // * Lifetime extension: for a type T and two lifetime params 'a and
-            //   'b, T<'a> and T<'b> aren't guaranteed to have the same layout,
-            //   but (a) that is true today and (b) it would be shocking and
-            //   break half the Rust ecosystem if that were to change in the
-            //   future.
-            // * We only use key within the scope of this block before
-            //   immediately dropping it. In particular, ser_map.serialize_entry
-            //   serializes the key without holding a reference to it.
-            let key1 =
-                unsafe { core::mem::transmute::<T::Key<'_>, T::Key<'a>>(key) };
-            ser_map.serialize_entry(&key1, item)?;
+            // `map` is borrowed for 'a, so `item: &'a T` and the key is
+            // `T::Key<'a>`.
+            let key: T::Key<'a> = item.key();
+            ser_map.serialize_entry(&key, item)?;
         }
         ser_map.end()
     }

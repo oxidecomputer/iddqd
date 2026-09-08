@@ -1,0 +1,13 @@
+error[E0597]: `map` does not live long enough
+  --> tests/ui/invalid-serde/tri_hash_serialize_static_key.rs:51:32
+   |
+49 |     let mut map = TriHashMap::new();
+   |         ------- binding `map` declared here
+50 |     map.insert_unique(Item { id: "foo".to_owned() }).unwrap();
+51 |     TriHashMapAsMap::serialize(&map, s)
+   |     ---------------------------^^^^----
+   |     |                          |
+   |     |                          borrowed value does not live long enough
+   |     argument requires that `map` is borrowed for `'static`
+52 | }
+   | - `map` dropped here while still borrowed
