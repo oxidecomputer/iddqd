@@ -10,13 +10,9 @@ use crate::{
         alloc::{Global, global_alloc},
         borrow::DormantMutRef,
         item_set::ItemSet,
-        map_hash::MapHash,
     },
 };
-use core::{
-    fmt,
-    hash::{BuildHasher, Hash},
-};
+use core::{cmp::Ordering, fmt, hash::Hash};
 use equivalent::{Comparable, Equivalent};
 
 /// An ordered map where the keys are part of the values, based on a B-Tree.
@@ -1351,9 +1347,9 @@ impl<T: IdOrdItem> IdOrdMap<T> {
         F: for<'b> FnMut(RefMut<'b, T>) -> bool,
         T::Key<'a>: Hash,
     {
-        let hash_state = self.tables.state().clone();
         let (_, mut dormant_items) = DormantMutRef::new(&mut self.items);
         let mut removed_item = None;
+        let mut last_retained: Option<ItemIndex> = None;
 
         self.tables.key_to_item.retain(|index| {
             // Drop the previously-removed item here, at the top of the next
@@ -1367,43 +1363,28 @@ impl<T: IdOrdItem> IdOrdMap<T> {
             // `items`.
             drop(removed_item.take());
 
-            let (item, dormant_items) = {
+            let retain = {
                 // SAFETY: All uses of `items` ended in the previous iteration.
                 let items = unsafe { dormant_items.reborrow() };
-                let (items, dormant_items) = DormantMutRef::new(items);
-                let item: &'a mut T = items
+                let item = items
                     .get_mut(index)
                     .expect("all indexes are present in self.items");
-                (item, dormant_items)
+                // Use RefMut::new_unchecked here because the entry can still
+                // remove the item. A hash-based check would let a Hash impl
+                // written only for Key<'static> observe a dangling key.
+                f(RefMut::new_unchecked(item))
             };
 
-            let (hash, dormant_item) = {
-                let (item, dormant_item): (&'a mut T, _) =
-                    DormantMutRef::new(item);
-                // Use T::key(item) rather than item.key() to force the key
-                // trait function to be called for T rather than &mut T.
-                let key = T::key(item);
-                let hash = hash_state.hash_one(key);
-                (MapHash::new(hash), dormant_item)
-            };
-
-            let retain = {
-                // SAFETY: The original item is no longer used after the second
-                // block above. dormant_items, from which item is derived, is
-                // currently dormant.
-                let item = unsafe { dormant_item.awaken() };
-
-                let ref_mut = RefMut::new(hash_state.clone(), hash, item);
-                f(ref_mut)
-            };
-
+            // SAFETY: The reborrow above ended when its block exited, and the
+            // `RefMut` handed to `f` was consumed by the call.
+            let items = unsafe { dormant_items.reborrow() };
             if retain {
+                if let Some(prev) = last_retained {
+                    assert_key_order(items, Some(prev), index, None, "retain");
+                }
+                last_retained = Some(index);
                 true
             } else {
-                // SAFETY: The original items is no longer used after the first
-                // block above, and item + dormant_item have been dropped after
-                // being used above.
-                let items = unsafe { dormant_items.awaken() };
                 removed_item = Some(
                     items
                         .remove(index)
@@ -1589,6 +1570,38 @@ impl<T: IdOrdItem> IdOrdMap<T> {
         // directly without needing to tweak any tables.
         self.items.replace(index, value)
     }
+}
+
+// Panics unless items[index] sorts strictly after pred and strictly before
+// succ.
+//
+// This is the key-change check for retain and and_modify, which hand out
+// unchecked RefMuts (see `RefMut::new_unchecked`).
+#[inline]
+pub(super) fn assert_key_order<T: IdOrdItem>(
+    items: &ItemSet<T, Global>,
+    pred: Option<ItemIndex>,
+    index: ItemIndex,
+    succ: Option<ItemIndex>,
+    context: &str,
+) {
+    let item = items.get(index).expect("index is known to be valid");
+    let in_order = pred.is_none_or(|pred| {
+        let pred = items.get(pred).expect("pred is known to be valid");
+        pred.key().cmp(&item.key()) == Ordering::Less
+    }) && succ.is_none_or(|succ| {
+        let succ = items.get(succ).expect("succ is known to be valid");
+        item.key().cmp(&succ.key()) == Ordering::Less
+    });
+    if !in_order {
+        key_order_violated(context);
+    }
+}
+
+#[cold]
+#[inline(never)]
+fn key_order_violated(context: &str) -> ! {
+    panic!("key changed during {context}: item is no longer in order")
 }
 
 impl<T: IdOrdItem + fmt::Debug> IdOrdMap<T> {
