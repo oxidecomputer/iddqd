@@ -12,6 +12,12 @@
 //! * `shrink_to_fit/...` — pre-fill, scatter ~50% holes, compact.
 //! * `ref_mut/id_ord_map` — `IdOrdMap`'s mutable-reference guard
 //!   overhead.
+//! * `iter_mut/...` — full mutable iteration over a populated map, touching
+//!   each item. For `IdOrdMap` this creates and drops one `RefMut` per item.
+//! * `and_modify/...` — pre-fill, then `entry(key).and_modify(...)` at steady
+//!   state. For `IdOrdMap` this exercises the entry API's key-change check.
+//! * `retain/...` — pre-fill, then retain every other item. For `IdOrdMap`
+//!   this exercises the per-item key-change check on the `retain` path.
 
 use criterion::{
     BatchSize, BenchmarkId, Criterion, criterion_group, criterion_main,
@@ -691,6 +697,169 @@ fn ref_mut_id_ord_map(c: &mut Criterion) {
     });
 }
 
+// ---------- iter_mut -------------------------------------------------------
+
+fn iter_mut_std_btree_map(c: &mut Criterion) {
+    let mut group = c.benchmark_group("iter_mut/std_btree_map");
+    for &size in SIZES {
+        group.bench_with_input(
+            BenchmarkId::from_parameter(size),
+            &size,
+            |b, &size| {
+                let mut map = BTreeMap::new();
+                for i in 0..size as u32 {
+                    map.insert(i, record(i));
+                }
+                b.iter(|| {
+                    for r in map.values_mut() {
+                        r.data.clear();
+                    }
+                });
+            },
+        );
+    }
+    group.finish();
+}
+
+fn iter_mut_id_ord_map(c: &mut Criterion) {
+    let mut group = c.benchmark_group("iter_mut/id_ord_map");
+    for &size in SIZES {
+        group.bench_with_input(
+            BenchmarkId::from_parameter(size),
+            &size,
+            |b, &size| {
+                let mut map = IdOrdMap::new();
+                for i in 0..size as u32 {
+                    map.insert_unique(record(i)).unwrap();
+                }
+                b.iter(|| {
+                    for mut r in map.iter_mut() {
+                        r.data.clear();
+                    }
+                });
+            },
+        );
+    }
+    group.finish();
+}
+
+// ---------- and_modify -----------------------------------------------------
+
+/// Pre-fill with `size` records, then run `CHURN_OPS` `and_modify` calls
+/// against existing keys.
+fn and_modify_std_btree_map(c: &mut Criterion) {
+    let mut group = c.benchmark_group("and_modify/std_btree_map");
+    for &size in SIZES {
+        group.bench_with_input(
+            BenchmarkId::from_parameter(size),
+            &size,
+            |b, &size| {
+                let mut map = BTreeMap::new();
+                for i in 0..size as u32 {
+                    map.insert(i, record(i));
+                }
+                b.iter(|| {
+                    let size = size as u32;
+                    for step in 0..CHURN_OPS as u32 {
+                        let key = step % size;
+                        map.entry(key).and_modify(|r| r.data.clear());
+                    }
+                });
+            },
+        );
+    }
+    group.finish();
+}
+
+fn and_modify_id_ord_map(c: &mut Criterion) {
+    let mut group = c.benchmark_group("and_modify/id_ord_map");
+    for &size in SIZES {
+        group.bench_with_input(
+            BenchmarkId::from_parameter(size),
+            &size,
+            |b, &size| {
+                let mut map = IdOrdMap::new();
+                for i in 0..size as u32 {
+                    map.insert_unique(record(i)).unwrap();
+                }
+                b.iter(|| {
+                    let size = size as u32;
+                    for step in 0..CHURN_OPS as u32 {
+                        let key = step % size;
+                        map.entry(key).and_modify(|mut r| r.data.clear());
+                    }
+                });
+            },
+        );
+    }
+    group.finish();
+}
+
+// ---------- retain ---------------------------------------------------------
+
+/// Pre-fill with `size` records, then retain every other one.
+fn retain_std_btree_map(c: &mut Criterion) {
+    let mut group = c.benchmark_group("retain/std_btree_map");
+    for &size in SIZES {
+        group.bench_with_input(
+            BenchmarkId::from_parameter(size),
+            &size,
+            |b, &size| {
+                b.iter_batched(
+                    || {
+                        let mut map = BTreeMap::new();
+                        for i in 0..size as u32 {
+                            map.insert(i, record(i));
+                        }
+                        map
+                    },
+                    |mut map| {
+                        map.retain(|_, r| r.index % 2 == 0);
+                        // Returning the map here is important so it is dropped
+                        // outside the scope of the benchmark.
+                        map
+                    },
+                    // PerIteration means the map will be dropped after each
+                    // iteration.
+                    BatchSize::PerIteration,
+                );
+            },
+        );
+    }
+    group.finish();
+}
+
+fn retain_id_ord_map(c: &mut Criterion) {
+    let mut group = c.benchmark_group("retain/id_ord_map");
+    for &size in SIZES {
+        group.bench_with_input(
+            BenchmarkId::from_parameter(size),
+            &size,
+            |b, &size| {
+                b.iter_batched(
+                    || {
+                        let mut map = IdOrdMap::new();
+                        for i in 0..size as u32 {
+                            map.insert_unique(record(i)).unwrap();
+                        }
+                        map
+                    },
+                    |mut map| {
+                        map.retain(|r| r.index % 2 == 0);
+                        // Returning the map here is important so it is dropped
+                        // outside the scope of the benchmark.
+                        map
+                    },
+                    // PerIteration means the map will be dropped after each
+                    // iteration.
+                    BatchSize::PerIteration,
+                );
+            },
+        );
+    }
+    group.finish();
+}
+
 // ---------- *_large -------------------------------------------------------
 //
 // Variants of `get`, `bulk_insert`, and `iter` that store a 1 KiB inline
@@ -1078,5 +1247,11 @@ criterion_group!(
     shrink_to_fit_id_hash_map,
     shrink_to_fit_id_ord_map,
     ref_mut_id_ord_map,
+    iter_mut_std_btree_map,
+    iter_mut_id_ord_map,
+    and_modify_std_btree_map,
+    and_modify_id_ord_map,
+    retain_std_btree_map,
+    retain_id_ord_map,
 );
 criterion_main!(benches);
