@@ -3,6 +3,10 @@
 <!-- next-header -->
 ## Unreleased - ReleaseDate
 
+### Changed
+
+- The `Debug` impl for `IdHashMap` no longer requires `S: Clone + BuildHasher`, matching `BiHashMap` and `TriHashMap`.
+
 ## [0.4.6] - 2026-07-21
 
 ### Added
