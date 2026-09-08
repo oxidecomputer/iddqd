@@ -3,11 +3,19 @@
 <!-- next-header -->
 ## Unreleased - ReleaseDate
 
+### Added
+
+- `debug_with_keys` methods on `IdOrdMap`, `IdHashMap`, `BiHashMap`, and `TriHashMap`. These return a value whose `Debug` output is the previous `{key: item, ...}` form, and require the key types to be `Debug` for the lifetime of the borrow.
+
 ### Changed
 
 - The `Debug` impl for `IdHashMap` no longer requires `S: Clone + BuildHasher`, matching `BiHashMap` and `TriHashMap`.
 
+- The `Debug` impls for `IdOrdMap`, `IdHashMap`, `BiHashMap`, and `TriHashMap` now format items only, as a set (`{item, ...}`), and require just `T: Debug`. Previously they formatted `{key: item, ...}` and also required the key types to be `Debug`. Use `debug_with_keys` for the previous form. The `Debug` impls for the `daft` `Diff` and `MapLeaf` types likewise no longer require the key types to be `Debug`.
+
 ### Fixed
+
+- Fixed a soundness hole in the `Debug` impls for `IdOrdMap`, `IdHashMap`, `BiHashMap`, and `TriHashMap`. A contrived scenario where a `Debug` impl was written only for `Key<'static>` could observe a `'static` key that actually borrowed from the map. The impls no longer format keys, and the internal lifetime-extending `transmute` is gone. (This is why the `Debug` output changed; see above.)
 
 - Fixed a soundness hole in the `serialize` functions of `IdOrdMapAsMap`, `IdHashMapAsMap`, `BiHashMapAsMap`, and `TriHashMapAsMap`. The lifetime `'a` in `T::Key<'a>: Serialize` was not tied to the borrow of the map, so a contrived scenario where a `Serialize` impl was written only for `Key<'static>` could observe a key that actually borrowed from the map.
 

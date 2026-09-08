@@ -111,13 +111,10 @@ pub struct Diff<
     pub removed: IdHashMap<&'daft T, S, A>,
 }
 
-impl<'a, 'daft, T, S: Clone + BuildHasher, A: Allocator> fmt::Debug
+impl<'daft, T, S: Clone + BuildHasher, A: Allocator> fmt::Debug
     for Diff<'daft, T, S, A>
 where
     T: ?Sized + IdHashItem + fmt::Debug,
-    T::Key<'a>: fmt::Debug,
-    T: 'a,
-    'daft: 'a,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Diff")

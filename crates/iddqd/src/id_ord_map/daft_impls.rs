@@ -88,12 +88,9 @@ pub struct Diff<'daft, T: ?Sized + IdOrdItem> {
     pub removed: IdOrdMap<&'daft T>,
 }
 
-impl<'a, 'daft, T> fmt::Debug for Diff<'daft, T>
+impl<'daft, T> fmt::Debug for Diff<'daft, T>
 where
     T: ?Sized + IdOrdItem + fmt::Debug,
-    T::Key<'a>: fmt::Debug,
-    T: 'a,
-    'daft: 'a,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Diff")

@@ -116,12 +116,8 @@ pub struct MapLeaf<
     pub after: &'daft BiHashMap<T, S, A>,
 }
 
-impl<'a, 'daft, T: BiHashItem + fmt::Debug, S, A: Allocator> fmt::Debug
+impl<'daft, T: BiHashItem + fmt::Debug, S, A: Allocator> fmt::Debug
     for MapLeaf<'daft, T, S, A>
-where
-    T::K1<'a>: fmt::Debug,
-    T::K2<'a>: fmt::Debug,
-    T: 'a,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("MapLeaf")
@@ -240,13 +236,9 @@ impl<'daft, T: ?Sized + BiHashItem, S: Default, A: Allocator + Default> Default
     }
 }
 
-impl<'a, 'daft, T, S, A> fmt::Debug for Diff<'daft, T, S, A>
+impl<'daft, T, S, A> fmt::Debug for Diff<'daft, T, S, A>
 where
     T: ?Sized + BiHashItem + fmt::Debug,
-    T::K1<'a>: fmt::Debug,
-    T::K2<'a>: fmt::Debug,
-    T: 'a,
-    'daft: 'a,
     A: Allocator,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

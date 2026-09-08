@@ -1,0 +1,19 @@
+error[E0597]: `map` does not live long enough
+  --> tests/ui/invalid/id_ord_debug_with_keys_static_key.rs:35:29
+   |
+33 |     let mut map = IdOrdMap::new();
+   |         ------- binding `map` declared here
+34 |     map.insert_unique(Item { id: "foo".to_owned() }).unwrap();
+35 |     let _ = format!("{:?}", map.debug_with_keys());
+   |                             ^^^------------------
+   |                             |
+   |                             borrowed value does not live long enough
+   |                             argument requires that `map` is borrowed for `'static`
+36 | }
+   | - `map` dropped here while still borrowed
+   |
+note: requirement that the value outlives `'static` introduced here
+  --> src/id_ord_map/imp.rs
+   |
+   |         T::Key<'a>: fmt::Debug,
+   |                     ^^^^^^^^^^

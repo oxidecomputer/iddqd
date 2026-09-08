@@ -2605,37 +2605,87 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
     }
 }
 
-impl<'a, T, S, A> fmt::Debug for BiHashMap<T, S, A>
-where
-    T: BiHashItem + fmt::Debug,
-    T::K1<'a>: fmt::Debug,
-    T::K2<'a>: fmt::Debug,
-    T: 'a,
-    A: Allocator,
+impl<T: BiHashItem + fmt::Debug, S, A: Allocator> BiHashMap<T, S, A> {
+    /// Returns a value that formats the map as `{{k1: key1, k2: key2}: item,
+    /// ...}`, in arbitrary order.
+    ///
+    /// The [`Debug`](fmt::Debug) impl for `BiHashMap` formats items only, as
+    /// a set, and requires just `T: Debug`. This method also requires the key
+    /// types to be `Debug` for the lifetime of the borrow.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # #[cfg(feature = "default-hasher")] {
+    /// use iddqd::{BiHashItem, BiHashMap, bi_upcast};
+    ///
+    /// #[derive(Debug, PartialEq, Eq, Hash)]
+    /// struct Item {
+    ///     id: u32,
+    ///     name: String,
+    /// }
+    ///
+    /// impl BiHashItem for Item {
+    ///     type K1<'a> = u32;
+    ///     type K2<'a> = &'a str;
+    ///     fn key1(&self) -> Self::K1<'_> {
+    ///         self.id
+    ///     }
+    ///     fn key2(&self) -> Self::K2<'_> {
+    ///         &self.name
+    ///     }
+    ///     bi_upcast!();
+    /// }
+    ///
+    /// let mut map = BiHashMap::new();
+    /// map.insert_unique(Item { id: 1, name: "foo".to_string() }).unwrap();
+    ///
+    /// assert_eq!(
+    ///     format!("{:?}", map.debug_with_keys()),
+    ///     "{{k1: 1, k2: \"foo\"}: Item { id: 1, name: \"foo\" }}",
+    /// );
+    /// assert_eq!(format!("{map:?}"), "{Item { id: 1, name: \"foo\" }}");
+    /// # }
+    /// ```
+    pub fn debug_with_keys<'a>(&'a self) -> impl fmt::Debug + 'a
+    where
+        T::K1<'a>: fmt::Debug,
+        T::K2<'a>: fmt::Debug,
+    {
+        struct DebugWithKeys<'a, T: BiHashItem, S, A: Allocator>(
+            &'a BiHashMap<T, S, A>,
+        );
+
+        impl<'a, T, S, A> fmt::Debug for DebugWithKeys<'a, T, S, A>
+        where
+            T: BiHashItem + fmt::Debug,
+            T::K1<'a>: fmt::Debug,
+            T::K2<'a>: fmt::Debug,
+            A: Allocator,
+        {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                let mut map = f.debug_map();
+                for item in self.0.items.values() {
+                    // `self.0` is borrowed for 'a, so `item: &'a T` and the
+                    // keys are `T::K1<'a>` and `T::K2<'a>` without any
+                    // lifetime extension.
+                    let key: KeyMap<'a, T> =
+                        KeyMap { key1: item.key1(), key2: item.key2() };
+                    map.entry(&key, item);
+                }
+                map.finish()
+            }
+        }
+
+        DebugWithKeys(self)
+    }
+}
+
+impl<T: BiHashItem + fmt::Debug, S, A: Allocator> fmt::Debug
+    for BiHashMap<T, S, A>
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut map = f.debug_map();
-        for item in self.items.values() {
-            let key: KeyMap<'_, T> =
-                KeyMap { key1: item.key1(), key2: item.key2() };
-
-            // SAFETY:
-            //
-            // * Lifetime extension: for a type T and two lifetime params 'a and
-            //   'b, T<'a> and T<'b> aren't guaranteed to have the same layout,
-            //   but (a) that is true today and (b) it would be shocking and
-            //   break half the Rust ecosystem if that were to change in the
-            //   future.
-            // * We only use key within the scope of this block before immediately
-            //   dropping it. In particular, map.entry calls key.fmt() without
-            //   holding a reference to it.
-            let key: KeyMap<'a, T> = unsafe {
-                core::mem::transmute::<KeyMap<'_, T>, KeyMap<'a, T>>(key)
-            };
-
-            map.entry(&key as &dyn fmt::Debug, item);
-        }
-        map.finish()
+        f.debug_set().entries(self.items.values()).finish()
     }
 }
 
