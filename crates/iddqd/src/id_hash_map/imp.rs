@@ -1608,8 +1608,7 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
     }
 }
 
-impl<'a, T, S: Clone + BuildHasher, A: Allocator> fmt::Debug
-    for IdHashMap<T, S, A>
+impl<'a, T, S, A: Allocator> fmt::Debug for IdHashMap<T, S, A>
 where
     T: IdHashItem + fmt::Debug,
     T::Key<'a>: fmt::Debug,
@@ -1618,7 +1617,7 @@ where
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut map = f.debug_map();
 
-        for item in self.iter() {
+        for item in self.items.values() {
             let key = item.key();
 
             // SAFETY:
