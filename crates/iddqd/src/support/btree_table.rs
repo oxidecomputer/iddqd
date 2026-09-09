@@ -549,12 +549,30 @@ struct CmpDropGuard<'a> {
 
 impl<'a> CmpDropGuard<'a> {
     fn new(f: &'a IndexCmp<'a>) -> Self {
-        // CMP lasts only as long as this function and is immediately reset to
-        // None once this scope is left.
         let ret = Self { _marker: PhantomData };
 
-        // SAFETY: This is safe because we are not storing the reference
-        // anywhere, and it is only used for the lifetime of this CmpDropGuard.
+        // SAFETY: We store the transmuted reference in the `CMP` thread-local,
+        // so we must show that nothing reads it after `f` is gone. Here's a
+        // proof sketch:
+        //
+        // * The guard borrows `f` for `'a`, so `f` outlives the guard. Every
+        //   caller declares `f` before the guard, so the guard drops
+        //   first, including during unwinding.
+        // * The guard's `Drop` sets `CMP` back to `None`.
+        // * The only readers are `Index::cmp` and `Index::eq`. Each one copies
+        //   the reference out of the `Cell`, calls it once, and discards it.
+        //   Neither stores it.
+        // * In a contrived scenario, a user `Ord` may itself reenter this (or
+        //   some other) map and create a nested guard. The nested guard
+        //   would overwrite `CMP` with its own live `f`, and its
+        //   `Drop` would `CMP` to `None. The outer operation's next comparison
+        //   would then panic with "cmp should be set" rather than calling
+        //   through a dangling reference. Not great but also not UB, and
+        //   not really worth paying the cost to maintain a stack of IndexCmp
+        //   functions for.
+        //
+        // The transmute itself only changes lifetimes -- we assume here (as we
+        // do elsewhere) that this doesn't change the layout of a type.
         let as_static = unsafe {
             std::mem::transmute::<&'a IndexCmp<'a>, &'static IndexCmp<'static>>(
                 f,
