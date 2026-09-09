@@ -1,12 +1,12 @@
 error: lifetime may not live long enough
-  --> tests/ui/invalid/id_ord_upcast_key_stash.rs:49:9
+  --> tests/ui/invalid/id_ord_upcast_key_stash.rs:56:9
    |
-46 |     fn upcast_key<'short, 'long: 'short>(
+53 |     fn upcast_key<'short, 'long: 'short>(
    |                   ------  ----- lifetime `'long` defined here
    |                   |
    |                   lifetime `'short` defined here
 ...
-49 |         StashKey { s: long.s, stash: long.stash }
+56 |         StashKey { s: long.s, stash: long.stash }
    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ associated function was supposed to return data with lifetime `'long` but it is returning data with lifetime `'short`
    |
    = help: consider adding the following bound: `'short: 'long`

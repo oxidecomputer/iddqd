@@ -1,6 +1,7 @@
 // The `IdOrdMap` form of `id_hash_upcast_key_stash`.
 use core::cell::Cell;
 use core::cmp::Ordering;
+use core::hash::{Hash, Hasher};
 use iddqd::{IdOrdItem, IdOrdMap};
 
 #[derive(Debug)]
@@ -33,6 +34,12 @@ impl<'a> Ord for StashKey<'a> {
             cell.set(Some(other.s));
         }
         self.s.cmp(other.s)
+    }
+}
+
+impl<'a> Hash for StashKey<'a> {
+    fn hash<H: Hasher>(&self, h: &mut H) {
+        self.s.hash(h)
     }
 }
 

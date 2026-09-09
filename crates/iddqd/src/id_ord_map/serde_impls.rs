@@ -28,7 +28,7 @@ use serde_core::{
 /// }
 ///
 /// // This is a complex key, so it can't be a JSON map key.
-/// #[derive(Eq, PartialEq, PartialOrd, Ord)]
+/// #[derive(Eq, PartialEq, PartialOrd, Ord, Hash)]
 /// struct ComplexKey<'a> {
 ///     id: u32,
 ///     email: &'a str,

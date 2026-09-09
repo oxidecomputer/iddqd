@@ -1,8 +1,0 @@
-error: implementation of `Hash` is not general enough
-  --> tests/ui/invalid/id_ord_and_modify_static_only_hash.rs:36:17
-   |
-36 |     let entry = map.entry(Key("foo")).and_modify(|_| {});
-   |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ implementation of `Hash` is not general enough
-   |
-   = note: `Key<'0>` must implement `Hash`, for any lifetime `'0`...
-   = note: ...but `Hash` is actually implemented for the type `Key<'static>`

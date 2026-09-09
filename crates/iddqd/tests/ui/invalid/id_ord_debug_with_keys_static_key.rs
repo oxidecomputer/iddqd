@@ -5,7 +5,7 @@
 use iddqd::{IdOrdItem, IdOrdMap, id_upcast};
 use std::fmt;
 
-#[derive(PartialEq, Eq, PartialOrd, Ord)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct Key<'a>(&'a str);
 
 impl fmt::Debug for Key<'static> {

@@ -1092,13 +1092,16 @@ fn borrowed_item() {
             key3: Path::new("foo"),
         });
 
-        // and_modify and retain aren't available for item types with lifetimes;
-        // see the id_ord_retain_borrowed_item UI test.
-        let id_ord_map::Entry::Occupied(mut entry) = map.entry("bar") else {
+        let entry = map.entry("bar");
+        let entry = entry.and_modify(|mut v| {
+            // IdOrdMap<BorrowedItem<'_>> is not indexed by key2, so changing
+            // key2 will not cause a panic. (Changing key1 would cause a panic.)
+            v.key2 = Cow::Borrowed(b"baz");
+        });
+
+        let id_ord_map::Entry::Occupied(mut entry) = entry else {
             panic!("Entry should be occupied")
         };
-        // IdOrdMap<BorrowedItem<'_>> is not indexed by key2, so changing
-        // key2 will not cause a panic. (Changing key1 would cause a panic.)
         let mut v = entry.get_mut();
         v.key2 = Cow::Borrowed(b"quux");
     }
@@ -1106,10 +1109,8 @@ fn borrowed_item() {
     entry_api_tests(&mut map);
 }
 
-// Non-'static item types aren't compatible with retain or and_modify (see the
-// id_ord_retain_borrowed_item UI test). This lists the suggested workarounds.
 #[test]
-fn borrowed_item_retain_and_modify_workarounds() {
+fn borrowed_item_retain_non_static() {
     let foo_key = String::from("foo");
     let bar_key = String::from("bar");
     let foo_bytes = b"foo".to_vec();
@@ -1131,25 +1132,38 @@ fn borrowed_item_retain_and_modify_workarounds() {
     })
     .unwrap();
 
-    // In place of and_modify: get_mut on the occupied entry.
-    match map.entry(foo_key.as_str()) {
-        id_ord_map::Entry::Occupied(mut entry) => {
-            entry.get_mut().key2 = Cow::Borrowed(b"changed");
-        }
-        id_ord_map::Entry::Vacant(_) => panic!("foo should be present"),
-    }
-    assert_eq!(&*map.get(foo_key.as_str()).unwrap().key2, b"changed");
-
-    // In place of retain: take the map and re-insert what should stay.
-    for item in std::mem::take(&mut map) {
-        if item.key1 == foo_key.as_str() {
-            map.insert_unique(item).unwrap();
-        }
-    }
+    map.retain(|item| item.key1 == foo_key.as_str());
 
     assert_eq!(map.len(), 1);
     assert!(map.get(foo_key.as_str()).is_some());
     assert!(map.get(bar_key.as_str()).is_none());
+}
+
+#[test]
+fn borrowed_item_mutation_non_static() {
+    let foo_key = String::from("foo");
+    let foo_bytes = b"foo".to_vec();
+    let foo_path = PathBuf::from("foo");
+
+    let mut map = IdOrdMap::<BorrowedItem<'_>>::default();
+    map.insert_unique(BorrowedItem {
+        key1: foo_key.as_str(),
+        key2: Cow::Borrowed(foo_bytes.as_slice()),
+        key3: foo_path.as_path(),
+    })
+    .unwrap();
+
+    {
+        let mut item = map.get_mut(foo_key.as_str()).unwrap();
+        let mut reborrowed = item.reborrow();
+        reborrowed.key2 = Cow::Borrowed(b"reborrowed");
+    }
+    assert_eq!(&*map.get(foo_key.as_str()).unwrap().key2, b"reborrowed");
+
+    for mut item in &mut map {
+        item.key2 = Cow::Borrowed(b"iter_mut");
+    }
+    assert_eq!(&*map.get(foo_key.as_str()).unwrap().key2, b"iter_mut");
 }
 
 mod macro_tests {

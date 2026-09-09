@@ -1,0 +1,21 @@
+error: incompatible lifetime on type
+  --> tests/ui/invalid/id_ord_static_only_hash_key.rs:25:20
+   |
+25 |     type Key<'a> = Key<'a>;
+   |                    ^^^^^^^
+   |
+note: because this has an unmet lifetime requirement
+  --> src/id_ord_map/trait_defs.rs
+   |
+   |     type Key<'a>: Ord + Hash
+   |                         ^^^^ introduces a `'static` lifetime requirement
+note: the lifetime `'a` as defined here...
+  --> tests/ui/invalid/id_ord_static_only_hash_key.rs:25:14
+   |
+25 |     type Key<'a> = Key<'a>;
+   |              ^^
+note: ...does not necessarily outlive the static lifetime introduced by the compatible `impl`
+  --> tests/ui/invalid/id_ord_static_only_hash_key.rs:13:1
+   |
+13 | impl Hash for Key<'static> {
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^
