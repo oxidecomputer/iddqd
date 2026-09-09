@@ -35,6 +35,11 @@ impl<'a, T: IdHashItem> Iterator for Iter<'a, T> {
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.next()
     }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
 }
 
 impl<T: IdHashItem> ExactSizeIterator for Iter<'_, T> {
@@ -88,6 +93,11 @@ impl<'a, T: IdHashItem, S: Clone + BuildHasher, A: Allocator> Iterator
         let hashes = self.tables.make_hash(next);
         Some(RefMut::new(self.tables.state.clone(), hashes, next))
     }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
 }
 
 impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> ExactSizeIterator
@@ -130,6 +140,11 @@ impl<T: IdHashItem, A: Allocator> Iterator for IntoIter<T, A> {
     #[inline]
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.next()
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
     }
 }
 

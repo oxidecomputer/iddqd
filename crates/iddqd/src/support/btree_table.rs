@@ -396,6 +396,10 @@ impl<'a> Iterator for Iter<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.next().map(|index| index.value())
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
 }
 
 #[derive(Debug)]
@@ -407,6 +411,10 @@ impl IntoIter {
     fn new(inner: btree_map::IntoIter<Index, ()>) -> Self {
         Self { inner }
     }
+
+    pub(crate) fn len(&self) -> usize {
+        self.inner.len()
+    }
 }
 
 impl Iterator for IntoIter {
@@ -414,6 +422,10 @@ impl Iterator for IntoIter {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.next().map(|(index, ())| index.value())
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
     }
 }
 

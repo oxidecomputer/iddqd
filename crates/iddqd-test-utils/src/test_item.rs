@@ -9,7 +9,7 @@ use iddqd::{
 #[cfg(feature = "std")]
 use iddqd::{IdOrdItem, IdOrdMap, id_ord_map};
 use proptest::prelude::*;
-use std::{cell::Cell, fmt};
+use std::{cell::Cell, fmt, iter::FusedIterator};
 use test_strategy::Arbitrary;
 
 thread_local! {
@@ -363,14 +363,14 @@ pub trait ItemMap<T>: Clone {
     type RefMut<'a>: IntoRef<'a, T>
     where
         Self: 'a;
-    type Iter<'a>: Iterator<Item = &'a T>
+    type Iter<'a>: ExactSizeIterator<Item = &'a T> + FusedIterator
     where
         Self: 'a,
         T: 'a;
-    type IterMut<'a>: Iterator<Item = Self::RefMut<'a>>
+    type IterMut<'a>: ExactSizeIterator<Item = Self::RefMut<'a>> + FusedIterator
     where
         Self: 'a;
-    type IntoIter: Iterator<Item = T>;
+    type IntoIter: ExactSizeIterator<Item = T> + FusedIterator;
 
     fn map_kind() -> MapKind;
     fn make_new() -> Self;
@@ -893,15 +893,87 @@ impl<'a, T: TriHashItem> IntoRef<'a, T>
 }
 
 pub fn assert_iter_eq<M: ItemMap<TestItem>>(mut map: M, items: Vec<&TestItem>) {
-    let mut iter = map.iter().collect::<Vec<_>>();
+    let expected_len = items.len();
+
+    let mut iter = collect_exact_size(map.iter(), expected_len, ".iter()");
     iter.sort_by_key(|e| e.key1);
     assert_eq!(iter, items, ".iter() items match naive ones");
 
-    let mut iter_mut = map.iter_mut().map(|v| v.into_ref()).collect::<Vec<_>>();
+    let mut iter_mut =
+        collect_exact_size(map.iter_mut(), expected_len, ".iter_mut()")
+            .into_iter()
+            .map(|v| v.into_ref())
+            .collect::<Vec<_>>();
     iter_mut.sort_by_key(|e| e.key1);
     assert_eq!(iter_mut, items, ".iter_mut() items match naive ones");
 
-    let mut into_iter = map.clone().into_iter().collect::<Vec<_>>();
+    let mut into_iter = collect_exact_size(
+        map.clone().into_iter(),
+        expected_len,
+        ".into_iter()",
+    );
     into_iter.sort_by_key(|e| e.key1);
     assert_eq!(into_iter, items, ".into_iter() items match naive ones");
+}
+
+/// Drains an iterator into a `Vec`, checking the [`ExactSizeIterator`] and
+/// [`FusedIterator`] contracts at every step along the way.
+///
+/// This checks that:
+///
+/// * Before each call to `next`, `len` and `size_hint` must both report exactly
+///   the number of items still to come.
+/// * After the iterator is exhausted it must keep returning `None` and
+///   reporting a length of zero.
+pub fn collect_exact_size<I: ExactSizeIterator + FusedIterator>(
+    mut iter: I,
+    expected_len: usize,
+    what: &str,
+) -> Vec<I::Item> {
+    let mut out = Vec::with_capacity(expected_len);
+    let mut remaining = expected_len;
+    loop {
+        assert_eq!(
+            iter.len(),
+            remaining,
+            "{what}: len() with {} of {expected_len} items yielded",
+            out.len(),
+        );
+        assert_eq!(
+            iter.size_hint(),
+            (remaining, Some(remaining)),
+            "{what}: size_hint() with {} of {expected_len} items yielded",
+            out.len(),
+        );
+        match iter.next() {
+            Some(item) => {
+                assert!(
+                    remaining > 0,
+                    "{what}: yielded more than {expected_len} items",
+                );
+                out.push(item);
+                remaining -= 1;
+            }
+            None => break,
+        }
+    }
+    assert_eq!(
+        remaining,
+        0,
+        "{what}: ended after {} of {expected_len} items",
+        out.len(),
+    );
+
+    // FusedIterator: once exhausted, stays exhausted.
+    for _ in 0..3 {
+        assert!(iter.next().is_none(), "{what}: resumed after returning None");
+        assert_eq!(iter.len(), 0, "{what}: len() after exhaustion");
+        assert_eq!(
+            iter.size_hint(),
+            (0, Some(0)),
+            "{what}: size_hint() after exhaustion",
+        );
+    }
+
+    out
 }
