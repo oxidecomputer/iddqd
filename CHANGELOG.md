@@ -43,6 +43,14 @@
 
   This is a breaking change only for `Serialize` impls that exist solely for a `'static` key type. In most cases, impls are generic over the key lifetime — those are unaffected.
 
+- Fixed a soundness hole in `IdHashMap`, `BiHashMap`, and `TriHashMap` with custom allocators (via the `allocator-api2` feature). The maps now correctly call the allocator's `grow`, `grow_zeroed`, `shrink`, and `allocate_zeroed` methods. 
+
+  Previously, only `allocate` and `deallocate` were called, and the others fell through to the trait's default implementations -- those implementations allocate a new block, copy the memory, and then call `deallocate` on the old one. In the unlikely case that the last `deallocate` freed the block and then panicked, a map resize could leave the map holding a freed pointer, and dropping the map would free it again.
+
+  Allocators that don't implement `grow` and `shrink` still get the trait's default `grow` and `shrink`. For those allocators, `deallocate` should not unwind after freeing. (This is a pre-existing limitation in the `allocator-api2` crate.)
+
+  `IdOrdMap` does not support custom allocators and is not affected.
+
 ## [0.4.6] - 2026-07-21
 
 ### Added
