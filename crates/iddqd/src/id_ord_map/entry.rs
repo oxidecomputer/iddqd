@@ -1,4 +1,4 @@
-use super::{IdOrdItem, IdOrdMap, RefMut, imp::assert_key_order};
+use super::{IdOrdItem, IdOrdMap, RefMut};
 use crate::support::{ItemIndex, borrow::DormantMutRef};
 use core::{fmt, hash::Hash};
 
@@ -106,42 +106,27 @@ impl<'a, T: IdOrdItem> Entry<'a, T> {
     {
         match self {
             Entry::Occupied(mut entry) => {
-                // Find the tree neighbors before the closure runs, while the
-                // tree is known to be consistent.
-                let (pred, succ) = {
-                    // SAFETY: The safety assumption behind
-                    // `OccupiedEntry::new` guarantees that the original
-                    // reference to the map is not used at this point.
-                    let map = unsafe { entry.map.reborrow_shared() };
-                    let key = map.items[entry.index].key();
-                    map.tables
-                        .key_to_item
-                        .neighbors(entry.index, &key, |ix| map.items[ix].key())
-                };
                 {
-                    // SAFETY: The shared reborrow above ended when its block
-                    // exited.
-                    let map = unsafe { entry.map.reborrow() };
-                    let item =
-                        map.items.get_mut(entry.index).expect("index is valid");
-                    // Use RefMut::new_unchecked here because the entry can
-                    // still remove the item. A hash-based check would let a
-                    // Hash impl written only for Key<'static> observe a
-                    // dangling key.
-                    f(RefMut::new_unchecked(item));
-                }
-                {
-                    // SAFETY: The mutable reborrow above ended when its block
-                    // exited, and the `RefMut` handed to `f` was consumed by
-                    // the call.
-                    let map = unsafe { entry.map.reborrow_shared() };
-                    assert_key_order(
-                        &map.items,
-                        pred,
-                        entry.index,
-                        succ,
-                        "Entry::and_modify",
-                    );
+                    let (state, hash, dormant) = {
+                        // SAFETY: The safety assumption behind
+                        // `OccupiedEntry::new` guarantees that the original
+                        // reference to the map is not used at this point.
+                        let map = unsafe { entry.map.reborrow() };
+                        let item = map
+                            .items
+                            .get_mut(entry.index)
+                            .expect("index is valid");
+
+                        let (item, dormant) = DormantMutRef::new(item);
+                        let hash = map.tables.make_hash(item);
+                        let state = map.tables.state().clone();
+                        (state, hash, dormant)
+                    };
+
+                    // SAFETY: the item above is not used after this point.
+                    let awakened_item = unsafe { dormant.awaken() };
+                    let ref_mut = RefMut::new(state, hash, awakened_item);
+                    f(ref_mut);
                 }
                 Entry::Occupied(entry)
             }

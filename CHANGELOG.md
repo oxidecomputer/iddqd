@@ -19,12 +19,6 @@
 
 - The `Iter`, `IterMut`, and `IntoIter` types now report an exact `size_hint`. Previously, they returned `(0, None)`. This violated the `ExactSizeIterator` contract, resulting in calls like `.take(...).len()` panicking on a non-empty map.
 
-- Fixed a soundness hole in `IdOrdMap`'s `RefMut`. Within `Entry::and_modify` and `IdOrdMap::retain`, the item can be removed while the `RefMut`'s borrow lifetime `'a` is still live. A contrived scenario where a `Debug` impl was written only for `Key<'static>` could then observe a key that wasn't valid for `'static`.
-
-  `RefMut`s handed to `and_modify` and `retain` now check relative position with respect to neighbors instead of hashes. (The other `RefMut`-based methods continue to check hashes on drop.)
-
-  This makes `and_modify` on `IdOrdMap` about 2.2x slower (it now performs two tree searches instead of one). `retain`, `iter_mut`, and `get_mut` are unaffected.
-
 - Fixed a soundness hole in the `Debug` impls for `IdOrdMap`, `IdHashMap`, `BiHashMap`, and `TriHashMap`. A contrived scenario where a `Debug` impl was written only for `Key<'static>` could observe a `'static` key that actually borrowed from the map. The impls no longer format keys, and the internal lifetime-extending `transmute` is gone. (This is why the `Debug` output changed; see above.)
 
 - Fixed a soundness hole in the `serialize` functions of `IdOrdMapAsMap`, `IdHashMapAsMap`, `BiHashMapAsMap`, and `TriHashMapAsMap`. The lifetime `'a` in `T::Key<'a>: Serialize` was not tied to the borrow of the map, so a contrived scenario where a `Serialize` impl was written only for `Key<'static>` could observe a key that actually borrowed from the map.

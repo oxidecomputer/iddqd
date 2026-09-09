@@ -61,15 +61,8 @@ where
         hash: MapHash,
         borrowed: &'a mut T,
     ) -> Self {
-        let check = HashCheck { state, hash };
-        Self { inner: Some(RefMutInner { borrowed, check: Some(check) }) }
-    }
-
-    /// Creates a new RefMut without hash checking.
-    ///
-    /// Used by methods which verify the hash through other means.
-    pub(super) fn new_unchecked(borrowed: &'a mut T) -> Self {
-        Self { inner: Some(RefMutInner { borrowed, check: None }) }
+        let inner = RefMutInner { state, hash, borrowed };
+        Self { inner: Some(inner) }
     }
 
     /// Converts this `RefMut` into a `&'a T`.
@@ -86,12 +79,7 @@ impl<'a, T: for<'k> IdOrdItemMut<'k>> RefMut<'a, T> {
     pub fn reborrow<'b>(&'b mut self) -> RefMut<'b, T> {
         let inner = self.inner.as_mut().unwrap();
         let borrowed = &mut *inner.borrowed;
-        match &inner.check {
-            Some(check) => {
-                RefMut::new(check.state.clone(), check.hash.clone(), borrowed)
-            }
-            None => RefMut::new_unchecked(borrowed),
-        }
+        RefMut::new(inner.state.clone(), inner.hash.clone(), borrowed)
     }
 }
 
@@ -142,13 +130,9 @@ where
 }
 
 struct RefMutInner<'a, T: IdOrdItem> {
-    borrowed: &'a mut T,
-    check: Option<HashCheck>,
-}
-
-struct HashCheck {
     state: foldhash::fast::FixedState,
     hash: MapHash,
+    borrowed: &'a mut T,
 }
 
 impl<'a, T: IdOrdItem> RefMutInner<'a, T>
@@ -160,10 +144,8 @@ where
         // Convert the `&'a mut T` into a `&'a T`, so that borrowed.key()
         // returns `T::Key<'a>`.
         let borrowed: &'a T = self.borrowed;
-        if let Some(check) = self.check {
-            if !check.hash.is_same_hash(&check.state, borrowed.key()) {
-                panic!("key changed during RefMut borrow");
-            }
+        if !self.hash.is_same_hash(&self.state, borrowed.key()) {
+            panic!("key changed during RefMut borrow");
         }
 
         borrowed
