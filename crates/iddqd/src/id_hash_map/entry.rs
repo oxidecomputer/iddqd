@@ -110,6 +110,11 @@ impl<'a, T: IdHashItem, S, A: Allocator> fmt::Debug
 impl<'a, T: IdHashItem, S: Clone + BuildHasher, A: Allocator>
     VacantEntry<'a, T, S, A>
 {
+    /// # Safety
+    ///
+    /// `map` must be dormant: the caller must no longer use the reference
+    /// that `DormantMutRef::new` returned, nor anything derived from it. The
+    /// methods on this type reborrow or awaken `map` and rely on that.
     pub(super) unsafe fn new(
         map: DormantMutRef<'a, IdHashMap<T, S, A>>,
         hash: MapHash,
@@ -202,8 +207,9 @@ impl<'a, T: IdHashItem, S: Clone + BuildHasher, A: Allocator>
 {
     /// # Safety
     ///
-    /// After self is created, the original reference created by
-    /// `DormantMutRef::new` must not be used.
+    /// `map` must be dormant: the caller must no longer use the reference
+    /// that `DormantMutRef::new` returned, nor anything derived from it. The
+    /// methods on this type reborrow or awaken `map` and rely on that.
     pub(super) unsafe fn new(
         map: DormantMutRef<'a, IdHashMap<T, S, A>>,
         index: ItemIndex,
