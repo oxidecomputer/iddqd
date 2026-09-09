@@ -44,32 +44,59 @@ impl<'a, T> DormantMutRef<'a, T> {
     ///
     /// # Safety
     ///
-    /// The reborrow must have ended, i.e., the reference returned by `new` and
-    /// all pointers and references derived from it, must not be used anymore.
+    /// Every reference this `DormantMutRef` has handed out so far must be
+    /// dead. That means the caller must no longer use:
+    ///
+    /// * the reference returned by `new`,
+    /// * any reference returned by an earlier call to `reborrow` or
+    ///   `reborrow_shared`, and
+    /// * any pointer or reference derived from those.
+    ///
+    /// Each call retags from the raw pointer, which invalidates every earlier
+    /// child. A use after that is undefined behavior.
     pub(crate) unsafe fn awaken(self) -> &'a mut T {
-        // SAFETY: our own safety conditions imply this reference is again unique.
+        // SAFETY: The caller promises that no earlier child of `ptr` will be
+        // used again, so the reference we create here is the only live one.
         unsafe { &mut *self.ptr.as_ptr() }
     }
 
-    /// Borrows a new mutable reference from the unique borrow initially captured.
+    /// Borrows a new mutable reference from the unique borrow initially
+    /// captured.
     ///
     /// # Safety
     ///
-    /// The reborrow must have ended, i.e., the reference returned by `new` and
-    /// all pointers and references derived from it, must not be used anymore.
+    /// Same as [`Self::awaken`]: every reference this `DormantMutRef` has
+    /// handed out so far must be dead. That means the caller must no longer
+    /// use:
+    ///
+    /// * the reference returned by `new`,
+    /// * any reference returned by an earlier call to `reborrow` or
+    ///   `reborrow_shared`, and
+    /// * any pointer or reference derived from those.
     pub(crate) unsafe fn reborrow(&mut self) -> &'a mut T {
-        // SAFETY: our own safety conditions imply this reference is again unique.
+        // SAFETY: The caller promises that no earlier child of `ptr` will be
+        // used again, so the reference we create here is the only live one.
         unsafe { &mut *self.ptr.as_ptr() }
     }
 
-    /// Borrows a new shared reference from the unique borrow initially captured.
+    /// Borrows a new shared reference from the unique borrow initially
+    /// captured.
     ///
     /// # Safety
     ///
-    /// The reborrow must have ended, i.e., the reference returned by `new` and
-    /// all pointers and references derived from it, must not be used anymore.
+    /// Every *mutable* reference this `DormantMutRef` has handed out so far
+    /// must be dead. That means the caller must no longer use:
+    ///
+    /// * the reference returned by `new`,
+    /// * any reference returned by an earlier call to `reborrow`, and
+    /// * any pointer or reference derived from those.
+    ///
+    /// Shared references from earlier calls to `reborrow_shared` may still
+    /// be in use. Shared references do not invalidate each other.
     pub(crate) unsafe fn reborrow_shared(&self) -> &'a T {
-        // SAFETY: our own safety conditions imply this reference is again unique.
+        // SAFETY: The caller promises that no earlier mutable child of `ptr`
+        // will be used again. Earlier shared children may coexist with the
+        // one we create here.
         unsafe { &*self.ptr.as_ptr() }
     }
 }
