@@ -5,10 +5,10 @@
 //! * [`PanickyKey`] is a key whose `Hash`/`Eq`/`Ord`/`Drop` impls share a
 //!   thread-local panic countdown. The map-specific test items also tick the
 //!   same countdown from `Drop` and from their `key()` accessors.
-//! * [`PanickyAlloc`] wraps an allocator and
-//!   taps into the same countdown from `allocate`, so allocator-panic windows
-//!   (notably the shrink path's `Vec::shrink_to_fit` and
-//!   `HashTable::shrink_to_fit`) are exercised by the same harness.
+//! * [`PanickyAlloc`] wraps an allocator and taps into the same countdown
+//!   from every allocator method, so allocator-panic windows (growth on
+//!   insert, `Vec::shrink_to_fit` and `HashTable::shrink_to_fit`, and every
+//!   free) are exercised by the same harness.
 //!
 //! The panic countdowns are set up so that after it reaches zero, the next call
 //! panics. (The countdown values are both set by example-based tests and
@@ -176,7 +176,7 @@ pub fn run_armed(armed: Option<u32>, f: impl FnOnce()) -> (bool, u32) {
 /// * `Hash`/`Eq`/`Ord`/`Drop` on `PanickyKey`.
 /// * `Hash`/`Equivalent`/`Comparable` impls on `PanickySearchKey`.
 /// * `Drop` on a map item.
-/// * `allocate` on `PanickyAlloc`.
+/// * Every method on `PanickyAlloc`.
 ///
 /// With `armed = Some(n)`, the panic should fire on the `(n+1)`-th user call,
 /// so `panicked` implies `ops == n + 1`, and `!panicked` implies the action
@@ -326,17 +326,36 @@ pub fn record_observation(
     file.write_all(line.as_bytes()).expect("wrote observation record");
 }
 
-/// Allocator wrapper whose `allocate` calls tap into the same panic
-/// countdown as [`PanickyKey`].
+/// Allocator wrapper whose methods tap into the same panic countdown as
+/// [`PanickyKey`].
+///
+/// Where the panic fires relative to the inner call differs by method, and
+/// the difference is the point:
+///
+/// * `allocate`, `allocate_zeroed`, `grow`, `grow_zeroed`, and `shrink`
+///   panic *before* forwarding. This models an allocator that could not do
+///   the work and panicked instead of returning `Err`. The block the caller
+///   passed in stays valid, which is what the allocator-api2 contract
+///   requires of a `grow` or `shrink` that did not return `Ok`.
+/// * `deallocate` panics *after* forwarding. The block is gone, and the
+///   contract allows that: a block passed to `deallocate` is no longer
+///   allocated, whatever happens next. This is the case that catches a
+///   caller which still remembers the pointer, such as a `Vec` resize that
+///   frees the old block partway through a default `grow`.
 #[cfg(all(feature = "default-hasher", feature = "allocator-api2"))]
 #[derive(Clone, Copy, Debug, Default)]
 pub struct PanickyAlloc<A>(pub A);
 
 // SAFETY:
 //
-// * On the non-panic path, forwards to the wrapped allocator.
-// * On the armed path, panics before any inner allocation, so no pointer is
-//   observable to the caller.
+// * On the non-panic path, every method forwards to the wrapped allocator
+//   with the same arguments.
+// * `allocate`, `allocate_zeroed`, `grow`, `grow_zeroed`, and `shrink` panic
+//   before the inner call, so no new pointer is observable and the caller's
+//   block is untouched.
+// * `deallocate` panics after the inner call. The block has been passed to
+//   `deallocate`, so by the contract it is no longer allocated, and the
+//   panic does not change that.
 #[cfg(all(feature = "default-hasher", feature = "allocator-api2"))]
 unsafe impl<A: Allocator> Allocator for PanickyAlloc<A> {
     fn allocate(&self, layout: Layout) -> Result<NonNull<[u8]>, AllocError> {
@@ -344,8 +363,50 @@ unsafe impl<A: Allocator> Allocator for PanickyAlloc<A> {
         self.0.allocate(layout)
     }
 
+    fn allocate_zeroed(
+        &self,
+        layout: Layout,
+    ) -> Result<NonNull<[u8]>, AllocError> {
+        observe_panicky_call("alloc");
+        self.0.allocate_zeroed(layout)
+    }
+
     unsafe fn deallocate(&self, ptr: NonNull<u8>, layout: Layout) {
         // SAFETY: inherits from the wrapped allocator's contract.
         unsafe { self.0.deallocate(ptr, layout) }
+        observe_panicky_call("dealloc");
+    }
+
+    unsafe fn grow(
+        &self,
+        ptr: NonNull<u8>,
+        old_layout: Layout,
+        new_layout: Layout,
+    ) -> Result<NonNull<[u8]>, AllocError> {
+        observe_panicky_call("grow");
+        // SAFETY: inherits from the wrapped allocator's contract.
+        unsafe { self.0.grow(ptr, old_layout, new_layout) }
+    }
+
+    unsafe fn grow_zeroed(
+        &self,
+        ptr: NonNull<u8>,
+        old_layout: Layout,
+        new_layout: Layout,
+    ) -> Result<NonNull<[u8]>, AllocError> {
+        observe_panicky_call("grow");
+        // SAFETY: inherits from the wrapped allocator's contract.
+        unsafe { self.0.grow_zeroed(ptr, old_layout, new_layout) }
+    }
+
+    unsafe fn shrink(
+        &self,
+        ptr: NonNull<u8>,
+        old_layout: Layout,
+        new_layout: Layout,
+    ) -> Result<NonNull<[u8]>, AllocError> {
+        observe_panicky_call("shrink");
+        // SAFETY: inherits from the wrapped allocator's contract.
+        unsafe { self.0.shrink(ptr, old_layout, new_layout) }
     }
 }
