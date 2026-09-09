@@ -15,9 +15,27 @@
 
 - The `Debug` impls for `IdOrdMap`, `IdHashMap`, `BiHashMap`, and `TriHashMap` now format items only, as a set (`{item, ...}`), and require just `T: Debug`. Previously they formatted `{key: item, ...}` and also required the key types to be `Debug`. Use `debug_with_keys` for the previous form. The `Debug` impls for the `daft` `Diff` and `MapLeaf` types likewise no longer require the key types to be `Debug`.
 
+- **Breaking:** `IdOrdMap::retain` and `IdOrdMap`'s `Entry::and_modify` now require `for<'k> T::Key<'k>: Hash`. Any `Hash` impl that is generic over the key lifetime, including derived ones, satisfies the new bound. Due to compiler limitations, maps where the item type is non-`'static` can no longer call these two methods.
+
+  See the "Key lifetimes" section of `RefMut`'s documentation for the reasoning.
+
+  For non-`'static` item types:
+
+  - Instead of `retain`, take the map with `mem::take` and re-insert the items to keep, or collect the keys to drop from `iter` and `remove` them.
+  - Instead of `and_modify`, use `OccupiedEntry::get_mut`.
+
+  Even though this is a breaking change, we are not releasing a new major version for this change due to it being a soundness fix and us hoping this is a relatively minor use.
+
 ### Fixed
 
 - The `Iter`, `IterMut`, and `IntoIter` types now report an exact `size_hint`. Previously, they returned `(0, None)`. This violated the `ExactSizeIterator` contract, resulting in calls like `.take(...).len()` panicking on a non-empty map.
+
+- Fixed a soundness hole in `IdOrdMap`'s `RefMut`. Within `Entry::and_modify` and `IdOrdMap::retain`, the item can be removed while the `RefMut`'s borrow lifetime `'a` is still live. In a contrived scenario where:
+
+  - A map is held for `'static`, e.g. with `Box::leak`; and,
+  - A `Hash` impl was written only for `Key<'static>`,
+
+  The `Hash` impl could observe a key that wasn't valid for `'static`. These two methods now reject a `'static`-only `Hash` impl at compile time.
 
 - Fixed a soundness hole in the `Debug` impls for `IdOrdMap`, `IdHashMap`, `BiHashMap`, and `TriHashMap`. A contrived scenario where a `Debug` impl was written only for `Key<'static>` could observe a `'static` key that actually borrowed from the map. The impls no longer format keys, and the internal lifetime-extending `transmute` is gone. (This is why the `Debug` output changed; see above.)
 

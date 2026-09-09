@@ -35,6 +35,17 @@ use core::{
 /// The issues here are similar to using interior mutability (e.g. `RefCell` or
 /// `Mutex`) to mutate keys in a regular `HashMap`.
 ///
+/// # Key lifetimes
+///
+/// Most methods that hand out a `RefMut` require `T::Key<'a>: Hash`, so that
+/// `RefMut` can detect key changes. The `T::Key<'a>: Hash` bound is compatible
+/// with a non-`'static` `T`.
+///
+/// Some methods, such as `and_modify` and `retain`, instead require `for<'k>
+/// T::Key<'k>: Hash`. Due to compiler limitations in current versions of Rust,
+/// this results in a requirement that `T` be `'static`. The `'static`
+/// limitation only applies to these two methods.
+///
 /// [`mem::forget`]: std::mem::forget
 ///
 /// [^collision-chance]: The output of `Hash` is a [`u64`], so the probability

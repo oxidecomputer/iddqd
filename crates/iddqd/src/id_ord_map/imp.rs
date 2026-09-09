@@ -1346,13 +1346,26 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     /// assert_eq!(map.get("baz").unwrap().value, 99);
     /// assert!(map.get("bar").is_none());
     /// ```
-    pub fn retain<'a, F>(&'a mut self, mut f: F)
+    ///
+    /// # Notes
+    ///
+    /// Due to limitations in current versions of Rust, this method can only be
+    /// called if `T: 'static`. See the ["Key lifetimes"](RefMut#key-lifetimes)
+    /// section in [`RefMut`] for more details.
+    ///
+    /// For maps with borrowed keys, a suggested alternative is to rebuild a new
+    /// map from the items one wishes to retain.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `f` changes the item's key, as detected by the [`RefMut`].
+    pub fn retain<F>(&mut self, mut f: F)
     where
         F: for<'b> FnMut(RefMut<'b, T>) -> bool,
-        T::Key<'a>: Hash,
+        for<'k> T::Key<'k>: Hash,
     {
         let hash_state = self.tables.state().clone();
-        let (_, mut dormant_items) = DormantMutRef::new(&mut self.items);
+        let items = &mut self.items;
         let mut removed_item = None;
 
         self.tables.key_to_item.retain(|index| {
@@ -1367,43 +1380,19 @@ impl<T: IdOrdItem> IdOrdMap<T> {
             // `items`.
             drop(removed_item.take());
 
-            let (item, dormant_items) = {
-                // SAFETY: All uses of `items` ended in the previous iteration.
-                let items = unsafe { dormant_items.reborrow() };
-                let (items, dormant_items) = DormantMutRef::new(items);
-                let item: &'a mut T = items
+            let retain = {
+                let item = items
                     .get_mut(index)
                     .expect("all indexes are present in self.items");
-                (item, dormant_items)
-            };
-
-            let (hash, dormant_item) = {
-                let (item, dormant_item): (&'a mut T, _) =
-                    DormantMutRef::new(item);
                 // Use T::key(item) rather than item.key() to force the key
                 // trait function to be called for T rather than &mut T.
-                let key = T::key(item);
-                let hash = hash_state.hash_one(key);
-                (MapHash::new(hash), dormant_item)
-            };
-
-            let retain = {
-                // SAFETY: The original item is no longer used after the second
-                // block above. dormant_items, from which item is derived, is
-                // currently dormant.
-                let item = unsafe { dormant_item.awaken() };
-
-                let ref_mut = RefMut::new(hash_state.clone(), hash, item);
-                f(ref_mut)
+                let hash = MapHash::new(hash_state.hash_one(T::key(item)));
+                f(RefMut::new(hash_state.clone(), hash, item))
             };
 
             if retain {
                 true
             } else {
-                // SAFETY: The original items is no longer used after the first
-                // block above, and item + dormant_item have been dropped after
-                // being used above.
-                let items = unsafe { dormant_items.awaken() };
                 removed_item = Some(
                     items
                         .remove(index)

@@ -98,35 +98,37 @@ impl<'a, T: IdOrdItem> Entry<'a, T> {
 
     /// Provides in-place mutable access to an occupied entry before any
     /// potential inserts into the map.
+    ///
+    /// # Notes
+    ///
+    /// Due to limitations in current versions of Rust, this method can only be
+    /// called if `T: 'static`. See the ["Key lifetimes"](RefMut#key-lifetimes)
+    /// section in [`RefMut`] for more details.
+    ///
+    /// For maps with borrowed keys, a suggested alternative is to match on the
+    /// entry's variants, calling `get_mut` on an `OccupiedEntry`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `f` changes the item's key, as detected by the `RefMut`.
     #[inline]
     pub fn and_modify<F>(self, f: F) -> Self
     where
         F: FnOnce(RefMut<'_, T>),
-        T::Key<'a>: Hash,
+        for<'k> T::Key<'k>: Hash,
     {
         match self {
             Entry::Occupied(mut entry) => {
                 {
-                    let (state, hash, dormant) = {
-                        // SAFETY: The safety assumption behind
-                        // `OccupiedEntry::new` guarantees that the original
-                        // reference to the map is not used at this point.
-                        let map = unsafe { entry.map.reborrow() };
-                        let item = map
-                            .items
-                            .get_mut(entry.index)
-                            .expect("index is valid");
-
-                        let (item, dormant) = DormantMutRef::new(item);
-                        let hash = map.tables.make_hash(item);
-                        let state = map.tables.state().clone();
-                        (state, hash, dormant)
-                    };
-
-                    // SAFETY: the item above is not used after this point.
-                    let awakened_item = unsafe { dormant.awaken() };
-                    let ref_mut = RefMut::new(state, hash, awakened_item);
-                    f(ref_mut);
+                    // SAFETY: The safety assumption behind
+                    // `OccupiedEntry::new` guarantees that the original
+                    // reference to the map is not used at this point.
+                    let map = unsafe { entry.map.reborrow() };
+                    let state = map.tables.state().clone();
+                    let item =
+                        map.items.get_mut(entry.index).expect("index is valid");
+                    let hash = map.tables.make_hash(&*item);
+                    f(RefMut::new(state, hash, item));
                 }
                 Entry::Occupied(entry)
             }
