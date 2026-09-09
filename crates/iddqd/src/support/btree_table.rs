@@ -309,9 +309,27 @@ impl MapBTreeTable {
     ///
     /// [`ItemSet::compact`]: super::item_set::ItemSet::compact
     pub(crate) fn remap_indexes(&mut self, remap: &IndexRemap) {
+        // Walk the B-tree twice: once to check every index, then once to
+        // rewrite them.
+        //
+        // Why? `remap.remap` panics if compaction vacated the index. That can't
+        // happen while the B-tree is structurally sound and only holds valid
+        // indexes. But suppose it did, and we checked and rewrote in a single
+        // walk. What would happen then?
+        //
+        // * The walk would rewrite some indexes, then panic on the bad one.
+        // * The tree would be left half-rewritten.
+        // * An index that was rewritten could now equal one that wasn't, so
+        //   the tree would hold the same index twice, breaking the
+        //   no-duplicate-index invariant.
+        //
+        // With two walks, the first one panics before anything is rewritten,
+        // and the tree is unchanged.
         for idx in self.items.keys() {
-            let new = remap.remap(idx.value());
-            idx.set_value(new);
+            remap.remap(idx.value());
+        }
+        for idx in self.items.keys() {
+            idx.set_value(remap.remap(idx.value()));
         }
     }
 
@@ -764,6 +782,43 @@ mod tests {
                 .map(|i| i.value().as_u32())
                 .collect::<alloc::vec::Vec<_>>(),
             [0u32, 1, 2],
+        );
+    }
+
+    /// If `remap_indexes` encounters an index that compaction vacated, it must
+    /// panic before rewriting anything.
+    #[test]
+    fn remap_indexes_panics_before_rewriting_on_vacated_index() {
+        let mut table = MapBTreeTable::new();
+        let lookup = |ix: ItemIndex| -> u32 { ix.as_u32() };
+        for ix in [0u32, 2, 4] {
+            let ix = ItemIndex::new(ix);
+            table.prepare_insert(ix, &lookup(ix), lookup).insert();
+        }
+
+        // 0 -> 0, 2 -> 1, and 4 is (wrongly) marked vacated.
+        let remap = IndexRemap::Permuted(alloc::vec![
+            ItemIndex::new(0),
+            ItemIndex::SENTINEL,
+            ItemIndex::new(1),
+            ItemIndex::SENTINEL,
+            ItemIndex::SENTINEL,
+        ]);
+
+        let result =
+            std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                table.remap_indexes(&remap)
+            }));
+        assert!(result.is_err(), "remap of a vacated index should panic");
+
+        assert_eq!(
+            table
+                .items
+                .keys()
+                .map(|i| i.value().as_u32())
+                .collect::<alloc::vec::Vec<_>>(),
+            [0u32, 2, 4],
+            "tree must be unchanged after the panic",
         );
     }
 
