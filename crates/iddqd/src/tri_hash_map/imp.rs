@@ -2758,19 +2758,45 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
         let items = &mut self.items;
         let k2_to_item = &mut self.tables.k2_to_item;
         let k3_to_item = &mut self.tables.k3_to_item;
-        let mut removed_item = None;
+        // This variable is:
+        //
+        // * None, if the last time `f` was called, it returned true.
+        // * Some with the previous index, if the last time `f` was called,
+        //   it returned false.
+        let mut pending_remove: Option<ItemIndex> = None;
 
         self.tables.k1_to_item.retain(|index| {
-            // Drop the previously-removed item here, at the top of the next
-            // iteration.
+            // If `f` returned false last time, remove that item from `items`
+            // now, one call later. We do this because of how
+            // `HashTable::retain` sequences its work:
             //
-            // By now, the prior `k1_to_item` entry has been erased, so if
-            // `drop` below panics, `k1_to_item`, `k2_to_item`, `k3_to_item`,
-            // and `items` remain in sync. Dropping the item at the end of the
-            // prior iteration would unwind before the table erased the entry,
-            // leaving `k1_to_item` pointing at a slot we already removed from
-            // `items`, `k2_to_item`, and `k3_to_item`.
-            drop(removed_item.take());
+            // 1. It calls this closure.
+            // 2. If the closure returns false, it erases the entry.
+            // 3. It calls this closure again for the next entry.
+            //
+            // If we removed the item from `items` during step 1, then between
+            // steps 1 and 2 `k1_to_item` would hold an index whose slot is
+            // vacant. Only hashbrown code runs in that gap today, so nothing
+            // can panic there. But if something ever did, the map would be
+            // left with a stale index in the table. A later insert could then
+            // reuse the vacant slot, and the table would hold the same index
+            // twice.
+            //
+            // Unlike `IdOrdMap`, the hash maps re-check every index they turn
+            // into a `&mut T`, so a duplicate would panic rather than alias.
+            // We defer the removal anyway so all four `retain` methods work
+            // the same way.
+            //
+            // Removing the item here, during step 3, closes the gap. The
+            // table entry is already gone, so if `items.remove` or the user
+            // `Drop` below panics, the tables and `items` are still in sync.
+            if let Some(prev) = pending_remove.take() {
+                drop(
+                    items
+                        .remove(prev)
+                        .expect("all indexes are present in self.items"),
+                );
+            }
 
             let (hash2, hash3, retain) = {
                 let item = items
@@ -2812,17 +2838,21 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
                     k3_to_item.remove_by_index(index);
                 }
 
-                removed_item = Some(
-                    items
-                        .remove(index)
-                        .expect("all indexes are present in self.items"),
-                );
+                pending_remove = Some(index);
 
                 false
             }
         });
 
-        // Anything in `removed_item` is implicitly dropped now.
+        // The last rejected item, if any, is freed and dropped now that its
+        // table entry is gone.
+        if let Some(prev) = pending_remove {
+            drop(
+                items
+                    .remove(prev)
+                    .expect("all indexes are present in self.items"),
+            );
+        }
     }
 
     fn find1<'a, Q>(&'a self, k: &Q) -> Option<&'a T>
