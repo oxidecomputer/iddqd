@@ -109,6 +109,12 @@ impl Ord for DropPanicOrdKey {
     }
 }
 
+impl Hash for DropPanicOrdKey {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id.hash(state)
+    }
+}
+
 impl IdOrdItem for DropPanicOrdItem {
     type Key<'a> = DropPanicOrdKey;
 

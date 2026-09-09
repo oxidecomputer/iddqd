@@ -13,10 +13,7 @@ use crate::{
         map_hash::MapHash,
     },
 };
-use core::{
-    fmt,
-    hash::{BuildHasher, Hash},
-};
+use core::{fmt, hash::BuildHasher};
 use equivalent::{Comparable, Equivalent};
 
 /// An ordered map where the keys are part of the values, based on a B-Tree.
@@ -591,10 +588,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     /// [`BTreeMap`]: std::collections::BTreeMap
     /// [`T::Key`]: crate::IdOrdItem::Key
     #[inline]
-    pub fn iter_mut<'a>(&'a mut self) -> IterMut<'a, T>
-    where
-        T::Key<'a>: Hash,
-    {
+    pub fn iter_mut(&mut self) -> IterMut<'_, T> {
         IterMut::new(&mut self.items, &self.tables)
     }
 
@@ -874,10 +868,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     ///
     /// assert_eq!(map.get("foo").unwrap().value, 99);
     /// ```
-    pub fn get_mut<'a>(&'a mut self, key: T::Key<'_>) -> Option<RefMut<'a, T>>
-    where
-        T::Key<'a>: Hash,
-    {
+    pub fn get_mut(&mut self, key: T::Key<'_>) -> Option<RefMut<'_, T>> {
         let index = self.find_index_by_key(key)?;
         self.get_by_index_mut(index)
     }
@@ -1277,22 +1268,12 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     /// assert!(map.get("bar").is_none());
     /// ```
     ///
-    /// # Notes
-    ///
-    /// Due to limitations in current versions of Rust, this method can only be
-    /// called if `T: 'static`. See the ["Key lifetimes"](RefMut#key-lifetimes)
-    /// section in [`RefMut`] for more details.
-    ///
-    /// For maps with borrowed keys, a suggested alternative is to rebuild a new
-    /// map from the items one wishes to retain.
-    ///
     /// # Panics
     ///
     /// Panics if `f` changes the item's key, as detected by the [`RefMut`].
     pub fn retain<F>(&mut self, mut f: F)
     where
         F: for<'b> FnMut(RefMut<'b, T>) -> bool,
-        for<'k> T::Key<'k>: Hash,
     {
         let hash_state = self.tables.state().clone();
         let items = &mut self.items;
@@ -1401,10 +1382,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     pub(super) fn get_by_index_mut<'a>(
         &'a mut self,
         index: ItemIndex,
-    ) -> Option<RefMut<'a, T>>
-    where
-        T::Key<'a>: Hash,
-    {
+    ) -> Option<RefMut<'a, T>> {
         let state = self.tables.state().clone();
         let (hash, dormant) = {
             let item: &'a mut T = self.items.get_mut(index)?;
@@ -1663,10 +1641,7 @@ impl<'a, T: IdOrdItem> IntoIterator for &'a IdOrdMap<T> {
     }
 }
 
-impl<'a, T: IdOrdItem> IntoIterator for &'a mut IdOrdMap<T>
-where
-    T::Key<'a>: Hash,
-{
+impl<'a, T: IdOrdItem> IntoIterator for &'a mut IdOrdMap<T> {
     type Item = RefMut<'a, T>;
     type IntoIter = IterMut<'a, T>;
 

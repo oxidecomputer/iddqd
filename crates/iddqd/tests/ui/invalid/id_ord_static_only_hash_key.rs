@@ -1,7 +1,8 @@
-// A `Hash` impl that exists only for `Key<'static>` must not be usable with
-// `and_modify`: the entry can remove the item afterwards, so a key handed to
-// `Hash::hash` for `'static` would outlive the item. Leaking the map is what
-// makes `'a = 'static` reachable.
+// A `Hash` impl that exists only for `Key<'static>` must not be usable as an
+// `IdOrdItem` key: within `and_modify`, the entry can remove the item
+// afterwards, so a key handed to `Hash::hash` for `'static` would outlive the
+// item. Leaking the map is what makes `'a = 'static` reachable. The
+// `IdOrdItem::Key: Hash` bound rejects this at the impl.
 
 use iddqd::{IdOrdItem, IdOrdMap, id_upcast};
 use std::hash::{Hash, Hasher};

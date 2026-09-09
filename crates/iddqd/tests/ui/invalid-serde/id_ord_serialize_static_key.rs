@@ -5,7 +5,7 @@
 use iddqd::{IdOrdItem, IdOrdMap, id_ord_map::IdOrdMapAsMap, id_upcast};
 use serde::{Serialize, Serializer};
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct Key<'a>(&'a str);
 
 impl Serialize for Key<'static> {

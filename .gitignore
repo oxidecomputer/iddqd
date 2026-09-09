@@ -2,5 +2,6 @@
 /mutants.out*
 # Soteria symbolic-execution frontend output (see `just soteria`).
 *.llbc.json
+*.ullbc
 # Hegel property-test failure database, created on failing local runs.
 /.hegel/

@@ -5,7 +5,7 @@ use crate::support::{
     btree_table,
     item_set::{ConsumingItemSet, ItemSet, ItemSlotsPtr},
 };
-use core::{hash::Hash, iter::FusedIterator};
+use core::iter::FusedIterator;
 
 /// An iterator over the elements of an [`IdOrdMap`] by shared reference.
 ///
@@ -62,19 +62,13 @@ impl<T: IdOrdItem> FusedIterator for Iter<'_, T> {}
 /// [`IdOrdMap`]: crate::IdOrdMap
 /// [`IdOrdMap::iter_mut`]: crate::IdOrdMap::iter_mut
 #[derive(Debug)]
-pub struct IterMut<'a, T: IdOrdItem>
-where
-    T::Key<'a>: Hash,
-{
+pub struct IterMut<'a, T: IdOrdItem> {
     items: ItemSlotsPtr<'a, T>,
     tables: &'a IdOrdMapTables,
     iter: btree_table::Iter<'a>,
 }
 
-impl<'a, T: IdOrdItem> IterMut<'a, T>
-where
-    T::Key<'a>: Hash,
-{
+impl<'a, T: IdOrdItem> IterMut<'a, T> {
     pub(super) fn new(
         items: &'a mut ItemSet<T, Global>,
         tables: &'a IdOrdMapTables,
@@ -87,10 +81,7 @@ where
     }
 }
 
-impl<'a, T: IdOrdItem + 'a> Iterator for IterMut<'a, T>
-where
-    T::Key<'a>: Hash,
-{
+impl<'a, T: IdOrdItem> Iterator for IterMut<'a, T> {
     type Item = RefMut<'a, T>;
 
     #[inline]
@@ -130,20 +121,14 @@ where
     }
 }
 
-impl<'a, T: IdOrdItem + 'a> ExactSizeIterator for IterMut<'a, T>
-where
-    T::Key<'a>: Hash,
-{
+impl<'a, T: IdOrdItem> ExactSizeIterator for IterMut<'a, T> {
     #[inline]
     fn len(&self) -> usize {
         self.iter.len()
     }
 }
 
-impl<'a, T: IdOrdItem + 'a> FusedIterator for IterMut<'a, T> where
-    T::Key<'a>: Hash
-{
-}
+impl<'a, T: IdOrdItem> FusedIterator for IterMut<'a, T> {}
 
 /// An iterator over the elements of a [`IdOrdMap`] by ownership.
 ///

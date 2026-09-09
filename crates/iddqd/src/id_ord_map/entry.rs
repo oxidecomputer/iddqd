@@ -1,6 +1,6 @@
 use super::{IdOrdItem, IdOrdMap, RefMut};
 use crate::support::ItemIndex;
-use core::{fmt, hash::Hash};
+use core::fmt;
 
 /// An implementation of the Entry API for [`IdOrdMap`].
 pub enum Entry<'a, T: IdOrdItem> {
@@ -49,10 +49,7 @@ impl<'a, T: IdOrdItem> Entry<'a, T> {
     /// the key should be what was passed into [`IdOrdMap::entry`], but that
     /// isn't checked in this API due to borrow checker limitations.)
     #[inline]
-    pub fn or_insert(self, default: T) -> RefMut<'a, T>
-    where
-        T::Key<'a>: Hash,
-    {
+    pub fn or_insert(self, default: T) -> RefMut<'a, T> {
         match self {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => entry.insert(default),
@@ -86,10 +83,7 @@ impl<'a, T: IdOrdItem> Entry<'a, T> {
     /// the key should be what was passed into [`IdOrdMap::entry`], but that
     /// isn't checked in this API due to borrow checker limitations.)
     #[inline]
-    pub fn or_insert_with<F: FnOnce() -> T>(self, default: F) -> RefMut<'a, T>
-    where
-        T::Key<'a>: Hash,
-    {
+    pub fn or_insert_with<F: FnOnce() -> T>(self, default: F) -> RefMut<'a, T> {
         match self {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => entry.insert(default()),
@@ -99,15 +93,6 @@ impl<'a, T: IdOrdItem> Entry<'a, T> {
     /// Provides in-place mutable access to an occupied entry before any
     /// potential inserts into the map.
     ///
-    /// # Notes
-    ///
-    /// Due to limitations in current versions of Rust, this method can only be
-    /// called if `T: 'static`. See the ["Key lifetimes"](RefMut#key-lifetimes)
-    /// section in [`RefMut`] for more details.
-    ///
-    /// For maps with borrowed keys, a suggested alternative is to match on the
-    /// entry's variants, calling `get_mut` on an `OccupiedEntry`.
-    ///
     /// # Panics
     ///
     /// Panics if `f` changes the item's key, as detected by the `RefMut`.
@@ -115,7 +100,6 @@ impl<'a, T: IdOrdItem> Entry<'a, T> {
     pub fn and_modify<F>(self, f: F) -> Self
     where
         F: FnOnce(RefMut<'_, T>),
-        for<'k> T::Key<'k>: Hash,
     {
         match self {
             Entry::Occupied(entry) => {
@@ -168,10 +152,7 @@ impl<'a, T: IdOrdItem> VacantEntry<'a, T> {
 
     /// Sets the entry to a new value, returning a mutable reference to the
     /// value.
-    pub fn insert(self, value: T) -> RefMut<'a, T>
-    where
-        T::Key<'a>: Hash,
-    {
+    pub fn insert(self, value: T) -> RefMut<'a, T> {
         let map = self.map;
         let Ok(index) = map.insert_unique_impl(value) else {
             panic!("key already present in map");
@@ -222,10 +203,7 @@ impl<'a, T: IdOrdItem> OccupiedEntry<'a, T> {
     ///
     /// If you need a reference to `T` that may outlive the destruction of the
     /// `Entry` value, see [`into_mut`](Self::into_mut).
-    pub fn get_mut<'b>(&'b mut self) -> RefMut<'b, T>
-    where
-        T::Key<'b>: Hash,
-    {
+    pub fn get_mut(&mut self) -> RefMut<'_, T> {
         self.map
             .get_by_index_mut(self.index)
             .expect("index is known to be valid")
@@ -243,10 +221,7 @@ impl<'a, T: IdOrdItem> OccupiedEntry<'a, T> {
     ///
     /// If you need multiple references to the `OccupiedEntry`, see
     /// [`get_mut`](Self::get_mut).
-    pub fn into_mut(self) -> RefMut<'a, T>
-    where
-        T::Key<'a>: Hash,
-    {
+    pub fn into_mut(self) -> RefMut<'a, T> {
         self.map
             .get_by_index_mut(self.index)
             .expect("index is known to be valid")

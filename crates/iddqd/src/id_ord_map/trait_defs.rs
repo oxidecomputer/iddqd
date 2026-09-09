@@ -1,6 +1,7 @@
 //! Trait definitions for `IdOrdMap`.
 
 use alloc::{boxed::Box, rc::Rc, sync::Arc};
+use core::hash::Hash;
 
 /// An element stored in an [`IdOrdMap`].
 ///
@@ -39,7 +40,22 @@ use alloc::{boxed::Box, rc::Rc, sync::Arc};
 /// [`IdOrdMap`]: crate::IdOrdMap
 pub trait IdOrdItem {
     /// The key type.
-    type Key<'a>: Ord
+    ///
+    /// The [`Ord`] implementation is used for ordered comparisons, while the
+    /// [`Hash`] implementation is used for [`RefMut`]'s change detection.
+    /// Ideally [`Hash`] would only be required on the methods that need it, but
+    /// we require it here due to limitations in current versions of Rust.
+    ///
+    /// As required by Rust, the [`Hash`] and [`Ord`] (and [`Eq`], which is
+    /// required by [`Ord`]) implementations must agree with each other. In
+    /// particular, if two keys A and B return
+    /// [`Ordering::Equal`](std::cmp::Ordering::Equal), then [`Hash::hash`] must
+    /// return the same value for both A and B. (Strictly speaking, the converse
+    /// is not required, but it's always best to try and match the two up to
+    /// hash collisions.)
+    ///
+    /// [`RefMut`]: crate::id_ord_map::RefMut
+    type Key<'a>: Ord + Hash
     where
         Self: 'a;
 

@@ -2,7 +2,6 @@ use super::IdOrdItem;
 use crate::support::map_hash::MapHash;
 use core::{
     fmt,
-    hash::Hash,
     ops::{Deref, DerefMut},
 };
 
@@ -14,8 +13,8 @@ use core::{
 /// # Change detection
 ///
 /// It is illegal to change the keys of a borrowed `&mut T`. `RefMut` attempts
-/// to enforce this invariant, and as part of that, it requires that the key
-/// type implement [`Hash`].
+/// to enforce this invariant, and as part of that, [`IdOrdItem::Key`] requires
+/// that the key type implement [`Hash`].
 ///
 /// `RefMut` stores the `Hash` output of keys at creation time, and recomputes
 /// these hashes when it is dropped or when [`Self::into_ref`] is called. If a
@@ -35,17 +34,6 @@ use core::{
 /// The issues here are similar to using interior mutability (e.g. `RefCell` or
 /// `Mutex`) to mutate keys in a regular `HashMap`.
 ///
-/// # Key lifetimes
-///
-/// Most methods that hand out a `RefMut` require `T::Key<'a>: Hash`, so that
-/// `RefMut` can detect key changes. The `T::Key<'a>: Hash` bound is compatible
-/// with a non-`'static` `T`.
-///
-/// Some methods, such as `and_modify` and `retain`, instead require `for<'k>
-/// T::Key<'k>: Hash`. Due to compiler limitations in current versions of Rust,
-/// this results in a requirement that `T` be `'static`. The `'static`
-/// limitation only applies to these two methods.
-///
 /// [`mem::forget`]: std::mem::forget
 ///
 /// [^collision-chance]: The output of `Hash` is a [`u64`], so the probability
@@ -53,19 +41,14 @@ use core::{
 /// problem], the probability of a collision by chance reaches 10⁻⁶ within
 /// around 6 × 10⁶ elements.
 ///
+/// [`Hash`]: core::hash::Hash
 /// [`IdOrdMap`]: crate::IdOrdMap
 /// [birthday problem]: https://en.wikipedia.org/wiki/Birthday_problem#Probability_table
-pub struct RefMut<'a, T: IdOrdItem>
-where
-    T::Key<'a>: Hash,
-{
+pub struct RefMut<'a, T: IdOrdItem> {
     inner: Option<RefMutInner<'a, T>>,
 }
 
-impl<'a, T: IdOrdItem> RefMut<'a, T>
-where
-    T::Key<'a>: Hash,
-{
+impl<'a, T: IdOrdItem> RefMut<'a, T> {
     #[inline]
     pub(super) fn new(
         state: foldhash::fast::FixedState,
@@ -81,9 +64,7 @@ where
         let inner = self.inner.take().unwrap();
         inner.into_ref()
     }
-}
 
-impl<'a, T: for<'k> IdOrdItemMut<'k>> RefMut<'a, T> {
     /// Borrows self into a shorter-lived `RefMut`.
     ///
     /// This `RefMut` will also check hash equality on drop.
@@ -94,10 +75,7 @@ impl<'a, T: for<'k> IdOrdItemMut<'k>> RefMut<'a, T> {
     }
 }
 
-impl<'a, T: IdOrdItem> Drop for RefMut<'a, T>
-where
-    T::Key<'a>: Hash,
-{
+impl<'a, T: IdOrdItem> Drop for RefMut<'a, T> {
     #[inline]
     fn drop(&mut self) {
         if let Some(inner) = self.inner.take() {
@@ -106,10 +84,7 @@ where
     }
 }
 
-impl<'a, T: IdOrdItem> Deref for RefMut<'a, T>
-where
-    T::Key<'a>: Hash,
-{
+impl<'a, T: IdOrdItem> Deref for RefMut<'a, T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -117,19 +92,13 @@ where
     }
 }
 
-impl<'a, T: IdOrdItem> DerefMut for RefMut<'a, T>
-where
-    T::Key<'a>: Hash,
-{
+impl<'a, T: IdOrdItem> DerefMut for RefMut<'a, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.inner.as_mut().unwrap().borrowed
     }
 }
 
-impl<'a, T: IdOrdItem + fmt::Debug> fmt::Debug for RefMut<'a, T>
-where
-    T::Key<'a>: Hash,
-{
+impl<'a, T: IdOrdItem + fmt::Debug> fmt::Debug for RefMut<'a, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.inner {
             Some(ref inner) => inner.fmt(f),
@@ -146,14 +115,9 @@ struct RefMutInner<'a, T: IdOrdItem> {
     borrowed: &'a mut T,
 }
 
-impl<'a, T: IdOrdItem> RefMutInner<'a, T>
-where
-    T::Key<'a>: Hash,
-{
+impl<'a, T: IdOrdItem> RefMutInner<'a, T> {
     #[inline]
     fn into_ref(self) -> &'a T {
-        // Convert the `&'a mut T` into a `&'a T`, so that borrowed.key()
-        // returns `T::Key<'a>`.
         let borrowed: &'a T = self.borrowed;
         if !self.hash.is_same_hash(&self.state, borrowed.key()) {
             panic!("key changed during RefMut borrow");
@@ -168,16 +132,3 @@ impl<T: IdOrdItem + fmt::Debug> fmt::Debug for RefMutInner<'_, T> {
         self.borrowed.fmt(f)
     }
 }
-
-/// A trait for mutable access to items in an [`IdOrdMap`].
-///
-/// This is a non-public trait used to work around a Rust borrow checker
-/// limitation. [This will produce a documentation warning if it becomes
-/// public].
-///
-/// This is automatically implemented whenever `T::Key` implements [`Hash`].
-///
-/// [`IdOrdMap`]: crate::IdOrdMap
-pub trait IdOrdItemMut<'a>: IdOrdItem<Key<'a>: Hash> + 'a {}
-
-impl<'a, T> IdOrdItemMut<'a> for T where T: 'a + IdOrdItem<Key<'a>: Hash> {}

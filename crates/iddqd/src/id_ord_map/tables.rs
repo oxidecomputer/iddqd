@@ -3,7 +3,6 @@ use crate::{
     internal::{ValidateCompact, ValidationError},
     support::{btree_table::MapBTreeTable, map_hash::MapHash},
 };
-use core::hash::Hash;
 
 #[derive(Clone, Debug, Default)]
 pub(super) struct IdOrdMapTables {
@@ -32,11 +31,7 @@ impl IdOrdMapTables {
         Ok(())
     }
 
-    pub(super) fn make_hash<'a, T>(&self, item: &'a T) -> MapHash
-    where
-        T::Key<'a>: Hash,
-        T: 'a + IdOrdItem,
-    {
+    pub(super) fn make_hash<T: IdOrdItem>(&self, item: &T) -> MapHash {
         self.key_to_item.compute_hash(item.key())
     }
 }

@@ -25,16 +25,11 @@
 
 - The `Debug` impls for `IdOrdMap`, `IdHashMap`, `BiHashMap`, and `TriHashMap` now format items only, as a set (`{item, ...}`), and require just `T: Debug`. Previously they formatted `{key: item, ...}` and also required the key types to be `Debug`. Use `debug_with_keys` for the previous form. The `Debug` impls for the `daft` `Diff` and `MapLeaf` types likewise no longer require the key types to be `Debug`.
 
-- **Breaking:** `IdOrdMap::retain` and `IdOrdMap`'s `Entry::and_modify` now require `for<'k> T::Key<'k>: Hash`. Any `Hash` impl that is generic over the key lifetime, including derived ones, satisfies the new bound. Due to compiler limitations, maps where the item type is non-`'static` can no longer call these two methods.
+- **Breaking:** `IdOrdItem::Key` now requires `Hash` in addition to `Ord`. Any `Hash` impl that is generic over the key lifetime, including derived ones, satisfies the new bound.
 
-  See the "Key lifetimes" section of `RefMut`'s documentation for the reasoning.
+  `IdOrdMap`'s `RefMut` has always needed `Hash` to detect key changes, but the bound used to be on each method that hands out a `RefMut`. Moving it onto the trait removes those per-method bounds.
 
-  For non-`'static` item types:
-
-  - Instead of `retain`, take the map with `mem::take` and re-insert the items to keep, or collect the keys to drop from `iter` and `remove` them.
-  - Instead of `and_modify`, use `OccupiedEntry::get_mut`.
-
-  Even though this is a breaking change, we are not releasing a new major version for this change due to it being a soundness fix and us hoping this is a relatively minor use.
+  As a result, `RefMut::reborrow` no longer requires the item type to be `'static`. (The 0.3.10 changelog claimed this already worked, but it did not.)
 
 ### Fixed
 
@@ -49,7 +44,7 @@
   - A map is held for `'static`, e.g. with `Box::leak`; and,
   - A `Hash` impl was written only for `Key<'static>`,
 
-  The `Hash` impl could observe a key that wasn't valid for `'static`. These two methods now reject a `'static`-only `Hash` impl at compile time.
+  The `Hash` impl could observe a key that wasn't valid for `'static`. The new `Hash` bound on `IdOrdItem::Key` rejects a `'static`-only `Hash` impl at compile time.
 
 - Fixed a soundness hole in the `Debug` impls for `IdOrdMap`, `IdHashMap`, `BiHashMap`, and `TriHashMap`. A contrived scenario where a `Debug` impl was written only for `Key<'static>` could observe a `'static` key that actually borrowed from the map. The impls no longer format keys, and the internal lifetime-extending `transmute` is gone. (This is why the `Debug` output changed; see above.)
 
