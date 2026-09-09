@@ -56,7 +56,20 @@ mod inner {
         Global::new()
     }
 
-    #[allow(clippy::missing_safety_doc)] // not exposed outside of this crate
+    /// A stand-in for `allocator_api2::alloc::Allocator` when the
+    /// `allocator-api2` feature is off.
+    ///
+    /// This trait lives in a private module and is only re-exported at
+    /// `pub(crate)`, so nothing outside this crate can name or implement it.
+    /// The only implementation is [`Global`], which forwards to
+    /// `allocator_api2::alloc::Global`.
+    ///
+    /// # Safety
+    ///
+    /// Implementations must uphold the contract of
+    /// `allocator_api2::alloc::Allocator`. `AllocWrapper` forwards to this
+    /// trait when it implements that one, so an implementation here that
+    /// broke the contract would break hashbrown and `Vec`.
     pub unsafe trait Allocator {
         fn allocate(&self, layout: Layout)
         -> Result<NonNull<[u8]>, AllocError>;
