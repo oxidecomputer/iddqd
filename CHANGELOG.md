@@ -7,6 +7,8 @@
 
 - `debug_with_keys` methods on `IdOrdMap`, `IdHashMap`, `BiHashMap`, and `TriHashMap`. These return a value whose `Debug` output is the previous `{key: item, ...}` form, and require the key types to be `Debug` for the lifetime of the borrow.
 
+- `IdOrdMap`'s `IntoIter` now implements `ExactSizeIterator` and `FusedIterator`, matching the other maps' owning iterators.
+
 ### Changed
 
 - The `Debug` impl for `IdHashMap` no longer requires `S: Clone + BuildHasher`, matching `BiHashMap` and `TriHashMap`.
@@ -14,6 +16,8 @@
 - The `Debug` impls for `IdOrdMap`, `IdHashMap`, `BiHashMap`, and `TriHashMap` now format items only, as a set (`{item, ...}`), and require just `T: Debug`. Previously they formatted `{key: item, ...}` and also required the key types to be `Debug`. Use `debug_with_keys` for the previous form. The `Debug` impls for the `daft` `Diff` and `MapLeaf` types likewise no longer require the key types to be `Debug`.
 
 ### Fixed
+
+- The `Iter`, `IterMut`, and `IntoIter` types now report an exact `size_hint`. Previously, they returned `(0, None)`. This violated the `ExactSizeIterator` contract, resulting in calls like `.take(...).len()` panicking on a non-empty map.
 
 - Fixed a soundness hole in `IdOrdMap`'s `RefMut`. Within `Entry::and_modify` and `IdOrdMap::retain`, the item can be removed while the `RefMut`'s borrow lifetime `'a` is still live. A contrived scenario where a `Debug` impl was written only for `Key<'static>` could then observe a key that wasn't valid for `'static`.
 

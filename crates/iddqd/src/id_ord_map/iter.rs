@@ -36,6 +36,11 @@ impl<'a, T: IdOrdItem> Iterator for Iter<'a, T> {
         let index = self.iter.next()?;
         Some(&self.items[index])
     }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.iter.size_hint()
+    }
 }
 
 impl<T: IdOrdItem> ExactSizeIterator for Iter<'_, T> {
@@ -112,6 +117,11 @@ where
 
         Some(RefMut::new(self.tables.state().clone(), hash, item))
     }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.iter.size_hint()
+    }
 }
 
 impl<'a, T: IdOrdItem + 'a> ExactSizeIterator for IterMut<'a, T>
@@ -167,4 +177,19 @@ impl<T: IdOrdItem> Iterator for IntoIter<T> {
             .unwrap_or_else(|| panic!("index {index} not found in items"));
         Some(next)
     }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.iter.size_hint()
+    }
 }
+
+impl<T: IdOrdItem> ExactSizeIterator for IntoIter<T> {
+    #[inline]
+    fn len(&self) -> usize {
+        self.iter.len()
+    }
+}
+
+// btree_map::IntoIter is a FusedIterator, so IntoIter is as well.
+impl<T: IdOrdItem> FusedIterator for IntoIter<T> {}
