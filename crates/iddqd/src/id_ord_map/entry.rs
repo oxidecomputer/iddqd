@@ -149,6 +149,11 @@ impl<'a, T: IdOrdItem> fmt::Debug for VacantEntry<'a, T> {
 }
 
 impl<'a, T: IdOrdItem> VacantEntry<'a, T> {
+    /// # Safety
+    ///
+    /// `map` must be dormant: the caller must no longer use the reference
+    /// that `DormantMutRef::new` returned, nor anything derived from it. The
+    /// methods on this type reborrow or awaken `map` and rely on that.
     pub(super) unsafe fn new(map: DormantMutRef<'a, IdOrdMap<T>>) -> Self {
         VacantEntry { map }
     }
@@ -224,8 +229,9 @@ impl<'a, T: IdOrdItem> fmt::Debug for OccupiedEntry<'a, T> {
 impl<'a, T: IdOrdItem> OccupiedEntry<'a, T> {
     /// # Safety
     ///
-    /// After self is created, the original reference created by
-    /// `DormantMutRef::new` must not be used.
+    /// `map` must be dormant: the caller must no longer use the reference
+    /// that `DormantMutRef::new` returned, nor anything derived from it. The
+    /// methods on this type reborrow or awaken `map` and rely on that.
     pub(super) unsafe fn new(
         map: DormantMutRef<'a, IdOrdMap<T>>,
         index: ItemIndex,
