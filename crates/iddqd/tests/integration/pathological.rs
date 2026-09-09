@@ -7,9 +7,9 @@
 
 use core::cell::Cell;
 use iddqd::{
-    BiHashItem, BiHashMap, Comparable, Equivalent, IdHashItem, IdHashMap,
-    IdOrdItem, IdOrdMap, TriHashItem, TriHashMap, bi_hash_map, bi_upcast,
-    id_hash_map, id_ord_map, id_upcast,
+    BiHashItem, BiHashMap, IdHashItem, IdHashMap, IdOrdItem, IdOrdMap,
+    TriHashItem, TriHashMap, bi_hash_map, bi_upcast, id_hash_map, id_ord_map,
+    id_upcast,
     internal::{ValidateChaos, ValidateCompact},
     tri_upcast,
 };
@@ -109,20 +109,6 @@ impl Ord for DropPanicOrdKey {
     }
 }
 
-struct DropPanicLookup(u32);
-
-impl Equivalent<DropPanicOrdKey> for DropPanicLookup {
-    fn equivalent(&self, key: &DropPanicOrdKey) -> bool {
-        self.0 == key.id
-    }
-}
-
-impl Comparable<DropPanicOrdKey> for DropPanicLookup {
-    fn compare(&self, key: &DropPanicOrdKey) -> Ordering {
-        self.0.cmp(&key.id)
-    }
-}
-
 impl IdOrdItem for DropPanicOrdItem {
     type Key<'a> = DropPanicOrdKey;
 
@@ -183,12 +169,19 @@ fn id_ord_remove_key_drop_panic_leaves_map_valid() {
     map.insert_unique(DropPanicOrdItem { id: 1 })
         .expect("insert_unique on fresh map should succeed");
 
-    // The remove path constructs one key before the prepare/commit window
-    // and drops it inside that window, so panicking on the first drop lands
-    // the panic in the post-`prepare_remove`, pre-commit drop.
-    DROPS_UNTIL_PANIC.with(|c| c.set(Some(1)));
+    // The remove path drops three keys, in this order:
+    //
+    // 1. The temporary the B-tree comparator builds from the stored item
+    //    during the lookup.
+    // 2. The caller's key, once the lookup is done.
+    // 3. The key `remove_by_index` builds to locate the tree entry, dropped
+    //    after `prepare_remove` and before the commit.
+    //
+    // Panicking on the third drop lands the panic in the post-`prepare_remove`,
+    // pre-commit window, which is the one that matters.
+    DROPS_UNTIL_PANIC.with(|c| c.set(Some(3)));
     let panicked = catch_panic(|| {
-        let _ = map.remove(&DropPanicLookup(1));
+        let _ = map.remove(DropPanicOrdKey { id: 1 });
     })
     .is_none();
     assert!(panicked, "expected the armed key Drop to panic the remove");
@@ -426,6 +419,16 @@ thread_local! {
 
 struct MisdirectedEqKey {
     id: u32,
+    /// Set on caller-side lookup keys. The map's lookup calls `eq` with the
+    /// caller's key as `self`, so an exact lookup key compares honestly while
+    /// the item-side keys (constructed by `key()`) keep misdirecting.
+    exact: bool,
+}
+
+impl MisdirectedEqKey {
+    fn exact(id: u32) -> Self {
+        Self { id, exact: true }
+    }
 }
 
 impl Hash for MisdirectedEqKey {
@@ -440,7 +443,7 @@ impl Hash for MisdirectedEqKey {
 
 impl PartialEq for MisdirectedEqKey {
     fn eq(&self, other: &Self) -> bool {
-        if MISDIRECTED_EQ_MODE.with(Cell::get) {
+        if !self.exact && MISDIRECTED_EQ_MODE.with(Cell::get) {
             match (self.id, other.id) {
                 // Under correct behavior, (0, 0) and (1, 1) would return true
                 // and (0, 1) and (1, 0) would return false. Invert the result
@@ -456,27 +459,6 @@ impl PartialEq for MisdirectedEqKey {
 }
 impl Eq for MisdirectedEqKey {}
 
-struct ExactLookupKey {
-    id: u32,
-}
-
-impl Hash for ExactLookupKey {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        if self.id <= 1 {
-            0u32.hash(state);
-        } else {
-            self.id.hash(state);
-        }
-    }
-}
-
-impl Equivalent<MisdirectedEqKey> for ExactLookupKey {
-    fn equivalent(&self, key: &MisdirectedEqKey) -> bool {
-        // This is always correct.
-        self.id == key.id
-    }
-}
-
 #[derive(Debug)]
 struct MisdirectedEqIdHashItem {
     id: u32,
@@ -485,7 +467,7 @@ struct MisdirectedEqIdHashItem {
 impl IdHashItem for MisdirectedEqIdHashItem {
     type Key<'a> = MisdirectedEqKey;
     fn key(&self) -> Self::Key<'_> {
-        MisdirectedEqKey { id: self.id }
+        MisdirectedEqKey { id: self.id, exact: false }
     }
     id_upcast!();
 }
@@ -507,7 +489,7 @@ fn id_hash_misdirected_eq_remove_reinsert_retain_no_aliasing() {
     //
     // The fixed code uses the key only to compute the hash, then removes the
     // table entry whose stored `ItemIndex` is exactly the selected index.
-    let removed = map.remove(&ExactLookupKey { id: 1 }).unwrap();
+    let removed = map.remove(MisdirectedEqKey::exact(1)).unwrap();
     MISDIRECTED_EQ_MODE.with(|c| c.set(false));
     assert_eq!(removed.id, 1);
     map.validate_structural(ValidateCompact::NonCompact)
@@ -528,7 +510,7 @@ impl BiHashItem for MisdirectedEqBiHashItem {
     type K1<'a> = MisdirectedEqKey;
     type K2<'a> = u32;
     fn key1(&self) -> Self::K1<'_> {
-        MisdirectedEqKey { id: self.id }
+        MisdirectedEqKey { id: self.id, exact: false }
     }
     fn key2(&self) -> Self::K2<'_> {
         self.id + 10
@@ -553,7 +535,7 @@ fn bi_hash_misdirected_eq_remove_reinsert_retain_no_aliasing() {
     //
     // The fixed code uses the key only to compute the hash, then removes the
     // table entry whose stored `ItemIndex` is exactly the selected index.
-    let removed = map.remove1(&ExactLookupKey { id: 1 }).unwrap();
+    let removed = map.remove1(MisdirectedEqKey::exact(1)).unwrap();
     MISDIRECTED_EQ_MODE.with(|c| c.set(false));
     assert_eq!(removed.id, 1);
     map.validate_structural(ValidateCompact::NonCompact)
@@ -575,7 +557,7 @@ impl TriHashItem for MisdirectedEqTriHashItem {
     type K2<'a> = u32;
     type K3<'a> = u32;
     fn key1(&self) -> Self::K1<'_> {
-        MisdirectedEqKey { id: self.id }
+        MisdirectedEqKey { id: self.id, exact: false }
     }
     fn key2(&self) -> Self::K2<'_> {
         self.id + 10
@@ -603,7 +585,7 @@ fn tri_hash_misdirected_eq_remove_reinsert_retain_no_aliasing() {
     //
     // The fixed code uses the key only to compute the hash, then removes the
     // table entry whose stored `ItemIndex` is exactly the selected index.
-    let removed = map.remove1(&ExactLookupKey { id: 1 }).unwrap();
+    let removed = map.remove1(MisdirectedEqKey::exact(1)).unwrap();
     MISDIRECTED_EQ_MODE.with(|c| c.set(false));
     assert_eq!(removed.id, 1);
     map.validate_structural(ValidateCompact::NonCompact)
@@ -736,7 +718,7 @@ fn id_ord_hash_blind_key_change_remove_reinsert_iter_mut_no_aliasing() {
     // This changes the key's ordering position without changing its hash, so
     // `RefMut` drop does not catch it. The B-tree is now logically misordered.
     {
-        let mut item = map.get_mut(&HashBlindOrdKey { id: 0 }).unwrap();
+        let mut item = map.get_mut(HashBlindOrdKey { id: 0 }).unwrap();
         item.id = 10_000;
     }
 
@@ -853,7 +835,7 @@ fn bi_hash_silent_secondary_key_change_retain_no_panic() {
         map.insert_unique(ForgettableBiHashItem { id, alt: id + 100 }).unwrap();
     }
 
-    let mut ref_mut = map.get1_mut(&ForgettableHashKey(3)).unwrap();
+    let mut ref_mut = map.get1_mut(ForgettableHashKey(3)).unwrap();
     ref_mut.alt = 10_000;
     // This bypasses the drop-time hash equality check on key2, leaving the k2
     // table entry in the old hash bucket.
@@ -880,7 +862,7 @@ fn tri_hash_silent_secondary_key_change_retain_no_panic() {
         .unwrap();
     }
 
-    let mut ref_mut = map.get1_mut(&ForgettableHashKey(3)).unwrap();
+    let mut ref_mut = map.get1_mut(ForgettableHashKey(3)).unwrap();
     ref_mut.third = 10_000;
     // This bypasses the drop-time hash equality check on key3, leaving the k3
     // table entry in the old hash bucket.
@@ -913,7 +895,7 @@ fn bi_hash_silent_secondary_key_change_insert_overwrite() {
     }
 
     // Move id=3's key2 from 103 to 10_000, stranding the k2 entry in hash(103).
-    let mut ref_mut = map.get1_mut(&ForgettableHashKey(3)).unwrap();
+    let mut ref_mut = map.get1_mut(ForgettableHashKey(3)).unwrap();
     ref_mut.alt = 10_000;
     // RefMut would panic if its Drop were allowed to run. Forget it to avoid the panic.
     std::mem::forget(ref_mut);
@@ -950,7 +932,7 @@ fn bi_hash_silent_secondary_key_change_entry_remove() {
         map.insert_unique(ForgettableBiHashItem { id, alt: id + 100 }).unwrap();
     }
 
-    let mut ref_mut = map.get1_mut(&ForgettableHashKey(3)).unwrap();
+    let mut ref_mut = map.get1_mut(ForgettableHashKey(3)).unwrap();
     ref_mut.alt = 10_000;
     std::mem::forget(ref_mut);
     assert!(
@@ -992,7 +974,7 @@ fn tri_hash_silent_tertiary_key_change_insert_overwrite() {
         .unwrap();
     }
 
-    let mut ref_mut = map.get1_mut(&ForgettableHashKey(3)).unwrap();
+    let mut ref_mut = map.get1_mut(ForgettableHashKey(3)).unwrap();
     ref_mut.third = 10_000;
     std::mem::forget(ref_mut);
     assert!(
@@ -1371,7 +1353,7 @@ fn drop_panic_during_remove_no_ub() {
 
     DROP_PANIC_ARMED.with(|c| c.set(true));
     let _ = catch_panic(|| {
-        let _ = map.remove(&5);
+        let _ = map.remove(5);
     });
     DROP_PANIC_ARMED.with(|c| c.set(false));
 
@@ -1485,8 +1467,8 @@ mod allocator_tests {
         for id in 0..8u32 {
             map.insert_unique(ForgettableHashItem { id }).unwrap();
         }
-        map.remove(&ForgettableHashKey(2)).expect("id 2 was inserted");
-        map.remove(&ForgettableHashKey(5)).expect("id 5 was inserted");
+        map.remove(ForgettableHashKey(2)).expect("id 2 was inserted");
+        map.remove(ForgettableHashKey(5)).expect("id 5 was inserted");
 
         let expected: BTreeSet<u32> = map.iter().map(|item| item.id).collect();
 

@@ -1,0 +1,15 @@
+error[E0308]: mismatched types
+  --> tests/ui/invalid/id_hash_remove_query_stash.rs:45:21
+   |
+45 |     drop(map.remove(&stash));
+   |              ------ ^^^^^^ expected `&str`, found `&Stash<'_>`
+   |              |
+   |              arguments to this method are incorrect
+   |
+   = note: expected reference `&str`
+              found reference `&Stash<'_>`
+note: method defined here
+  --> src/id_hash_map/imp.rs
+   |
+   |     pub fn remove(&mut self, key: T::Key<'_>) -> Option<T> {
+   |            ^^^^^^

@@ -9,7 +9,6 @@ use crate::{
     support::{
         ItemIndex,
         alloc::{Allocator, Global, global_alloc},
-        borrow::DormantMutRef,
         hash_table,
         item_set::ItemSet,
         map_hash::MapHash,
@@ -1225,22 +1224,9 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
     /// assert!(map.get_mut("bar").is_none());
     /// # }
     /// ```
-    pub fn get_mut<'a, Q>(&'a mut self, key: &Q) -> Option<RefMut<'a, T, S>>
-    where
-        Q: ?Sized + Hash + Equivalent<T::Key<'a>>,
-    {
-        let (dormant_map, index) = {
-            let (map, dormant_map) = DormantMutRef::new(self);
-            let index = map.find_index(key)?;
-            (dormant_map, index)
-        };
-
-        // SAFETY: `map` is not used after this point.
-        let awakened_map = unsafe { dormant_map.awaken() };
-        let item = &mut awakened_map.items[index];
-        let state = awakened_map.tables.state.clone();
-        let hashes = awakened_map.tables.make_hash(item);
-        Some(RefMut::new(state, hashes, item))
+    pub fn get_mut(&mut self, key: T::Key<'_>) -> Option<RefMut<'_, T, S>> {
+        let index = self.find_index_by_key(key)?;
+        self.get_by_index_mut(index)
     }
 
     /// Removes an item from the map by its key.
@@ -1276,24 +1262,12 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
     /// assert!(map.remove("bar").is_none());
     /// # }
     /// ```
-    pub fn remove<'a, Q>(&'a mut self, key: &Q) -> Option<T>
-    where
-        Q: ?Sized + Hash + Equivalent<T::Key<'a>>,
-    {
-        let (dormant_map, remove_index) = {
-            let (map, dormant_map) = DormantMutRef::new(self);
-            let remove_index = map.find_index(key)?;
-            (dormant_map, remove_index)
-        };
-        // SAFETY: `map` is not used after this point.
-        let awakened_map = unsafe { dormant_map.awaken() };
-        awakened_map.remove_by_index(remove_index)
+    pub fn remove(&mut self, key: T::Key<'_>) -> Option<T> {
+        let remove_index = self.find_index_by_key(key)?;
+        self.remove_by_index(remove_index)
     }
 
     /// Retrieves an entry by its key.
-    ///
-    /// Due to borrow checker limitations, this always accepts an owned key
-    /// rather than a borrowed form of it.
     ///
     /// # Examples
     ///
@@ -1324,44 +1298,17 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
     /// assert_eq!(map.len(), 2);
     /// # }
     /// ```
-    pub fn entry<'a>(&'a mut self, key: T::Key<'_>) -> Entry<'a, T, S, A> {
-        // Why does this always take an owned key? Well, it would seem like we
-        // should be able to pass in any Q that is equivalent. That results in
-        // *this* code compiling fine, but callers have trouble using it because
-        // the borrow checker believes the keys are borrowed for the full 'a
-        // rather than a shorter lifetime.
-        //
-        // By accepting owned keys, we can use the upcast functions to convert
-        // them to a shorter lifetime (so this function accepts T::Key<'_>
-        // rather than T::Key<'a>).
-        //
-        // Really, the solution here is to allow GATs to require covariant
-        // parameters. If that were allowed, the borrow checker should be able
-        // to figure out that keys don't need to be borrowed for the full 'a,
-        // just for some shorter lifetime.
-        let (map, dormant_map) = DormantMutRef::new(self);
+    pub fn entry(&mut self, key: T::Key<'_>) -> Entry<'_, T, S, A> {
+        // See the "Mutable lookups take owned keys" section in the crate docs
+        // for why this takes `T::Key<'_>` rather than a `Q`.
         let key = T::upcast_key(key);
-        {
-            // index is explicitly typed to show that it has a trivial Drop impl
-            // that doesn't capture anything from map.
-            let index: Option<ItemIndex> = map.tables.key_to_item.find_index(
-                &map.tables.state,
-                &key,
-                |index| map.items[index].key(),
-            );
-            if let Some(index) = index {
-                drop(key);
-                return Entry::Occupied(
-                    // SAFETY: `map` is not used after this point.
-                    unsafe { OccupiedEntry::new(dormant_map, index) },
-                );
-            }
+        if let Some(index) = self.find_index(&key) {
+            drop(key);
+            return Entry::Occupied(OccupiedEntry::new(self, index));
         }
-        let hash = map.make_key_hash(&key);
-        Entry::Vacant(
-            // SAFETY: `map` is not used after this point.
-            unsafe { VacantEntry::new(dormant_map, hash) },
-        )
+        let hash = self.make_key_hash(&key);
+        drop(key);
+        Entry::Vacant(VacantEntry::new(self, hash))
     }
 
     /// Retains only the elements specified by the predicate.
@@ -1487,6 +1434,17 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
         self.tables
             .key_to_item
             .find_index(&self.tables.state, k, |index| self.items[index].key())
+    }
+
+    /// Looks up an owned key, borrowing `self` only for as long as the
+    /// upcast key lives.
+    ///
+    /// The `&mut self` methods use this rather than `find_index` so that the
+    /// caller's key never observes a borrow at the mutable lifetime. See the
+    /// "Mutable lookups take owned keys" section in the crate docs.
+    fn find_index_by_key(&self, key: T::Key<'_>) -> Option<ItemIndex> {
+        let key = T::upcast_key(key);
+        self.find_index(&key)
     }
 
     fn make_hash(&self, item: &T) -> MapHash {

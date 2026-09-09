@@ -6,7 +6,6 @@ use crate::{
     support::{
         ItemIndex,
         alloc::{Allocator, Global, global_alloc},
-        borrow::DormantMutRef,
         fmt_utils::StrDisplayAsDebug,
         hash_table,
         item_set::ItemSet,
@@ -1839,7 +1838,7 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     ///
     /// // Modify the item through the mutable reference
     /// if let Some(mut person) =
-    ///     map.get_mut_unique(&1, &"alice@example.com", &"555-1234")
+    ///     map.get_mut_unique(1, "alice@example.com", "555-1234")
     /// {
     ///     person.name = "Alice Updated".to_string();
     /// }
@@ -1848,34 +1847,14 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     /// assert_eq!(map.get1(&1).unwrap().name, "Alice Updated");
     /// # }
     /// ```
-    pub fn get_mut_unique<'a, Q1, Q2, Q3>(
-        &'a mut self,
-        key1: &Q1,
-        key2: &Q2,
-        key3: &Q3,
-    ) -> Option<RefMut<'a, T, S>>
-    where
-        Q1: Hash + Equivalent<T::K1<'a>> + ?Sized,
-        Q2: Hash + Equivalent<T::K2<'a>> + ?Sized,
-        Q3: Hash + Equivalent<T::K3<'a>> + ?Sized,
-    {
-        let (dormant_map, index) = {
-            let (map, dormant_map) = DormantMutRef::new(self);
-            let index = map.find1_index(key1)?;
-            let item = &map.items[index];
-            if !key2.equivalent(&item.key2()) || !key3.equivalent(&item.key3())
-            {
-                return None;
-            }
-            (dormant_map, index)
-        };
-
-        // SAFETY: `map` is not used after this point.
-        let awakened_map = unsafe { dormant_map.awaken() };
-        let item = &mut awakened_map.items[index];
-        let state = awakened_map.tables.state.clone();
-        let hashes = awakened_map.tables.make_hashes(&item);
-        Some(RefMut::new(state, hashes, item))
+    pub fn get_mut_unique(
+        &mut self,
+        key1: T::K1<'_>,
+        key2: T::K2<'_>,
+        key3: T::K3<'_>,
+    ) -> Option<RefMut<'_, T, S>> {
+        let index = self.find_unique_index_by_keys(key1, key2, key3)?;
+        self.get_by_index_mut(index)
     }
 
     /// Removes the item uniquely identified by `key1`, `key2`, and `key3`, if
@@ -1922,7 +1901,7 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     /// .unwrap();
     ///
     /// // Remove the item using all three keys
-    /// let removed = map.remove_unique(&1, &"alice@example.com", &"555-1234");
+    /// let removed = map.remove_unique(1, "alice@example.com", "555-1234");
     /// assert!(removed.is_some());
     /// assert_eq!(removed.unwrap().name, "Alice");
     ///
@@ -1930,35 +1909,17 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     /// assert!(map.is_empty());
     ///
     /// // Trying to remove again returns None
-    /// assert!(map.remove_unique(&1, &"alice@example.com", &"555-1234").is_none());
+    /// assert!(map.remove_unique(1, "alice@example.com", "555-1234").is_none());
     /// # }
     /// ```
-    pub fn remove_unique<'a, Q1, Q2, Q3>(
-        &'a mut self,
-        key1: &Q1,
-        key2: &Q2,
-        key3: &Q3,
-    ) -> Option<T>
-    where
-        Q1: Hash + Equivalent<T::K1<'a>> + ?Sized,
-        Q2: Hash + Equivalent<T::K2<'a>> + ?Sized,
-        Q3: Hash + Equivalent<T::K3<'a>> + ?Sized,
-    {
-        let (dormant_map, remove_index) = {
-            let (map, dormant_map) = DormantMutRef::new(self);
-            let remove_index = map.find1_index(key1)?;
-            let item = &map.items[remove_index];
-            if !key2.equivalent(&item.key2()) || !key3.equivalent(&item.key3())
-            {
-                return None;
-            }
-            (dormant_map, remove_index)
-        };
-
-        // SAFETY: `map` is not used after this point.
-        let awakened_map = unsafe { dormant_map.awaken() };
-
-        awakened_map.remove_by_index(remove_index)
+    pub fn remove_unique(
+        &mut self,
+        key1: T::K1<'_>,
+        key2: T::K2<'_>,
+        key3: T::K3<'_>,
+    ) -> Option<T> {
+        let remove_index = self.find_unique_index_by_keys(key1, key2, key3)?;
+        self.remove_by_index(remove_index)
     }
 
     /// Returns true if the map contains the given `key1`.
@@ -2109,29 +2070,16 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     /// })
     /// .unwrap();
     ///
-    /// if let Some(mut person) = map.get1_mut(&1) {
+    /// if let Some(mut person) = map.get1_mut(1) {
     ///     person.name = "Alice Updated".to_string();
     /// }
     ///
     /// assert_eq!(map.get1(&1).unwrap().name, "Alice Updated");
     /// # }
     /// ```
-    pub fn get1_mut<'a, Q>(&'a mut self, key1: &Q) -> Option<RefMut<'a, T, S>>
-    where
-        Q: Hash + Equivalent<T::K1<'a>> + ?Sized,
-    {
-        let (dormant_map, index) = {
-            let (map, dormant_map) = DormantMutRef::new(self);
-            let index = map.find1_index(key1)?;
-            (dormant_map, index)
-        };
-
-        // SAFETY: `map` is not used after this point.
-        let awakened_map = unsafe { dormant_map.awaken() };
-        let item = &mut awakened_map.items[index];
-        let state = awakened_map.tables.state.clone();
-        let hashes = awakened_map.tables.make_hashes(&item);
-        Some(RefMut::new(state, hashes, item))
+    pub fn get1_mut(&mut self, key1: T::K1<'_>) -> Option<RefMut<'_, T, S>> {
+        let index = self.find1_index_by_key(key1)?;
+        self.get_by_index_mut(index)
     }
 
     /// Removes an item from the map by its `key1`.
@@ -2176,26 +2124,15 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     /// })
     /// .unwrap();
     ///
-    /// let removed = map.remove1(&1);
+    /// let removed = map.remove1(1);
     /// assert!(removed.is_some());
     /// assert_eq!(removed.unwrap().name, "Alice");
     /// assert!(map.is_empty());
     /// # }
     /// ```
-    pub fn remove1<'a, Q>(&'a mut self, key1: &Q) -> Option<T>
-    where
-        Q: Hash + Equivalent<T::K1<'a>> + ?Sized,
-    {
-        let (dormant_map, remove_index) = {
-            let (map, dormant_map) = DormantMutRef::new(self);
-            let remove_index = map.find1_index(key1)?;
-            (dormant_map, remove_index)
-        };
-
-        // SAFETY: `map` is not used after this point.
-        let awakened_map = unsafe { dormant_map.awaken() };
-
-        awakened_map.remove_by_index(remove_index)
+    pub fn remove1(&mut self, key1: T::K1<'_>) -> Option<T> {
+        let remove_index = self.find1_index_by_key(key1)?;
+        self.remove_by_index(remove_index)
     }
 
     /// Returns true if the map contains the given `key2`.
@@ -2353,22 +2290,9 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     /// assert_eq!(map.get2("alice@example.com").unwrap().name, "Alice Updated");
     /// # }
     /// ```
-    pub fn get2_mut<'a, Q>(&'a mut self, key2: &Q) -> Option<RefMut<'a, T, S>>
-    where
-        Q: Hash + Equivalent<T::K2<'a>> + ?Sized,
-    {
-        let (dormant_map, index) = {
-            let (map, dormant_map) = DormantMutRef::new(self);
-            let index = map.find2_index(key2)?;
-            (dormant_map, index)
-        };
-
-        // SAFETY: `map` is not used after this point.
-        let awakened_map = unsafe { dormant_map.awaken() };
-        let item = &mut awakened_map.items[index];
-        let state = awakened_map.tables.state.clone();
-        let hashes = awakened_map.tables.make_hashes(&item);
-        Some(RefMut::new(state, hashes, item))
+    pub fn get2_mut(&mut self, key2: T::K2<'_>) -> Option<RefMut<'_, T, S>> {
+        let index = self.find2_index_by_key(key2)?;
+        self.get_by_index_mut(index)
     }
 
     /// Removes an item from the map by its `key2`.
@@ -2419,20 +2343,9 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     /// assert!(map.is_empty());
     /// # }
     /// ```
-    pub fn remove2<'a, Q>(&'a mut self, key2: &Q) -> Option<T>
-    where
-        Q: Hash + Equivalent<T::K2<'a>> + ?Sized,
-    {
-        let (dormant_map, remove_index) = {
-            let (map, dormant_map) = DormantMutRef::new(self);
-            let remove_index = map.find2_index(key2)?;
-            (dormant_map, remove_index)
-        };
-
-        // SAFETY: `map` is not used after this point.
-        let awakened_map = unsafe { dormant_map.awaken() };
-
-        awakened_map.remove_by_index(remove_index)
+    pub fn remove2(&mut self, key2: T::K2<'_>) -> Option<T> {
+        let remove_index = self.find2_index_by_key(key2)?;
+        self.remove_by_index(remove_index)
     }
 
     /// Returns true if the map contains the given `key3`.
@@ -2590,22 +2503,9 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     /// assert_eq!(map.get3("555-1234").unwrap().name, "Alice Updated");
     /// # }
     /// ```
-    pub fn get3_mut<'a, Q>(&'a mut self, key3: &Q) -> Option<RefMut<'a, T, S>>
-    where
-        Q: Hash + Equivalent<T::K3<'a>> + ?Sized,
-    {
-        let (dormant_map, index) = {
-            let (map, dormant_map) = DormantMutRef::new(self);
-            let index = map.find3_index(key3)?;
-            (dormant_map, index)
-        };
-
-        // SAFETY: `map` is not used after this point.
-        let awakened_map = unsafe { dormant_map.awaken() };
-        let item = &mut awakened_map.items[index];
-        let state = awakened_map.tables.state.clone();
-        let hashes = awakened_map.tables.make_hashes(&item);
-        Some(RefMut::new(state, hashes, item))
+    pub fn get3_mut(&mut self, key3: T::K3<'_>) -> Option<RefMut<'_, T, S>> {
+        let index = self.find3_index_by_key(key3)?;
+        self.get_by_index_mut(index)
     }
 
     /// Removes an item from the map by its `key3`.
@@ -2656,20 +2556,9 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
     /// assert!(map.is_empty());
     /// # }
     /// ```
-    pub fn remove3<'a, Q>(&'a mut self, key3: &Q) -> Option<T>
-    where
-        Q: Hash + Equivalent<T::K3<'a>> + ?Sized,
-    {
-        let (dormant_map, remove_index) = {
-            let (map, dormant_map) = DormantMutRef::new(self);
-            let remove_index = map.find3_index(key3)?;
-            (dormant_map, remove_index)
-        };
-
-        // SAFETY: `map` is not used after this point.
-        let awakened_map = unsafe { dormant_map.awaken() };
-
-        awakened_map.remove_by_index(remove_index)
+    pub fn remove3(&mut self, key3: T::K3<'_>) -> Option<T> {
+        let remove_index = self.find3_index_by_key(key3)?;
+        self.remove_by_index(remove_index)
     }
 
     /// Retains only the elements specified by the predicate.
@@ -2901,6 +2790,60 @@ impl<T: TriHashItem, S: Clone + BuildHasher, A: Allocator> TriHashMap<T, S, A> {
         self.tables
             .k3_to_item
             .find_index(&self.tables.state, k, |index| self.items[index].key3())
+    }
+
+    /// Looks up an owned `key1`, borrowing `self` only for as long as the
+    /// upcast key lives.
+    ///
+    /// The `&mut self` methods use this rather than `find1_index` so that the
+    /// caller's key never observes a borrow at the mutable lifetime. See the
+    /// "Mutable lookups take owned keys" section in the crate docs.
+    fn find1_index_by_key(&self, key1: T::K1<'_>) -> Option<ItemIndex> {
+        let key1 = T::upcast_key1(key1);
+        self.find1_index(&key1)
+    }
+
+    /// The `key2` analog of `find1_index_by_key`.
+    fn find2_index_by_key(&self, key2: T::K2<'_>) -> Option<ItemIndex> {
+        let key2 = T::upcast_key2(key2);
+        self.find2_index(&key2)
+    }
+
+    /// The `key3` analog of `find1_index_by_key`.
+    fn find3_index_by_key(&self, key3: T::K3<'_>) -> Option<ItemIndex> {
+        let key3 = T::upcast_key3(key3);
+        self.find3_index(&key3)
+    }
+
+    /// Looks up the item that has all three keys, with the same borrow
+    /// discipline as `find1_index_by_key`.
+    fn find_unique_index_by_keys(
+        &self,
+        key1: T::K1<'_>,
+        key2: T::K2<'_>,
+        key3: T::K3<'_>,
+    ) -> Option<ItemIndex> {
+        let key1 = T::upcast_key1(key1);
+        let key2 = T::upcast_key2(key2);
+        let key3 = T::upcast_key3(key3);
+        let index = self.find1_index(&key1)?;
+        let item = &self.items[index];
+        if key2.equivalent(&item.key2()) && key3.equivalent(&item.key3()) {
+            Some(index)
+        } else {
+            None
+        }
+    }
+
+    fn get_by_index_mut(
+        &mut self,
+        index: ItemIndex,
+    ) -> Option<RefMut<'_, T, S>> {
+        let borrowed = self.items.get(index)?;
+        let state = self.tables.state.clone();
+        let hashes = self.tables.make_hashes(borrowed);
+        let item = &mut self.items[index];
+        Some(RefMut::new(state, hashes, item))
     }
 
     fn prepare_insert_overwrite(&self, value: &T) -> PreparedInsertOverwrite {

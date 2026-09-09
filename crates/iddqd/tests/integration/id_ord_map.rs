@@ -72,7 +72,7 @@ fn debug_impls() {
         r#"{SimpleItem { key: 1 }, SimpleItem { key: 10 }, SimpleItem { key: 20 }}"#
     );
     assert_eq!(
-        format!("{:?}", map.get_mut(&1).unwrap()),
+        format!("{:?}", map.get_mut(1).unwrap()),
         "SimpleItem { key: 1 }"
     );
 }
@@ -370,7 +370,7 @@ impl IdOrdMapMachine {
     #[rule]
     fn remove(&mut self, tc: TestCase) {
         let key = draw_lookup_key1(&tc, &self.naive);
-        let map_res = self.map.remove(&TestKey1::new(&key));
+        let map_res = self.map.remove(TestKey1::new(&key));
         let naive_res = self.naive.remove1(key);
 
         assert_eq!(map_res, naive_res);
@@ -644,7 +644,7 @@ fn test_permutation_eq_examples() {
 fn get_mut_panics_if_key_changes() {
     let mut map = IdOrdMap::<TestItem>::make_new();
     map.insert_unique(TestItem::new(128, 'b', "y", "x")).unwrap();
-    map.get_mut(&TestKey1::new(&128)).unwrap().key1 = 2;
+    map.get_mut(TestKey1::new(&128)).unwrap().key1 = 2;
 }
 
 #[test]
@@ -991,7 +991,7 @@ fn test_clear_makes_compact() {
     map.insert_unique(TestItem::new(3, 'c', "z", "v3")).unwrap();
 
     // Remove an item to make it non-compact.
-    map.remove(&TestKey1::new(&2));
+    map.remove(TestKey1::new(&2));
     map.validate(ValidateCompact::NonCompact, ValidateChaos::No)
         .expect("map should be valid but non-compact");
 
@@ -1377,7 +1377,7 @@ mod proptest_panic_safety {
         fn remove(&mut self, tc: TestCase) {
             let key = tc.draw(gs::integers::<u32>().max_value(MAX_PANIC_KEY));
             self.armed_op(&tc, "remove", PanicSafety::Atomic, |map| {
-                drop_unarmed(map.remove(&PanickySearchKey(key)));
+                drop_unarmed(map.remove(PanickyKey(key)));
             });
         }
 

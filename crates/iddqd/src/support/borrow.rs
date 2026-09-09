@@ -15,6 +15,21 @@ use core::{marker::PhantomData, ptr::NonNull};
 /// the compiler to follow. A `DormantMutRef` allows you to check borrowing
 /// yourself, while still expressing its stacked nature, and encapsulating
 /// the raw pointer code needed to do this without undefined behavior.
+///
+/// # Where this is used
+///
+/// Only `IdOrdMap` uses this type, and only around a single item: it hashes
+/// the item's key through a `&'a T` and then needs the `&'a mut T` back for
+/// the `RefMut`. That stacking is invisible to the borrow checker because
+/// `IdOrdItem::Key` requires only `Ord`, so the `Hash` bound names the full
+/// lifetime `'a`.
+///
+/// Do not use this type to look up a caller-supplied key and then mutate the
+/// map. If the caller's lookup type can name the lifetime of the mutable
+/// borrow, the caller can keep a reference into the map across the awaken,
+/// which is undefined behavior. The map-level lookup methods take owned keys
+/// and shorten them with `upcast_key` instead; see the "Mutable lookups take
+/// owned keys" section in the crate docs.
 pub(crate) struct DormantMutRef<'a, T> {
     ptr: NonNull<T>,
     _marker: PhantomData<&'a mut T>,
@@ -47,10 +62,10 @@ impl<'a, T> DormantMutRef<'a, T> {
     /// Every reference this `DormantMutRef` has handed out so far must be
     /// dead. That means the caller must no longer use:
     ///
-    /// * the reference returned by `new`,
-    /// * any reference returned by an earlier call to `reborrow` or
-    ///   `reborrow_shared`, and
-    /// * any pointer or reference derived from those.
+    /// * the reference returned by `new`, and
+    /// * any pointer or reference derived from it, including references that
+    ///   caller-supplied code (such as a `Hash` or `Eq` impl) may have
+    ///   retained.
     ///
     /// Each call retags from the raw pointer, which invalidates every earlier
     /// child. A use after that is undefined behavior.
@@ -58,45 +73,5 @@ impl<'a, T> DormantMutRef<'a, T> {
         // SAFETY: The caller promises that no earlier child of `ptr` will be
         // used again, so the reference we create here is the only live one.
         unsafe { &mut *self.ptr.as_ptr() }
-    }
-
-    /// Borrows a new mutable reference from the unique borrow initially
-    /// captured.
-    ///
-    /// # Safety
-    ///
-    /// Same as [`Self::awaken`]: every reference this `DormantMutRef` has
-    /// handed out so far must be dead. That means the caller must no longer
-    /// use:
-    ///
-    /// * the reference returned by `new`,
-    /// * any reference returned by an earlier call to `reborrow` or
-    ///   `reborrow_shared`, and
-    /// * any pointer or reference derived from those.
-    pub(crate) unsafe fn reborrow(&mut self) -> &'a mut T {
-        // SAFETY: The caller promises that no earlier child of `ptr` will be
-        // used again, so the reference we create here is the only live one.
-        unsafe { &mut *self.ptr.as_ptr() }
-    }
-
-    /// Borrows a new shared reference from the unique borrow initially
-    /// captured.
-    ///
-    /// # Safety
-    ///
-    /// Every *mutable* reference this `DormantMutRef` has handed out so far
-    /// must be dead. That means the caller must no longer use:
-    ///
-    /// * the reference returned by `new`,
-    /// * any reference returned by an earlier call to `reborrow`, and
-    /// * any pointer or reference derived from those.
-    ///
-    /// Shared references from earlier calls to `reborrow_shared` may still
-    /// be in use. Shared references do not invalidate each other.
-    pub(crate) unsafe fn reborrow_shared(&self) -> &'a T {
-        // SAFETY: The caller promises that no earlier mutable child of `ptr`
-        // will be used again. Earlier shared children may coexist with the
-        // one we create here.
-        unsafe { &*self.ptr.as_ptr() }
     }
 }

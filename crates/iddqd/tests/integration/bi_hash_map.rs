@@ -60,7 +60,7 @@ fn debug_impls() {
         "{SimpleItem { key1: 1, key2: 'a' }, SimpleItem { key1: 20, key2: 'b' }, SimpleItem { key1: 10, key2: 'c' }}"
     );
     assert_eq!(
-        format!("{:?}", map.get1_mut(&1).unwrap()),
+        format!("{:?}", map.get1_mut(1).unwrap()),
         "SimpleItem { key1: 1, key2: 'a' }"
     );
 }
@@ -164,8 +164,8 @@ fn test_insert_unique() {
     // Check that the *unique methods work.
     assert!(map.contains_key_unique(&v4.key1(), &v4.key2()));
     assert_eq!(map.get_unique(&v4.key1(), &v4.key2()), Some(&v4));
-    assert_eq!(*map.get_mut_unique(&v4.key1(), &v4.key2()).unwrap(), &v4);
-    assert_eq!(map.remove_unique(&v4.key1(), &v4.key2()), Some(v4));
+    assert_eq!(*map.get_mut_unique(v4.key1(), v4.key2()).unwrap(), &v4);
+    assert_eq!(map.remove_unique(v4.key1(), v4.key2()), Some(v4));
 }
 
 // Test that the unsafe block within RefMut doesn't trip up miri.
@@ -396,7 +396,7 @@ impl BiHashMapMachine {
         let (key1, key2) = draw_lookup_keys12(&tc, &self.naive);
         let map_res = self
             .map
-            .get_mut_unique(&TestKey1::new(&key1), &TestKey2::new(key2))
+            .get_mut_unique(TestKey1::new(&key1), TestKey2::new(key2))
             .map(|r| (*r).clone());
         let naive_res = self.naive.get_mut_unique12(key1, key2).cloned();
 
@@ -407,7 +407,7 @@ impl BiHashMapMachine {
     #[rule]
     fn remove1(&mut self, tc: TestCase) {
         let key1 = draw_lookup_key1(&tc, &self.naive);
-        let map_res = self.map.remove1(&TestKey1::new(&key1));
+        let map_res = self.map.remove1(TestKey1::new(&key1));
         let naive_res = self.naive.remove1(key1);
 
         assert_eq!(map_res, naive_res);
@@ -417,7 +417,7 @@ impl BiHashMapMachine {
     #[rule]
     fn remove2(&mut self, tc: TestCase) {
         let key2 = draw_lookup_key2(&tc, &self.naive);
-        let map_res = self.map.remove2(&TestKey2::new(key2));
+        let map_res = self.map.remove2(TestKey2::new(key2));
         let naive_res = self.naive.remove2(key2);
 
         assert_eq!(map_res, naive_res);
@@ -428,7 +428,7 @@ impl BiHashMapMachine {
     fn remove_unique(&mut self, tc: TestCase) {
         let (key1, key2) = draw_lookup_keys12(&tc, &self.naive);
         let map_res =
-            self.map.remove_unique(&TestKey1::new(&key1), &TestKey2::new(key2));
+            self.map.remove_unique(TestKey1::new(&key1), TestKey2::new(key2));
         let naive_res = self.naive.remove_unique12(key1, key2);
 
         assert_eq!(map_res, naive_res);
@@ -717,7 +717,7 @@ fn from_iter_unique_keys_match_distinct_items_reports_both() {
 fn get_mut_panics_if_key1_changes() {
     let mut map = BiHashMap::<TestItem, HashBuilder, Alloc>::make_new();
     map.insert_unique(TestItem::new(128, 'b', "y", "x")).unwrap();
-    map.get1_mut(&TestKey1::new(&128)).unwrap().key1 = 2;
+    map.get1_mut(TestKey1::new(&128)).unwrap().key1 = 2;
 }
 
 #[test]
@@ -725,7 +725,7 @@ fn get_mut_panics_if_key1_changes() {
 fn get_mut_panics_if_key2_changes() {
     let mut map = BiHashMap::<TestItem, HashBuilder, Alloc>::make_new();
     map.insert_unique(TestItem::new(128, 'b', "y", "x")).unwrap();
-    map.get1_mut(&TestKey1::new(&128)).unwrap().key2 = 'c';
+    map.get1_mut(TestKey1::new(&128)).unwrap().key2 = 'c';
 }
 
 #[test]
@@ -1177,7 +1177,7 @@ fn test_clear_makes_compact() {
     map.insert_unique(TestItem::new(3, 'c', "z", "v3")).unwrap();
 
     // Remove an item to make it non-compact
-    map.remove1(&TestKey1::new(&2));
+    map.remove1(TestKey1::new(&2));
     map.validate(ValidateCompact::NonCompact)
         .expect("map should be valid but non-compact");
 
@@ -1491,7 +1491,7 @@ mod proptest_panic_safety {
         fn remove1(&mut self, tc: TestCase) {
             let key1 = tc.draw(gs::integers::<u32>().max_value(MAX_PANIC_KEY));
             self.armed_op(&tc, "remove1", PanicSafety::Atomic, |map| {
-                drop_unarmed(map.remove1(&PanickySearchKey(key1)));
+                drop_unarmed(map.remove1(PanickyKey(key1)));
             });
         }
 
@@ -1499,7 +1499,7 @@ mod proptest_panic_safety {
         fn remove2(&mut self, tc: TestCase) {
             let key2 = tc.draw(gs::integers::<u32>().max_value(MAX_PANIC_KEY));
             self.armed_op(&tc, "remove2", PanicSafety::Atomic, |map| {
-                drop_unarmed(map.remove2(&PanickySearchKey(key2)));
+                drop_unarmed(map.remove2(PanickyKey(key2)));
             });
         }
 

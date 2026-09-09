@@ -12,7 +12,6 @@ use crate::{
     support::{
         ItemIndex,
         alloc::{Allocator, Global, global_alloc},
-        borrow::DormantMutRef,
         fmt_utils::StrDisplayAsDebug,
         hash_table,
         item_set::ItemSet,
@@ -1471,57 +1470,23 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
 
     /// Gets a mutable reference to the unique item associated with the given
     /// `key1` and `key2`, if it exists.
-    pub fn get_mut_unique<'a, Q1, Q2>(
-        &'a mut self,
-        key1: &Q1,
-        key2: &Q2,
-    ) -> Option<RefMut<'a, T, S>>
-    where
-        Q1: Hash + Equivalent<T::K1<'a>> + ?Sized,
-        Q2: Hash + Equivalent<T::K2<'a>> + ?Sized,
-    {
-        let (dormant_map, index) = {
-            let (map, dormant_map) = DormantMutRef::new(self);
-            let index = map.find1_index(key1)?;
-            // Check key2 match before proceeding
-            if !key2.equivalent(&map.items[index].key2()) {
-                return None;
-            }
-            (dormant_map, index)
-        };
-
-        // SAFETY: `map` is not used after this point.
-        let awakened_map = unsafe { dormant_map.awaken() };
-        let item = &mut awakened_map.items[index];
-        let state = awakened_map.tables.state.clone();
-        let hashes =
-            awakened_map.tables.make_hashes::<T>(&item.key1(), &item.key2());
-        Some(RefMut::new(state, hashes, item))
+    pub fn get_mut_unique(
+        &mut self,
+        key1: T::K1<'_>,
+        key2: T::K2<'_>,
+    ) -> Option<RefMut<'_, T, S>> {
+        let index = self.find_unique_index_by_keys(key1, key2)?;
+        self.get_by_index_mut(index)
     }
 
     /// Removes the item uniquely identified by `key1` and `key2`, if it exists.
-    pub fn remove_unique<'a, Q1, Q2>(
-        &'a mut self,
-        key1: &Q1,
-        key2: &Q2,
-    ) -> Option<T>
-    where
-        Q1: Hash + Equivalent<T::K1<'a>> + ?Sized,
-        Q2: Hash + Equivalent<T::K2<'a>> + ?Sized,
-    {
-        let (dormant_map, remove_index) = {
-            let (map, dormant_map) = DormantMutRef::new(self);
-            let remove_index = map.find1_index(key1)?;
-            if !key2.equivalent(&map.items[remove_index].key2()) {
-                return None;
-            }
-            (dormant_map, remove_index)
-        };
-
-        // SAFETY: `map` is not used after this point.
-        let awakened_map = unsafe { dormant_map.awaken() };
-
-        awakened_map.remove_by_index(remove_index)
+    pub fn remove_unique(
+        &mut self,
+        key1: T::K1<'_>,
+        key2: T::K2<'_>,
+    ) -> Option<T> {
+        let remove_index = self.find_unique_index_by_keys(key1, key2)?;
+        self.remove_by_index(remove_index)
     }
 
     /// Returns true if the map contains the given `key1`.
@@ -1617,23 +1582,9 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
     }
 
     /// Gets a mutable reference to the value associated with the given `key1`.
-    pub fn get1_mut<'a, Q>(&'a mut self, key1: &Q) -> Option<RefMut<'a, T, S>>
-    where
-        Q: Hash + Equivalent<T::K1<'a>> + ?Sized,
-    {
-        let (dormant_map, index) = {
-            let (map, dormant_map) = DormantMutRef::new(self);
-            let index = map.find1_index(key1)?;
-            (dormant_map, index)
-        };
-
-        // SAFETY: `map` is not used after this point.
-        let awakened_map = unsafe { dormant_map.awaken() };
-        let item = &mut awakened_map.items[index];
-        let state = awakened_map.tables.state.clone();
-        let hashes =
-            awakened_map.tables.make_hashes::<T>(&item.key1(), &item.key2());
-        Some(RefMut::new(state, hashes, item))
+    pub fn get1_mut(&mut self, key1: T::K1<'_>) -> Option<RefMut<'_, T, S>> {
+        let index = self.find1_index_by_key(key1)?;
+        self.get_by_index_mut(index)
     }
 
     /// Removes an item from the map by its `key1`.
@@ -1670,27 +1621,16 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
     /// map.insert_unique(Item { id: 2, name: "bar".to_string(), value: 99 })
     ///     .unwrap();
     ///
-    /// let removed = map.remove1(&1);
+    /// let removed = map.remove1(1);
     /// assert_eq!(removed.unwrap().value, 42);
     /// assert_eq!(map.len(), 1);
     /// assert!(map.get1(&1).is_none());
-    /// assert!(map.remove1(&3).is_none());
+    /// assert!(map.remove1(3).is_none());
     /// # }
     /// ```
-    pub fn remove1<'a, Q>(&'a mut self, key1: &Q) -> Option<T>
-    where
-        Q: Hash + Equivalent<T::K1<'a>> + ?Sized,
-    {
-        let (dormant_map, remove_index) = {
-            let (map, dormant_map) = DormantMutRef::new(self);
-            let remove_index = map.find1_index(key1)?;
-            (dormant_map, remove_index)
-        };
-
-        // SAFETY: `map` is not used after this point.
-        let awakened_map = unsafe { dormant_map.awaken() };
-
-        awakened_map.remove_by_index(remove_index)
+    pub fn remove1(&mut self, key1: T::K1<'_>) -> Option<T> {
+        let remove_index = self.find1_index_by_key(key1)?;
+        self.remove_by_index(remove_index)
     }
 
     /// Returns true if the map contains the given `key2`.
@@ -1817,30 +1757,16 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
     /// map.insert_unique(Item { id: 1, name: "foo".to_string(), value: 42 })
     ///     .unwrap();
     ///
-    /// if let Some(mut item_ref) = map.get2_mut(&"foo") {
+    /// if let Some(mut item_ref) = map.get2_mut("foo") {
     ///     item_ref.value = 100;
     /// }
     ///
     /// assert_eq!(map.get2(&"foo").unwrap().value, 100);
     /// # }
     /// ```
-    pub fn get2_mut<'a, Q>(&'a mut self, key2: &Q) -> Option<RefMut<'a, T, S>>
-    where
-        Q: Hash + Equivalent<T::K2<'a>> + ?Sized,
-    {
-        let (dormant_map, index) = {
-            let (map, dormant_map) = DormantMutRef::new(self);
-            let index = map.find2_index(key2)?;
-            (dormant_map, index)
-        };
-
-        // SAFETY: `map` is not used after this point.
-        let awakened_map = unsafe { dormant_map.awaken() };
-        let item = &mut awakened_map.items[index];
-        let state = awakened_map.tables.state.clone();
-        let hashes =
-            awakened_map.tables.make_hashes::<T>(&item.key1(), &item.key2());
-        Some(RefMut::new(state, hashes, item))
+    pub fn get2_mut(&mut self, key2: T::K2<'_>) -> Option<RefMut<'_, T, S>> {
+        let index = self.find2_index_by_key(key2)?;
+        self.get_by_index_mut(index)
     }
 
     /// Removes an item from the map by its `key2`.
@@ -1877,33 +1803,19 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
     /// map.insert_unique(Item { id: 2, name: "bar".to_string(), value: 99 })
     ///     .unwrap();
     ///
-    /// let removed = map.remove2(&"foo");
+    /// let removed = map.remove2("foo");
     /// assert_eq!(removed.unwrap().value, 42);
     /// assert_eq!(map.len(), 1);
     /// assert!(map.get2(&"foo").is_none());
-    /// assert!(map.remove2(&"baz").is_none());
+    /// assert!(map.remove2("baz").is_none());
     /// # }
     /// ```
-    pub fn remove2<'a, Q>(&'a mut self, key2: &Q) -> Option<T>
-    where
-        Q: Hash + Equivalent<T::K2<'a>> + ?Sized,
-    {
-        let (dormant_map, remove_index) = {
-            let (map, dormant_map) = DormantMutRef::new(self);
-            let remove_index = map.find2_index(key2)?;
-            (dormant_map, remove_index)
-        };
-
-        // SAFETY: `map` is not used after this point.
-        let awakened_map = unsafe { dormant_map.awaken() };
-
-        awakened_map.remove_by_index(remove_index)
+    pub fn remove2(&mut self, key2: T::K2<'_>) -> Option<T> {
+        let remove_index = self.find2_index_by_key(key2)?;
+        self.remove_by_index(remove_index)
     }
 
     /// Retrieves an entry by its keys.
-    ///
-    /// Due to borrow checker limitations, this always accepts owned keys rather
-    /// than a borrowed form of them.
     ///
     /// # Differences from single-key entries
     ///
@@ -1965,74 +1877,43 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
     /// ```
     ///
     /// For an expanded example, see the type-level documentation for [`Entry`].
-    pub fn entry<'a>(
-        &'a mut self,
+    pub fn entry(
+        &mut self,
         key1: T::K1<'_>,
         key2: T::K2<'_>,
-    ) -> Entry<'a, T, S, A> {
-        // Why does this always take owned keys? Well, it would seem like we
-        // should be able to pass in any Q1 and Q2 that are equivalent. That
-        // results in *this* code compiling fine, but callers have trouble using
-        // it because the borrow checker believes the keys are borrowed for the
-        // full 'a rather than a shorter lifetime.
-        //
-        // By accepting owned keys, we can use the upcast functions to convert
-        // them to a shorter lifetime (so this function accepts T::K1<'_> rather
-        // than T::K1<'a>).
-        //
-        // Really, the solution here is to allow GATs to require covariant
-        // parameters. If that were allowed, the borrow checker should be able
-        // to figure out that keys don't need to be borrowed for the full 'a,
-        // just for some shorter lifetime.
-        let (map, dormant_map) = DormantMutRef::new(self);
+    ) -> Entry<'_, T, S, A> {
+        // See the "Mutable lookups take owned keys" section in the crate docs
+        // for why this takes `T::K1<'_>` and `T::K2<'_>` rather than a `Q1`
+        // and `Q2`.
         let key1 = T::upcast_key1(key1);
         let key2 = T::upcast_key2(key2);
-        let (index1, index2) = {
-            // index1 and index2 are explicitly typed to show that it has a
-            // trivial Drop impl that doesn't capture anything from map.
-            let index1: Option<ItemIndex> = map.tables.k1_to_item.find_index(
-                &map.tables.state,
-                &key1,
-                |index| map.items[index].key1(),
-            );
-            let index2: Option<ItemIndex> = map.tables.k2_to_item.find_index(
-                &map.tables.state,
-                &key2,
-                |index| map.items[index].key2(),
-            );
-            (index1, index2)
-        };
+        let index1 = self.find1_index(&key1);
+        let index2 = self.find2_index(&key2);
 
         match (index1, index2) {
             (Some(index1), Some(index2)) if index1 == index2 => {
                 // The item is already in the map.
                 drop(key1);
-                Entry::Occupied(
-                    // SAFETY: `map` is not used after this point.
-                    unsafe {
-                        OccupiedEntry::new(
-                            dormant_map,
-                            EntryIndexes::Unique(index1),
-                        )
-                    },
-                )
+                drop(key2);
+                Entry::Occupied(OccupiedEntry::new(
+                    self,
+                    EntryIndexes::Unique(index1),
+                ))
             }
             (None, None) => {
-                let hashes = map.tables.make_hashes::<T>(&key1, &key2);
-                Entry::Vacant(
-                    // SAFETY: `map` is not used after this point.
-                    unsafe { VacantEntry::new(dormant_map, hashes) },
-                )
+                let hashes = self.tables.make_hashes::<T>(&key1, &key2);
+                drop(key1);
+                drop(key2);
+                Entry::Vacant(VacantEntry::new(self, hashes))
             }
-            (index1, index2) => Entry::Occupied(
-                // SAFETY: `map` is not used after this point.
-                unsafe {
-                    OccupiedEntry::new(
-                        dormant_map,
-                        EntryIndexes::NonUnique { index1, index2 },
-                    )
-                },
-            ),
+            (index1, index2) => {
+                drop(key1);
+                drop(key2);
+                Entry::Occupied(OccupiedEntry::new(
+                    self,
+                    EntryIndexes::NonUnique { index1, index2 },
+                ))
+            }
         }
     }
 
@@ -2207,6 +2088,40 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
         self.tables
             .k2_to_item
             .find_index(&self.tables.state, k, |index| self.items[index].key2())
+    }
+
+    /// Looks up an owned `key1`, borrowing `self` only for as long as the
+    /// upcast key lives.
+    ///
+    /// The `&mut self` methods use this rather than `find1_index` so that the
+    /// caller's key never observes a borrow at the mutable lifetime. See the
+    /// "Mutable lookups take owned keys" section in the crate docs.
+    fn find1_index_by_key(&self, key1: T::K1<'_>) -> Option<ItemIndex> {
+        let key1 = T::upcast_key1(key1);
+        self.find1_index(&key1)
+    }
+
+    /// The `key2` analog of `find1_index_by_key`.
+    fn find2_index_by_key(&self, key2: T::K2<'_>) -> Option<ItemIndex> {
+        let key2 = T::upcast_key2(key2);
+        self.find2_index(&key2)
+    }
+
+    /// Looks up the item that has both `key1` and `key2`, with the same
+    /// borrow discipline as `find1_index_by_key`.
+    fn find_unique_index_by_keys(
+        &self,
+        key1: T::K1<'_>,
+        key2: T::K2<'_>,
+    ) -> Option<ItemIndex> {
+        let key1 = T::upcast_key1(key1);
+        let key2 = T::upcast_key2(key2);
+        let index = self.find1_index(&key1)?;
+        if key2.equivalent(&self.items[index].key2()) {
+            Some(index)
+        } else {
+            None
+        }
     }
 
     fn prepare_insert_overwrite(&self, value: &T) -> PreparedInsertOverwrite {

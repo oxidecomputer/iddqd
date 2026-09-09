@@ -67,7 +67,7 @@ fn debug_impls() {
         "{SimpleItem { key1: 1, key2: 'a', key3: 0 }, SimpleItem { key1: 20, key2: 'b', key3: 1 }, SimpleItem { key1: 10, key2: 'c', key3: 2 }}"
     );
     assert_eq!(
-        format!("{:?}", map.get1_mut(&1).unwrap()),
+        format!("{:?}", map.get1_mut(1).unwrap()),
         "SimpleItem { key1: 1, key2: 'a', key3: 0 }"
     );
 }
@@ -209,10 +209,10 @@ fn test_insert_unique() {
     assert!(map.contains_key_unique(&v5.key1(), &v5.key2(), &v5.key3()));
     assert_eq!(map.get_unique(&v5.key1(), &v5.key2(), &v5.key3()), Some(&v5));
     assert_eq!(
-        *map.get_mut_unique(&v5.key1(), &v5.key2(), &v5.key3()).unwrap(),
+        *map.get_mut_unique(v5.key1(), v5.key2(), v5.key3()).unwrap(),
         &v5
     );
-    assert_eq!(map.remove_unique(&v5.key1(), &v5.key2(), &v5.key3()), Some(v5));
+    assert_eq!(map.remove_unique(v5.key1(), v5.key2(), v5.key3()), Some(v5));
 }
 
 // Test that the unsafe block within RefMut doesn't trip up miri.
@@ -384,9 +384,9 @@ impl TriHashMapMachine {
         let map_res = self
             .map
             .get_mut_unique(
-                &TestKey1::new(&key1),
-                &TestKey2::new(key2),
-                &TestKey3::new(&key3),
+                TestKey1::new(&key1),
+                TestKey2::new(key2),
+                TestKey3::new(&key3),
             )
             .map(|r| (*r).clone());
         let naive_res =
@@ -399,7 +399,7 @@ impl TriHashMapMachine {
     #[rule]
     fn remove1(&mut self, tc: TestCase) {
         let key1 = draw_lookup_key1(&tc, &self.naive);
-        let map_res = self.map.remove1(&TestKey1::new(&key1));
+        let map_res = self.map.remove1(TestKey1::new(&key1));
         let naive_res = self.naive.remove1(key1);
 
         assert_eq!(map_res, naive_res);
@@ -409,7 +409,7 @@ impl TriHashMapMachine {
     #[rule]
     fn remove2(&mut self, tc: TestCase) {
         let key2 = draw_lookup_key2(&tc, &self.naive);
-        let map_res = self.map.remove2(&TestKey2::new(key2));
+        let map_res = self.map.remove2(TestKey2::new(key2));
         let naive_res = self.naive.remove2(key2);
 
         assert_eq!(map_res, naive_res);
@@ -419,7 +419,7 @@ impl TriHashMapMachine {
     #[rule]
     fn remove3(&mut self, tc: TestCase) {
         let key3 = draw_lookup_key3(&tc, &self.naive);
-        let map_res = self.map.remove3(&TestKey3::new(&key3));
+        let map_res = self.map.remove3(TestKey3::new(&key3));
         let naive_res = self.naive.remove3(&key3);
 
         assert_eq!(map_res, naive_res);
@@ -430,9 +430,9 @@ impl TriHashMapMachine {
     fn remove_unique(&mut self, tc: TestCase) {
         let (key1, key2, key3) = draw_lookup_keys123(&tc, &self.naive);
         let map_res = self.map.remove_unique(
-            &TestKey1::new(&key1),
-            &TestKey2::new(key2),
-            &TestKey3::new(&key3),
+            TestKey1::new(&key1),
+            TestKey2::new(key2),
+            TestKey3::new(&key3),
         );
         let naive_res = self.naive.remove_unique123(key1, key2, &key3);
 
@@ -752,7 +752,7 @@ fn from_iter_unique_keys_match_distinct_items_reports_all() {
 fn get_mut_panics_if_key1_changes() {
     let mut map = TriHashMap::<TestItem, HashBuilder, Alloc>::make_new();
     map.insert_unique(TestItem::new(128, 'b', "y", "x")).unwrap();
-    map.get1_mut(&TestKey1::new(&128)).unwrap().key1 = 2;
+    map.get1_mut(TestKey1::new(&128)).unwrap().key1 = 2;
 }
 
 #[test]
@@ -760,7 +760,7 @@ fn get_mut_panics_if_key1_changes() {
 fn get_mut_panics_if_key2_changes() {
     let mut map = TriHashMap::<TestItem, HashBuilder, Alloc>::make_new();
     map.insert_unique(TestItem::new(128, 'b', "y", "x")).unwrap();
-    map.get1_mut(&TestKey1::new(&128)).unwrap().key2 = 'c';
+    map.get1_mut(TestKey1::new(&128)).unwrap().key2 = 'c';
 }
 
 #[test]
@@ -768,7 +768,7 @@ fn get_mut_panics_if_key2_changes() {
 fn get_mut_panics_if_key3_changes() {
     let mut map = TriHashMap::<TestItem, HashBuilder, Alloc>::make_new();
     map.insert_unique(TestItem::new(128, 'b', "y", "x")).unwrap();
-    map.get1_mut(&TestKey1::new(&128)).unwrap().key3 = "z".to_owned();
+    map.get1_mut(TestKey1::new(&128)).unwrap().key3 = "z".to_owned();
 }
 
 #[test]
@@ -993,7 +993,7 @@ fn test_clear_makes_compact() {
     map.insert_unique(TestItem::new(3, 'c', "z", "v3")).unwrap();
 
     // Remove an item to make it non-compact
-    map.remove1(&TestKey1::new(&2));
+    map.remove1(TestKey1::new(&2));
     map.validate(ValidateCompact::NonCompact)
         .expect("map should be valid but non-compact");
 
@@ -1213,7 +1213,7 @@ mod proptest_panic_safety {
     use crate::hegel_support::{MAX_PANIC_KEY, draw_armed};
     use allocator_api2::alloc::Global;
     use iddqd_test_utils::panic_safety::{
-        PanicSafety, PanickyAlloc, PanickySearchKey,
+        PanicSafety, PanickyAlloc, PanickyKey, PanickySearchKey,
         assert_panic_fired_as_expected, assert_post_op_invariants,
         drop_unarmed, record_observation, run_armed, sorted_keys,
     };
@@ -1312,7 +1312,7 @@ mod proptest_panic_safety {
         fn remove1(&mut self, tc: TestCase) {
             let key1 = tc.draw(gs::integers::<u32>().max_value(MAX_PANIC_KEY));
             self.armed_op(&tc, "remove1", PanicSafety::Atomic, |map| {
-                drop_unarmed(map.remove1(&PanickySearchKey(key1)));
+                drop_unarmed(map.remove1(PanickyKey(key1)));
             });
         }
 
@@ -1320,7 +1320,7 @@ mod proptest_panic_safety {
         fn remove2(&mut self, tc: TestCase) {
             let key2 = tc.draw(gs::integers::<u32>().max_value(MAX_PANIC_KEY));
             self.armed_op(&tc, "remove2", PanicSafety::Atomic, |map| {
-                drop_unarmed(map.remove2(&PanickySearchKey(key2)));
+                drop_unarmed(map.remove2(PanickyKey(key2)));
             });
         }
 
@@ -1328,7 +1328,7 @@ mod proptest_panic_safety {
         fn remove3(&mut self, tc: TestCase) {
             let key3 = tc.draw(gs::integers::<u32>().max_value(MAX_PANIC_KEY));
             self.armed_op(&tc, "remove3", PanicSafety::Atomic, |map| {
-                drop_unarmed(map.remove3(&PanickySearchKey(key3)));
+                drop_unarmed(map.remove3(PanickyKey(key3)));
             });
         }
 

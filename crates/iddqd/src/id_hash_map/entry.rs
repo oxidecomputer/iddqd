@@ -4,7 +4,6 @@ use crate::{
     support::{
         ItemIndex,
         alloc::{Allocator, Global},
-        borrow::DormantMutRef,
         map_hash::MapHash,
     },
 };
@@ -93,7 +92,7 @@ pub struct VacantEntry<
     S = DefaultHashBuilder,
     A: Allocator = Global,
 > {
-    map: DormantMutRef<'a, IdHashMap<T, S, A>>,
+    map: &'a mut IdHashMap<T, S, A>,
     hash: MapHash,
 }
 
@@ -110,24 +109,14 @@ impl<'a, T: IdHashItem, S, A: Allocator> fmt::Debug
 impl<'a, T: IdHashItem, S: Clone + BuildHasher, A: Allocator>
     VacantEntry<'a, T, S, A>
 {
-    /// # Safety
-    ///
-    /// `map` must be dormant: the caller must no longer use the reference
-    /// that `DormantMutRef::new` returned, nor anything derived from it. The
-    /// methods on this type reborrow or awaken `map` and rely on that.
-    pub(super) unsafe fn new(
-        map: DormantMutRef<'a, IdHashMap<T, S, A>>,
-        hash: MapHash,
-    ) -> Self {
+    pub(super) fn new(map: &'a mut IdHashMap<T, S, A>, hash: MapHash) -> Self {
         VacantEntry { map, hash }
     }
 
     /// Sets the entry to a new value, returning a mutable reference to the
     /// value.
     pub fn insert(self, value: T) -> RefMut<'a, T, S> {
-        // SAFETY: The safety assumption behind `Self::new` guarantees that the
-        // original reference to the map is not used at this point.
-        let map = unsafe { self.map.awaken() };
+        let map = self.map;
         let state = &map.tables.state;
         if !self.hash.is_same_hash(state, value.key()) {
             panic!("key hashes do not match");
@@ -145,9 +134,7 @@ impl<'a, T: IdHashItem, S: Clone + BuildHasher, A: Allocator>
     /// `insert`, this method does not validate the hash or recheck uniqueness.
     #[inline]
     pub(super) fn insert_known_unique(self, value: T) {
-        // SAFETY: The safety assumption behind `Self::new` guarantees that the
-        // original reference to the map is not used at this point.
-        let map = unsafe { self.map.awaken() };
+        let map = self.map;
         map.try_reserve_insert_overwrite_commit()
             .expect("reserved space successfully");
         let next_index = map.items.assert_can_grow().insert(value);
@@ -158,24 +145,15 @@ impl<'a, T: IdHashItem, S: Clone + BuildHasher, A: Allocator>
 
     /// Sets the value of the entry, and returns an `OccupiedEntry`.
     #[inline]
-    pub fn insert_entry(mut self, value: T) -> OccupiedEntry<'a, T, S, A> {
-        let index = {
-            // SAFETY: The safety assumption behind `Self::new` guarantees that the
-            // original reference to the map is not used at this point.
-            let map = unsafe { self.map.reborrow() };
-            let state = &map.tables.state;
-            if !self.hash.is_same_hash(state, value.key()) {
-                panic!("key hashes do not match");
-            }
-            let Ok(index) = map.insert_unique_impl(value) else {
-                panic!("key already present in map");
-            };
-            index
+    pub fn insert_entry(self, value: T) -> OccupiedEntry<'a, T, S, A> {
+        let state = &self.map.tables.state;
+        if !self.hash.is_same_hash(state, value.key()) {
+            panic!("key hashes do not match");
+        }
+        let Ok(index) = self.map.insert_unique_impl(value) else {
+            panic!("key already present in map");
         };
-
-        // SAFETY: map, as well as anything that was borrowed from it, is
-        // dropped once the above block exits.
-        unsafe { OccupiedEntry::new(self.map, index) }
+        OccupiedEntry::new(self.map, index)
     }
 }
 
@@ -187,7 +165,7 @@ pub struct OccupiedEntry<
     S = DefaultHashBuilder,
     A: Allocator = Global,
 > {
-    map: DormantMutRef<'a, IdHashMap<T, S, A>>,
+    map: &'a mut IdHashMap<T, S, A>,
     // index is a valid index into the map's internal hash table.
     index: ItemIndex,
 }
@@ -205,13 +183,8 @@ impl<'a, T: IdHashItem, S, A: Allocator> fmt::Debug
 impl<'a, T: IdHashItem, S: Clone + BuildHasher, A: Allocator>
     OccupiedEntry<'a, T, S, A>
 {
-    /// # Safety
-    ///
-    /// `map` must be dormant: the caller must no longer use the reference
-    /// that `DormantMutRef::new` returned, nor anything derived from it. The
-    /// methods on this type reborrow or awaken `map` and rely on that.
-    pub(super) unsafe fn new(
-        map: DormantMutRef<'a, IdHashMap<T, S, A>>,
+    pub(super) fn new(
+        map: &'a mut IdHashMap<T, S, A>,
         index: ItemIndex,
     ) -> Self {
         OccupiedEntry { map, index }
@@ -222,11 +195,7 @@ impl<'a, T: IdHashItem, S: Clone + BuildHasher, A: Allocator>
     /// If you need a reference to `T` that may outlive the destruction of the
     /// `Entry` value, see [`into_ref`](Self::into_ref).
     pub fn get(&self) -> &T {
-        // SAFETY: The safety assumption behind `Self::new` guarantees that the
-        // original reference to the map is not used at this point.
-        unsafe { self.map.reborrow_shared() }
-            .get_by_index(self.index)
-            .expect("index is known to be valid")
+        self.map.get_by_index(self.index).expect("index is known to be valid")
     }
 
     /// Gets a mutable reference to the value.
@@ -234,9 +203,7 @@ impl<'a, T: IdHashItem, S: Clone + BuildHasher, A: Allocator>
     /// If you need a reference to `T` that may outlive the destruction of the
     /// `Entry` value, see [`into_mut`](Self::into_mut).
     pub fn get_mut(&mut self) -> RefMut<'_, T, S> {
-        // SAFETY: The safety assumption behind `Self::new` guarantees that the
-        // original reference to the map is not used at this point.
-        unsafe { self.map.reborrow() }
+        self.map
             .get_by_index_mut(self.index)
             .expect("index is known to be valid")
     }
@@ -246,11 +213,7 @@ impl<'a, T: IdHashItem, S: Clone + BuildHasher, A: Allocator>
     /// If you need multiple references to the `OccupiedEntry`, see
     /// [`get`](Self::get).
     pub fn into_ref(self) -> &'a T {
-        // SAFETY: The safety assumption behind `Self::new` guarantees that the
-        // original reference to the map is not used at this point.
-        unsafe { self.map.awaken() }
-            .get_by_index(self.index)
-            .expect("index is known to be valid")
+        self.map.get_by_index(self.index).expect("index is known to be valid")
     }
 
     /// Converts self into a mutable reference to the value.
@@ -258,9 +221,7 @@ impl<'a, T: IdHashItem, S: Clone + BuildHasher, A: Allocator>
     /// If you need multiple references to the `OccupiedEntry`, see
     /// [`get_mut`](Self::get_mut).
     pub fn into_mut(self) -> RefMut<'a, T, S> {
-        // SAFETY: The safety assumption behind `Self::new` guarantees that the
-        // original reference to the map is not used at this point.
-        unsafe { self.map.awaken() }
+        self.map
             .get_by_index_mut(self.index)
             .expect("index is known to be valid")
     }
@@ -271,18 +232,13 @@ impl<'a, T: IdHashItem, S: Clone + BuildHasher, A: Allocator>
     ///
     /// Panics if `value.key()` is different from the key of the entry.
     pub fn insert(&mut self, value: T) -> T {
-        // SAFETY: The safety assumption behind `Self::new` guarantees that the
-        // original reference to the map is not used at this point.
-        //
         // Note that `replace_at_index` panics if the keys don't match.
-        unsafe { self.map.reborrow() }.replace_at_index(self.index, value)
+        self.map.replace_at_index(self.index, value)
     }
 
     /// Takes ownership of the value from the map.
-    pub fn remove(mut self) -> T {
-        // SAFETY: The safety assumption behind `Self::new` guarantees that the
-        // original reference to the map is not used at this point.
-        unsafe { self.map.reborrow() }
+    pub fn remove(self) -> T {
+        self.map
             .remove_by_index(self.index)
             .expect("index is known to be valid")
     }
