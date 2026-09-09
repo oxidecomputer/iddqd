@@ -360,7 +360,12 @@ impl MapBTreeTable {
             remap.remap(idx.value());
         }
         for idx in self.items.keys() {
-            idx.set_value(remap.remap(idx.value()));
+            // SAFETY: We hold `&mut self`. `remap` is injective on the indexes
+            // stored here (compaction assigns each occupied slot a distinct
+            // new position), so distinct entries stay distinct. The check
+            // pass above already established that no stored index maps to
+            // `SENTINEL`.
+            unsafe { idx.set_value(remap.remap(idx.value())) };
         }
     }
 
@@ -624,9 +629,9 @@ impl IndexCell {
         ItemIndex::new(self.0.load(core::sync::atomic::Ordering::Relaxed))
     }
 
-    /// Overwrite the stored value. The atomic store makes this safe to
-    /// call through `&self`, though in practice callers only invoke it
-    /// while holding `&mut` on the enclosing `MapBTreeTable`.
+    /// Overwrite the stored value. The atomic store makes this safe to call
+    /// through `&self` (though see the doc comment on `Index::set_value`
+    /// below).
     #[inline]
     fn set(&self, value: ItemIndex) {
         debug_assert_ne!(
@@ -670,11 +675,17 @@ impl Index {
 
     /// Overwrite the stored index value in place.
     ///
-    /// Safe thanks to the atomic store inside [`IndexCell::set`]. In
-    /// practice we only call this from `remap_indexes`, which holds
-    /// `&mut MapBTreeTable`.
+    /// This is unsafe because it rewrites a B-tree key and can break
+    /// the no-duplicate invariant in the module docs.
+    ///
+    /// # Safety
+    ///
+    /// The caller must hold `&mut` on the enclosing [`MapBTreeTable`], and
+    /// must ensure that after every `set_value` call in the same operation
+    /// completes, no two entries in the table hold the same index and no
+    /// entry holds [`ItemIndex::SENTINEL`].
     #[inline]
-    fn set_value(&self, value: ItemIndex) {
+    unsafe fn set_value(&self, value: ItemIndex) {
         self.0.set(value)
     }
 }
