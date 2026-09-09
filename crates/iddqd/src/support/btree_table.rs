@@ -3,6 +3,37 @@
 //! Similar to [`super::hash_table::MapHashTable`], b-tree based tables store
 //! integers (that are indexes corresponding to items), but use an external
 //! comparator.
+//!
+//! # The no-duplicate invariant
+//!
+//! No two entries in a [`MapBTreeTable`] hold the same [`ItemIndex`].
+//!
+//! Unsafe code relies on this invariant without checking it at the point of
+//! use. `IdOrdMap`'s `IterMut` walks the tree and calls `ItemSlotsPtr::get_mut`
+//! once per entry. That call checks that the slot is in bounds and occupied,
+//! but it does not check that it has not seen the same index before. If the
+//! tree held an index twice, `IterMut` would hand out two `&mut T` to the same
+//! slot.
+//!
+//! Only two operations can add or change an index in the tree, and each one
+//! maintains the invariant:
+//!
+//! * [`MapBTreeTable::prepare_insert`] inserts an index that is vacant in the
+//!   item set, so it cannot already be in the tree. Even if a user `Ord` lies,
+//!   [`insert_cmp`] never returns `Equal` for two different indexes, so
+//!   `BTreeMap::entry` cannot land on an existing entry.
+//! * [`MapBTreeTable::remap_indexes`] rewrites every index through an
+//!   injective map, and it checks every index before it writes any, so a
+//!   panic cannot leave the tree half rewritten.
+//!
+//! The invariant also relies on the supporting fact that the tree only holds
+//! indexes of occupied slots. `IdOrdMap` maintains that by:
+//!
+//! * Removing an entry from the tree before it frees the slot.
+//! * Clearing the tree before it drops the items.
+//!
+//! A stale index would let a later insert reuse the slot and produce a
+//! duplicate.
 
 use super::{ItemIndex, item_set::IndexRemap, map_hash::MapHash};
 use crate::internal::{
@@ -453,12 +484,10 @@ where
     move |a: &Index, b: &Index| {
         let (a, b) = (a.value(), b.value());
         if a == b {
-            // This is potentially load-bearing! It means that even if the Eq
-            // implementation on map items is wrong, we treat items at the same
-            // index as equal.
-            //
-            // Unsafe code relies on this to ensure that we don't return
-            // multiple mutable references to the same index.
+            // Two entries with the same index are equal, whatever the user's
+            // `Ord` says. This keeps the no-duplicate invariant in the module
+            // docs: a lookup for an index that is already in the tree lands
+            // on that entry, not beside it.
             return Ordering::Equal;
         }
         match (a, b) {
@@ -485,11 +514,11 @@ where
     move |a: &Index, b: &Index| {
         let (a, b) = (a.value(), b.value());
         if a == b {
-            // This is load-bearing! It means that even if the Eq implementation
-            // on map items is wrong, we treat items at the same index as equal.
-            //
-            // Unsafe code relies on this to ensure that we don't return
-            // multiple mutable references to the same index.
+            // Two entries with the same index are equal, whatever the user's
+            // `Ord` says. Together with the tiebreakers below, this means the
+            // comparator returns `Equal` only for the same index, which is
+            // what `prepare_insert` and `prepare_remove` need to keep the
+            // no-duplicate invariant in the module docs.
             return Ordering::Equal;
         }
         match (a, b) {
