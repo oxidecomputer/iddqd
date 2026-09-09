@@ -249,6 +249,69 @@ There’s a blanket implementation of [`Equivalent`] and [`Comparable`] for
 [`Borrow`], so if your type already implements [`Borrow`], there aren’t any
 extra steps to take.
 
+#### Mutable lookups take owned keys
+
+All `&mut self` methods take owned instances of the key type directly rather
+than references. Unlike the standard library’s maps, the key type itself can
+be borrowed, so this generally does not require giving up on efficiency.
+
+For example, consider a standard library `HashMap<String, u32>`. Its
+`remove` method takes `&Q` where `String: Borrow<Q>`, which is what lets
+you pass a `&str`. Without `Borrow`, `remove` would have to take a
+`&String`, and removing by name would mean allocating a `String` first:
+
+````rust
+use std::collections::HashMap;
+
+let mut map: HashMap<String, u32> = HashMap::new();
+map.insert("foo".to_owned(), 1);
+
+// Without Borrow, this is the only option: allocate a String to remove
+// by name.
+let owned_key = "foo".to_owned();
+assert_eq!(map.remove(&owned_key), Some(1));
+
+map.insert("foo".to_owned(), 1);
+
+// With Borrow, a &str works directly.
+assert_eq!(map.remove("foo"), Some(1));
+````
+
+With [`IdHashMap`], the key type can be a borrowed form such as `&'a str`.
+Passing the key by value then means passing a `&str`, so no allocation is
+needed:
+
+````rust
+use iddqd::{IdHashItem, IdHashMap, id_upcast};
+
+#[derive(Debug, PartialEq)]
+struct Counter {
+    name: String,
+    value: u32,
+}
+
+impl IdHashItem for Counter {
+    type Key<'a> = &'a str;
+
+    fn key(&self) -> Self::Key<'_> {
+        &self.name
+    }
+
+    id_upcast!();
+}
+
+let mut map = IdHashMap::new();
+map.insert_unique(Counter { name: "foo".to_owned(), value: 1 }).unwrap();
+
+// The key type is &str, so passing it by value is passing a borrow.
+assert_eq!(
+    map.remove("foo"),
+    Some(Counter { name: "foo".to_owned(), value: 1 }),
+);
+````
+
+This is a soundness requirement.
+
 ## Testing and verification
 
 This crate is validated through a combination of:

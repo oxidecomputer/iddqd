@@ -92,7 +92,7 @@ fn lawless_operation_sequence() {
             // op == 1
             _ => {
                 let k1 = nondet_u8_below(SEQ_KEYS);
-                let _ = map.remove1(&k1);
+                let _ = map.remove1(k1);
             }
         }
 

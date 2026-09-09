@@ -11,6 +11,16 @@
 
 ### Changed
 
+- **Breaking:** The mutable-borrow lookup methods now take the key by value, as `T::Key<'_>`, rather than any `Q: Equivalent<T::Key<'_>>` (or `Comparable`). This affects:
+
+  - `IdHashMap` and `IdOrdMap`: `get_mut` and `remove`.
+  - `BiHashMap`: `get1_mut`, `get2_mut`, `remove1`, `remove2`, `get_mut_unique`, and `remove_unique`.
+  - `TriHashMap`: `get1_mut`, `get2_mut`, `get3_mut`, `remove1`, `remove2`, `remove3`, `get_mut_unique`, and `remove_unique`.
+
+  The shared-borrow lookups (`get`, `contains_key`, and their numbered variants) still accept any `Q`.
+
+  See the _Mutable lookups take owned keys_ section in the crate docs for more information, and the "Fixed" entry below for the soundness hole this closes.
+
 - The `Debug` impl for `IdHashMap` no longer requires `S: Clone + BuildHasher`, matching `BiHashMap` and `TriHashMap`.
 
 - The `Debug` impls for `IdOrdMap`, `IdHashMap`, `BiHashMap`, and `TriHashMap` now format items only, as a set (`{item, ...}`), and require just `T: Debug`. Previously they formatted `{key: item, ...}` and also required the key types to be `Debug`. Use `debug_with_keys` for the previous form. The `Debug` impls for the `daft` `Diff` and `MapLeaf` types likewise no longer require the key types to be `Debug`.
@@ -27,6 +37,10 @@
   Even though this is a breaking change, we are not releasing a new major version for this change due to it being a soundness fix and us hoping this is a relatively minor use.
 
 ### Fixed
+
+- Fixed a soundness hole in the mutable-borrow lookup methods listed under "Changed". Their signatures, such as `fn get_mut<'a, Q: Equivalent<T::Key<'a>>>(&'a mut self, key: &Q)`, let caller code copy a reference out of that key into a `Cell<Option<&'a str>>` and read it after the map had mutated or dropped the item.
+
+  These APIs have been changed to take `T::Key<'_>` directly, which closes this soundness hole.
 
 - The `Iter`, `IterMut`, and `IntoIter` types now report an exact `size_hint`. Previously, they returned `(0, None)`. This violated the `ExactSizeIterator` contract, resulting in calls like `.take(...).len()` panicking on a non-empty map.
 

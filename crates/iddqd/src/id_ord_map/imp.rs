@@ -874,30 +874,12 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     ///
     /// assert_eq!(map.get("foo").unwrap().value, 99);
     /// ```
-    pub fn get_mut<'a, Q>(&'a mut self, key: &Q) -> Option<RefMut<'a, T>>
+    pub fn get_mut<'a>(&'a mut self, key: T::Key<'_>) -> Option<RefMut<'a, T>>
     where
-        Q: ?Sized + Comparable<T::Key<'a>>,
         T::Key<'a>: Hash,
     {
-        let (dormant_map, index) = {
-            let (map, dormant_map) = DormantMutRef::new(self);
-            let index = map.find_index(key)?;
-            (dormant_map, index)
-        };
-
-        // SAFETY: `map` is not used after this point.
-        let awakened_map = unsafe { dormant_map.awaken() };
-        let item = &mut awakened_map.items[index];
-        let state = awakened_map.tables.state().clone();
-        let (hash, dormant) = {
-            let (item, dormant) = DormantMutRef::new(item);
-            let hash = awakened_map.tables.make_hash(item);
-            (hash, dormant)
-        };
-
-        // SAFETY: the original item is not used after this point.
-        let item = unsafe { dormant.awaken() };
-        Some(RefMut::new(state, hash, item))
+        let index = self.find_index_by_key(key)?;
+        self.get_by_index_mut(index)
     }
 
     /// Removes an item from the map by its `key`.
@@ -934,25 +916,12 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     /// // Removing a non-existent key returns None
     /// assert!(map.remove("bar").is_none());
     /// ```
-    pub fn remove<'a, Q>(&'a mut self, key: &Q) -> Option<T>
-    where
-        Q: ?Sized + Comparable<T::Key<'a>>,
-    {
-        let (dormant_map, remove_index) = {
-            let (map, dormant_map) = DormantMutRef::new(self);
-            let remove_index = map.find_index(key)?;
-            (dormant_map, remove_index)
-        };
-
-        // SAFETY: `map` is not used after this point.
-        let awakened_map = unsafe { dormant_map.awaken() };
-        awakened_map.remove_by_index(remove_index)
+    pub fn remove(&mut self, key: T::Key<'_>) -> Option<T> {
+        let remove_index = self.find_index_by_key(key)?;
+        self.remove_by_index(remove_index)
     }
 
     /// Retrieves an entry by its `key`.
-    ///
-    /// Due to borrow checker limitations, this always accepts an owned key rather
-    /// than a borrowed form.
     ///
     /// # Examples
     ///
@@ -995,42 +964,13 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     ///
     /// assert_eq!(map.get("foo").unwrap().value, 99);
     /// ```
-    pub fn entry<'a>(&'a mut self, key: T::Key<'_>) -> Entry<'a, T> {
-        // Why does this always take an owned key? Well, it would seem like we
-        // should be able to pass in any Q that is equivalent. That results in
-        // *this* code compiling fine, but callers have trouble using it because
-        // the borrow checker believes the keys are borrowed for the full 'a
-        // rather than a shorter lifetime.
-        //
-        // By accepting owned keys, we can use the upcast functions to convert
-        // them to a shorter lifetime (so this function accepts T::Key<'_>
-        // rather than T::Key<'a>).
-        //
-        // Really, the solution here is to allow GATs to require covariant
-        // parameters. If that were allowed, the borrow checker should be able
-        // to figure out that keys don't need to be borrowed for the full 'a,
-        // just for some shorter lifetime.
-        let (map, dormant_map) = DormantMutRef::new(self);
-        let key = T::upcast_key(key);
-        {
-            // index is explicitly typed to show that it has a trivial Drop impl
-            // that doesn't capture anything from map.
-            let index: Option<ItemIndex> = map
-                .tables
-                .key_to_item
-                .find_index(&key, |index| map.items[index].key());
-            if let Some(index) = index {
-                drop(key);
-                return Entry::Occupied(
-                    // SAFETY: `map` is not used after this point.
-                    unsafe { OccupiedEntry::new(dormant_map, index) },
-                );
-            }
+    pub fn entry(&mut self, key: T::Key<'_>) -> Entry<'_, T> {
+        // See the "Mutable lookups take owned keys" section in the crate docs
+        // for why this takes `T::Key<'_>` rather than a `Q`.
+        match self.find_index_by_key(key) {
+            Some(index) => Entry::Occupied(OccupiedEntry::new(self, index)),
+            None => Entry::Vacant(VacantEntry::new(self)),
         }
-        Entry::Vacant(
-            // SAFETY: `map` is not used after this point.
-            unsafe { VacantEntry::new(dormant_map) },
-        )
     }
 
     /// Returns the first item in the map. The key of this item is the minimum
@@ -1114,12 +1054,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     /// ```
     pub fn first_entry(&mut self) -> Option<OccupiedEntry<'_, T>> {
         let index = self.tables.key_to_item.first()?;
-        let (_, dormant_map) = DormantMutRef::new(self);
-        Some(
-            // SAFETY: `map` is dropped immediately while creating the
-            // DormantMutRef.
-            unsafe { OccupiedEntry::new(dormant_map, index) },
-        )
+        Some(OccupiedEntry::new(self, index))
     }
 
     /// Removes and returns the first element in the map. The key of this
@@ -1251,12 +1186,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
     /// ```
     pub fn last_entry(&mut self) -> Option<OccupiedEntry<'_, T>> {
         let index = self.tables.key_to_item.last()?;
-        let (_, dormant_map) = DormantMutRef::new(self);
-        Some(
-            // SAFETY: `map` is dropped immediately while creating the
-            // DormantMutRef.
-            unsafe { OccupiedEntry::new(dormant_map, index) },
-        )
+        Some(OccupiedEntry::new(self, index))
     }
 
     /// Removes and returns the last element in the map. The key of this
@@ -1451,6 +1381,17 @@ impl<T: IdOrdItem> IdOrdMap<T> {
         Q: ?Sized + Comparable<T::Key<'a>>,
     {
         self.tables.key_to_item.find_index(k, |index| self.items[index].key())
+    }
+
+    /// Looks up an owned key, borrowing `self` only for as long as the
+    /// upcast key lives.
+    ///
+    /// The `&mut self` methods use this rather than `find_index` so that the
+    /// caller's key never observes a borrow at the mutable lifetime. See the
+    /// "Mutable lookups take owned keys" section in the crate docs.
+    fn find_index_by_key(&self, key: T::Key<'_>) -> Option<ItemIndex> {
+        let key = T::upcast_key(key);
+        self.find_index(&key)
     }
 
     pub(super) fn get_by_index(&self, index: ItemIndex) -> Option<&T> {

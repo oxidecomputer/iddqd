@@ -159,7 +159,7 @@ fn lawless_operation_sequence() {
             }
             // op == 1
             _ => {
-                let _ = map.remove(&LawlessKey(key));
+                let _ = map.remove(LawlessKey(key));
             }
         }
 

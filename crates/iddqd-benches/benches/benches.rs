@@ -415,7 +415,7 @@ fn churn_id_hash_map(c: &mut Criterion) {
                         let size = size as u32;
                         for step in 0..CHURN_OPS as u32 {
                             let key = step % size;
-                            let v = map.remove(&key).unwrap();
+                            let v = map.remove(key).unwrap();
                             map.insert_unique(v).unwrap();
                         }
                     },
@@ -450,7 +450,7 @@ fn churn_id_ord_map(c: &mut Criterion) {
                         let size = size as u32;
                         for step in 0..CHURN_OPS as u32 {
                             let key = step % size;
-                            let v = map.remove(&key).unwrap();
+                            let v = map.remove(key).unwrap();
                             map.insert_unique(v).unwrap();
                         }
                     },
@@ -622,7 +622,7 @@ fn shrink_to_fit_id_hash_map(c: &mut Criterion) {
                             map.insert_unique(record(i)).unwrap();
                         }
                         for i in (0..size as u32).step_by(2) {
-                            map.remove(&i).unwrap();
+                            map.remove(i).unwrap();
                         }
                         map
                     },
@@ -657,7 +657,7 @@ fn shrink_to_fit_id_ord_map(c: &mut Criterion) {
                             map.insert_unique(record(i)).unwrap();
                         }
                         for i in (0..size as u32).step_by(2) {
-                            map.remove(&i).unwrap();
+                            map.remove(i).unwrap();
                         }
                         map
                     },
@@ -690,7 +690,7 @@ fn ref_mut_id_ord_map(c: &mut Criterion) {
                 map
             },
             |map| {
-                let mut item = map.get_mut(&TestKey1::new(&1)).unwrap();
+                let mut item = map.get_mut(TestKey1::new(&1)).unwrap();
                 item.key2 = 'b';
                 drop(item);
             },
@@ -926,7 +926,7 @@ fn insert_entry_id_ord_map(c: &mut Criterion) {
                         let size = size as u32;
                         for step in 0..CHURN_OPS as u32 {
                             let key = step % size;
-                            let v = map.remove(&key).unwrap();
+                            let v = map.remove(key).unwrap();
                             match map.entry(key) {
                                 iddqd::id_ord_map::Entry::Vacant(entry) => {
                                     entry.insert_entry(v);

@@ -1,5 +1,5 @@
 use super::{IdOrdItem, IdOrdMap, RefMut};
-use crate::support::{ItemIndex, borrow::DormantMutRef};
+use crate::support::ItemIndex;
 use core::{fmt, hash::Hash};
 
 /// An implementation of the Entry API for [`IdOrdMap`].
@@ -118,12 +118,9 @@ impl<'a, T: IdOrdItem> Entry<'a, T> {
         for<'k> T::Key<'k>: Hash,
     {
         match self {
-            Entry::Occupied(mut entry) => {
+            Entry::Occupied(entry) => {
                 {
-                    // SAFETY: The safety assumption behind
-                    // `OccupiedEntry::new` guarantees that the original
-                    // reference to the map is not used at this point.
-                    let map = unsafe { entry.map.reborrow() };
+                    let map = &mut *entry.map;
                     let state = map.tables.state().clone();
                     let item =
                         map.items.get_mut(entry.index).expect("index is valid");
@@ -139,7 +136,7 @@ impl<'a, T: IdOrdItem> Entry<'a, T> {
 
 /// A vacant entry.
 pub struct VacantEntry<'a, T: IdOrdItem> {
-    map: DormantMutRef<'a, IdOrdMap<T>>,
+    map: &'a mut IdOrdMap<T>,
 }
 
 impl<'a, T: IdOrdItem> fmt::Debug for VacantEntry<'a, T> {
@@ -149,12 +146,7 @@ impl<'a, T: IdOrdItem> fmt::Debug for VacantEntry<'a, T> {
 }
 
 impl<'a, T: IdOrdItem> VacantEntry<'a, T> {
-    /// # Safety
-    ///
-    /// `map` must be dormant: the caller must no longer use the reference
-    /// that `DormantMutRef::new` returned, nor anything derived from it. The
-    /// methods on this type reborrow or awaken `map` and rely on that.
-    pub(super) unsafe fn new(map: DormantMutRef<'a, IdOrdMap<T>>) -> Self {
+    pub(super) fn new(map: &'a mut IdOrdMap<T>) -> Self {
         VacantEntry { map }
     }
 
@@ -167,9 +159,7 @@ impl<'a, T: IdOrdItem> VacantEntry<'a, T> {
     /// the key should be what was passed into [`IdOrdMap::entry`], but that
     /// isn't checked in this API due to borrow checker limitations.)
     pub fn insert_ref(self, value: T) -> &'a T {
-        // SAFETY: The safety assumption behind `Self::new` guarantees that the
-        // original reference to the map is not used at this point.
-        let map = unsafe { self.map.awaken() };
+        let map = self.map;
         let Ok(index) = map.insert_unique_impl(value) else {
             panic!("key already present in map");
         };
@@ -182,9 +172,7 @@ impl<'a, T: IdOrdItem> VacantEntry<'a, T> {
     where
         T::Key<'a>: Hash,
     {
-        // SAFETY: The safety assumption behind `Self::new` guarantees that the
-        // original reference to the map is not used at this point.
-        let map = unsafe { self.map.awaken() };
+        let map = self.map;
         let Ok(index) = map.insert_unique_impl(value) else {
             panic!("key already present in map");
         };
@@ -193,27 +181,18 @@ impl<'a, T: IdOrdItem> VacantEntry<'a, T> {
 
     /// Sets the value of the entry, and returns an `OccupiedEntry`.
     #[inline]
-    pub fn insert_entry(mut self, value: T) -> OccupiedEntry<'a, T> {
-        let index = {
-            // SAFETY: The safety assumption behind `Self::new` guarantees that the
-            // original reference to the map is not used at this point.
-            let map = unsafe { self.map.reborrow() };
-            let Ok(index) = map.insert_unique_impl(value) else {
-                panic!("key already present in map");
-            };
-            index
+    pub fn insert_entry(self, value: T) -> OccupiedEntry<'a, T> {
+        let Ok(index) = self.map.insert_unique_impl(value) else {
+            panic!("key already present in map");
         };
-
-        // SAFETY: map, as well as anything that was borrowed from it, is
-        // dropped once the above block exits.
-        unsafe { OccupiedEntry::new(self.map, index) }
+        OccupiedEntry::new(self.map, index)
     }
 }
 
 /// A view into an occupied entry in an [`IdOrdMap`]. Part of the [`Entry`]
 /// enum.
 pub struct OccupiedEntry<'a, T: IdOrdItem> {
-    map: DormantMutRef<'a, IdOrdMap<T>>,
+    map: &'a mut IdOrdMap<T>,
     // index is a valid index into the map's internal hash table.
     index: ItemIndex,
 }
@@ -227,15 +206,7 @@ impl<'a, T: IdOrdItem> fmt::Debug for OccupiedEntry<'a, T> {
 }
 
 impl<'a, T: IdOrdItem> OccupiedEntry<'a, T> {
-    /// # Safety
-    ///
-    /// `map` must be dormant: the caller must no longer use the reference
-    /// that `DormantMutRef::new` returned, nor anything derived from it. The
-    /// methods on this type reborrow or awaken `map` and rely on that.
-    pub(super) unsafe fn new(
-        map: DormantMutRef<'a, IdOrdMap<T>>,
-        index: ItemIndex,
-    ) -> Self {
+    pub(super) fn new(map: &'a mut IdOrdMap<T>, index: ItemIndex) -> Self {
         OccupiedEntry { map, index }
     }
 
@@ -244,11 +215,7 @@ impl<'a, T: IdOrdItem> OccupiedEntry<'a, T> {
     /// If you need a reference to `T` that may outlive the destruction of the
     /// `Entry` value, see [`into_ref`](Self::into_ref).
     pub fn get(&self) -> &T {
-        // SAFETY: The safety assumption behind `Self::new` guarantees that the
-        // original reference to the map is not used at this point.
-        unsafe { self.map.reborrow_shared() }
-            .get_by_index(self.index)
-            .expect("index is known to be valid")
+        self.map.get_by_index(self.index).expect("index is known to be valid")
     }
 
     /// Gets a mutable reference to the value.
@@ -259,9 +226,7 @@ impl<'a, T: IdOrdItem> OccupiedEntry<'a, T> {
     where
         T::Key<'b>: Hash,
     {
-        // SAFETY: The safety assumption behind `Self::new` guarantees that the
-        // original reference to the map is not used at this point.
-        unsafe { self.map.reborrow() }
+        self.map
             .get_by_index_mut(self.index)
             .expect("index is known to be valid")
     }
@@ -271,11 +236,7 @@ impl<'a, T: IdOrdItem> OccupiedEntry<'a, T> {
     /// If you need multiple references to the `OccupiedEntry`, see
     /// [`get`](Self::get).
     pub fn into_ref(self) -> &'a T {
-        // SAFETY: The safety assumption behind `Self::new` guarantees that the
-        // original reference to the map is not used at this point.
-        unsafe { self.map.awaken() }
-            .get_by_index(self.index)
-            .expect("index is known to be valid")
+        self.map.get_by_index(self.index).expect("index is known to be valid")
     }
 
     /// Converts self into a mutable reference to the value.
@@ -286,9 +247,7 @@ impl<'a, T: IdOrdItem> OccupiedEntry<'a, T> {
     where
         T::Key<'a>: Hash,
     {
-        // SAFETY: The safety assumption behind `Self::new` guarantees that the
-        // original reference to the map is not used at this point.
-        unsafe { self.map.awaken() }
+        self.map
             .get_by_index_mut(self.index)
             .expect("index is known to be valid")
     }
@@ -299,18 +258,13 @@ impl<'a, T: IdOrdItem> OccupiedEntry<'a, T> {
     ///
     /// Panics if `value.key()` is different from the key of the entry.
     pub fn insert(&mut self, value: T) -> T {
-        // SAFETY: The safety assumption behind `Self::new` guarantees that the
-        // original reference to the map is not used at this point.
-        //
         // Note that `replace_at_index` panics if the keys don't match.
-        unsafe { self.map.reborrow() }.replace_at_index(self.index, value)
+        self.map.replace_at_index(self.index, value)
     }
 
     /// Takes ownership of the value from the map.
-    pub fn remove(mut self) -> T {
-        // SAFETY: The safety assumption behind `Self::new` guarantees that the
-        // original reference to the map is not used at this point.
-        unsafe { self.map.reborrow() }
+    pub fn remove(self) -> T {
+        self.map
             .remove_by_index(self.index)
             .expect("index is known to be valid")
     }

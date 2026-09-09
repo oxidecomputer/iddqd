@@ -81,7 +81,7 @@ fn lawless_operation_sequence() {
             }
             // op == 1
             _ => {
-                let _ = map.remove(&key);
+                let _ = map.remove(key);
             }
         }
 

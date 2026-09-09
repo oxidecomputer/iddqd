@@ -1,0 +1,15 @@
+error: lifetime may not live long enough
+  --> tests/ui/invalid/id_ord_upcast_key_stash.rs:49:9
+   |
+46 |     fn upcast_key<'short, 'long: 'short>(
+   |                   ------  ----- lifetime `'long` defined here
+   |                   |
+   |                   lifetime `'short` defined here
+...
+49 |         StashKey { s: long.s, stash: long.stash }
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ associated function was supposed to return data with lifetime `'long` but it is returning data with lifetime `'short`
+   |
+   = help: consider adding the following bound: `'short: 'long`
+   = note: requirement occurs because of the type `StashKey<'_>`, which makes the generic argument `'_` invariant
+   = note: the struct `StashKey<'a>` is invariant over the parameter `'a`
+   = help: see <https://doc.rust-lang.org/nomicon/subtyping.html> for more information about variance
