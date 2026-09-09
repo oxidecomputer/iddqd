@@ -2085,12 +2085,13 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
     /// assert!(map.get1(&2).is_none());
     /// # }
     /// ```
-    pub fn retain<'a, F>(&'a mut self, mut f: F)
+    pub fn retain<F>(&mut self, mut f: F)
     where
         F: for<'b> FnMut(RefMut<'b, T, S>) -> bool,
     {
         let hash_state = self.tables.state.clone();
-        let (_, mut dormant_items) = DormantMutRef::new(&mut self.items);
+        let items = &mut self.items;
+        let k2_to_item = &mut self.tables.k2_to_item;
         let mut removed_item = None;
 
         self.tables.k1_to_item.retain(|index| {
@@ -2105,45 +2106,22 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
             // and `k2_to_item`.
             drop(removed_item.take());
 
-            let (item, dormant_items) = {
-                // SAFETY: All uses of `items` ended in the previous iteration.
-                let items = unsafe { dormant_items.reborrow() };
-                let (items, dormant_items) = DormantMutRef::new(items);
-                let item: &'a mut T = items
+            let (hash2, retain) = {
+                let item = items
                     .get_mut(index)
                     .expect("all indexes are present in self.items");
-                (item, dormant_items)
-            };
-
-            let (hashes, dormant_item) = {
-                let (item, dormant_item): (&'a mut T, _) =
-                    DormantMutRef::new(item);
-                // Use T::k1(item) rather than item.key() to force the key
+                // Use T::key1(item) rather than item.key1() to force the key
                 // trait function to be called for T rather than &mut T.
-                let key1 = T::key1(item);
-                let key2 = T::key2(item);
-                let hash1 = hash_state.hash_one(key1);
-                let hash2 = hash_state.hash_one(key2);
-                ([MapHash::new(hash1), MapHash::new(hash2)], dormant_item)
-            };
-
-            let hash2 = hashes[1].hash();
-            let retain = {
-                // SAFETY: The original item is no longer used after the second
-                // block above. dormant_items, from which item is derived, is
-                // currently dormant.
-                let item = unsafe { dormant_item.awaken() };
-
-                let ref_mut = RefMut::new(hash_state.clone(), hashes, item);
-                f(ref_mut)
+                let hash1 = hash_state.hash_one(T::key1(item));
+                let hash2 = hash_state.hash_one(T::key2(item));
+                let hashes = [MapHash::new(hash1), MapHash::new(hash2)];
+                (hash2, f(RefMut::new(hash_state.clone(), hashes, item)))
             };
 
             if retain {
                 true
             } else {
-                let k2_entry = self
-                    .tables
-                    .k2_to_item
+                let k2_entry = k2_to_item
                     .find_entry_by_hash(hash2, |map2_index| {
                         map2_index == index
                     });
@@ -2152,16 +2130,10 @@ impl<T: BiHashItem, S: Clone + BuildHasher, A: Allocator> BiHashMap<T, S, A> {
                         entry.remove();
                     }
                     Err(_) => {
-                        self.tables.k2_to_item.remove_by_index(index);
+                        k2_to_item.remove_by_index(index);
                     }
                 }
 
-                // SAFETY: The original items is no longer used after the first
-                // block above, and item + dormant_item have been dropped after
-                // being used above. The k2 work between them borrows only
-                // `self.tables.k2_to_item`, which is disjoint from
-                // `self.items`.
-                let items = unsafe { dormant_items.awaken() };
                 removed_item = Some(
                     items
                         .remove(index)
