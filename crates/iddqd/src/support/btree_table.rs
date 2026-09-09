@@ -17,6 +17,7 @@ use core::{
     cmp::Ordering,
     hash::{BuildHasher, Hash},
     marker::PhantomData,
+    ops::Bound,
 };
 use equivalent::Comparable;
 
@@ -206,6 +207,42 @@ impl MapBTreeTable {
         // drop(guard) isn't necessary, but we make it explicit
         drop(guard);
         ret
+    }
+
+    /// Returns the predecessor and successor of `index` in tree
+    /// order.
+    ///
+    /// The index must be present in the tree, and must use the same comparator
+    /// as insert.
+    pub(crate) fn neighbors<K, F>(
+        &self,
+        index: ItemIndex,
+        key: &K,
+        lookup: F,
+    ) -> (Option<ItemIndex>, Option<ItemIndex>)
+    where
+        K: Ord,
+        F: Fn(ItemIndex) -> K,
+    {
+        let f = insert_cmp(index, key, lookup);
+        let guard = CmpDropGuard::new(&f);
+
+        let probe = Index::new(index);
+        let pred = self
+            .items
+            .range((Bound::Unbounded, Bound::Excluded(&probe)))
+            .next_back()
+            .map(|(ix, ())| ix.value());
+        let succ = self
+            .items
+            .range((Bound::Excluded(&probe), Bound::Unbounded))
+            .next()
+            .map(|(ix, ())| ix.value());
+
+        // drop(guard) isn't necessary, but we make it explicit
+        drop(guard);
+
+        (pred, succ)
     }
 
     pub(crate) fn prepare_insert<K, Q, F>(
