@@ -97,9 +97,15 @@ where
     fn next(&mut self) -> Option<Self::Item> {
         let index = self.iter.next()?;
 
-        // SAFETY: The B-tree is a set, so each call to `self.iter.next()`
-        // yields a distinct `index`. Therefore the `&mut T` references that
-        // `get_mut` hands out across iterations never alias.
+        // SAFETY: `get_mut` requires that we pass each `index` at most once
+        // for the lifetime of `self.items`. We do, because:
+        //
+        // * `self.iter` visits each entry of the B-tree once, and
+        // * no two entries hold the same index (the no-duplicate invariant in
+        //   the `btree_table` module docs).
+        //
+        // The user's `Ord` is not called at any point, since iteration is
+        // structural.
         let item: &'a mut T = unsafe { self.items.get_mut(index) };
 
         let (hash, dormant) = {
