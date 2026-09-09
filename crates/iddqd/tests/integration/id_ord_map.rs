@@ -785,6 +785,90 @@ fn test_retain_all() {
 }
 
 #[test]
+fn and_modify_allows_value_change() {
+    let mut map = IdOrdMap::<TestItem>::make_new();
+    map.insert_unique(TestItem::new(10, 'a', "x", "foo")).unwrap();
+    map.insert_unique(TestItem::new(20, 'b', "y", "bar")).unwrap();
+
+    map.entry(TestKey1::new(&20))
+        .and_modify(|mut item| item.value = "baz".to_owned());
+
+    map.validate(ValidateCompact::NonCompact, ValidateChaos::No).unwrap();
+    assert_eq!(map.get(&TestKey1::new(&20)).unwrap().value, "baz");
+}
+
+#[test]
+#[should_panic(expected = "key changed during RefMut borrow")]
+fn and_modify_panics_if_key_changes_in_order() {
+    let mut map = IdOrdMap::<TestItem>::make_new();
+    map.insert_unique(TestItem::new(10, 'a', "x", "foo")).unwrap();
+    map.insert_unique(TestItem::new(20, 'b', "y", "bar")).unwrap();
+    map.insert_unique(TestItem::new(30, 'c', "z", "baz")).unwrap();
+
+    map.entry(TestKey1::new(&20)).and_modify(|mut item| item.key1 = 25);
+}
+
+#[test]
+#[should_panic(expected = "key changed during RefMut borrow")]
+fn and_modify_panics_if_key_changes_out_of_order() {
+    let mut map = IdOrdMap::<TestItem>::make_new();
+    map.insert_unique(TestItem::new(10, 'a', "x", "foo")).unwrap();
+    map.insert_unique(TestItem::new(20, 'b', "y", "bar")).unwrap();
+    map.insert_unique(TestItem::new(30, 'c', "z", "baz")).unwrap();
+
+    map.entry(TestKey1::new(&20)).and_modify(|mut item| item.key1 = 30);
+}
+
+#[test]
+fn retain_allows_value_change() {
+    let mut map = IdOrdMap::<TestItem>::make_new();
+    map.insert_unique(TestItem::new(10, 'a', "x", "foo")).unwrap();
+    map.insert_unique(TestItem::new(20, 'b', "y", "bar")).unwrap();
+    map.insert_unique(TestItem::new(30, 'c', "z", "baz")).unwrap();
+
+    map.retain(|mut item| {
+        item.value = "changed".to_owned();
+        item.key1 != 20
+    });
+
+    map.validate(ValidateCompact::NonCompact, ValidateChaos::No).unwrap();
+    assert_eq!(map.iter().map(|item| item.key1).collect::<Vec<_>>(), [10, 30]);
+    assert!(map.iter().all(|item| item.value == "changed"));
+}
+
+#[test]
+#[should_panic(expected = "key changed during RefMut borrow")]
+fn retain_panics_if_key_changes_in_order() {
+    let mut map = IdOrdMap::<TestItem>::make_new();
+    map.insert_unique(TestItem::new(10, 'a', "x", "foo")).unwrap();
+    map.insert_unique(TestItem::new(20, 'b', "y", "bar")).unwrap();
+    map.insert_unique(TestItem::new(30, 'c', "z", "baz")).unwrap();
+
+    map.retain(|mut item| {
+        if item.key1 == 20 {
+            item.key1 = 25;
+        }
+        true
+    });
+}
+
+#[test]
+#[should_panic(expected = "key changed during RefMut borrow")]
+fn retain_panics_if_removed_item_key_changes() {
+    let mut map = IdOrdMap::<TestItem>::make_new();
+    map.insert_unique(TestItem::new(10, 'a', "x", "foo")).unwrap();
+    map.insert_unique(TestItem::new(20, 'b', "y", "bar")).unwrap();
+
+    map.retain(|mut item| {
+        item.key1 = 5;
+        false
+    });
+
+    // The check runs before the item is removed, so a removed item's key change
+    // is caught.
+}
+
+#[test]
 fn test_retain_none() {
     let mut map = IdOrdMap::<TestItem>::make_new();
     map.insert_unique(TestItem::new(1, 'a', "x", "foo")).unwrap();
@@ -1008,16 +1092,13 @@ fn borrowed_item() {
             key3: Path::new("foo"),
         });
 
-        let entry = map.entry("bar");
-        let entry = entry.and_modify(|mut v| {
-            // IdOrdMap<BorrowedItem<'_>> is not indexed by key2, so changing
-            // key2 will not cause a panic. (Changing key1 would cause a panic.)
-            v.key2 = Cow::Borrowed(b"baz");
-        });
-
-        let id_ord_map::Entry::Occupied(mut entry) = entry else {
+        // and_modify and retain aren't available for item types with lifetimes;
+        // see the id_ord_retain_borrowed_item UI test.
+        let id_ord_map::Entry::Occupied(mut entry) = map.entry("bar") else {
             panic!("Entry should be occupied")
         };
+        // IdOrdMap<BorrowedItem<'_>> is not indexed by key2, so changing
+        // key2 will not cause a panic. (Changing key1 would cause a panic.)
         let mut v = entry.get_mut();
         v.key2 = Cow::Borrowed(b"quux");
     }
@@ -1025,8 +1106,10 @@ fn borrowed_item() {
     entry_api_tests(&mut map);
 }
 
+// Non-'static item types aren't compatible with retain or and_modify (see the
+// id_ord_retain_borrowed_item UI test). This lists the suggested workarounds.
 #[test]
-fn borrowed_item_retain_non_static() {
+fn borrowed_item_retain_and_modify_workarounds() {
     let foo_key = String::from("foo");
     let bar_key = String::from("bar");
     let foo_bytes = b"foo".to_vec();
@@ -1048,7 +1131,21 @@ fn borrowed_item_retain_non_static() {
     })
     .unwrap();
 
-    map.retain(|item| item.key1 == foo_key.as_str());
+    // In place of and_modify: get_mut on the occupied entry.
+    match map.entry(foo_key.as_str()) {
+        id_ord_map::Entry::Occupied(mut entry) => {
+            entry.get_mut().key2 = Cow::Borrowed(b"changed");
+        }
+        id_ord_map::Entry::Vacant(_) => panic!("foo should be present"),
+    }
+    assert_eq!(&*map.get(foo_key.as_str()).unwrap().key2, b"changed");
+
+    // In place of retain: take the map and re-insert what should stay.
+    for item in std::mem::take(&mut map) {
+        if item.key1 == foo_key.as_str() {
+            map.insert_unique(item).unwrap();
+        }
+    }
 
     assert_eq!(map.len(), 1);
     assert!(map.get(foo_key.as_str()).is_some());
