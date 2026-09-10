@@ -3,6 +3,12 @@
 <!-- next-header -->
 ## Unreleased - ReleaseDate
 
+This release fixes a number of soundness holes, mostly identified by Claude Fable 5.1 and GPT-6 Astra, plus Google's [`unsafe_rust_review_experimental` agent skill](https://github.com/google/rust-skills/tree/main/unsafe_rust_review_experimental). All identified soundness holes require significantly contrived code, e.g. a `Hash` impl that stashes the passed-in reference into a thread-local or internal `Cell`.
+
+Overall, `iddqd` now has significantly less unsafe code than before, though due to Rust compiler limitations it asks slightly more of trait implementers (such as `IdOrdItem::Key` now requiring `Hash` for change detection). We hope to relax these requirements in the future as the Rust compiler improves.
+
+Thanks to the authors of the Google agent skill.
+
 ### Added
 
 - `debug_with_keys` methods on `IdOrdMap`, `IdHashMap`, `BiHashMap`, and `TriHashMap`. These return a value whose `Debug` output is the previous `{key: item, ...}` form, and require the key types to be `Debug` for the lifetime of the borrow.
@@ -58,7 +64,7 @@
 
   Allocators that don't implement `grow` and `shrink` still get the trait's default `grow` and `shrink`. For those allocators, `deallocate` should not unwind after freeing. (This is a pre-existing limitation in the `allocator-api2` crate.)
 
-  `IdOrdMap` does not support custom allocators and is not affected.
+  `IdOrdMap` does not support custom allocators and is not affected. Unsoundness on allocator panics is a widespread problem in the Rust ecosystem, which is why the soon-to-be-stabilized standard library allocator API bans panicking within the allocator.
 
 ## [0.4.6] - 2026-07-21
 
