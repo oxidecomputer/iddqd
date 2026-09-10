@@ -8,7 +8,6 @@ use crate::{
     support::{
         ItemIndex,
         alloc::{Global, global_alloc},
-        borrow::DormantMutRef,
         item_set::ItemSet,
         map_hash::MapHash,
     },
@@ -1384,15 +1383,8 @@ impl<T: IdOrdItem> IdOrdMap<T> {
         index: ItemIndex,
     ) -> Option<RefMut<'a, T>> {
         let state = self.tables.state().clone();
-        let (hash, dormant) = {
-            let item: &'a mut T = self.items.get_mut(index)?;
-            let (item, dormant) = DormantMutRef::new(item);
-            let hash = self.tables.make_hash(item);
-            (hash, dormant)
-        };
-
-        // SAFETY: item is no longer used after the above point.
-        let item = unsafe { dormant.awaken() };
+        let item = self.items.get_mut(index)?;
+        let hash = self.tables.make_hash(item);
         Some(RefMut::new(state, hash, item))
     }
 

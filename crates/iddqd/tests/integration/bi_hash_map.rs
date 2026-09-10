@@ -140,8 +140,7 @@ fn test_insert_unique() {
     let v4 = TestItem::new(1, 'b', "x", "v");
     map.insert_unique(v4.clone()).unwrap();
 
-    // Iterate over the items mutably. This ensures that miri detects UB if it
-    // exists.
+    // Keep all mutable guards alive together to exercise aliasing under Miri.
     {
         let mut items: Vec<bi_hash_map::RefMut<_, HashBuilder>> =
             map.iter_mut().collect();
@@ -168,7 +167,6 @@ fn test_insert_unique() {
     assert_eq!(map.remove_unique(v4.key1(), v4.key2()), Some(v4));
 }
 
-// Test that the unsafe block within RefMut doesn't trip up miri.
 #[test]
 fn test_ref_mut_aliasing() {
     let mut map = BiHashMap::<TestItem, HashBuilder, Alloc>::make_new();
