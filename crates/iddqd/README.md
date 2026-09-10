@@ -398,14 +398,14 @@ The name `iddqd` is a reference to [a cheat
 code](https://doomwiki.org/wiki/Doom_cheat_codes) in the classic video game
 *Doom*. It has `id` in the name, and is short and memorable.
 
-[`IdOrdMap`]: https://docs.rs/iddqd/0.4.6/iddqd/id_ord_map/imp/struct.IdOrdMap.html "struct iddqd::id_ord_map::imp::IdOrdMap"
-[`IdHashMap`]: https://docs.rs/iddqd/0.4.6/iddqd/id_hash_map/imp/struct.IdHashMap.html "struct iddqd::id_hash_map::imp::IdHashMap"
-[`BiHashMap`]: https://docs.rs/iddqd/0.4.6/iddqd/bi_hash_map/imp/struct.BiHashMap.html "struct iddqd::bi_hash_map::imp::BiHashMap"
-[`TriHashMap`]: https://docs.rs/iddqd/0.4.6/iddqd/tri_hash_map/imp/struct.TriHashMap.html "struct iddqd::tri_hash_map::imp::TriHashMap"
-[`IdOrdItem`]: https://docs.rs/iddqd/0.4.6/iddqd/id_ord_map/trait_defs/trait.IdOrdItem.html "trait iddqd::id_ord_map::trait_defs::IdOrdItem"
-[`IdHashItem`]: https://docs.rs/iddqd/0.4.6/iddqd/id_hash_map/trait_defs/trait.IdHashItem.html "trait iddqd::id_hash_map::trait_defs::IdHashItem"
-[`BiHashItem`]: https://docs.rs/iddqd/0.4.6/iddqd/bi_hash_map/trait_defs/trait.BiHashItem.html "trait iddqd::bi_hash_map::trait_defs::BiHashItem"
-[`TriHashItem`]: https://docs.rs/iddqd/0.4.6/iddqd/tri_hash_map/trait_defs/trait.TriHashItem.html "trait iddqd::tri_hash_map::trait_defs::TriHashItem"
+[`IdOrdMap`]: https://docs.rs/iddqd/0.5.0/iddqd/id_ord_map/imp/struct.IdOrdMap.html "struct iddqd::id_ord_map::imp::IdOrdMap"
+[`IdHashMap`]: https://docs.rs/iddqd/0.5.0/iddqd/id_hash_map/imp/struct.IdHashMap.html "struct iddqd::id_hash_map::imp::IdHashMap"
+[`BiHashMap`]: https://docs.rs/iddqd/0.5.0/iddqd/bi_hash_map/imp/struct.BiHashMap.html "struct iddqd::bi_hash_map::imp::BiHashMap"
+[`TriHashMap`]: https://docs.rs/iddqd/0.5.0/iddqd/tri_hash_map/imp/struct.TriHashMap.html "struct iddqd::tri_hash_map::imp::TriHashMap"
+[`IdOrdItem`]: https://docs.rs/iddqd/0.5.0/iddqd/id_ord_map/trait_defs/trait.IdOrdItem.html "trait iddqd::id_ord_map::trait_defs::IdOrdItem"
+[`IdHashItem`]: https://docs.rs/iddqd/0.5.0/iddqd/id_hash_map/trait_defs/trait.IdHashItem.html "trait iddqd::id_hash_map::trait_defs::IdHashItem"
+[`BiHashItem`]: https://docs.rs/iddqd/0.5.0/iddqd/bi_hash_map/trait_defs/trait.BiHashItem.html "trait iddqd::bi_hash_map::trait_defs::BiHashItem"
+[`TriHashItem`]: https://docs.rs/iddqd/0.5.0/iddqd/tri_hash_map/trait_defs/trait.TriHashItem.html "trait iddqd::tri_hash_map::trait_defs::TriHashItem"
 [`foldhash`]: https://docs.rs/foldhash/0.2.0/foldhash/index.html "module foldhash"
 [`Borrow`]: https://doc.rust-lang.org/nightly/core/borrow/trait.Borrow.html "trait core::borrow::Borrow"
 [`Equivalent`]: https://docs.rs/equivalent/1.0.2/equivalent/trait.Equivalent.html "trait equivalent::Equivalent"

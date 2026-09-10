@@ -3,6 +3,8 @@
 <!-- next-header -->
 ## Unreleased - ReleaseDate
 
+## [0.5.0] - 2026-09-10
+
 This release fixes a number of soundness holes, mostly identified by Claude Fable 5.1 and GPT-6 Astra, plus Google's [`unsafe_rust_review_experimental` agent skill](https://github.com/google/rust-skills/tree/main/unsafe_rust_review_experimental). All identified soundness holes require significantly contrived code, e.g. a `Hash` impl that stashes the passed-in reference into a thread-local or internal `Cell`.
 
 Overall, `iddqd` now has significantly less unsafe code than before, though due to Rust compiler limitations it asks slightly more of trait implementers (such as `IdOrdItem::Key` now requiring `Hash` for change detection). We hope to relax these requirements in the future as the Rust compiler improves.
@@ -362,6 +364,7 @@ Thanks to [aatifsyed](https://github.com/aatifsyed) for your first contribution!
 Initial release.
 
 <!-- next-url -->
+[0.5.0]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.5.0
 [0.4.6]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.4.6
 [0.4.5]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.4.5
 [0.4.4]: https://github.com/oxidecomputer/iddqd/releases/tag/iddqd-0.4.4
