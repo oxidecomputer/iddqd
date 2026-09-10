@@ -1,7 +1,5 @@
 pub(crate) mod alloc;
 #[cfg(feature = "std")]
-pub(crate) mod borrow;
-#[cfg(feature = "std")]
 pub(crate) mod btree_table;
 #[cfg(feature = "daft")]
 pub(crate) mod daft_utils;

@@ -1,7 +1,6 @@
 use super::{IdOrdItem, RefMut, tables::IdOrdMapTables};
 use crate::support::{
     alloc::Global,
-    borrow::DormantMutRef,
     btree_table,
     item_set::{ConsumingItemSet, ItemSet, ItemSlotsPtr},
 };
@@ -99,18 +98,7 @@ impl<'a, T: IdOrdItem> Iterator for IterMut<'a, T> {
         // structural.
         let item: &'a mut T = unsafe { self.items.get_mut(index) };
 
-        let (hash, dormant) = {
-            let (item, dormant) = DormantMutRef::new(item);
-            let hash = self.tables.make_hash(item);
-            (hash, dormant)
-        };
-
-        // SAFETY: The `&mut T` that `DormantMutRef::new` produced inside
-        // the block above (and used for hashing) was dropped when the
-        // block closed, so the dormant ref is now the unique borrow of
-        // the slot. The `self.tables.state()` access below touches a
-        // different allocation and does not alias.
-        let item = unsafe { dormant.awaken() };
+        let hash = self.tables.make_hash(item);
 
         Some(RefMut::new(self.tables.state().clone(), hash, item))
     }

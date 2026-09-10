@@ -183,8 +183,7 @@ fn test_insert_unique() {
     let error = map.insert_unique(v4.clone()).unwrap_err();
     assert_eq!(error.new_item(), &v4);
 
-    // Iterate over the items mutably. This ensures that miri detects UB if it
-    // exists.
+    // Keep all mutable guards alive together to exercise aliasing under Miri.
     let items: Vec<id_ord_map::RefMut<_>> = map.iter_mut().collect();
     let e1 = &items[0];
     assert_eq!(**e1, v3);
@@ -223,7 +222,6 @@ fn from_iter_unique_empty_is_ok() {
     assert!(map.is_empty());
 }
 
-// Test that the unsafe block within RefMut doesn't trip up miri.
 #[test]
 fn test_ref_mut_aliasing() {
     let mut map = IdOrdMap::<TestItem>::make_new();
