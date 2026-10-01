@@ -155,7 +155,7 @@ impl<A: Allocator> MapHashTable<A> {
         state: &S,
         key: K,
     ) -> MapHash {
-        MapHash { hash: state.hash_one(key) }
+        MapHash::compute(state, key)
     }
 
     // Ensure that K has a consistent hash.
@@ -169,7 +169,7 @@ impl<A: Allocator> MapHashTable<A> {
         F: Fn(ItemIndex) -> K,
         Q: ?Sized + Hash + Equivalent<K>,
     {
-        let hash = state.hash_one(key);
+        let hash = MapHash::compute(state, key).hash();
         self.items
             .find(hash, |stored| key.equivalent(&lookup(stored.ix)))
             .map(|stored| stored.ix)
@@ -184,7 +184,7 @@ impl<A: Allocator> MapHashTable<A> {
     where
         F: Fn(ItemIndex) -> K,
     {
-        let hash = state.hash_one(&key);
+        let hash = MapHash::compute(state, &key).hash();
         match self.items.entry(
             hash,
             |stored| lookup(stored.ix) == key,
@@ -201,13 +201,13 @@ impl<A: Allocator> MapHashTable<A> {
 
     pub(crate) fn find_entry_by_hash<F>(
         &mut self,
-        hash: u64,
+        hash: &MapHash,
         mut f: F,
     ) -> Result<OccupiedEntry<'_, A>, ()>
     where
         F: FnMut(ItemIndex) -> bool,
     {
-        match self.items.find_entry(hash, |stored| f(stored.ix)) {
+        match self.items.find_entry(hash.hash(), |stored| f(stored.ix)) {
             Ok(inner) => Ok(OccupiedEntry { inner }),
             Err(_) => Err(()),
         }

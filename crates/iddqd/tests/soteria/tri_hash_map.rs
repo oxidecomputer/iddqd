@@ -41,7 +41,7 @@ impl TriHashItem for TriItem {
 
 /// Plumbing smoke test: with a lawful hasher, a `TriHashMap` on the reference
 /// table round-trips all three keys and rejects a collision on *any* key.
-#[test]
+#[soteria::test]
 fn lawful_roundtrip() {
     let mut map: TriHashMap<TriItem, LawfulHasher> =
         TriHashMap::with_hasher(LawfulHasher);
@@ -98,7 +98,7 @@ fn lawful_roundtrip() {
 /// We only call `validate_structural`, not full `validate`, since under
 /// an adversarial hash we can end up not finding items by their key. Only
 /// structural validity is required to prevent unsoundness.
-#[test]
+#[soteria::test]
 fn lawless_operation_sequence() {
     let mut map: TriHashMap<TriItem, LawlessHasher> =
         TriHashMap::with_hasher(LawlessHasher);
@@ -140,7 +140,7 @@ fn lawless_operation_sequence() {
     std::mem::forget(map);
 }
 
-#[test]
+#[soteria::test]
 fn lawless_overwrite_is_sound() {
     let mut map: TriHashMap<TriItem, LawlessHasher> =
         TriHashMap::with_hasher(LawlessHasher);

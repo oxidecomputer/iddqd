@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+
+# Installs the Soteria bundle pinned in soteria-pin.sh.
+#
+# This is done by hand because `cargo soteria setup` hardcodes the soteria-tools
+# GitHub org, which went private in 2026-09.
+
+set -euo pipefail
+
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/soteria-pin.sh
+source "$here/soteria-pin.sh"
+
+dest="$SOTERIA_PIN_INSTALL_DIR"
+
+provision_toolchain() {
+    echo "soteria-install: provisioning the Rust toolchain pinned by obol"
+    "$dest/bin/obol" toolchain-path
+}
+
+if [[ -e "$SOTERIA_PIN_INSTALL_MARKER" ]]; then
+    echo "soteria-install: Soteria $SOTERIA_PIN_TAG already installed at $dest"
+    provision_toolchain
+    exit 0
+fi
+
+release_url="https://github.com/$SOTERIA_PIN_REPO/releases/tag/$SOTERIA_PIN_TAG"
+
+case "$(uname -s)/$(uname -m)" in
+    Linux/x86_64)
+        platform="linux-x86_64"
+        expected_sha256="$SOTERIA_PIN_SHA256_LINUX_X86_64"
+        sha256_cmd=(sha256sum)
+        ;;
+    Darwin/arm64)
+        platform="macos-arm64"
+        expected_sha256="$SOTERIA_PIN_SHA256_MACOS_ARM64"
+        sha256_cmd=(shasum -a 256)
+        ;;
+    *)
+        echo "error: no pre-built Soteria bundle for $(uname -s)/$(uname -m)." >&2
+        echo "  Bundles are published for Linux x86_64 and macOS arm64 only: $release_url" >&2
+        exit 1
+        ;;
+esac
+
+for tool in curl unzip "${sha256_cmd[0]}"; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+        echo "error: \`$tool\` is required to install Soteria but was not found in PATH." >&2
+        exit 1
+    fi
+done
+
+asset="soteria-rust-$SOTERIA_PIN_TAG-$platform.zip"
+asset_url="https://github.com/$SOTERIA_PIN_REPO/releases/download/$SOTERIA_PIN_TAG/$asset"
+
+# Stage the temp directory next to the destination so the final mv is a
+# same-filesystem rename.
+soteria_home="$(dirname "$dest")"
+mkdir -p "$soteria_home"
+staging="$(mktemp -d "$soteria_home/.install-$SOTERIA_PIN_TAG.XXXXXX")"
+trap 'rm -rf "$staging"' EXIT
+
+echo "soteria-install: downloading $asset_url"
+curl --proto '=https' --tlsv1.2 --fail --silent --show-error --location \
+    --retry 3 --output "$staging/$asset" "$asset_url"
+
+actual_sha256="$("${sha256_cmd[@]}" "$staging/$asset" | cut -d' ' -f1)"
+if [[ "$actual_sha256" != "$expected_sha256" ]]; then
+    echo "error: SHA-256 mismatch for $asset." >&2
+    echo "  expected: $expected_sha256" >&2
+    echo "  actual:   $actual_sha256" >&2
+    echo "  The release asset differs from the one pinned in scripts/soteria-pin.sh." >&2
+    echo "  If the release was republished intentionally, review it and update the pin: $release_url" >&2
+    exit 1
+fi
+
+unzip -q "$staging/$asset" -d "$staging/unpacked"
+unpacked="$staging/unpacked/soteria-rust-$platform"
+# The zip does not preserve the executable bit.
+chmod +x "$unpacked/bin/"*
+
+# A directory without the marker is a previously interrupted install.
+rm -rf "$dest"
+mv "$unpacked" "$dest"
+
+provision_toolchain
+
+echo "soteria-install: building plugins"
+soteria_export_env
+# CARGO_TARGET_DIR is unset because soteria-rust expects the plugin build output
+# inside the plugins directory.
+env -u CARGO_TARGET_DIR soteria-rust build-plugins
+touch "$SOTERIA_PIN_INSTALL_MARKER"
+echo "soteria-install: installed Soteria $SOTERIA_PIN_TAG at $dest"

@@ -99,7 +99,7 @@ impl IdOrdItem for LawlessItem {
 ///
 /// This is a smoke test that does minimal symbolic execution -- all it does is
 /// validate that `cfg(soteria)` works against the real std `BTreeMap`.
-#[test]
+#[soteria::test]
 fn lawful_roundtrip() {
     let mut map: IdOrdMap<LawfulItem> = IdOrdMap::new();
     let _ = map.insert_unique(LawfulItem { key: 1, value: 10 });
@@ -144,7 +144,7 @@ fn lawful_roundtrip() {
 /// We only call `validate_structural`, not full `validate`, since under
 /// an adversarial `Ord` we can end up not finding items by their key. Only
 /// structural validity is required to prevent unsoundness.
-#[test]
+#[soteria::test]
 fn lawless_operation_sequence() {
     let mut map: IdOrdMap<LawlessItem> = IdOrdMap::new();
 
@@ -192,7 +192,7 @@ fn lawless_operation_sequence() {
 /// Note that this isn't proving panic safety in general, only that an
 /// `insert_overwrite` panic leaves the map in a valid state. For panic
 /// safety, see the corresponding model-based tests.
-#[test]
+#[soteria::test]
 fn overwrite_fail_fast_is_sound() {
     let mut map: IdOrdMap<LawlessItem> = IdOrdMap::new();
     let k = nondet_u8_below(SEQ_KEYS);

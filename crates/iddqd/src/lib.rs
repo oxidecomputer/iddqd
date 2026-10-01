@@ -355,7 +355,7 @@
 //! * Compile-fail UI tests to ensure invalid patterns are rejected by the
 //!   borrow checker
 //! * Bounded formal verification for core invariants and UB using
-//!   [Soteria](https://soteria-tools.com)
+//!   [Soteria](https://github.com/giltho/soteria)
 //!
 //! Pathological user implementations written in safe Rust might corrupt
 //! internal map state and result in panics, but should never cause UB.

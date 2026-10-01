@@ -4,7 +4,7 @@
 //! This module is compiled only under the [Soteria] symbolic-execution
 //! frontend, which sets `--cfg soteria`.
 //!
-//! [Soteria]: https://soteria-tools.com
+//! [Soteria]: https://github.com/giltho/soteria
 
 use crate::{
     internal::ValidateCompact,

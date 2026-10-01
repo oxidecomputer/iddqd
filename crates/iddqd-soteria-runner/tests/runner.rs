@@ -70,11 +70,12 @@ macro_rules! test_module {
 lib_proof!(item_set_insert_assigns_dense_indexes);
 lib_proof!(item_set_remove_then_insert_reuses_freed_slot);
 
-// Keep in sync with the `#[test]` entrypoints in iddqd/tests/soteria/.
+// Keep in sync with the `#[soteria::test]` entrypoints in iddqd/tests/soteria/.
 test_module!(id_hash_map {
     lawful_roundtrip,
     lawless_operation_sequence,
     lawless_overwrite_is_sound,
+    lawless_lookup_can_miss,
 });
 
 test_module!(id_ord_map {

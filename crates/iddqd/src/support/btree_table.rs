@@ -43,12 +43,7 @@ use alloc::{
     collections::{BTreeMap, btree_map},
     vec::Vec,
 };
-use core::{
-    cell::Cell,
-    cmp::Ordering,
-    hash::{BuildHasher, Hash},
-    marker::PhantomData,
-};
+use core::{cell::Cell, cmp::Ordering, hash::Hash, marker::PhantomData};
 use equivalent::Comparable;
 
 thread_local! {
@@ -388,7 +383,7 @@ impl MapBTreeTable {
     }
 
     pub(crate) fn compute_hash<K: Hash>(&self, key: K) -> MapHash {
-        MapHash { hash: self.hash_state.hash_one(key) }
+        MapHash::compute(&self.hash_state, key)
     }
 }
 

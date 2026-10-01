@@ -6,15 +6,34 @@ use core::{
 /// Packages up a hash for later validation.
 #[derive(Clone)]
 pub(crate) struct MapHash {
-    pub(super) hash: u64,
+    hash: u64,
 }
 
 impl MapHash {
-    pub(crate) fn new(hash: u64) -> Self {
-        Self { hash }
+    /// Creates a new `MapHash` from a key.
+    #[cfg(not(soteria))]
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "the only place BuildHasher::hash_one is allowed"
+    )]
+    pub(crate) fn compute<S: BuildHasher, K: Hash>(state: &S, key: K) -> Self {
+        Self { hash: state.hash_one(key) }
     }
 
-    pub(crate) fn hash(&self) -> u64 {
+    // Soteria (2026-10-01) replaces `BuildHasher::hash_one` with a stub that
+    // always returns 0, which would hide adversarial hashers from the proofs.
+    // This works, though. This has been reported to one of the Soteria
+    // maintainers.
+    #[cfg(soteria)]
+    pub(crate) fn compute<S: BuildHasher, K: Hash>(state: &S, key: K) -> Self {
+        use core::hash::Hasher;
+
+        let mut hasher = state.build_hasher();
+        key.hash(&mut hasher);
+        Self { hash: hasher.finish() }
+    }
+
+    pub(super) fn hash(&self) -> u64 {
         self.hash
     }
 
@@ -23,7 +42,7 @@ impl MapHash {
         state: &S,
         key: K,
     ) -> bool {
-        self.hash == state.hash_one(key)
+        self.hash == Self::compute(state, key).hash
     }
 }
 

@@ -12,7 +12,7 @@ use crate::{
         map_hash::MapHash,
     },
 };
-use core::{fmt, hash::BuildHasher};
+use core::fmt;
 use equivalent::{Comparable, Equivalent};
 
 /// An ordered map where the keys are part of the values, based on a B-Tree.
@@ -1317,7 +1317,7 @@ impl<T: IdOrdItem> IdOrdMap<T> {
                     .expect("all indexes are present in self.items");
                 // Use T::key(item) rather than item.key() to force the key
                 // trait function to be called for T rather than &mut T.
-                let hash = MapHash::new(hash_state.hash_one(T::key(item)));
+                let hash = MapHash::compute(&hash_state, T::key(item));
                 f(RefMut::new(hash_state.clone(), hash, item))
             };
 
