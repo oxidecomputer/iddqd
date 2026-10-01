@@ -116,6 +116,77 @@ pub trait TriHashItem {
     ) -> Self::K3<'short>;
 }
 
+impl<A, B, C> TriHashItem for (A, B, C)
+where
+    A: Eq + Hash,
+    B: Eq + Hash,
+    C: Eq + Hash,
+{
+    type K1<'a>
+        = &'a A
+    where
+        A: 'a,
+        B: 'a,
+        C: 'a;
+    type K2<'a>
+        = &'a B
+    where
+        A: 'a,
+        B: 'a,
+        C: 'a;
+    type K3<'a>
+        = &'a C
+    where
+        A: 'a,
+        B: 'a,
+        C: 'a;
+
+    fn key1(&self) -> Self::K1<'_> {
+        &self.0
+    }
+
+    fn key2(&self) -> Self::K2<'_> {
+        &self.1
+    }
+
+    fn key3(&self) -> Self::K3<'_> {
+        &self.2
+    }
+
+    fn upcast_key1<'short, 'long: 'short>(
+        long: Self::K1<'long>,
+    ) -> Self::K1<'short>
+    where
+        A: 'long,
+        B: 'long,
+        C: 'long,
+    {
+        long
+    }
+
+    fn upcast_key2<'short, 'long: 'short>(
+        long: Self::K2<'long>,
+    ) -> Self::K2<'short>
+    where
+        A: 'long,
+        B: 'long,
+        C: 'long,
+    {
+        long
+    }
+
+    fn upcast_key3<'short, 'long: 'short>(
+        long: Self::K3<'long>,
+    ) -> Self::K3<'short>
+    where
+        A: 'long,
+        B: 'long,
+        C: 'long,
+    {
+        long
+    }
+}
+
 macro_rules! impl_for_ref {
     ($type:ty) => {
         impl<'b, T: 'b + ?Sized + TriHashItem> TriHashItem for $type {
