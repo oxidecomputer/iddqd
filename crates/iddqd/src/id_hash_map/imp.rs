@@ -1404,7 +1404,7 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
                     .expect("all indexes are present in self.items");
                 // Use T::key(item) rather than item.key() to force the key
                 // trait function to be called for T rather than &mut T.
-                let hash = MapHash::new(hash_state.hash_one(T::key(item)));
+                let hash = MapHash::compute(&hash_state, T::key(item));
                 f(RefMut::new(hash_state.clone(), hash, item))
             };
 
@@ -1540,11 +1540,11 @@ impl<T: IdHashItem, S: Clone + BuildHasher, A: Allocator> IdHashMap<T, S, A> {
         // our invariants easier to reason about.
         let item = self.items.get(remove_index)?;
         let state = &self.tables.state;
-        let hash = state.hash_one(item.key());
+        let hash = MapHash::compute(state, item.key());
         match self
             .tables
             .key_to_item
-            .find_entry_by_hash(hash, |index| index == remove_index)
+            .find_entry_by_hash(&hash, |index| index == remove_index)
         {
             Ok(entry) => entry.remove(),
             Err(()) => self.tables.key_to_item.remove_by_index(remove_index),

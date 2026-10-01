@@ -21,6 +21,10 @@ rustdoc *args:
 generate-readmes:
     cargo +stable sync-rdme --toolchain nightly-2026-09-30 --workspace --all-features
 
+# Install the pinned Soteria toolchain into `~/.soteria` (or `$SOTERIA_HOME`).
+soteria-install:
+    scripts/soteria-install
+
 # Run the Soteria symbolic-execution proofs in parallel (process-per-test).
 soteria *args:
     cargo nextest run -p iddqd-soteria-runner --profile soteria --run-ignored all -E 'binary_id(iddqd-soteria-runner::runner)' {{args}}

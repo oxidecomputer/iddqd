@@ -96,7 +96,7 @@ Thanks to the authors of the Google agent skill.
 
 ### Added
 
-- `iddqd`'s core invariants are now formally verified under adversarial `Hash` and `Ord` impls using the [Soteria](https://soteria-tools.com) symbolic executor. No new bugs were found during this process.
+- `iddqd`'s core invariants are now formally verified under adversarial `Hash` and `Ord` impls using the [Soteria](https://github.com/giltho/soteria) symbolic executor. No new bugs were found during this process.
 
   The formal verification is broad (covers all possible adversarial return values) but bounded-depth; it acts as a complement to the existing layers of randomized testing, which are less broad but generate much deeper operation sequences.
 

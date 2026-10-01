@@ -1,0 +1,3 @@
+disallowed-methods = [
+    { path = "core::hash::BuildHasher::hash_one", reason = "use `MapHash::compute`, which keeps user hashers reachable under the Soteria proofs" },
+]

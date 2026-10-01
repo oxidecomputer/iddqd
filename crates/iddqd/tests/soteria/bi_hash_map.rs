@@ -28,7 +28,7 @@ impl BiHashItem for BiItem {
     }
 }
 
-#[test]
+#[soteria::test]
 fn lawful_roundtrip() {
     let mut map: BiHashMap<BiItem, LawfulHasher> =
         BiHashMap::with_hasher(LawfulHasher);
@@ -73,7 +73,7 @@ fn lawful_roundtrip() {
 /// We only call `validate_structural`, not full `validate`, since under
 /// an adversarial hash we can end up not finding items by their key. Only
 /// structural validity is required to prevent unsoundness.
-#[test]
+#[soteria::test]
 fn lawless_operation_sequence() {
     let mut map: BiHashMap<BiItem, LawlessHasher> =
         BiHashMap::with_hasher(LawlessHasher);
@@ -109,7 +109,7 @@ fn lawless_operation_sequence() {
     std::mem::forget(map);
 }
 
-#[test]
+#[soteria::test]
 fn lawless_overwrite_is_sound() {
     let mut map: BiHashMap<BiItem, LawlessHasher> =
         BiHashMap::with_hasher(LawlessHasher);

@@ -28,7 +28,7 @@ impl IdHashItem for Item {
 ///
 /// This is a smoke test that doesn't do any symbolic execution -- all it does is
 /// validate that `cfg(soteria)` works.
-#[test]
+#[soteria::test]
 fn lawful_roundtrip() {
     let mut map: IdHashMap<Item, LawfulHasher> =
         IdHashMap::with_hasher(LawfulHasher);
@@ -65,7 +65,7 @@ fn lawful_roundtrip() {
 /// We only call `validate_structural`, not full `validate`, since under
 /// an adversarial hash we can end up not finding items by their key. Only
 /// structural validity is required to prevent unsoundness.
-#[test]
+#[soteria::test]
 fn lawless_operation_sequence() {
     let mut map: IdHashMap<Item, LawlessHasher> =
         IdHashMap::with_hasher(LawlessHasher);
@@ -106,7 +106,7 @@ fn lawless_operation_sequence() {
 ///   stored hash.
 ///
 /// This proof shows that in either case, the map is still structurally valid.
-#[test]
+#[soteria::test]
 fn lawless_overwrite_is_sound() {
     let mut map: IdHashMap<Item, LawlessHasher> =
         IdHashMap::with_hasher(LawlessHasher);
@@ -117,5 +117,23 @@ fn lawless_overwrite_is_sound() {
 
     map.validate_structural(ValidateCompact::NonCompact)
         .expect("sound whether the overwrite replaced or duplicated");
+    std::mem::forget(map);
+}
+
+// A canary for the lawless proofs in this directory.
+//
+// If key hashes ever stop reaching `LawlessHasher` (as of 2026-10-01, Soteria
+// stubs `BuildHasher::hash_one` to return 0), this proof fails.
+#[soteria::test]
+#[soteria::expect_fail]
+fn lawless_lookup_can_miss() {
+    let mut map: IdHashMap<Item, LawlessHasher> =
+        IdHashMap::with_hasher(LawlessHasher);
+    let _ = map.insert_unique(Item { key: 1, value: 10 });
+
+    soteria::assert(
+        map.get(&1u8).is_some(),
+        "an inserted key is found under a lawless hasher",
+    );
     std::mem::forget(map);
 }
