@@ -19,7 +19,7 @@ rustdoc *args:
 
 # Generate README.md files using `cargo-sync-rdme`.
 generate-readmes:
-    cargo sync-rdme --toolchain nightly-2026-04-30 --workspace --all-features
+    cargo +stable sync-rdme --toolchain nightly-2026-09-30 --workspace --all-features
 
 # Run the Soteria symbolic-execution proofs in parallel (process-per-test).
 soteria *args:
