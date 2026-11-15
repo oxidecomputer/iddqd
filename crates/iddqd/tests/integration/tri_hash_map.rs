@@ -528,7 +528,7 @@ impl TriHashMapMachine {
         self.check_valid(CompactnessChange::BecomesCompact);
     }
 
-    #[invariant]
+    #[invariant(always_run)]
     fn iter_matches(&mut self, _: TestCase) {
         let mut naive_items = self.naive.iter().collect::<Vec<_>>();
         naive_items.sort_by(|a, b| a.key1().cmp(&b.key1()));
@@ -543,7 +543,7 @@ fn proptest_ops(tc: TestCase) {
         naive: NaiveMap::new_key123(),
         compactness: ValidateCompact::Compact,
     };
-    hegel::stateful::run(machine, tc);
+    hegel::stateful::machine(machine).run(tc);
 }
 
 #[hegel::test(test_cases = 64)]
@@ -1244,9 +1244,10 @@ mod proptest_panic_safety {
             panic_safety: PanicSafety,
             op: impl FnOnce(&mut PanickyMap),
         ) {
-            // hegel runs the `#[invariant]` (which consumes `pending`) after
-            // every successful rule, so `pending` must be `None` here -- if
-            // not, a prior op's post-op checks were silently skipped.
+            // hegel runs the `#[invariant(always_run)]` (which consumes
+            // `pending`) after every successful rule, so `pending` must be
+            // `None` here -- if not, a prior op's post-op checks were silently
+            // skipped.
             assert!(
                 self.pending.is_none(),
                 "previous op's post-op invariant did not run before this op",
@@ -1438,7 +1439,7 @@ mod proptest_panic_safety {
             });
         }
 
-        #[invariant]
+        #[invariant(always_run)]
         fn check_post_op(&mut self, _: TestCase) {
             let Some(p) = self.pending.take() else {
                 self.map
@@ -1486,6 +1487,7 @@ mod proptest_panic_safety {
             iddqd::DefaultHashBuilder::default(),
             PanickyAlloc::default(),
         );
-        hegel::stateful::run(PanicMachine { map, step: 0, pending: None }, tc);
+        hegel::stateful::machine(PanicMachine { map, step: 0, pending: None })
+            .run(tc);
     }
 }

@@ -9,10 +9,10 @@ const MAX_KEY2_CODEPOINT: u8 = 0x7f;
 
 /// Returns a [`TestItem`] with random keys and values.
 #[hegel::composite]
-pub(crate) fn test_item(tc: TestCase) -> TestItem {
-    let key1 = draw_random_key1(&tc);
-    let key2 = draw_random_key2(&tc);
-    let key3 = draw_random_key3(&tc);
+pub(crate) fn test_item(tc: &TestCase) -> TestItem {
+    let key1 = draw_random_key1(tc);
+    let key2 = draw_random_key2(tc);
+    let key3 = draw_random_key3(tc);
     let value = tc.draw(gs::text());
     TestItem::new(key1, key2, key3, value)
 }

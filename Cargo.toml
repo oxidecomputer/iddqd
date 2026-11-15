@@ -29,7 +29,7 @@ foldhash = "0.2.0"
 # allocator-api2 is turned on, then for e.g. IdHashMap<T, S, A>, otherwise
 # IdHashMap<T, S>.)
 hashbrown = { version = "0.17.1", default-features = false, features = ["allocator-api2", "inline-more"] }
-hegeltest = "0.23.1"
+hegeltest = { version = "0.52.6", features = ["static-engine"] }
 hugealloc = "0.1.1"
 iddqd = { path = "crates/iddqd", default-features = false }
 iddqd-test-utils = { path = "crates/iddqd-test-utils" }
