@@ -419,7 +419,7 @@
 //!
 //! # Minimum supported Rust version (MSRV)
 //!
-//! This crate's MSRV is **Rust 1.86**. In general we aim for 6 months of Rust
+//! This crate's MSRV is **Rust 1.88**. In general we aim for 6 months of Rust
 //! compatibility.
 //!
 //! # What does iddqd mean?

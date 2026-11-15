@@ -303,11 +303,11 @@ pub fn record_observation(
     };
 
     let file = FILE.get_or_init(|| {
-        if let Some(parent) = path.parent() {
-            if !parent.as_str().is_empty() {
-                std::fs::create_dir_all(parent)
-                    .expect("created observation output parent directory");
-            }
+        if let Some(parent) = path.parent()
+            && !parent.as_str().is_empty()
+        {
+            std::fs::create_dir_all(parent)
+                .expect("created observation output parent directory");
         }
         let file = std::fs::OpenOptions::new()
             .create(true)

@@ -16,10 +16,10 @@ where
         // Ignore errors from duplicates which are quite possible to occur
         // here, since we're just testing serialization. But store the
         // first error to ensure that deserialization returns errors.
-        if let Err(error) = map.insert_unique(value) {
-            if first_error.is_none() {
-                first_error = Some(error.into_owned());
-            }
+        if let Err(error) = map.insert_unique(value)
+            && first_error.is_none()
+        {
+            first_error = Some(error.into_owned());
         }
     }
 

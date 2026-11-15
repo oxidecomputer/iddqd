@@ -4,7 +4,7 @@ error[E0521]: borrowed data escapes outside of closure
 39 |     let mut stashed = Vec::new();
    |         ----------- `stashed` declared here, outside of the closure body
 40 |     map.retain(|item| {
-   |                 ---- `item` is a reference that is only valid in the closure body
+   |                 ---- `item` is only valid in the closure body
 41 |         stashed.push(item);
    |         ^^^^^^^^^^^^^^^^^^ `item` escapes the closure body here
    |
