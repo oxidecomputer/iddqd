@@ -5,7 +5,7 @@ members = ["crates/*"]
 [workspace.package]
 edition = "2024"
 license = "MIT OR Apache-2.0"
-rust-version = "1.86"
+rust-version = "1.88"
 
 [workspace.lints.clippy]
 undocumented_unsafe_blocks = { level = "warn" }
@@ -40,7 +40,7 @@ serde = "1.0.228"
 serde_core = "1.0.228"
 serde_json = "1.0.145"
 test-strategy = "0.4.3"
-trybuild = "1.0.116"
+trybuild = "1.0.123"
 typify = "0.4.2"
 
 [profile.dev]

@@ -3,6 +3,10 @@
 <!-- next-header -->
 ## Unreleased - ReleaseDate
 
+### Changed
+
+- MSRV updated to Rust 1.88.
+
 ## [0.5.0] - 2026-09-10
 
 This release fixes a number of soundness holes, mostly identified by Claude Fable 5.1 and GPT-6 Astra, plus Google's [`unsafe_rust_review_experimental` agent skill](https://github.com/google/rust-skills/tree/main/unsafe_rust_review_experimental). All identified soundness holes require significantly contrived code, e.g. a `Hash` impl that stashes the passed-in reference into a thread-local or internal `Cell`.
