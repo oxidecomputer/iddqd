@@ -6,7 +6,9 @@ use crate::{
         schemars_utils::{create_map_schema, create_object_schema},
     },
     tri_hash_map::{
-        imp::TriHashMap, serde_impls::TriHashMapAsMap, trait_defs::TriHashItem,
+        imp::TriHashMap,
+        serde_impls::{TriHashMapAsMap, TriHashMapAsSeq},
+        trait_defs::TriHashItem,
     },
 };
 use alloc::string::String;
@@ -49,5 +51,23 @@ where
 
     fn is_referenceable() -> bool {
         false
+    }
+}
+
+impl<T, S, A> JsonSchema for TriHashMapAsSeq<T, S, A>
+where
+    T: JsonSchema + TriHashItem,
+    A: Allocator,
+{
+    fn schema_name() -> String {
+        TriHashMap::<T, S, A>::schema_name()
+    }
+
+    fn json_schema(generator: &mut SchemaGenerator) -> Schema {
+        TriHashMap::<T, S, A>::json_schema(generator)
+    }
+
+    fn is_referenceable() -> bool {
+        TriHashMap::<T, S, A>::is_referenceable()
     }
 }

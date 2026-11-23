@@ -34,5 +34,5 @@ pub use proptest_impls::{
 };
 pub use ref_mut::RefMut;
 #[cfg(feature = "serde")]
-pub use serde_impls::BiHashMapAsMap;
+pub use serde_impls::{BiHashMapAsMap, BiHashMapAsSeq};
 pub use trait_defs::BiHashItem;

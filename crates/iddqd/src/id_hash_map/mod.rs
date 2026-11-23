@@ -31,5 +31,5 @@ pub use proptest_impls::{
 };
 pub use ref_mut::RefMut;
 #[cfg(feature = "serde")]
-pub use serde_impls::IdHashMapAsMap;
+pub use serde_impls::{IdHashMapAsMap, IdHashMapAsSeq};
 pub use trait_defs::IdHashItem;

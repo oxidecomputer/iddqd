@@ -29,5 +29,5 @@ pub use proptest_impls::{
 };
 pub use ref_mut::RefMut;
 #[cfg(feature = "serde")]
-pub use serde_impls::TriHashMapAsMap;
+pub use serde_impls::{TriHashMapAsMap, TriHashMapAsSeq};
 pub use trait_defs::TriHashItem;

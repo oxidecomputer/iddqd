@@ -3,6 +3,10 @@
 <!-- next-header -->
 ## Unreleased - ReleaseDate
 
+### Added
+
+- `IdOrdMapAsSeq`, `IdHashMapAsSeq`, `BiHashMapAsSeq`, and `TriHashMapAsSeq` marker types to use with `#[serde(with = ...)]`. They serialize as a sequence, the same as the default `Serialize` impls, and deserialize only from a sequence. Use them with formats that are not self-describing, such as postcard and bincode, which do not support the `deserialize_any` call the default `Deserialize` impls make. With the `schemars08` feature, they have the same schema as the default impls.
+
 ### Changed
 
 - MSRV updated to Rust 1.88.
