@@ -511,6 +511,7 @@ dependencies = [
  "equivalent",
  "hugealloc",
  "iddqd",
+ "postcard",
  "proptest",
  "serde",
  "serde_json",

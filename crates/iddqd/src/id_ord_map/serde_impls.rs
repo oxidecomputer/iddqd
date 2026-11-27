@@ -257,7 +257,8 @@ impl<T> IdOrdMapAsMap<T> {
 /// `Deserializer::deserialize_any`. Formats that are not self-describing, such
 /// as postcard and bincode, do not support that method, so use this type with
 /// them instead. It serializes the same sequence as the `Serialize` impl for
-/// [`IdOrdMap`].
+/// [`IdOrdMap`]. Deserializing rebuilds the indexes and returns an error if any
+/// two items have the same key.
 ///
 /// With serde's `with` attribute this type covers struct fields. For a
 /// top-level map, call [`IdOrdMapAsSeq::deserialize`] with the format's
@@ -332,7 +333,8 @@ impl<T> IdOrdMapAsSeq<T> {
         map.serialize(serializer)
     }
 
-    /// Deserializes an `IdOrdMap` from a sequence of items.
+    /// Deserializes an `IdOrdMap` from a sequence of items, returning an error if
+    /// any two items have the same key.
     pub fn deserialize<'de, D>(deserializer: D) -> Result<IdOrdMap<T>, D::Error>
     where
         T: IdOrdItem + Deserialize<'de> + fmt::Debug,

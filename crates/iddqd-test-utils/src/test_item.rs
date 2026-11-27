@@ -387,6 +387,11 @@ pub trait ItemMap<T>: Clone {
         D: serde::de::Deserializer<'a>,
         T: fmt::Debug + serde::de::Deserialize<'a>;
     #[cfg(feature = "serde")]
+    fn deserialize_as_seq<'a, D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'a>,
+        T: fmt::Debug + serde::de::Deserialize<'a>;
+    #[cfg(feature = "serde")]
     fn make_deserialize_in<'a, D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::de::Deserializer<'a>,
@@ -471,6 +476,15 @@ impl<T: Clone + BiHashItem> ItemMap<T> for BiHashMap<T, HashBuilder, Alloc> {
         T: fmt::Debug + serde::de::Deserialize<'a>,
     {
         bi_hash_map::BiHashMapAsMap::deserialize(deserializer)
+    }
+
+    #[cfg(feature = "serde")]
+    fn deserialize_as_seq<'a, D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'a>,
+        T: fmt::Debug + serde::de::Deserialize<'a>,
+    {
+        bi_hash_map::BiHashMapAsSeq::deserialize(deserializer)
     }
 
     #[cfg(all(feature = "serde", feature = "allocator-api2"))]
@@ -592,6 +606,15 @@ where
         id_hash_map::IdHashMapAsMap::deserialize(deserializer)
     }
 
+    #[cfg(feature = "serde")]
+    fn deserialize_as_seq<'a, D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'a>,
+        T: fmt::Debug + serde::de::Deserialize<'a>,
+    {
+        id_hash_map::IdHashMapAsSeq::deserialize(deserializer)
+    }
+
     #[cfg(all(feature = "serde", feature = "allocator-api2"))]
     fn make_deserialize_in<'a, D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -694,6 +717,15 @@ where
         T: fmt::Debug + serde::de::Deserialize<'a>,
     {
         id_ord_map::IdOrdMapAsMap::deserialize(deserializer)
+    }
+
+    #[cfg(feature = "serde")]
+    fn deserialize_as_seq<'a, D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'a>,
+        T: fmt::Debug + serde::de::Deserialize<'a>,
+    {
+        id_ord_map::IdOrdMapAsSeq::deserialize(deserializer)
     }
 
     #[cfg(feature = "serde")]
@@ -804,6 +836,15 @@ where
         T: fmt::Debug + serde::de::Deserialize<'a>,
     {
         tri_hash_map::TriHashMapAsMap::deserialize(deserializer)
+    }
+
+    #[cfg(feature = "serde")]
+    fn deserialize_as_seq<'a, D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::de::Deserializer<'a>,
+        T: fmt::Debug + serde::de::Deserialize<'a>,
+    {
+        tri_hash_map::TriHashMapAsSeq::deserialize(deserializer)
     }
 
     #[cfg(all(feature = "serde", feature = "allocator-api2"))]

@@ -388,7 +388,8 @@ where
 /// `Deserializer::deserialize_any`. Formats that are not self-describing, such
 /// as postcard and bincode, do not support that method, so use this type with
 /// them instead. It serializes the same sequence as the `Serialize` impl for
-/// [`TriHashMap`].
+/// [`TriHashMap`]. Deserializing rebuilds the indexes and returns an error if any
+/// two items have the same key.
 ///
 /// With serde's `with` attribute this type covers struct fields. For a
 /// top-level map, call [`TriHashMapAsSeq::deserialize`] with the format's
@@ -483,7 +484,8 @@ where
         map.serialize(serializer)
     }
 
-    /// Deserializes a `TriHashMap` from a sequence of items.
+    /// Deserializes a `TriHashMap` from a sequence of items, returning an error if
+    /// any two items have the same key.
     pub fn deserialize<'de, D>(
         deserializer: D,
     ) -> Result<TriHashMap<T, S, A>, D::Error>
