@@ -95,6 +95,10 @@ where
 /// against the value. (In general, verification is not possible because the key
 /// type has a lifetime parameter embedded in it.)
 ///
+/// This impl uses `Deserializer::deserialize_any`, which formats that are not
+/// self-describing, such as postcard and bincode, do not support. Use
+/// [`BiHashMapAsSeq`] with those formats.
+///
 /// The `fmt::Debug` bound on `T` ensures better error reporting.
 impl<
     'de,
@@ -365,6 +369,125 @@ where
             _marker: PhantomData,
             hasher: S::default(),
             alloc: A::default(),
+        })
+    }
+}
+
+/// Marker type for [`BiHashMap`] serialized as a sequence and deserialized only
+/// from a sequence, for use with serde's `with` attribute.
+///
+/// The `Deserialize` impl for [`BiHashMap`] also accepts a map, which needs
+/// `Deserializer::deserialize_any`. Formats that are not self-describing, such
+/// as postcard and bincode, do not support that method, so use this type with
+/// them instead. It serializes the same sequence as the `Serialize` impl for
+/// [`BiHashMap`]. Deserializing rebuilds the indexes and returns an error if any
+/// two items have the same key.
+///
+/// With serde's `with` attribute this type covers struct fields. For a
+/// top-level map, call [`BiHashMapAsSeq::deserialize`] with the format's
+/// deserializer.
+///
+/// # Examples
+///
+/// ```
+/// # #[cfg(feature = "default-hasher")] {
+/// use iddqd::{
+///     BiHashItem, BiHashMap, bi_hash_map::BiHashMapAsSeq, bi_upcast,
+/// };
+/// use serde::{Deserialize, Serialize};
+///
+/// #[derive(Debug, Serialize, Deserialize)]
+/// struct Item {
+///     id: u32,
+///     name: String,
+/// }
+///
+/// impl BiHashItem for Item {
+///     type K1<'a> = u32;
+///     type K2<'a> = &'a str;
+///     fn key1(&self) -> Self::K1<'_> {
+///         self.id
+///     }
+///     fn key2(&self) -> Self::K2<'_> {
+///         &self.name
+///     }
+///     bi_upcast!();
+/// }
+///
+/// #[derive(Serialize, Deserialize)]
+/// struct Config {
+///     #[serde(with = "BiHashMapAsSeq")]
+///     items: BiHashMap<Item>,
+/// }
+/// # }
+/// ```
+pub struct BiHashMapAsSeq<T, S = DefaultHashBuilder, A: Allocator = Global> {
+    #[expect(clippy::type_complexity)]
+    _marker: PhantomData<fn() -> (T, S, A)>,
+}
+
+struct SeqVisitorAsSeq<T, S, A> {
+    inner: SeqVisitor<T, S, A>,
+}
+
+impl<'de, T, S, A> Visitor<'de> for SeqVisitorAsSeq<T, S, A>
+where
+    T: BiHashItem + Deserialize<'de> + fmt::Debug,
+    S: Clone + BuildHasher,
+    A: Clone + Allocator,
+{
+    type Value = BiHashMap<T, S, A>;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("a sequence of items representing a BiHashMap")
+    }
+
+    fn visit_seq<Access>(
+        self,
+        seq: Access,
+    ) -> Result<Self::Value, Access::Error>
+    where
+        Access: SeqAccess<'de>,
+    {
+        self.inner.visit_seq(seq)
+    }
+}
+
+impl<T, S, A> BiHashMapAsSeq<T, S, A>
+where
+    S: Clone + BuildHasher,
+    A: Allocator,
+{
+    /// Serializes a `BiHashMap` as a sequence of items, the same way as the
+    /// `Serialize` impl.
+    pub fn serialize<Ser>(
+        map: &BiHashMap<T, S, A>,
+        serializer: Ser,
+    ) -> Result<Ser::Ok, Ser::Error>
+    where
+        T: BiHashItem + Serialize,
+        Ser: Serializer,
+    {
+        map.serialize(serializer)
+    }
+
+    /// Deserializes a `BiHashMap` from a sequence of items, returning an error if
+    /// any two items have the same key.
+    pub fn deserialize<'de, D>(
+        deserializer: D,
+    ) -> Result<BiHashMap<T, S, A>, D::Error>
+    where
+        T: BiHashItem + Deserialize<'de> + fmt::Debug,
+        S: Default,
+        A: Clone + Default,
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_seq(SeqVisitorAsSeq {
+            inner: SeqVisitor {
+                _marker: PhantomData,
+                hasher: S::default(),
+                alloc: A::default(),
+            },
         })
     }
 }

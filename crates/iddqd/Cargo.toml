@@ -39,6 +39,7 @@ expectorate.workspace = true
 foldhash.workspace = true
 hegeltest.workspace = true
 iddqd-test-utils.workspace = true
+postcard.workspace = true
 proptest.workspace = true
 serde.workspace = true
 test-strategy.workspace = true

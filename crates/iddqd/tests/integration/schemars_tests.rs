@@ -1,11 +1,18 @@
 use expectorate::assert_contents;
 use iddqd::{
     BiHashItem, BiHashMap, IdHashItem, IdHashMap, TriHashItem, TriHashMap,
-    bi_hash_map::BiHashMapAsMap, bi_upcast, id_hash_map::IdHashMapAsMap,
-    id_upcast, tri_hash_map::TriHashMapAsMap, tri_upcast,
+    bi_hash_map::{BiHashMapAsMap, BiHashMapAsSeq},
+    bi_upcast,
+    id_hash_map::{IdHashMapAsMap, IdHashMapAsSeq},
+    id_upcast,
+    tri_hash_map::{TriHashMapAsMap, TriHashMapAsSeq},
+    tri_upcast,
 };
 #[cfg(feature = "std")]
-use iddqd::{IdOrdItem, IdOrdMap, id_ord_map::IdOrdMapAsMap};
+use iddqd::{
+    IdOrdItem, IdOrdMap,
+    id_ord_map::{IdOrdMapAsMap, IdOrdMapAsSeq},
+};
 use schemars::{JsonSchema, schema_for};
 use serde::{Deserialize, Serialize};
 
@@ -185,6 +192,58 @@ fn container_fixtures() {
         "tests/output/container_as_map_schema.json",
         &to_string_pretty_ln(&schema),
     );
+}
+
+/// The `AsSeq` types serialize the same way as the default impls, so they
+/// share their schemas.
+#[test]
+fn as_seq_schemas_match_default() {
+    assert_eq!(
+        schema_for!(IdHashMapAsSeq<TestUser>),
+        schema_for!(IdHashMap<TestUser>),
+    );
+    assert_eq!(
+        schema_for!(BiHashMapAsSeq<TestUser>),
+        schema_for!(BiHashMap<TestUser>),
+    );
+    assert_eq!(
+        schema_for!(TriHashMapAsSeq<TestUser>),
+        schema_for!(TriHashMap<TestUser>),
+    );
+    #[cfg(feature = "std")]
+    assert_eq!(
+        schema_for!(IdOrdMapAsSeq<TestUser>),
+        schema_for!(IdOrdMap<TestUser>),
+    );
+}
+
+#[cfg(feature = "std")]
+#[test]
+fn as_seq_container_matches_default() {
+    #[derive(JsonSchema)]
+    #[expect(unused)]
+    struct Container {
+        users_bi: BiHashMap<TestUser>,
+        users_hash: IdHashMap<TestUser>,
+        users_ord: IdOrdMap<TestUser>,
+        users_tri: TriHashMap<TestUser>,
+    }
+
+    #[derive(JsonSchema)]
+    #[serde(rename = "Container")]
+    #[expect(unused)]
+    struct ContainerAsSeq {
+        #[serde(with = "BiHashMapAsSeq::<TestUser>")]
+        users_bi: BiHashMap<TestUser>,
+        #[serde(with = "IdHashMapAsSeq::<TestUser>")]
+        users_hash: IdHashMap<TestUser>,
+        #[serde(with = "IdOrdMapAsSeq::<TestUser>")]
+        users_ord: IdOrdMap<TestUser>,
+        #[serde(with = "TriHashMapAsSeq::<TestUser>")]
+        users_tri: TriHashMap<TestUser>,
+    }
+
+    assert_eq!(schema_for!(ContainerAsSeq), schema_for!(Container));
 }
 
 fn to_string_pretty_ln<T: Serialize>(data: &T) -> String {

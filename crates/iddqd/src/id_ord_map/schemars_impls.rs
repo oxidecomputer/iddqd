@@ -2,7 +2,9 @@
 
 use crate::{
     id_ord_map::{
-        imp::IdOrdMap, serde_impls::IdOrdMapAsMap, trait_defs::IdOrdItem,
+        imp::IdOrdMap,
+        serde_impls::{IdOrdMapAsMap, IdOrdMapAsSeq},
+        trait_defs::IdOrdItem,
     },
     support::schemars_utils::{create_map_schema, create_object_schema},
 };
@@ -40,5 +42,22 @@ where
 
     fn is_referenceable() -> bool {
         false
+    }
+}
+
+impl<T> JsonSchema for IdOrdMapAsSeq<T>
+where
+    T: JsonSchema + IdOrdItem,
+{
+    fn schema_name() -> String {
+        IdOrdMap::<T>::schema_name()
+    }
+
+    fn json_schema(generator: &mut SchemaGenerator) -> Schema {
+        IdOrdMap::<T>::json_schema(generator)
+    }
+
+    fn is_referenceable() -> bool {
+        IdOrdMap::<T>::is_referenceable()
     }
 }

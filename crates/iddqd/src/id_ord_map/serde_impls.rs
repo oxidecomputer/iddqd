@@ -76,6 +76,10 @@ where
 /// The `Deserialize` impl deserializes from either a sequence or a map of items,
 /// rebuilding the indexes and producing an error if there are any duplicates.
 ///
+/// This impl uses `Deserializer::deserialize_any`, which formats that are not
+/// self-describing, such as postcard and bincode, do not support. Use
+/// [`IdOrdMapAsSeq`] with those formats.
+///
 /// The `fmt::Debug` bound on `T` ensures better error reporting.
 impl<'de, T: IdOrdItem + fmt::Debug> Deserialize<'de> for IdOrdMap<T>
 where
@@ -243,5 +247,101 @@ impl<T> IdOrdMapAsMap<T> {
         D: Deserializer<'de>,
     {
         deserializer.deserialize_map(MapVisitorAsMap { _marker: PhantomData })
+    }
+}
+
+/// Marker type for [`IdOrdMap`] serialized as a sequence and deserialized only
+/// from a sequence, for use with serde's `with` attribute.
+///
+/// The `Deserialize` impl for [`IdOrdMap`] also accepts a map, which needs
+/// `Deserializer::deserialize_any`. Formats that are not self-describing, such
+/// as postcard and bincode, do not support that method, so use this type with
+/// them instead. It serializes the same sequence as the `Serialize` impl for
+/// [`IdOrdMap`]. Deserializing rebuilds the indexes and returns an error if any
+/// two items have the same key.
+///
+/// With serde's `with` attribute this type covers struct fields. For a
+/// top-level map, call [`IdOrdMapAsSeq::deserialize`] with the format's
+/// deserializer.
+///
+/// # Examples
+///
+/// ```
+/// use iddqd::{IdOrdItem, IdOrdMap, id_ord_map::IdOrdMapAsSeq, id_upcast};
+/// use serde::{Deserialize, Serialize};
+///
+/// #[derive(Debug, Serialize, Deserialize)]
+/// struct Item {
+///     id: u32,
+///     name: String,
+/// }
+///
+/// impl IdOrdItem for Item {
+///     type Key<'a> = u32;
+///     fn key(&self) -> Self::Key<'_> {
+///         self.id
+///     }
+///     id_upcast!();
+/// }
+///
+/// #[derive(Serialize, Deserialize)]
+/// struct Config {
+///     #[serde(with = "IdOrdMapAsSeq")]
+///     items: IdOrdMap<Item>,
+/// }
+/// ```
+pub struct IdOrdMapAsSeq<T> {
+    _marker: PhantomData<fn() -> T>,
+}
+
+struct SeqVisitorAsSeq<T> {
+    inner: SeqVisitor<T>,
+}
+
+impl<'de, T> Visitor<'de> for SeqVisitorAsSeq<T>
+where
+    T: IdOrdItem + Deserialize<'de> + fmt::Debug,
+{
+    type Value = IdOrdMap<T>;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("a sequence of items representing an IdOrdMap")
+    }
+
+    fn visit_seq<Access>(
+        self,
+        seq: Access,
+    ) -> Result<Self::Value, Access::Error>
+    where
+        Access: SeqAccess<'de>,
+    {
+        self.inner.visit_seq(seq)
+    }
+}
+
+impl<T> IdOrdMapAsSeq<T> {
+    /// Serializes an `IdOrdMap` as a sequence of items, the same way as the
+    /// `Serialize` impl.
+    pub fn serialize<Ser>(
+        map: &IdOrdMap<T>,
+        serializer: Ser,
+    ) -> Result<Ser::Ok, Ser::Error>
+    where
+        T: IdOrdItem + Serialize,
+        Ser: Serializer,
+    {
+        map.serialize(serializer)
+    }
+
+    /// Deserializes an `IdOrdMap` from a sequence of items, returning an error if
+    /// any two items have the same key.
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<IdOrdMap<T>, D::Error>
+    where
+        T: IdOrdItem + Deserialize<'de> + fmt::Debug,
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_seq(SeqVisitorAsSeq {
+            inner: SeqVisitor { _marker: PhantomData },
+        })
     }
 }

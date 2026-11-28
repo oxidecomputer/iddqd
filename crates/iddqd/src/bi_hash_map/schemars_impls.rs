@@ -2,7 +2,9 @@
 
 use crate::{
     bi_hash_map::{
-        imp::BiHashMap, serde_impls::BiHashMapAsMap, trait_defs::BiHashItem,
+        imp::BiHashMap,
+        serde_impls::{BiHashMapAsMap, BiHashMapAsSeq},
+        trait_defs::BiHashItem,
     },
     support::{
         alloc::Allocator,
@@ -49,5 +51,23 @@ where
 
     fn is_referenceable() -> bool {
         false
+    }
+}
+
+impl<T, S, A> JsonSchema for BiHashMapAsSeq<T, S, A>
+where
+    T: JsonSchema + BiHashItem,
+    A: Allocator,
+{
+    fn schema_name() -> String {
+        BiHashMap::<T, S, A>::schema_name()
+    }
+
+    fn json_schema(generator: &mut SchemaGenerator) -> Schema {
+        BiHashMap::<T, S, A>::json_schema(generator)
+    }
+
+    fn is_referenceable() -> bool {
+        BiHashMap::<T, S, A>::is_referenceable()
     }
 }

@@ -16,6 +16,7 @@ camino.workspace = true
 equivalent.workspace = true
 hugealloc = { workspace = true, optional = true }
 iddqd.workspace = true
+postcard = { workspace = true, optional = true }
 proptest.workspace = true
 serde = { workspace = true, features = ["derive"], optional = true }
 serde_json = { workspace = true, optional = true }
@@ -33,7 +34,7 @@ allocator-api2 = [
 # We test once with the default hasher, and once with std's RandomState.
 default-hasher = ["iddqd/default-hasher"]
 std = ["iddqd/std"]
-serde = ["dep:serde", "dep:serde_json", "iddqd/serde"]
+serde = ["dep:postcard", "dep:serde", "dep:serde_json", "iddqd/serde"]
 
 [package.metadata.release]
 release = false
